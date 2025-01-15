@@ -103,6 +103,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Add latency measurements to a GraphDB repository.")
     parser.add_argument('-r', '--repository', type=str, required=True, help='The URL of the GraphDB SPARQL endpoint')
     parser.add_argument('-n', '--numberOfReports', type=int, required=False, help='The number of reports to generate')
+    parser.add_argument('-t', '--timeBetween', type=int, required=False, default=10, help='Time in seconds between reports (default: 10 seconds)')
     args = parser.parse_args()
 
     # Combine endpoint and repository to form the full SPARQL endpoint URL
@@ -116,12 +117,19 @@ if __name__ == "__main__":
             # Generate the specified number of reports
             current_time = datetime.utcnow()
             for i in range(args.numberOfReports):
-                timestamp = Literal((current_time + timedelta(seconds=10 * i)).isoformat(), datatype=XSD.dateTime)
+                if args.timeBetween:
+                    add = args.timeBetween
+                else:
+                    add = 10
+                timestamp = Literal((current_time + timedelta(seconds=add * i)).isoformat(), datatype=XSD.dateTime)
                 add_measurement(sparql_endpoint, timestamp=timestamp)
         else:
             # Generate reports indefinitely every 10 seconds
             while True:
                 add_measurement(sparql_endpoint)
-                time.sleep(10)
+                if args.timeBetween:
+                    time.sleep(args.timeBetween)
+                else:
+                    time.sleep(10)
     except KeyboardInterrupt:
         print("Measurement process stopped.")

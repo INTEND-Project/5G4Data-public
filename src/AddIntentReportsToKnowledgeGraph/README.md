@@ -17,7 +17,7 @@ The program creates latency measurements below 10ms with a 2% chance of values a
 
 This program takes one mandatory parameter called REPOSITORY, which should be the URL of the repository to insert into (e.g. -r http://Arnes-MacBook-Pro.local:7200/repositories/Slice1LatencyMeasurements). When only the mandatory parameter is present, the program will sleep 10 seconds between inserting new reports.
 
-The program can also take an additional optional parameter NUMBEROFREPORTS. When this optional parameter is present the program will generate all the reports as fast as possible with timestamps 10 seconds apart from current time (e.g. -r http://Arnes-MacBook-Pro.local:7200/repositories/Slice1LatencyMeasurements) -n 10000). Note that when using this optional parameter, nothing will be printed to the terminal (unless something fails).
+The program can also take two optional parameters NUMBEROFREPORTS and TIMEBETWEEN. When the optional parameter NUMBEROFREPORTS is present the program will generate all the reports as fast as possible with timestamps 10 seconds apart from current time (e.g. -r http://Arnes-MacBook-Pro.local:7200/repositories/Slice1LatencyMeasurements) -n 10000). Note that when using this optional parameter, nothing will be printed to the terminal (unless something fails). It is also possible to change the time between latency measurements using the TIMEBETWEEN paramater (-t). The TIMEBETWEEN is the number of seconds between (the simulated) measurements.
 
 The program inserts the latency measurements in GraphDB and we created a new repository in GraphDB like this:
 

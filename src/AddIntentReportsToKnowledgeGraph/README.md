@@ -13,7 +13,7 @@ pip install -r requirements.txt
 ```
 
 **intent_report_slice_latency.py:**
-The program creates latency measurements below 10ms with a 2% chance of values above 10ms with 10 seconds between measurements.  
+The program creates latency measurements below 10ms with a 2% chance of values above 10ms with 10 seconds between measurements. Before you run the program you need to create the repository in GraphDB as shown below and use the repository URL as the -r (REPOSITORY) parameter.
 
 This program takes one mandatory parameter called REPOSITORY, which should be the URL of the repository to insert into (e.g. -r http://Arnes-MacBook-Pro.local:7200/repositories/Slice1LatencyMeasurements). When only the mandatory parameter is present, the program will sleep 10 seconds between inserting new reports.
 

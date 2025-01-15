@@ -21,8 +21,8 @@ The program can also take an additional optional parameter NUMBEROFREPORTS. When
 
 The program inserts the latency measurements in GraphDB and we created a new repository in GraphDB like this:
 
-![image](./screenshots/1-GraphDB_SetupRepositoriesCreateNew.png "Figure 1 Setup repository")
-![image](./screenshots/2-GraphDB_ClickOnGraphDBRepository.png "Figure 2 Click on GraphDB Repository")
-![image](./screenshots/3-GraphDB_CreateRepository.png "Figure 3 Name the repository and create it")
-![image](./screenshots/4-GraphDB_CopyRepositoryURL.png "Figure 4 Get the URL for use with the programs in this repo")
+![image](../../screenshots/1-GraphDB_SetupRepositoriesCreateNew.png "Figure 1 Setup repository")
+![image](../../screenshots/2-GraphDB_ClickOnGraphDBRepository.png "Figure 2 Click on GraphDB Repository")
+![image](../../screenshots/3-GraphDB_CreateRepository.png "Figure 3 Name the repository and create it")
+![image](../../screenshots/4-GraphDB_CopyRepositoryURL.png "Figure 4 Get the URL for use with the programs in this repo")
 

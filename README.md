@@ -3,11 +3,11 @@ Documentation and code examples for Intent Lifecycle Management. This work is co
 
 ***Description of subfolders in this repo:***
 
-**AddIntentReportsToKnowledgeGraph:**
+**src/AddIntentReportsToKnowledgeGraph:**
 Folder with example program to insert intent report data (simulate) into a knowledge graph.
 
-**SlicereportQuestionAnswerAgent:**
+**src/SlicereportQuestionAnswerAgent:**
 A very simple question and answer agent that uses a Large Language Model to allow a user to ask questions related to slice latency measurements in a knowledge graph.
 
-**misc:**
+**src/misc:**
 Small test programs and other stuff used as part of the work

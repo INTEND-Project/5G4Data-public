@@ -1,0 +1,5 @@
+langchain-community==0.3.14
+langchain-openai==0.3.0
+pip==24.3.1
+rdflib==7.1.2
+setuptools==65.5.0

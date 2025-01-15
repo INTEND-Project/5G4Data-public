@@ -11,3 +11,5 @@ A very simple question and answer agent that uses a Large Language Model to allo
 
 **src/misc:**
 Small test programs and other stuff used as part of the work
+
+We have used GraphDB for all our experimentation. GraphDB can be dowloaded [here](https://www.ontotext.com/).

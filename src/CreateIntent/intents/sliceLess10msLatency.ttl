@@ -1,0 +1,27 @@
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix log:  <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix set:  <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix quan:  <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix intendproject: <http://intendproject.eu/> .
+
+intendproject:I1 a icm:Intent ;
+    log:allOf ( intendproject:E1 ) ;
+.
+intendproject:T1 a icm:Target ;
+    rdfs:member intendproject:Slice1
+.
+intendproject:E1 a icm:PropertyExpectation ; 
+    icm:target intendproject:T1 ;
+    log:allOf ( intendproject:C1 )
+.
+intendproject:C1 a icm:Condition ;
+    set:forAll ( _:X
+        [ icm:valuesOfTargetProperty ( intendproject:latency1 ) ]
+        quan:smaller ( _:X [ rdf:value "10"^^xsd:decimal ;
+        quan:unit "ms"
+        ] )
+    )
+.

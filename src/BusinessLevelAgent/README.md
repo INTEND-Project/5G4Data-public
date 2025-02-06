@@ -9,8 +9,12 @@ The general idea for this PoC has been to test different aproaches to make the a
 
 The Expectations that can be expressed is therefore limited to 5G network and Edge compute configurations. For the 5G network this is limited to setting up virtual networks with specific QoS requirements (e.g. a 5G network slice or a 5G PDU session). For the Edge Compute this is limited to being able to deploy 3rd party workloads to one of the many edge datacenters (they are envisioned to be spread out geograpically in the CSP footprint). It is also possible that the compute can offer other capabilities, for example: power consumption constraints, compute latency constraints, etc.
 
+In general, the idea going forward will be to isolate the use-case specific parts. The use-case specific parts could for example be: system prompts, few shot examples, bringing in use-case specific knowledge using different techniques (RAG, extraction from SQL databases etc.), etc....
+
 # Try it out?
 The entire agent is developed inside a [VSCode Dev Container](https://code.visualstudio.com/docs/devcontainers/containers). The easiest way to run the agent is therefore simply to use the "Dev Container: Open Folder in Container" command in VSCode (F1 shortcut). When the container is ready, open a Terminal in the container and run the following command in the terminal: ***streamlit run business_level_agent.py***
+
+It is of course also possible to run the agent under your OS, if you first prepare a proper (virtual) python environment (with langchain, streamlit, openai, and other needed packages installed).
 
 VSCode will ask you to open the agent in the browser, click on "Open in Browser" and you should then see this in your browser:
 ![The minimalistic inChat PoC :-)](./inChat_PoC_for_5G4Data_use-case.png)

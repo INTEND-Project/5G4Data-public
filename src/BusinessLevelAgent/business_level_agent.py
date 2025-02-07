@@ -1,10 +1,10 @@
+from langchain_community.chat_message_histories import StreamlitChatMessageHistory
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
-from langchain.schema import SystemMessage, HumanMessage
-from langchain.schema.runnable import RunnableSequence
-from langchain.prompts import ChatPromptTemplate
-import streamlit as st
 from dotenv import load_dotenv
 import os
+import streamlit as st
 
 def read_system_prompt(file_path: str) -> str:
     """ Reads the system prompt template from a file. """
@@ -16,64 +16,62 @@ def write_rdf_response(file_path: str, rdf_data: str):
     with open(file_path, 'w', encoding='utf-8') as file:
         file.write(rdf_data)
 
-def generate_turtle_rdf(user_input: str, system_prompt_file: str, output_file: str) -> str:
-    """
-    Uses the TM Forum Intent Ontology instructions in the System Prompt
-    to generate RDF Turtle triples from user_input using RunnableSequence.
-    """
-    # Read system prompt from the specified file
-    system_prompt_template = read_system_prompt(system_prompt_file)
+st.set_page_config(page_title="StreamlitChatMessageHistory", page_icon="📖")
+st.title("5G4Data pre-MVS agent :sunglasses:")
+st.header("Natural language to TM Forum intent")
 
-    system_message = SystemMessage(content=system_prompt_template)
-    user_message = HumanMessage(content=user_input.strip())
+# Set up memory
+msgs = StreamlitChatMessageHistory(key="langchain_messages")
+if len(msgs.messages) == 0:
+    msgs.add_ai_message("Hello, I am an AI assistant designed to help convert natural language inputs into TM Forum intents in RDF Turtle format for the 5G4Data use-case.\n How can I assist you today?")
 
-    # Create a ChatPromptTemplate from system + user messages
-    chat_prompt = ChatPromptTemplate.from_messages([system_message, user_message])
+load_dotenv()
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
-    # Load environment variables from .env file
-    load_dotenv()
-    openai_key = os.getenv("OPENAI_API_KEY")
+# Set up the LangChain, passing in Message History
+system = read_system_prompt("system_prompt_template.txt")
+abstract_system = read_system_prompt("abstract_system_prompt_template.txt")
+prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", system),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{question}"),
+    ]
+)
 
-    # Instantiate the language model
-    llm = ChatOpenAI(
-        model_name="o1", 
-        openai_api_key=openai_key
-    )
+chain = prompt | ChatOpenAI(api_key=openai_api_key, model="o3-mini")
+chain_with_history = RunnableWithMessageHistory(
+    chain,
+    lambda session_id: msgs,
+    input_messages_key="question",
+    history_messages_key="history",
+)
 
-    # Wrap the prompt and the model in a RunnableSequence
-    chain = chat_prompt | llm
+abstract_prompt = ChatPromptTemplate.from_messages([
+    ("user", abstract_system),
+    ("human", "{chatbot_response}"),
+])
+abstract_chain = abstract_prompt | ChatOpenAI(api_key=openai_api_key, model="o1-mini")
 
-    # Invoke the sequence to get the result
-    ai_response = chain.invoke({})
-    output_turtle = ai_response.content  # Convert AIMessage to string
-    # Write the output to the specified file
-    write_rdf_response(output_file, output_turtle)
-    return output_turtle
+# Render current messages from StreamlitChatMessageHistory
+#for msg in msgs.messages:
+#    st.chat_message(msg.type).write(msg.content)
 
-if __name__ == "__main__":
-    st.title("5G4Data INTEND inChat")
+for i, msg in enumerate(msgs.messages, start=1):
+    # Omit the turtle messages
+    if msg.content.startswith("@prefix icm"):
+        continue  # Skip displaying in Streamlit chat
+    # Display in Streamlit chat only if it doesn't start with "@prefix icm"
+    st.chat_message(msg.type).write(msg.content)
 
-    # Paths to the system prompt template file and output RDF file
-    system_prompt_file = "system_prompt_template.txt"
-    output_file = "rdf_response.ttl"
-
-    with st.form("my_form"):
-      user_query = st.text_area(
-          "Hello, I am an AI assistant designed to help convert natural language inputs into TM Forum intents in RDF Turtle format. How can I assist you today?",
-          "Enter text:",
-      )
-      submitted = st.form_submit_button("Submit")
-
-      # Default user query
-      if not user_query:
-        user_query = (
-            "My retail store AR application is not giving my customers a good experience. "
-            "It seems to be lagging, possibly due to high latency or poor bandwidth. Please fix it. "
-            "The AR goggles are connected to Telenor 5G network in my store in Tromsø, Norway. My store is "
-            "located in the K1 shopping mall."
-        )
-
-      rdf_response = generate_turtle_rdf(user_query, system_prompt_file, output_file)
-      st.info(f"RDF output has been written to {output_file}")
-    #print("=== Generated RDF (Turtle) ===")
-    #print(f"RDF output has been written to {output_file}")
+output_file = "rdf_response.ttl"
+# If user inputs a new prompt, generate and draw a new response
+if prompt := st.chat_input():
+    st.chat_message("human").write(prompt)
+    # Note: new messages are saved to history automatically by Langchain during run
+    config = {"configurable": {"session_id": "any"}}
+    response = chain_with_history.invoke({"question": prompt}, config)
+    write_rdf_response(output_file, response.content)
+    st.chat_message("ai").write(f"The TM Forum formatted intent is output to the file {output_file}. You can ask me questions about it or give me a new business objectiv to transform, but wait, I will first give you an abstract of the created intent.")
+    abstract = abstract_chain.invoke({"chatbot_response": response.content}, config)
+    st.chat_message("ai").write("Here is an abstract of the created intent:\n\n" + abstract.content)

@@ -21,6 +21,7 @@ intendproject:DE1 a icm:DeliveryExpectation ;
 .
 
 intendproject:C1 a icm:Condition ;
+    dct:description "AAAAA"@en ;
     set:forAll ( _:X
         [ icm:valuesOfTargetProperty ( intendproject:Telenor5GLatency ) ]
         quan:smaller ( _:X [ rdf:value "BBBBB"^^xsd:decimal ;
@@ -30,6 +31,7 @@ intendproject:C1 a icm:Condition ;
 .
 
 intendproject:C2 a icm:Condition ;
+    dct:description "AAAAA"@en ;
     set:forAll ( _:X
         [ icm:valuesOfTargetProperty ( intendproject:Telenor5GBandwidth ) ]
         quan:larger ( _:X [ rdf:value "CCCCC"^^xsd:decimal ;
@@ -39,6 +41,7 @@ intendproject:C2 a icm:Condition ;
 .
 
 intendproject:C3 a icm:Condition ;
+    dct:description "AAAAA"@en ;
     set:forAll ( _:X
         [ icm:valuesOfTargetProperty ( intendproject:TelenorEdgeComputeLatency ) ]
         quan:smaller ( _:X [ rdf:value "DDDDD"^^xsd:decimal ;
@@ -49,10 +52,12 @@ intendproject:C3 a icm:Condition ;
 
 # inChat detected that the expectations is for a specific geographical region
 intendproject:CX1 a icm:Context ;
+    dct:description "AAAAA"@en ;
     intendproject:appliesToRegion intendproject:K1ShoppingMallRegion ;
 .
 
 intendproject:K1ShoppingMallRegion a geo:Feature ;
+    dct:description "AAAAA"@en ;
     geo:hasGeometry [
     a geo:Polygon ;
     geo:asWKT "POLYGON((LAT1 LONG1, LAT2 LONG2, LAT3 LONG3, LAT4 LONG4))"^^geo:wktLiteral ;
@@ -64,9 +69,7 @@ intendproject:RE1 a icm:ReportingExpectation ;
     dct:description "Report if expectation is met with reports including metrics related to expectations"@en ;
 .
 
-Input: {input_text}
-
-You need to find the numbers for AAAAA, BBBBB, CCCCC, DDDDD, and the region represented by the LATX, LONGX in the polygon
+You need to create good descriptions for AAAAA and the numbers for BBBBB, CCCCC, DDDDD, and the region represented by the LATX, LONGX in the polygon
 to substitute into the template based on information in the user_query. Note that for the
 nordics where we operate the LATX values are larger than the LONGX values.
 

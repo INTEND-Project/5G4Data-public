@@ -1,0 +1,2 @@
+# Python code to used to generate syntehtic data
+This folder contain python code used to generate synthetic data for the INTEND project 5G4DATA use-case provided by Telenor. The subfolder names gives an indication about what type of data the scripts in the subfolder generates.

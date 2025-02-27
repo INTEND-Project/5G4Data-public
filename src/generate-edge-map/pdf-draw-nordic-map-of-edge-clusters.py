@@ -28,13 +28,13 @@ def plot_nordic_cities(df, output_pdf="nordic_cities_mercator.pdf"):
     plt.title("Major Cities in the Nordic Region (Mercator Projection)")
 
     # Save the plot as a PDF
-    plt.savefig(output_pdf, format="pdf", bbox_inches="tight")
+    plt.savefig(output_pdf, format="png", bbox_inches="tight")
     print(f"Map saved as {output_pdf}")
 
 # Main function
 def main():
     csv_filename = "../../tmp/cities_lat_lon.csv"  # Ensure your CSV file is in the correct location
-    output_pdf = "../../generated-syntetic-data/Nordic_Cities_Mercator.pdf"  # Define output PDF file name
+    output_pdf = "../../generated-syntetic-data/Nordic_Cities_Mercator.png"  # Define output PDF file name
     df = load_city_coordinates(csv_filename)
     plot_nordic_cities(df, output_pdf)
 

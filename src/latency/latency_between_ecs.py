@@ -92,7 +92,7 @@ def compute_matrix(cities, metric_function, round_digits=2):
 
 # Main execution
 if __name__ == "__main__":
-    input_file = "../../tmp/cities_lat_lon.csv"
+    input_file = "../../infrastructure-data/5G4Data_Nordic_Edge_Datacenters.csv"
     latency_output_file = "../../generated-syntetic-data/Nordic_Latencies_Matrix.csv"
     distance_output_file = "../../generated-syntetic-data/Nordic_Distances_Matrix.csv"
 

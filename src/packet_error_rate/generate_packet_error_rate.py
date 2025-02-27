@@ -17,7 +17,7 @@ latency_file = "../../generated-syntetic-data/Nordic_Latencies_Matrix.csv"
 distance_file = "../../generated-syntetic-data/Nordic_Distances_Matrix.csv"
 
 # Output paths for generated files
-packet_error_rate_file = "../../generated-syntetic-data/Nordic_Packet_Error_Rate_MatrixV2.csv"
+packet_error_rate_file = "../../generated-syntetic-data/Nordic_Packet_Error_Rate_Matrix.csv"
 prompt_file = "../../prompts/packet_error_rate_prompt.txt"
 
 # Load matrices

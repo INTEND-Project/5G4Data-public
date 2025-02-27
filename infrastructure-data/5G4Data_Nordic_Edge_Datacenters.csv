@@ -1,41 +1,41 @@
 Cluster_ID;City;Latitude;Longitude;GPUs;CPUs;Memory;Access;Major_source_of_electricity;Cost_of_compute
-EC_1;Copenhagen;55.6761;12.5683;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://copenhagen.5g-edge-api.telenor.com;Wind Power;
-EC_2;Aarhus;56.1629;10.2039;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://aarhus.5g-edge-api.telenor.com;Wind Power;
-EC_3;Odense;55.4038;10.4024;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://odense.5g-edge-api.telenor.com;Wind Power;
-EC_4;Helsinki;60.1695;24.9354;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://helsinki.5g-edge-api.telenor.com;Nuclear Power;
-EC_5;Espoo;60.2055;24.6559;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://espoo.5g-edge-api.telenor.com;Nuclear Power;
-EC_6;Tampere;61.4991;23.7871;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://tampere.5g-edge-api.telenor.com;Nuclear Power;
-EC_7;Vantaa;60.2941;25.0400;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://vantaa.5g-edge-api.telenor.com;Nuclear Power;
-EC_8;Oulu;65.0121;25.4651;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://oulu.5g-edge-api.telenor.com;Nuclear Power;
-EC_9;Rovaniemi;66.5039;25.7294;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://rovaniemi.5g-edge-api.telenor.com;Nuclear Power;
-EC_10;Turku;60.4518;22.2666;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://turku.5g-edge-api.telenor.com;Nuclear Power;
-EC_11;Stockholm;59.3293;18.0686;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://stockholm.5g-edge-api.telenor.com;Nuclear Power;
-EC_12;Gothenburg;57.7089;11.9746;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://gothenburg.5g-edge-api.telenor.com;Nuclear Power;
-EC_13;Malmö;55.6049;13.0038;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://malmo.5g-edge-api.telenor.com;Nuclear Power;
-EC_14;Uppsala;59.8586;17.6389;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://uppsala.5g-edge-api.telenor.com;Nuclear Power;
-EC_15;Västerås;59.6099;16.5448;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://vasteras.5g-edge-api.telenor.com;Nuclear Power;
-EC_16;Örebro;59.2753;15.2134;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://orebro.5g-edge-api.telenor.com;Nuclear Power;
-EC_17;Linköping;58.4108;15.6214;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://linkoping.5g-edge-api.telenor.com;Nuclear Power;
-EC_18;Jönköping;57.7815;14.1562;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://jonkoping.5g-edge-api.telenor.com;Nuclear Power;
-EC_19;Umeå;63.8258;20.2630;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://umea.5g-edge-api.telenor.com;Hydropower;
-EC_20;Östersund;63.1792;14.6357;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://ostersund.5g-edge-api.telenor.com;Hydropower;
-EC_21;Arjeplog;66.0515;17.8863;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://arjeplog.5g-edge-api.telenor.com;Hydropower;
-EC_22;Luleå;65.5848;22.1544;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://lulea.5g-edge-api.telenor.com;Hydropower;
-EC_23;Kiruna;67.8558;20.2253;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://kiruna.5g-edge-api.telenor.com;Hydropower;
-EC_24;Oslo;59.9139;10.7522;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://oslo.5g-edge-api.telenor.com;Hydropower;
-EC_25;Bergen;60.3913;5.3221;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://bergen.5g-edge-api.telenor.com;Hydropower;
-EC_26;Stavanger;58.9690;5.7331;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://stavanger.5g-edge-api.telenor.com;Hydropower;
-EC_27;Trondheim;63.4305;10.3951;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://trondheim.5g-edge-api.telenor.com;Hydropower;
-EC_28;Drammen;59.7439;10.2045;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://drammen.5g-edge-api.telenor.com;Hydropower;
-EC_29;Fredrikstad;59.2180;10.9298;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://fredrikstad.5g-edge-api.telenor.com;Hydropower;
-EC_30;Kristiansand;58.1467;7.99560;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://kristiansand.5g-edge-api.telenor.com;Hydropower;
-EC_31;Tromsø;69.6496;18.9560;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://tromso.5g-edge-api.telenor.com;Hydropower;
-EC_32;Tønsberg;59.2675;10.4074;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://tonsberg.5g-edge-api.telenor.com;Hydropower;
-EC_33;Hamar;60.7945;11.0670;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://hamar.5g-edge-api.telenor.com;Hydropower;
-EC_34;Mo;66.3128;14.1420;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://mo-i-rana.5g-edge-api.telenor.com;Hydropower;
-EC_35;Bodø;67.2804;14.4049;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://bodo.5g-edge-api.telenor.com;Hydropower;
-EC_36;Harstad;68.7986;16.5415;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://harstad.5g-edge-api.telenor.com;Hydropower;
-EC_37;Narvik;68.4385;17.4270;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://narvik.5g-edge-api.telenor.com;Hydropower;
-EC_38;Alta;69.9689;23.2716;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://alta.5g-edge-api.telenor.com;Hydropower;
-EC_39;Kirkenes;69.7271;30.0454;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://kirkenes.5g-edge-api.telenor.com;Hydropower;
-EC_40;Longyearbyen;78.2232;15.6267;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://longyearbyen.5g-edge-api.telenor.com;Diesel generators;
+EC_1;Copenhagen;55.6761;12.5683;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://copenhagen.5g-edge-api.telenor.com;Wind Power;10.4
+EC_2;Aarhus;56.1629;10.2039;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://aarhus.5g-edge-api.telenor.com;Wind Power;10.378
+EC_3;Odense;55.4038;10.4024;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://odense.5g-edge-api.telenor.com;Wind Power;10.378
+EC_4;Helsinki;60.1695;24.9354;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://helsinki.5g-edge-api.telenor.com;Nuclear Power;8.649
+EC_5;Espoo;60.2055;24.6559;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://espoo.5g-edge-api.telenor.com;Nuclear Power;8.649
+EC_6;Tampere;61.4991;23.7871;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://tampere.5g-edge-api.telenor.com;Nuclear Power;8.649
+EC_7;Vantaa;60.2941;25.0400;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://vantaa.5g-edge-api.telenor.com;Nuclear Power;8.649
+EC_8;Oulu;65.0121;25.4651;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://oulu.5g-edge-api.telenor.com;Nuclear Power;8.649
+EC_9;Rovaniemi;66.5039;25.7294;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://rovaniemi.5g-edge-api.telenor.com;Nuclear Power;8.649
+EC_10;Turku;60.4518;22.2666;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://turku.5g-edge-api.telenor.com;Nuclear Power;8.649
+EC_11;Stockholm;59.3293;18.0686;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://stockholm.5g-edge-api.telenor.com;Nuclear Power;8.865
+EC_12;Gothenburg;57.7089;11.9746;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://gothenburg.5g-edge-api.telenor.com;Nuclear Power;8.865
+EC_13;Malmö;55.6049;13.0038;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://malmo.5g-edge-api.telenor.com;Nuclear Power;9.297
+EC_14;Uppsala;59.8586;17.6389;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://uppsala.5g-edge-api.telenor.com;Nuclear Power;8.865
+EC_15;Västerås;59.6099;16.5448;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://vasteras.5g-edge-api.telenor.com;Nuclear Power;8.865
+EC_16;Örebro;59.2753;15.2134;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://orebro.5g-edge-api.telenor.com;Nuclear Power;8.865
+EC_17;Linköping;58.4108;15.6214;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://linkoping.5g-edge-api.telenor.com;Nuclear Power;8.865
+EC_18;Jönköping;57.7815;14.1562;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://jonkoping.5g-edge-api.telenor.com;Nuclear Power;8.865
+EC_19;Umeå;63.8258;20.2630;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://umea.5g-edge-api.telenor.com;Hydropower;8.195
+EC_20;Östersund;63.1792;14.6357;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://ostersund.5g-edge-api.telenor.com;Hydropower;8.195
+EC_21;Arjeplog;66.0515;17.8863;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://arjeplog.5g-edge-api.telenor.com;Hydropower;8.216
+EC_22;Luleå;65.5848;22.1544;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://lulea.5g-edge-api.telenor.com;Hydropower;8.216
+EC_23;Kiruna;67.8558;20.2253;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://kiruna.5g-edge-api.telenor.com;Hydropower;8.216
+EC_24;Oslo;59.9139;10.7522;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://oslo.5g-edge-api.telenor.com;Hydropower;9.297
+EC_25;Bergen;60.3913;5.3221;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://bergen.5g-edge-api.telenor.com;Hydropower;8.757
+EC_26;Stavanger;58.9690;5.7331;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://stavanger.5g-edge-api.telenor.com;Hydropower;9.405
+EC_27;Trondheim;63.4305;10.3951;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://trondheim.5g-edge-api.telenor.com;Hydropower;8.649
+EC_28;Drammen;59.7439;10.2045;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://drammen.5g-edge-api.telenor.com;Hydropower;9.297
+EC_29;Fredrikstad;59.2180;10.9298;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://fredrikstad.5g-edge-api.telenor.com;Hydropower;9.297
+EC_30;Kristiansand;58.1467;7.99560;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://kristiansand.5g-edge-api.telenor.com;Hydropower;9.405
+EC_31;Tromsø;69.6496;18.9560;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://tromso.5g-edge-api.telenor.com;Hydropower;8.108
+EC_32;Tønsberg;59.2675;10.4074;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://tonsberg.5g-edge-api.telenor.com;Hydropower;9.297
+EC_33;Hamar;60.7945;11.0670;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://hamar.5g-edge-api.telenor.com;Hydropower;9.297
+EC_34;Mo;66.3128;14.1420;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://mo-i-rana.5g-edge-api.telenor.com;Hydropower;8.108
+EC_35;Bodø;67.2804;14.4049;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://bodo.5g-edge-api.telenor.com;Hydropower;8.108
+EC_36;Harstad;68.7986;16.5415;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://harstad.5g-edge-api.telenor.com;Hydropower;8.108
+EC_37;Narvik;68.4385;17.4270;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://narvik.5g-edge-api.telenor.com;Hydropower;8.108
+EC_38;Alta;69.9689;23.2716;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://alta.5g-edge-api.telenor.com;Hydropower;8.108
+EC_39;Kirkenes;69.7271;30.0454;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://kirkenes.5g-edge-api.telenor.com;Hydropower;8.108
+EC_40;Longyearbyen;78.2232;15.6267;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://longyearbyen.5g-edge-api.telenor.com;Diesel generators;8.216

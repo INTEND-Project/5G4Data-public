@@ -53,7 +53,8 @@ def calculate_latency(lat1, lon1, lat2, lon2):
 
 def read_city_data(filepath):
     """
-    Reads city data from a CSV file.
+    Reads city data from a semicolon-separated CSV file and extracts 
+    City, Latitude, and Longitude columns.
 
     Parameters:
     filepath -- Path to the CSV file
@@ -61,7 +62,8 @@ def read_city_data(filepath):
     Returns:
     Dictionary with city names as keys and (latitude, longitude) as values
     """
-    df = pd.read_csv(filepath)
+    df = pd.read_csv(filepath, sep=';', usecols=['City', 'Latitude', 'Longitude'])
+    
     return {row["City"]: (row["Latitude"], row["Longitude"]) for _, row in df.iterrows()}
 
 def compute_matrix(cities, metric_function, round_digits=2):

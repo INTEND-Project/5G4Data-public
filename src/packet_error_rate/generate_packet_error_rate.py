@@ -68,7 +68,7 @@ print(f"Prompt saved successfully:\n- {prompt_file}")
 
 # OpenAI API Call
 response = client.chat.completions.create(
-    model="o3-mini",  # Use the latest GPT-4 model
+    model="gpt-4o",  # Use the latest GPT-4 model
     messages=[
         {"role": "system", "content": "You are a data scientist."},
         {"role": "user", "content": prompt}

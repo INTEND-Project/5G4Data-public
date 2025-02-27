@@ -37,7 +37,7 @@ prompt = f"""
 We have these Edge data center locations (with latencies between them expressed in milliseconds (ms)):
 {latency_matrix.to_string()}
 
-The hubs within a country are all connected with fiber networks of new advanced types with bandwidth between 20 and 60 Tbs/s. The hubs from different countries are connected with bandwidth between 5 Tbs/s up to 40 Tbs/s.
+The hubs within a country are all connected with fiber networks of new advanced types with bandwidth between 20 and 60 Tbs/s. The hubs from different countries are connected with bandwidth between 5 Tbs/s up to 40 Tbs/s. The hubs are:
 
 {', '.join(hub_list)}
 

@@ -17,7 +17,7 @@ latency_file = "../../generated-syntetic-data/Nordic_Latencies_Matrix.csv"
 distance_file = "../../generated-syntetic-data/Nordic_Distances_Matrix.csv"
 
 # Output paths for generated files
-packet_error_rate_file = "../../generated-syntetic-data/Nordic_Packet_Error_Rate_Matrix.csv"
+packet_error_rate_file = "../../generated-syntetic-data/Nordic_Packet_Error_Rate_MatrixV2.csv"
 prompt_file = "../../prompts/packet_error_rate_prompt.txt"
 
 # Load matrices
@@ -38,7 +38,7 @@ prompt = f"""
 We have these Edge data center locations (with latencies between them expressed in milliseconds (ms)):
 {latency_matrix.to_string()}
 
-The hubs within a country are all connected with fiber networks of new advanced types with bandwidth between 20 and 60 Tbs/s. The hubs from different countries are connected with bandwidth between 5 Tbs/s up to 40 Tbs/s.
+The hubs within a country are all connected with fiber networks of new advanced types with bandwidth between 20 and 60 Tbs/s. The hubs from different countries are connected with bandwidth between 5 Tbs/s up to 40 Tbs/s. The hubs are:
 
 {', '.join(hub_list)}
 
@@ -62,11 +62,13 @@ with open(prompt_file, "w", encoding="utf-8") as file:
     file.write(prompt)
 
 print(f"Prompt saved successfully:\n- {prompt_file}")
-sys.exit()
+
+# If only the prompt should be generated....
+#sys.exit()
 
 # OpenAI API Call
 response = client.chat.completions.create(
-    model="o1-mini",  # Use the latest GPT-4 model
+    model="o3-mini",  # Use the latest GPT-4 model
     messages=[
         {"role": "system", "content": "You are a data scientist."},
         {"role": "user", "content": prompt}

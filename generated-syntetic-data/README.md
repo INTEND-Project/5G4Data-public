@@ -5,7 +5,7 @@ These files have been generated based on the infrastructure description found in
 
 | File name                  | Description                           |
 | -------------------------- | ------------------------------------- |
-| Nordic_Distances_Matrix.csv | Distances in km between all the Edge Data centers |
+| Nordic_Distances_Matrix.csv | Distances in **km** between all the Edge Data centers. This file is used to generate the other metrics and is regarded as temporary and not part of the infrastructure description. |
 | Nordic_Latencies_Matrix.csv | Round-trip latencies in **ms** between all the Edge Data centers. The measurements represents the latency in the transport network (fiber optic cables). |
 | Nordic_Bandwidth_Matrix.csv | Bandwith in **Tbit/s** between all the Edge Data centers. The measurements represents the bandwidth in the transport network (fiber optic cables). |
 | Nordic_Packet_Error_Rate_Matrix.csv | Packet error rate (PER) in **packets/s** between all the Edge Data centers. The measurements represents the PER in the transport network (fiber optic cables).|

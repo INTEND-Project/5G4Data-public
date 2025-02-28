@@ -25,7 +25,7 @@ def plot_nordic_cities(df, output_pdf="nordic_cities_mercator.pdf"):
         # ax.text(row["Longitude"] + 0.5, row["Latitude"], row["City"], fontsize=9, 
         #         transform=ccrs.PlateCarree(), zorder=3)
 
-    plt.title("Telnor Edge data centers in the Nordic Region (Mercator Projection)")
+    plt.title("Telenor Edge data centers in the Nordic Region (Mercator Projection)")
 
     # Save the plot as a PDF
     plt.savefig(output_pdf, format="png", bbox_inches="tight")

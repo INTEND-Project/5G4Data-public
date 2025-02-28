@@ -1,4 +1,4 @@
-,Cluster_ID;City;Latitude;Longitude;GPUs;CPUs;Memory;Access;Major_source_of_electricity;Cost_of_compute
+Cluster_ID;City;Latitude;Longitude;GPUs;CPUs;Memory;Access;Major_source_of_electricity;Cost_of_compute
 EC_1;Copenhagen;55.6761;12.5683;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://copenhagen.5g-edge-api.telenor.com;Wind Power;10.4
 EC_2;Aarhus;56.1629;10.2039;16 DGX H100 GPUs each with 8x80 GB of GPU memory;32 x Intel Xeon Platinum 8480C;32 TB DDR5 RAM;https://aarhus.5g-edge-api.telenor.com;Wind Power;10.378
 EC_3;Odense;55.4038;10.4024;64 DGX H100 GPUs each with 8x80 GB of GPU memory;128 x Intel Xeon Platinum 8480C;128 TB DDR5 RAM;https://odense.5g-edge-api.telenor.com;Wind Power;10.378

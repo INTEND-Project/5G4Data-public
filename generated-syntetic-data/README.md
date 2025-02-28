@@ -1,5 +1,5 @@
 # 5G4DATA use-case synthetic data
-This folder contains several files that describes the 5G4DATA use-case infrastructure. Note that for the open loop control MVS this is regarded as static data, but for the open loop MVS, this should be regarded as dynamically changing data.
+This folder contains several files that describes the 5G4DATA use-case infrastructure. Note that for the open loop Minimal Viable Scenario (MVS) this is regarded as static data, but for the closed loop MVS, this should be regarded as dynamically changing data.
 
 These files have been generated based on the infrastructure description found in the ../infrastructure-data folder and represents plasible synthetic data for the infrastructure. The reason for using synthetic data is twofolded, partly because the complete infrastructure is not live (completed) yet and partly because this type of infrastructure is regarded as sociatal critical and under strict regulations.
 

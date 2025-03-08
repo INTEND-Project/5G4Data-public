@@ -16,5 +16,5 @@ The easiest way to create the stubs is by using the docker version of the OpenAP
  You now have the code for the server (stub), change current direcotry to the folder where the Docker file is ```cd out/5g4data/python-flask```. In this folder, first build the server using this command ```docker build -t openapi_server .```. This will create a docker images for your API server. Run the API server using this command ```docker run -p 8080:8080 openapi_server```. The server is now ready to accept https calls on ```https://localhost:8080```. The server also creates a swagger ui for the server and this ui can be accessed on ```http://localhost:8080/intentManagement/ui/```.
 
  ## Use the example client code (intent owner) to send an intent to the server (intent handler)
-
+We have also added a python [client](../CreateIntent/create_intent_tm921.py) program. The client program "simulates" an intent owner, and the API server is in this setting the intent handler. Run the python client like this ```python create_intent_tm921.py```
  

@@ -1,0 +1,340 @@
+openapi: 3.0.1
+info:
+  title: Intent Management
+  description: This is Swagger UI environment generated for the TM Forum Intent Management API specification
+  version: 5.0.0
+servers:
+  - url: '{apiRoot}/intentManagement/'
+    variables:
+      apiRoot:
+        default: 'https://5g4data'
+        enum:
+          - 'https://5g4data'
+tags:
+  - name: intent
+    description: Operations for Intent Resource
+  
+paths:
+  /intent:
+    post:
+      tags:
+        - intent
+      summary: Creates a Intent
+      description: This operation creates a Intent entity.
+      operationId: createIntent
+      parameters:
+        - $ref: '#/components/parameters/Fields'
+      requestBody:
+        $ref: '#/components/requestBodies/Intent_FVO'
+      responses:
+        '201':
+          $ref: '#/components/responses/201Intent'
+        '202':
+          $ref: '#/components/responses/202'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '405':
+          $ref: '#/components/responses/405'
+        '409':
+          $ref: '#/components/responses/409'
+        '500':
+          $ref: '#/components/responses/500'
+        '501':
+          $ref: '#/components/responses/501'
+        '503':
+          $ref: '#/components/responses/503'
+components:
+  schemas:
+    Entity:
+      type: object
+      description: Base entity schema for use in TMForum Open-APIs. Property.
+      allOf:
+        - $ref: '#/components/schemas/Extensible'
+        - $ref: '#/components/schemas/Addressable'
+    Intent:
+      allOf:
+        - $ref: '#/components/schemas/Entity'
+        - type: object
+          description: >-
+            An Intent instance is the formal description of all expectations including requirements,
+            goals, and constraints given to a technical system
+          properties:
+            description:
+              type: string
+              description: The description of the intent.
+            validFor:
+              $ref: '#/components/schemas/TimePeriod'
+            isBundle:
+              type: boolean
+              description: >-
+                isBundle determines whether an intent represents a single intent (false), or a
+                bundle of intents(true).
+            priority:
+              type: string
+              description: Can be used by intent owner to prioritize intents in an intent management system
+            statusChangeDate:
+              type: string
+              format: date-time
+              description: A date time( DateTime). The date that the entity status changed to the current one
+            context:
+              type: string
+              description: A string used to give a context to the intent
+            version:
+              type: string
+              description: A field that identifies the specific version of an instance of an intent.
+            intentSpecification:
+              $ref: '#/components/schemas/EntityRef'
+            intentRelationship:
+              type: array
+              items:
+                $ref: '#/components/schemas/EntityRelationship'
+              description: A list of intents related to this intent
+            characteristic:
+              type: array
+              items:
+                $ref: '#/components/schemas/Characteristic'
+            relatedParty:
+              type: array
+              items:
+                $ref: '#/components/schemas/RelatedPartyRefOrPartyRoleRef'
+            attachment:
+              type: array
+              items:
+                $ref: '#/components/schemas/AttachmentRefOrValue'
+              description: >-
+                Attachments that may be of relevance to this intent, such as picture, document,
+                media
+            name:
+              type: string
+              description: The name of the intent.
+            expression:
+              $ref: '#/components/schemas/IntentExpression'
+            creationDate:
+              type: string
+              format: date-time
+              description: Date and time of the creation of this REST resource
+            lastUpdate:
+              type: string
+              format: date-time
+              description: Date and time of the last update of this REST resource
+            lifecycleStatus:
+              type: string
+              description: Used to indicate the current lifecycle status of this intent
+      discriminator:
+        propertyName: '@type'
+        mapping:
+          Intent: '#/components/schemas/Intent'
+          ProbeIntent: '#/components/schemas/ProbeIntent'
+    Error:
+      discriminator:
+        propertyName: '@type'
+        mapping:
+          Error: '#/components/schemas/Error'
+      allOf:
+        - $ref: '#/components/schemas/Extensible'
+        - type: object
+          required:
+            - code
+            - reason
+          properties:
+            code:
+              type: string
+              description: 'Application relevant detail, defined in the API or a common list.'
+            reason:
+              type: string
+              description: Explanation of the reason for the error which can be shown to a client user.
+            message:
+              type: string
+              description: >-
+                More details and corrective actions related to the error which can be shown to a
+                client user.
+            status:
+              type: string
+              description: HTTP Error code extension
+            referenceError:
+              type: string
+              description: URI of documentation describing the error.
+      description: 'Used when an API throws an Error, typically with a HTTP error response-code (3xx, 4xx, 5xx)'
+    Intent_FVO:
+      allOf:
+        - $ref: '#/components/schemas/Entity'
+        - type: object
+          description: >-
+            An Intent instance is the formal description of all expectations including requirements,
+            goals, and constraints given to a technical system
+          properties:
+            description:
+              type: string
+              description: The description of the intent.
+            validFor:
+              $ref: '#/components/schemas/TimePeriod'
+            isBundle:
+              type: boolean
+              description: >-
+                isBundle determines whether an intent represents a single intent (false), or a
+                bundle of intents(true).
+            priority:
+              type: string
+              description: Can be used by intent owner to prioritize intents in an intent management system
+            statusChangeDate:
+              type: string
+              format: date-time
+              description: A date time( DateTime). The date that the entity status changed to the current one
+            context:
+              type: string
+              description: A string used to give a context to the intent
+            version:
+              type: string
+              description: A field that identifies the specific version of an instance of an intent.
+            intentSpecification:
+              $ref: '#/components/schemas/EntityRef_FVO'
+            intentRelationship:
+              type: array
+              items:
+                $ref: '#/components/schemas/EntityRelationship_FVO'
+              description: A list of intents related to this intent
+            characteristic:
+              type: array
+              items:
+                $ref: '#/components/schemas/Characteristic_FVO'
+            relatedParty:
+              type: array
+              items:
+                $ref: '#/components/schemas/RelatedPartyRefOrPartyRoleRef_FVO'
+            attachment:
+              type: array
+              items:
+                $ref: '#/components/schemas/AttachmentRefOrValue_FVO'
+              description: >-
+                Attachments that may be of relevance to this intent, such as picture, document,
+                media
+            name:
+              type: string
+              description: The name of the intent.
+            expression:
+              $ref: '#/components/schemas/IntentExpression_FVO'
+            creationDate:
+              type: string
+              format: date-time
+              description: Date and time of the creation of this REST resource
+            lastUpdate:
+              type: string
+              format: date-time
+              description: Date and time of the last update of this REST resource
+            lifecycleStatus:
+              type: string
+              description: Used to indicate the current lifecycle status of this intent
+          required:
+            - name
+            - expression
+      discriminator:
+        propertyName: '@type'
+        mapping:
+          Intent: '#/components/schemas/Intent_FVO'
+          ProbeIntent: '#/components/schemas/ProbeIntent_FVO'
+  parameters:
+     Fields:
+      name: fields
+      in: query
+      description: Comma-separated properties to be provided in response
+      schema:
+        type: string
+  requestBodies:
+    Intent_FVO:
+      description: The Intent to be created
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Intent_FVO'
+          examples:
+            Intent_create_example_01:
+              $ref: '#/components/examples/Intent_create_example_01_request'
+            Intent_create_example_11:
+              $ref: '#/components/examples/Intent_create_example_11_request'
+      required: true
+
+    201Intent:
+      description: OK/Created
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Intent'
+          examples:
+            Intent_create_example_01:
+              $ref: '#/components/examples/Intent_create_example_01_response'
+            Intent_create_example_11:
+              $ref: '#/components/examples/Intent_create_example_11_response'
+  responses:
+    201Intent:
+      description: OK/Created
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Intent'
+          examples:
+            Intent_create_example_01:
+              $ref: '#/components/examples/Intent_create_example_01_response'
+            Intent_create_example_11:
+              $ref: '#/components/examples/Intent_create_example_11_response'
+    '202':
+      description: Accepted
+    '400':
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '401':
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '403':
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '404':
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '405':
+      description: Method Not allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '409':
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '500':
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '501':
+      description: Not Implemented
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    '503':
+      description: Service Unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

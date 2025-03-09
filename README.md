@@ -12,6 +12,10 @@ This folder contains an implementation of the TMF921 API for intent management. 
 |-----------|---------------|--------------|
 | intent    | POST          |Create an intent (i.e. intent owner uses this route to send an intent to an intent handler) |
 
+Note that for the open loop control MVS, this is the only route that is required, but it would probably be benefitial to add some more routes (e.g. ```GET intent, GET intent/{id}, DELETE intent/{id}```, etc.). The ```GET intent, GET intent/{id}``` will make it possible to retrieve (get information about) all intents handled by an intent manager or one specific intent handled by an intent handler. The ```DELETE intent/{id}``` will make it possible to delete an intent that was previously created.
+
+Note also that it could be interesting to experiment with the hub/listener routes to gain experience with the pub/sub mechanisms for reporting that is part of the TMF921 API.
+
 **src/AddIntentReportsToKnowledgeGraph:**
 Folder with example program to insert intent report data (simulate) into a knowledge graph.
 

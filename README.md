@@ -7,7 +7,7 @@ Documentation and code examples for Intent Lifecycle Management. This work is co
 This folder contains a very simplistic PoC for the first step of the lifecycle management of intents. In the INTEND architecture, this step will be handled by inChat. The main goal in this step is to transform a natural language expressed statement from a customer to a formal TM Forum formatted Intent description (following v.3.6.0 of the TM Forum Intent ontology).
 
 **src/Intent-Management-API-TMF921:**
-This folder contains an implementation of the TMF921 API for intent management. Note that only the parts we need for the 5G4DATA open control loop Minimal Viable Scenario will be implemented. So far, only the routes marked with a green dot (🟢) in the **Status** cell in the table below has been implemented:
+This folder contains an implementation of the TMF921 API for intent management. Note that only the parts we need for the 5G4DATA open control loop Minimal Viable Scenario will be implemented. So far, only the routes marked with a green dot (🟢) in the **OK** cell in the table below has been implemented:
 |<div style="width:25px">OK</div>|<div style="width:40px">route</div>|HTTP method|<div style="width:300px">Description</div>|
 |------|---------------|-------|--------------|
 | 🔴 | /intent          | GET    | List or find Intent objects |

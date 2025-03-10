@@ -16,6 +16,9 @@ Note that for the open loop control MVS, this is the only route that is required
 
 Note also that it could be interesting to experiment with the hub/listener routes to gain experience with the pub/sub mechanisms for reporting that is part of the TMF921 API.
 
+**src/CreateIntent:**
+This folder contains a client program (intent owner TMF921 API stub) that sends a turtle formatted intent (formatted according to the TM Forum Intent ontology)  to an intent manager. The intent manager will return a confirmation that the intent is received. There is also a subfolder with a couple of turtle formatted intents relevant for the 5G4DATA use-case.
+
 **src/AddIntentReportsToKnowledgeGraph:**
 Folder with example program to insert intent report data (simulate) into a knowledge graph.
 

@@ -71,7 +71,7 @@ def execute_action(action):
     print(f"Executing: {action}")
     # Implement necessary configuration
 
-def decide_actions():
+def decide_and_act():
     """
     Main function to assess latency and take necessary actions.
     """
@@ -130,5 +130,5 @@ def decide_actions():
 
 # Run the main function
 if __name__ == "__main__":
-    decide_action()
+    decide_and_act()
 ```

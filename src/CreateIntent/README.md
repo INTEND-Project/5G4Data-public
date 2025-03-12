@@ -1,6 +1,9 @@
 # Create intents
 The python program *create_intent_tm921.py* is a very simple python program that uses the TM Forum API to create (send) an intent (description) to an intent handler. How intents are to be formed is up to us to decide (for the 5G4DATA use-case) and the description in the rest of this README file discusses some options.
 
+> **⚠️ NOTE:**  
+>It seems to be obvious that the detailed resource level intents (as in the examples below) will be created by *inSwitch* (i.e. *inSwitch* will be the owner of these intents). What *inChat* should create is a bit more unclear to us (TEL). We do believe that *inChat* could send TM Forum formated business level intents to *inSwitch*, but exactly how such an intend should be formed is still TBD. In its simplest form it could contain one single Expectation with a textual **dct:description** (in json format?) containing the parameters needed to fill into the templates below.
+
 # Templates for creating TM Forum formatted intents for the 5G4DATA use-case
 In the INTEND project's 5G4DATA use-case, all intents (exept the initial natural languague version based on a dialogue with the user/customer) shall be formatted using the TM Forum Intent ontology v.3.6.0 or later versions.
 
@@ -153,6 +156,3 @@ Compute intent example (as given to inNet as handler)
 ```
 ## Variations
 As for network intents, the log function used in expressing Conditions in Expectations and the quan function for metrics in Conditions may vary. In addition, the 5g4data:DataCenter , 5g4data:Application and the 5g4data:DeploymentDescriptor values will of course differ for different intents.
-
-# Which INTEND tool should do what?
-It seems to be obvious that the detailed resource level intents (as in the examples above) will be created by inSwitch (i.e. inSwitch will be the owner of these intents). What inChat should create is a bit more unclear. We do believe that inChat could give inSwitch as TM Forum formated business level intent, but exactly how such an intend should be formed is TBD. In its simplest form it could just be a textual description (in json format) containing the parameters needed to fill into the templates above.

@@ -5,7 +5,7 @@ The python program *create_intent_tm921.py* is a very simple python program that
 In the INTEND project's 5G4DATA use-case, all intents (exept the initial natural languague version based on a dialogue with the user/customer) shall be formatted using the TM Forum Intent ontology v.3.6.0 or later versions.
 
 Since the 5G4DATA use-case is very limited in scope compared to the larger field of autonomous networks it will be possible to create generic templates for how the network and compute intents can be formed. This will make the work of translating natural languague intents into properly formatted TM Forum intents easier. Note that the proposed templates clearly limits the types of intents that it is posisble to create, but keep in mind that the limitation matches the capabilities of the 5G4DATA use-case infrastructure and intents that is outside the scope of the templates would in any case not be posible to fulfill.
-```yaml
+```text
 Disclaimer: Regard this as a first suggestion. The TM Forum ontology can be expanded as we see fit. Bottom line is that we can create these intents as we would like as long as the intent owner and intent handler has a consolidated understanding of what the intent exchanged between the owner and handler is all about (agree on the semantics expressed in the intent
 ```
 

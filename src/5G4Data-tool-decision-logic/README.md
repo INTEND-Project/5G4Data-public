@@ -39,63 +39,66 @@ Network latency is the total time it takes for data to travel from the user equi
 
 The pseudo code below outlines a step-by-step decision-making process to determine the best course of action to meet an AR application's latency requirements. By measuring current latency, estimating potential reductions, and evaluating the impact of each action, an informed decision on whether to configure a network slice, place the application in a local data center, or both, can be made. Note that for the MVS we will estimate, rather than measure the current latency based on common knowledge, network latency and server characteristic information provided in the 5G4Data synthetic data repository.
 ```python 
-# Define latency requirements for the AR application
-# Use common knowledge; alternatively ask customer
-
-REQUIRED_LATENCY = {"min": 20, "max": 45}  # in milliseconds
-
-# Measure current latency components
-# Assume that each of the 40 data centre locations are Breakout Points
-
-def measure_latency(start, end):
-    """Implement network diagnostic tools to measure latency."""
+def get_latency(start, end):
+    """
+    Measure network latency between start and end points 
+    or calculate latency estimation based on static values or synthetic data.
+    """
     return latency  # Replace with actual measurement logic
 
-def measure_latency_compute(server):
-    """Implement measures of compute latency."""
+def get_latency_compute(server):
+    """
+    Measure compute latency or estimate latency based on server capacity.
+    """
     return latency  # Replace with actual measurement logic
 
-# Run latency measurement functions
-current_latency_ue_to_gNodeB = measure_latency("UE", "gNodeB")
-current_latency_gNodeB_to_breakout = measure_latency("gNodeB", "BreakoutPoint")
-current_latency_breakout_to_server = measure_latency("BreakoutPoint", "Server")
-current_latency_server_compute = measure_latency_compute("Server")
-
-# Calculate total latency
-current_latency_total = (
-    current_latency_ue_to_gNodeB +
-    current_latency_gNodeB_to_breakout +
-    current_latency_breakout_to_server +
-    current_latency_server_compute
-)
-
-# Alternatively, for the MVS we estimate latency components
-def estimate_latency(start, end):
-    """Calculate latency estimation based on static values or synthetic data."""
-    return latency  # Replace with actual estimation logic
-
-def estimate_latency_compute(server):
-    """Estimate compute latency based on server capacity."""
-    return latency  # Replace with actual estimation logic
-
-# Decision-making process
 def estimate_latency_reduction_slice():
-    """Estimate latency reduction from network slicing."""
+    """
+    Estimate potential latency reduction from network slicing.
+    """
     return estimated_reduction  # Replace with actual estimation logic
 
 def estimate_latency_reduction_local_dc():
-    """Estimate latency reduction from local data center placement."""
+    """
+    Estimate potential latency reduction from placing application in a local data center.
+    """
     return estimated_reduction  # Replace with actual estimation logic
 
 def execute_action(action):
-    """Perform the necessary steps to configure the network or relocate application."""
+    """
+    Perform the necessary steps to configure the network or relocate the application.
+    """
     print(f"Executing: {action}")
     # Implement necessary configuration
 
-if current_latency_total <= REQUIRED_LATENCY["max"]:
-    print("Current latency meets the requirement. No action needed.")
+def decide_actions():
+    """
+    Main function to assess latency and take necessary actions.
+    """
+    # Define latency requirements for the AR application
+    # Use common knowledge; alternatively, ask the customer
+    REQUIRED_LATENCY = {"min": 20, "max": 45}  # in milliseconds
 
-else:
+    # Measure current latency components
+    # Assume that each of the 40 data centre locations are Breakout Points
+    current_latency_ue_to_gNodeB = get_latency("UE", "gNodeB")
+    current_latency_gNodeB_to_breakout = get_latency("gNodeB", "BreakoutPoint")
+    current_latency_breakout_to_server = get_latency("BreakoutPoint", "Server")
+    current_latency_server_compute = get_latency_compute("Server")
+
+    # Calculate total latency
+    current_latency_total = (
+        current_latency_ue_to_gNodeB +
+        current_latency_gNodeB_to_breakout +
+        current_latency_breakout_to_server +
+        current_latency_server_compute
+    )
+
+    # Decision-making process
+    if current_latency_total <= REQUIRED_LATENCY["max"]:
+        print("Current latency meets the requirement. No action needed.")
+        return
+
     # Evaluate impact of network slice configuration
     potential_latency_reduction_slice = estimate_latency_reduction_slice()
     new_latency_with_slice = current_latency_total - potential_latency_reduction_slice
@@ -105,7 +108,9 @@ else:
     new_latency_with_local_dc = current_latency_total - potential_latency_reduction_local_dc
 
     # Evaluate impact of both actions combined
-    new_latency_with_both = current_latency_total - (potential_latency_reduction_slice + potential_latency_reduction_local_dc)
+    new_latency_with_both = current_latency_total - (
+        potential_latency_reduction_slice + potential_latency_reduction_local_dc
+    )
 
     # Decision logic
     if new_latency_with_both <= REQUIRED_LATENCY["max"]:
@@ -122,4 +127,8 @@ else:
 
     else:
         print("Neither action alone can meet the latency requirement. Consider both actions or further optimizations.")
+
+# Run the main function
+if __name__ == "__main__":
+    decide_action()
 ```

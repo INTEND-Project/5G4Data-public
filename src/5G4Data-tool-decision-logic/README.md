@@ -1,5 +1,5 @@
-## Decisions to be made by the tools for the 5G4Data use case
-
+# Decisions to be made by the tools for the 5G4Data use case
+## Sample intents
 |<div style="width:25px">Id</div>|<div style="width:200px">Objective</div>|<div style="width:300px">Description</div>|
 |------|---------------|-------|
 | 1	| Optimize performance of a running application	| My retail store AR application is not giving my customers a good experience. It seems to be lagging, possibly due to high latency or poor bandwidth. Please fix it. The AR goggles are connected to Telenor 5G network in my store in Tromsø, Norway. My store is located in the K1 shopping mall.|

@@ -96,8 +96,8 @@ In addition to the logistic function (log:) *allOf* other logistic functions may
 See the TM Forum log ontology for more details.
 
 It is also possible that other types of expectations could be formed in the future. Some examples include *green* expectations or *security/privacy* related expectations.
-
-Note that ReportingExpectation is not needed for the open loop MVS, it is added as a reference to illustrate that ReportingExpectation will be added in the future. Note also that how to form these ReportingExpectation is TBD for the 5G4DATA use-case.
+> **⚠️ NOTE:**  
+> ReportingExpectation is not needed for the open loop MVS, it is added as a reference to illustrate that ReportingExpectation will be added in the future. Note also that how to form these ReportingExpectation is TBD for the 5G4DATA use-case.
 
 ### Slice related intents variation conclusion
 Some variations are explicitly mentioned and for the MVS, not even all of them are needed to illustrate the concept in a first PoC. Note that other variations can be added as deemed necessary or benefitial by tool owners related to their offerings.

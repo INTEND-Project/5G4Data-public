@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latency Estimator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            display: flex;
+            max-width: 900px;
+            width: 100%;
+        }
+        .form-container {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0px 0px 10px gray;
+            margin-right: 20px;
+        }
+        .info-container {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0px 0px 10px gray;
+            max-width: 400px;
+            text-align: center;
+        }
+        .info-container p {
+            text-align: left;
+        }
+        .info-container ol {
+            text-align: left;
+            padding-left: 20px;
+            list-style-type: lower-alpha;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            cursor: pointer;
+            text-align: left;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        input[type="submit"] {
+            background-color: #28a745;
+            color: white;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background-color: #218838;
+        }
+        .required-latency {
+            background-color: red;
+            color: white;
+            font-weight: bold;
+        }
+        .result-container {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 900px;
+        }
+        .result {
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0px 0px 10px gray;
+            text-align: left;
+        }
+        .logos {
+            display: flex;
+            justify-content: center; /* Center logos horizontally */
+            align-items: center;
+            gap: 20px; /* Space between logos */
+            margin-top: 20px;
+        }
+        .logos img {
+            max-width: 150px;
+            margin: 10px;
+        }
+        /* INTEND Logo Black Background */
+        .logo-black-bg {
+            display: inline-block;
+            background-color: black;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .logo-black-bg img {
+            display: block;
+        }
+        /* Tooltip Styling */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 400px;
+            background-color: black;
+            color: #fff;
+            text-align: left; /* Left justify text */
+            padding: 5px;
+            border-radius: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 150%;
+            left: 0; /* Align to the left of the parent element */
+            transform: none; /* Remove centering effect */
+            opacity: 0;
+            transition: opacity 0.3s;
+            white-space: normal; /* Ensures text wraps correctly */
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="form-container">
+            <h2>Latency Estimator</h2>
+
+            <form method="POST">
+                <div class="tooltip">
+                    <label for="L">Required Latency (ms):</label>
+                    <span class="tooltiptext">The maximum acceptable total latency for your application, including all latency elements.</span>
+                </div>
+                <input type="text" name="L" id="L" value="{{ latencies.L }}" class="required-latency" required>
+
+                <div class="tooltip">
+                    <label for="g">UE to gNodeB (ms):</label>
+                    <span class="tooltiptext">Latency from User Equipment (UE) to the gNodeB (base station). This is usually low since the closest gNodeB is probably close.</span>
+                </div>
+                <input type="text" name="g" id="g" value="{{ latencies.g }}" required>
+
+                <div class="tooltip">
+                    <label for="b">gNodeB to Breakout Point (ms):</label>
+                    <span class="tooltiptext">Latency from the base station (gNodeB) to the breakout point.</span>
+                </div>
+                <input type="text" name="b" id="b" value="{{ latencies.b }}" required>
+
+                <div class="tooltip">
+                    <label for="s">Breakout Point to Server (ms):</label>
+                    <span class="tooltiptext">Latency from the breakout point to the application server.</span>
+                </div>
+                <input type="text" name="s" id="s" value="{{ latencies.s }}" required>
+
+                <div class="tooltip">
+                    <label for="c">Compute Latency (ms):</label>
+                    <span class="tooltiptext">Time taken by the application server to process data and send results back to the client application.</span>
+                </div>
+                <input type="text" name="c" id="c" value="{{ latencies.c }}" required>
+
+                <div class="tooltip">
+                    <label for="S">Latency Reduction (Slicing) (ms):</label>
+                    <span class="tooltiptext">Expected reduction in latency from using network slicing.</span>
+                </div>
+                <input type="text" name="S" id="S" value="{{ latencies.S }}" required>
+
+                <div class="tooltip">
+                    <label for="D">Latency Reduction (Local DC) (ms):</label>
+                    <span class="tooltiptext">Expected reduction in latency by using a local data center.</span>
+                </div>
+                <input type="text" name="D" id="D" value="{{ latencies.D }}" required>
+
+                <input type="submit" value="Estimate Latency">
+            </form>
+        </div>
+
+        <div class="info-container">
+            <h3>About This Tool</h3>
+            <p>This tool will decide what action that it is needed to take selecting from the possible action types. The actions to meet the required total latency are of one of these types:</p>
+            <ol>
+                <li>It is only needed to configure a network slice</li>
+                <li>It is only needed to move the application to a datacenter that is closer to the handsets (UE)</li>
+                <li>It is needed to do both a) and b)</li>
+            </ol>
+            <p>For b), the local datacenter that the application must be moved to may be drawn from a set of local datacenters that would all make it possible to meet the latency requirement specified.</p>
+            <p><strong>It could be that some of the values we are asking for in this tool could be calculated by AI agents based on the synthetic data we have provided about the infrastructure. This is something the tool owners need to dwell on.</strong></p>
+
+            <!-- Logos Section -->
+            <div class="logos">
+                <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
+                <div class="logo-black-bg">
+                    <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if result %}
+        <div class="result-container">
+            <div class="result">
+                <pre>{{ result }}</pre>
+            </div>
+        </div>
+    {% endif %}
+
+</body>
+</html>

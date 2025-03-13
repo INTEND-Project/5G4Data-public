@@ -1,3 +1,20 @@
+# Latency estimator tool
+We have created a tool that explains some of the decisions that the tools need to make for the 5G4DATA use-case. To run the tool do this:
+```
+docker pull arneme/latency-estimator:latest
+docker run -p 5000:5000 arneme/latency-estimator # or change the port if port 5000 is busy (same as above)
+```
+
+It is also possible to clone this repository (or copy the content to a local folder on your computer) and do this:
+```
+docker build -t latency-estimator .
+docker run -p 5000:5000 latency-estimator # If port 5000 is in use on your computer, change the first 5000 to an unused port (e.g. 5001:5000)
+```
+
+The tool is now running, you can access it in your browser like this (http://localhost:5000). Note that you need to change the port number to the port you are using if you changed it from the default port 5000)
+
+The tool was developed based on the description below.
+
 # Decisions to be made by the tools for the 5G4Data use case
 ## Sample intents
 |<div style="width:25px">Id</div>|<div style="width:200px">Objective</div>|<div style="width:300px">Description</div>|

@@ -4,146 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Latency Estimator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
-            background-color: #f4f4f4;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .wrapper {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start; /* Align both form and result containers to the left */
-            width: 100%;
-            max-width: 790px; /* Match `.container` max-width */
-        }
-        .container {
-            display: flex;
-            justify-content: flex-start; /* Align form and info container to the left */
-            width: 100%;
-            max-width: 770px;
-        }
-        .form-container {
-            flex: 1;
-            background: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0px 0px 10px gray;
-            margin-right: 20px;
-            max-width: 270px;
-            align-self: flex-start; /* Align it to the left */
-        }
-        .info-container {
-            flex: 1;
-            background: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0px 0px 10px gray;
-            max-width: 400px;
-            text-align: center;
-        }
-        .info-container p {
-            text-align: left;
-        }
-        .info-container ol {
-            text-align: left;
-            padding-left: 20px;
-            list-style-type: lower-alpha;
-        }
-        label {
-            display: block;
-            margin-top: 10px;
-            cursor: pointer;
-            text-align: left;
-        }
-        input {
-            width: 100%;
-            padding: 8px;
-            margin-top: 5px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-        input[type="submit"] {
-            background-color: #28a745;
-            color: white;
-            cursor: pointer;
-        }
-        input[type="submit"]:hover {
-            background-color: #218838;
-        }
-        .required-latency {
-            background-color: red;
-            color: white;
-            font-weight: bold;
-        }
-        .result-container {
-            margin-top: 20px;
-            width: 100%;
-            max-width: 770px; /* Match the container width */
-        }
-
-        .result {
-            padding: 15px;
-            background: white;
-            border-radius: 5px;
-            box-shadow: 0px 0px 10px gray;
-            text-align: left;
-            white-space: normal;  /* Allow normal wrapping */
-            word-wrap: break-word; /* Break long words */
-            overflow-wrap: anywhere; /* Ensures text breaks at any point if necessary */
-
-            /* Prevent unnecessary scrolling */
-            max-height: none; /* Remove any height restriction */
-            overflow-y: visible; /* Allow the container to grow */
-        }
-
-        .logos {
-            display: flex;
-            justify-content: center; /* Center logos horizontally */
-            align-items: center;
-            gap: 20px; /* Space between logos */
-            margin-top: 20px;
-        }
-        .logos img {
-            max-width: 80px;
-            margin: 10px;
-        }
-        /* INTEND Logo Black Background */
-        .logo-black-bg {
-            display: inline-block;
-            background-color: black;
-            padding: 10px;
-            border-radius: 5px;
-        }
-        .logo-black-bg img {
-            display: block;
-        }
-        /* Tooltip Styling */
+        /* Tooltip container */
         .tooltip {
             position: relative;
             display: inline-block;
         }
+
+        /* Tooltip text */
         .tooltip .tooltiptext {
             visibility: hidden;
-            width: 400px;
-            background-color: black;
+            width: 250px;
+            background-color: #555;
             color: #fff;
-            text-align: left; /* Left justify text */
+            text-align: center;
             padding: 5px;
             border-radius: 5px;
             position: absolute;
             z-index: 1;
-            bottom: 150%;
-            left: 0; /* Align to the left of the parent element */
-            transform: none; /* Remove centering effect */
+            bottom: 125%; 
+            left: 50%;
+            transform: translateX(-50%);
             opacity: 0;
             transition: opacity 0.3s;
-            white-space: normal; /* Ensures text wraps correctly */
         }
 
+        /* Tooltip arrow */
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #555 transparent transparent transparent;
+        }
+
+        /* Show the tooltip text when hovering */
         .tooltip:hover .tooltiptext {
             visibility: visible;
             opacity: 1;
@@ -152,6 +51,19 @@
 </head>
 <body>
 
+    <!-- Header Container -->
+    <div class="header-container">
+        <span>INTEND 5G4DATA MVS</span>
+        <div class="logos">
+            <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
+            <div class="logo-black-bg">
+                <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
+            </div>
+        </div>
+    </div>
+    <div class="image-container">
+        <img src="{{ url_for('static', filename='latency_legs.png') }}" alt="Latency Legs Diagram">
+    </div>
     <div class="container">
         <div class="form-container">
             <h2>Latency Estimator</h2>
@@ -205,22 +117,21 @@
 
         <div class="info-container">
             <h3>About This Tool</h3>
-            <p>This tool will decide which of the three possible action that needs to be taken to meet the required total latency. The possible actions are:</p>
+            
+            <p>
+                This tool will decide which of the three possible actions need to be taken to meet the required total latency. The possible actions are:
+            </p>
             <ol>
-                <li>It is only needed to configure a network slice</li>
-                <li>It is only needed to move the application to a datacenter that is closer to the handsets (UE)</li>
-                <li>It is needed to do both a) and b)</li>
+                <li>It is only needed to configure a network slice.</li>
+                <li>It is only needed to move the application to a datacenter that is closer to the handsets (UE).</li>
+                <li>It is needed to do both a) and b).</li>
             </ol>
-            <p>For b), the local datacenter that the application must be moved to may be drawn from a set of local datacenters that would all make it possible to meet the latency requirement specified.</p>
-            <p><strong>Hopefully, all of the values we are asking you to input in this tool could be calculated. The synthetic data we have provided could be used to do such calculations. Calculations could be done by AI agents in combination with common knowledge that resides in an LLM, or algoritmically (for simplicity in the MVS). This is something the tool owners need to dwell over. If some of the numbers can't be retrieved/deduced we need to add something to the synthetic data or make some simplyfying assumptions allowing algorithmic calculations.</strong></p>
-
-            <!-- Logos Section -->
-            <div class="logos">
-                <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
-                <div class="logo-black-bg">
-                    <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
-                </div>
-            </div>
+            <p>
+                For b), the local datacenter that the application must be moved to may be drawn from a set of local datacenters that would all make it possible to meet the latency requirement specified.
+            </p>
+            <p>
+                <strong>Hopefully, all of the values we are asking you to input in this tool could be calculated. The synthetic data we have provided could be used to do such calculations. Calculations could be done by AI agents in combination with common knowledge that resides in an LLM, or algorithmically (for simplicity in the MVS). This is something the tool owners need to dwell over. If some of the numbers can't be retrieved/deduced we need to add something to the synthetic data or make some simplifying assumptions allowing algorithmic calculations.</strong>
+            </p>
         </div>
     </div>
 
@@ -230,6 +141,11 @@
                 <pre>{{ result }}</pre>
             </div>
         </div>
+        {% if show_next_step %}
+            <div class="next-step-container">
+                <a href="{{ url_for('next_step') }}" class="next-step-button">Next Step</a>
+            </div>
+        {% endif %}
     {% endif %}
 
 </body>

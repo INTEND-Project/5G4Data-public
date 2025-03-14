@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Next Step</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <!-- Include Showdown.js (Markdown to HTML Converter) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.0.3/showdown.min.js"></script>
+</head>
+<body>
+
+    <!-- Header Container -->
+    <div class="header-container">
+        <span>INTEND 5G4DATA MVS</span>
+        <div class="logos">
+            <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
+            <div class="logo-black-bg">
+                <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="info-container" style="max-width: 770px;">
+            <h1>Next Step: Intent Creation</h1>
+            <p><strong>To be able to fill in <i>network QoS Expectations</i> in the Intent the following needs to be established:</strong></p>
+            <ol>
+                <li>The expected latency end to end (in ms)</li>
+                <li>The expected bandwidth (in mbit/s)</li>
+                <li>The area the slice should be valid for (geo polygon)</li>
+                <li>Other needs (e.g., green expectations, cost expectations)</li>
+            </ol>
+            <p><strong>To be able to fill in <i>deployment Expectations</i> in the Intent the following needs to be established:</strong></p>
+            <ol>
+                <li>The Edge datacenter for deployment</li>
+                <li>The compute latency requirement</li>
+                <li>The workload that should be deployed (unique ID from the catalog)</li>
+                <li>The workload deployment descriptor URL</li>
+            </ol>
+
+            <div class="button-container">
+                <a href="{{ url_for('index') }}" class="home-button">Back to Home</a>
+            </div>
+        </div>
+
+        <!-- New Markdown Container 
+        <div class="markdown-container" style="max-width: 770px; background: white; padding: 20px; border-radius: 5px; box-shadow: 0px 0px 10px gray; margin-top: 20px;">
+            <h2>📜 Markdown Documentation</h2>
+            <div id="markdown-content">Loading documentation...</div>
+        </div> -->
+    </div>
+
+    <script>
+        // Convert Markdown to HTML using Showdown.js
+        document.addEventListener("DOMContentLoaded", function () {
+            var markdownContent = {{ markdown_content | tojson }};
+            var converter = new showdown.Converter();
+            document.getElementById("markdown-content").innerHTML = converter.makeHtml(markdownContent);
+        });
+    </script>
+
+</body>
+</html>

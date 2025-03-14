@@ -141,11 +141,9 @@
                 <pre>{{ result }}</pre>
             </div>
         </div>
-        {% if show_next_step %}
-            <div class="next-step-container">
-                <a href="{{ url_for('next_step') }}" class="next-step-button">Next Step</a>
-            </div>
-        {% endif %}
+        <div class="next-step-container">
+            <a href="{{ url_for('next_step') }}" class="next-step-button">Next Step</a>
+        </div>
     {% endif %}
 
 </body>

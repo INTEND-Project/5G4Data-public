@@ -39,26 +39,56 @@
                 <li>The workload deployment descriptor URL</li>
             </ol>
 
+            <!-- More Details Button -->
+            <button class="more-details-btn" onclick="openModal()">More details</button>
+
             <div class="button-container">
                 <a href="{{ url_for('index') }}" class="home-button">Back to Home</a>
             </div>
         </div>
-
-        <!-- New Markdown Container 
-        <div class="markdown-container" style="max-width: 770px; background: white; padding: 20px; border-radius: 5px; box-shadow: 0px 0px 10px gray; margin-top: 20px;">
-            <h2>📜 Markdown Documentation</h2>
+    </div>
+    <!-- Modal for displaying markdown -->
+    <div id="markdownModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">✖</button>
+            <h3>More Details</h3>
             <div id="markdown-content">Loading documentation...</div>
-        </div> -->
+        </div>
     </div>
 
     <script>
-        // Convert Markdown to HTML using Showdown.js
-        document.addEventListener("DOMContentLoaded", function () {
-            var markdownContent = {{ markdown_content | tojson }};
-            var converter = new showdown.Converter();
-            document.getElementById("markdown-content").innerHTML = converter.makeHtml(markdownContent);
-        });
-    </script>
+        function openModal() {
+            document.getElementById("markdownModal").style.display = "flex";
 
+            // Fetch and convert Markdown content
+            fetch("{{ url_for('static', filename='create_intent.md') }}")
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.text();
+                })
+                .then(markdown => {
+                    var converter = new showdown.Converter();
+                    document.getElementById("markdown-content").innerHTML = converter.makeHtml(markdown);
+                })
+                .catch(error => {
+                    console.error("Error loading markdown:", error);
+                    document.getElementById("markdown-content").innerHTML = "Error loading details. Check console for more information.";
+                });
+        }
+
+        function closeModal() {
+            document.getElementById("markdownModal").style.display = "none";
+        }
+
+        // Close the modal when clicking outside of it
+        window.onclick = function(event) {
+            let modal = document.getElementById("markdownModal");
+            if (event.target === modal) {
+                modal.style.display = "none";
+            }
+        }
+    </script>
 </body>
 </html>

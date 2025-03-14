@@ -2,6 +2,13 @@ import pandas as pd
 import random
 import chardet
 
+# This is an example on how to estimate the latency between the gNodeB the UE
+# is attached to and to where the traffic leaves the 5G Core network and
+# enters the internet. The latency from the gNodeB to the nearest edge data center
+# is randomly calculated (between 4 and 11ms), and then added to the latency
+# from the edge datacenter to the breakoutpoint. It therefore represents a crude
+# approximation, but good enough for the 5G4Data MVS.
+
 # File path to the CSV file
 file_path = "../../../INTEND-synthetic-data/generated-syntetic-data/Nordic_Latencies_Matrix.csv"
 
@@ -34,7 +41,7 @@ def estimate_latency(startpoint, breakout_point):
 
     try:
         base_latency = latency_df.loc[startpoint, breakout_point]
-        additional_latency = random.randint(4, 12)  # Simulate 5G gNodeB latency
+        additional_latency = random.randint(4, 12)  # Simulate 5G gNodeB to breakoutpoint latency
         estimated_latency = base_latency + additional_latency
         return f"Estimated latency from gNodeB close to {startpoint} to {breakout_point}: {estimated_latency:.1f} ms"
     except KeyError:

@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create TM Forum formatted Intent</title>
+    <title>Use TM Forum management API (TMF921) to send Intent</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <!-- Include Showdown.js (Markdown to HTML Converter) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.0.3/showdown.min.js"></script>
 </head>
 <body>
 
@@ -23,33 +23,15 @@
 
     <div class="container">
         <div class="info-container" style="max-width: 770px;">
-            <h1>Next Step: Intent Creation</h1>
-            <p><strong>To be able to fill in <i>network QoS Expectations</i> in the Intent the following needs to be established:</strong></p>
-            <ol>
-                <li>The expected latency end to end (in ms)</li>
-                <li>The expected bandwidth (in mbit/s)</li>
-                <li>The area the slice should be valid for (geo polygon)</li>
-                <li>Other needs (e.g., green expectations, cost expectations)</li>
-            </ol>
-            <p><strong>To be able to fill in <i>deployment Expectations</i> in the Intent the following needs to be established:</strong></p>
-            <ol>
-                <li>The Edge datacenter for deployment</li>
-                <li>The compute latency requirement</li>
-                <li>The workload that should be deployed (unique ID from the catalog)</li>
-                <li>The workload deployment descriptor URL</li>
-            </ol>
+            <h1>Next Step: Send Intent to handler</h1>
+            <p>
+                When a proper TM Forum formatted intent has been formed it is time to send it to an intent handler that is capable of understanding and fulfilling the intent. TM Forum has created an API for this. Click the more details button to see more.
+            </p>
 
             <!-- More Details Button -->
             <button class="more-details-btn" onclick="openModal()">More details</button>
             <div class="button-container">
                 <a href="{{ url_for('index') }}" class="home-button">Back to Home</a>
-            </div>
-
-            <p>
-                When a business level Intent with the needed Expectation(s) have been created, it is time for inChat to send it to inSwitch, and when inSwitch has created the needed resource level Intent(s) it is time to send them to inNet and inOrch. TM Forum has designed a Intent management API that can be used. Click the next button to get to know more about that (and yes, we have created a reference implementation)
-            </p>
-            <div class="next-step-container">
-                <a href="{{ url_for('third_step') }}" class="next-step-button">Next Step</a>
             </div>
 
         </div>
@@ -59,7 +41,7 @@
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal()">✖</button>
             <h3>More Details</h3>
-            <div id="markdown-content">Loading documentation...</div>
+            <div id="markdownContent">Loading...</div>
         </div>
     </div>
 
@@ -67,8 +49,7 @@
         function openModal() {
             document.getElementById("markdownModal").style.display = "flex";
 
-            // Fetch and convert Markdown content
-            fetch("{{ url_for('static', filename='create_intent.md') }}")
+            fetch("{{ url_for('static', filename='send_intent.md') }}")
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! Status: ${response.status}`);
@@ -76,12 +57,11 @@
                     return response.text();
                 })
                 .then(markdown => {
-                    var converter = new showdown.Converter();
-                    document.getElementById("markdown-content").innerHTML = converter.makeHtml(markdown);
+                    document.getElementById("markdownContent").innerHTML = marked.parse(markdown);
                 })
                 .catch(error => {
                     console.error("Error loading markdown:", error);
-                    document.getElementById("markdown-content").innerHTML = "Error loading details. Check console for more information.";
+                    document.getElementById("markdownContent").innerHTML = "Error loading details. Check console for more information.";
                 });
         }
 

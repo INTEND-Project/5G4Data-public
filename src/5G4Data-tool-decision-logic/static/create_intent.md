@@ -1,6 +1,4 @@
 # Create intents
-The python program [create_intent_tm921.py](https://github.com/arne-munch-ellingsen/Intent-Lifecycle-Managent/blob/main/src/CreateIntent/create_intent_tm921.py) is a very simple python program that uses the TM Forum API to create (send) an intent (description) to an intent handler. How intents are to be formed (the expressionValue in the json payload) is up to us to decide (for the 5G4DATA use-case) and the description below discusses some options.
-
 > **⚠️ NOTE:**  
 >It seems to be obvious that the detailed resource level intents (as in the examples below) will be created by *inSwitch* (i.e. *inSwitch* will be the owner of these intents). What *inChat* should create is a bit more unclear to us (TEL). We do believe that *inChat* could send TM Forum formated business level intents to *inSwitch*, but exactly how such an intend should be formed is still TBD. In its simplest form it could contain one single Expectation with a textual **dct:description** (in json format?) containing the parameters needed to fill into the templates below.
 

@@ -97,19 +97,11 @@ def first_step():
 
 @app.route("/second-step")
 def second_step():
-    """ Fetch Markdown content and render next_step.html """
-    MARKDOWN_URL = "https://github.com/arne-munch-ellingsen/Intent-Lifecycle-Managent/raw/refs/heads/main/src/CreateIntent/README.md"
-    markdown_content = ""
-    try:
-        response = requests.get(MARKDOWN_URL)
-        if response.status_code == 200:
-            markdown_content = response.text  # Get the raw markdown content
-        else:
-            markdown_content = "⚠️ Unable to load the Markdown file."
-    except requests.exceptions.RequestException as e:
-        markdown_content = f"⚠️ Error fetching Markdown: {e}"
+    return render_template("second-step.html")
 
-    return render_template("second-step.html", markdown_content=markdown_content)
+@app.route("/third-step")
+def third_step():
+    return render_template("third-step.html")
 
 if __name__ == "__main__":
     port = 5000  # Default port

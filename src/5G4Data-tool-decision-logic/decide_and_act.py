@@ -77,6 +77,12 @@ def decide_and_act(latencies, required_latency):
 
 @app.route("/", methods=["GET", "POST"])
 def index():
+    show_next_step = False
+
+    return render_template("index.html", show_next_step=show_next_step)
+
+@app.route("/first-step", methods=["GET", "POST"])
+def first_step():
     result = None
     show_next_step = False
     latencies = {"L": "", "g": "", "b": "", "s": "", "c": "", "S": "", "D": ""}
@@ -87,10 +93,10 @@ def index():
         required_latency = float(latencies["L"])
         result, show_next_step = decide_and_act(latencies_float, required_latency)
 
-    return render_template("index.html", result=result, latencies=latencies, show_next_step=show_next_step)
+    return render_template("first-step.html", result=result, latencies=latencies, show_next_step=show_next_step)
 
-@app.route("/next-step")
-def next_step():
+@app.route("/second-step")
+def second_step():
     """ Fetch Markdown content and render next_step.html """
     MARKDOWN_URL = "https://github.com/arne-munch-ellingsen/Intent-Lifecycle-Managent/raw/refs/heads/main/src/CreateIntent/README.md"
     markdown_content = ""
@@ -103,7 +109,7 @@ def next_step():
     except requests.exceptions.RequestException as e:
         markdown_content = f"⚠️ Error fetching Markdown: {e}"
 
-    return render_template("next_step.html", markdown_content=markdown_content)
+    return render_template("second-step.html", markdown_content=markdown_content)
 
 if __name__ == "__main__":
     port = 5000  # Default port

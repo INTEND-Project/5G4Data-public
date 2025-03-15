@@ -1,58 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Latency Estimator</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script>
+        L_NO_TOUCH = false;
+        L_DISABLE_3D = false;
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.6.0/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script> 
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
-    <style>
-        /* Tooltip container */
-        .tooltip {
-            position: relative;
-            display: inline-block;
-        }
-
-        /* Tooltip text */
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: 250px;
-            background-color: #555;
-            color: #fff;
-            text-align: center;
-            padding: 5px;
-            border-radius: 5px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%; 
-            left: 50%;
-            transform: translateX(-50%);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        /* Tooltip arrow */
-        .tooltip .tooltiptext::after {
-            content: "";
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -5px;
-            border-width: 5px;
-            border-style: solid;
-            border-color: #555 transparent transparent transparent;
-        }
-
-        /* Show the tooltip text when hovering */
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.6.0/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css"/>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body>
 
-    <!-- Header Container -->
+<body>
     <div class="header-container">
         <span>INTEND 5G4DATA MVS</span>
         <div class="logos">
@@ -62,94 +31,25 @@
             </div>
         </div>
     </div>
-    <div class="image-container">
-        <img src="{{ url_for('static', filename='latency_legs.png') }}" alt="Latency Legs Diagram">
+    
+    <div class="container">
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
     </div>
     <div class="container">
-        <div class="form-container">
-            <h2>Latency Estimator</h2>
-
-            <form method="POST">
-                <div class="tooltip">
-                    <label for="L">Required Latency (ms):</label>
-                    <span class="tooltiptext">The maximum acceptable total latency for your application, including all latency elements.</span>
-                </div>
-                <input type="text" name="L" id="L" value="{{ latencies.L }}" class="required-latency" required>
-
-                <div class="tooltip">
-                    <label for="g">UE to gNodeB (ms):</label>
-                    <span class="tooltiptext">Latency from User Equipment (UE) to the gNodeB (base station). This is usually low since the closest gNodeB is probably close.</span>
-                </div>
-                <input type="text" name="g" id="g" value="{{ latencies.g }}" required>
-
-                <div class="tooltip">
-                    <label for="b">gNodeB to Breakout Point (ms):</label>
-                    <span class="tooltiptext">Latency from the base station (gNodeB) to the breakout point.</span>
-                </div>
-                <input type="text" name="b" id="b" value="{{ latencies.b }}" required>
-
-                <div class="tooltip">
-                    <label for="s">Breakout Point to Server (ms):</label>
-                    <span class="tooltiptext">Latency from the breakout point to the application server.</span>
-                </div>
-                <input type="text" name="s" id="s" value="{{ latencies.s }}" required>
-
-                <div class="tooltip">
-                    <label for="c">Compute Latency (ms):</label>
-                    <span class="tooltiptext">Time taken by the application server to process data and send results back to the client application.</span>
-                </div>
-                <input type="text" name="c" id="c" value="{{ latencies.c }}" required>
-
-                <div class="tooltip">
-                    <label for="S">Latency Reduction (Slicing) (ms):</label>
-                    <span class="tooltiptext">Expected reduction in latency from using network slicing.</span>
-                </div>
-                <input type="text" name="S" id="S" value="{{ latencies.S }}" required>
-
-                <div class="tooltip">
-                    <label for="D">Latency Reduction (Local DC) (ms):</label>
-                    <span class="tooltiptext">Expected reduction in latency by using a local data center.</span>
-                </div>
-                <input type="text" name="D" id="D" value="{{ latencies.D }}" required>
-
-                <input type="submit" value="Estimate Latency">
-            </form>
-        </div>
-
-        <div class="info-container">
-            <h3>About This Tool</h3>
-            
-            <p>
-                This tool will decide which of the three possible actions need to be taken to meet the required total latency. The possible actions are:
-            </p>
-            <ol>
-                <li>It is only needed to configure a network slice.</li>
-                <li>It is only needed to move the application to a datacenter that is closer to the handsets (UE).</li>
-                <li>It is needed to do both a) and b).</li>
-            </ol>
-            <p>
-                For b), the local datacenter that the application must be moved to may be drawn from a set of local datacenters that would all make it possible to meet the latency requirement specified.
-            </p>
-            <p>
-                <strong>Hopefully, all of the values we are asking you to input in this tool could be calculated. The synthetic data we have provided could be used to do such calculations. Calculations could be done by AI agents in combination with common knowledge that resides in an LLM, or algorithmically (for simplicity in the MVS). This is something the tool owners need to dwell over. If some of the numbers can't be retrieved/deduced we need to add something to the synthetic data or make some simplifying assumptions allowing algorithmic calculations.</strong>
-            </p>
+        <div class="info-container" style="max-width: 750px;">
+            <h1>INTEND 5G4DATA Infrastructure</h1>
+            <p>In the map above, the markers indicates where the Edge data centers for the 5G4DATA use case is located. It is possible to click on the marker to get more details about the datacentre. The 5G4Data use case will explore how 5G networks and 5G connected Edge data centres can be part of an intent-based data pipeline continuum. The 5G4Data use-case explores how to utilize usage of intents to facilitate Quality of Service (QoS) assurance in 5G Standalone (SA) networks and leveraging deployment of containerized workloads to Edge data centres to enable qualities that would not be possible to obtain with centralized computing. A key aspect of the use-case is the dynamic provisioning of network slices, ensuring that decentralized workloads receive dedicated network resources optimized for the customer’s needs. This guarantees that for example real-time inference applications can function without disruptions and with privacy in mind, thus addressing critical performance requirements not possible to achieve in centralized cloud-based solutions. To complement the network slicing capabilities, containerized workloads are deployed in container environments at Edge data centres, significantly reducing the distance between data sources (UEs) and processing nodes. This approach minimizes response times compared to traditional cloud-based inference, making real-time applications feasible across various domains.
+                </p>
             <!-- More Details Button -->
             <button class="more-details-btn" onclick="openModal()">More details</button>
-
-        </div>
-    </div>
-
-    {% if result %}
-        <div class="result-container">
-            <div class="result">
-                <pre>{{ result }}</pre>
+            <p>The use case is all about configuring the 5G network to meet needed requirements for an application that is accesed from devices connected to a 5G network (e.g. Mobile phones, AR Goggles, IoT devices, Drones). In order to meet the latency needs of an application it might be needed to deploy or move the application to an Edge datacenter. A user expresses what their goal is in natural language using the inChat tool and inChat needs to find out what type of intent is needed. For this use case, two types of intents are possible: a) Intents that results in configuration of the 5G network using a slice, b) Deployement of an application to an edge datacenter. The combination of the two is also possible. inChat needs to figure out if a) or b) or a combination of the two are needed. Click the next button to know more about how this can be done.</p>
+            <div class="next-step-container">
+                <a href="{{ url_for('first_step') }}" class="next-step-button">Next Step</a>
             </div>
         </div>
-        <div class="next-step-container">
-            <a href="{{ url_for('next_step') }}" class="next-step-button">Next Step</a>
-        </div>
-    {% endif %}
-
+    </div>
     <!-- Modal for displaying markdown -->
     <div id="markdownModal" class="modal">
         <div class="modal-content">
@@ -160,10 +60,54 @@
     </div>
 
     <script>
+        // Initialize Leaflet Map
+        var map = L.map("map").setView([65, 19], 4);
+        
+        // Add OpenStreetMap tile layer
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(map);
+
+        // Function to load and parse CSV data
+        function loadCSV(csvFile) {
+            Papa.parse(csvFile, {
+                download: true,
+                header: true,
+                delimiter: ";",
+                complete: function(results) {
+                    addMarkers(results.data);
+                }
+            });
+        }
+
+        // Function to add markers from CSV data
+        function addMarkers(data) {
+            data.forEach(function(row) {
+                if (!row.Latitude || !row.Longitude || !row.City) return; // Skip invalid rows
+                
+                var lat = parseFloat(row.Latitude);
+                var lon = parseFloat(row.Longitude);
+                
+                var popupContent = `
+                    <b>City:</b> ${row.City}<br>
+                    <b>Cluster ID:</b> ${row.Cluster_ID}<br>
+                    <b>GPUs:</b> ${row.GPUs}<br>
+                    <b>CPUs:</b> ${row.CPUs}<br>
+                    <b>Memory:</b> ${row.Memory}<br>
+                    <b>Major Electricity Source:</b> ${row.Major_source_of_electricity}<br>
+                    <b>Cost of Compute:</b> ${row.Cost_of_compute}<br>
+                    <a href="${row.Access}" target="_blank">Access Edge API</a>
+                `;
+
+                var marker = L.marker([lat, lon]).addTo(map);
+                marker.bindPopup(popupContent);
+                marker.bindTooltip(row.City, { sticky: true });
+            });
+        }
         function openModal() {
             document.getElementById("markdownModal").style.display = "flex";
 
-            fetch("{{ url_for('static', filename='decisions.md') }}")
+            fetch("{{ url_for('static', filename='mvs.md') }}")
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! Status: ${response.status}`);
@@ -183,6 +127,9 @@
             document.getElementById("markdownModal").style.display = "none";
         }
 
+        // Load the CSV file (must be in the same directory as the HTML file)
+        loadCSV("static/5G4Data_Nordic_Edge_Datacenters.csv");
+
         // Close the modal when clicking outside of it
         window.onclick = function(event) {
             let modal = document.getElementById("markdownModal");
@@ -191,5 +138,6 @@
             }
         }
     </script>
+    
 </body>
 </html>

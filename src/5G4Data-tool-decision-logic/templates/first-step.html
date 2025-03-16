@@ -48,6 +48,31 @@
             visibility: visible;
             opacity: 1;
         }
+        .tooltip label {
+            display: flex;
+            align-items: center;
+            gap: 8px; /* Adds space between the circle and text */
+        }
+
+        .tooltip label::before {
+            content: attr(data-number); /* Gets the number from the `data-number` attribute */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background-color: #007bff; /* Blue color */
+            color: white;
+            border-radius: 50%; /* Makes it a circle */
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .tooltip label[data-number="1"]::before { background-color: #FF0000; } /* Red-Orange */
+        .tooltip label[data-number="2"]::before { background-color: #05f932; } /* Blue */
+        .tooltip label[data-number="3"]::before { background-color: #6b80f7; } /* Green */
+        .tooltip label[data-number="4"]::before { background-color: #cff804; } /* Yellow */
+        .tooltip label[data-number="5"]::before { background-color: #33ffeb; } /* Purple */
+
     </style>
 </head>
 <body>
@@ -70,31 +95,31 @@
 
             <form method="POST">
                 <div class="tooltip">
-                    <label for="L">Required Latency (ms):</label>
+                    <label for="L" data-number="1">Required Latency (ms):</label>
                     <span class="tooltiptext">The maximum acceptable total latency for your application, including all latency elements.</span>
                 </div>
                 <input type="text" name="L" id="L" value="{{ latencies.L }}" class="required-latency" required>
 
                 <div class="tooltip">
-                    <label for="g">UE to gNodeB (ms):</label>
+                    <label for="g" data-number="2">UE to gNodeB (ms):</label>
                     <span class="tooltiptext">Latency from User Equipment (UE) to the gNodeB (base station). This is usually low since the closest gNodeB is probably close.</span>
                 </div>
                 <input type="text" name="g" id="g" value="{{ latencies.g }}" required>
 
                 <div class="tooltip">
-                    <label for="b">gNodeB to Breakout Point (ms):</label>
+                    <label for="b" data-number="3">gNodeB to Breakout Point (ms):</label>
                     <span class="tooltiptext">Latency from the base station (gNodeB) to the breakout point.</span>
                 </div>
                 <input type="text" name="b" id="b" value="{{ latencies.b }}" required>
 
                 <div class="tooltip">
-                    <label for="s">Breakout Point to Server (ms):</label>
+                    <label for="s" data-number="4">Breakout Point to Server (ms):</label>
                     <span class="tooltiptext">Latency from the breakout point to the application server.</span>
                 </div>
                 <input type="text" name="s" id="s" value="{{ latencies.s }}" required>
 
                 <div class="tooltip">
-                    <label for="c">Compute Latency (ms):</label>
+                    <label for="c" data-number="5">Compute Latency (ms):</label>
                     <span class="tooltiptext">Time taken by the application server to process data and send results back to the client application.</span>
                 </div>
                 <input type="text" name="c" id="c" value="{{ latencies.c }}" required>

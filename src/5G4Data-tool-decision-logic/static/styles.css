@@ -121,11 +121,7 @@ input[type="submit"] {
 input[type="submit"]:hover {
     background-color: #218838;
 }
-.required-latency {
-    background-color: red;
-    color: white;
-    font-weight: bold;
-}
+
 .result-container {
     margin-top: 20px;
     width: 100%;

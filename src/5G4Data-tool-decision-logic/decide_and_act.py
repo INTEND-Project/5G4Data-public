@@ -103,6 +103,10 @@ def second_step():
 def third_step():
     return render_template("third-step.html")
 
+@app.route("/summary")
+def summary():
+    return render_template("summary.html")
+
 if __name__ == "__main__":
     port = 5000  # Default port
     if len(sys.argv) > 1:

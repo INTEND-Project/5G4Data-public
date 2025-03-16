@@ -143,6 +143,13 @@ input[type="submit"]:hover {
     margin-top: 20px;
     text-align: center;
 }
+.button-group {
+    display: flex; /* Aligns buttons in a row */
+    gap: 10px; /* Adds space between buttons */
+    justify-content: center;
+    margin-top: 20px; /* Adjust spacing above the buttons */
+}
+.more-details-btn,
 .next-step-button {
     background-color: #007bff;
     color: white;
@@ -154,6 +161,7 @@ input[type="submit"]:hover {
     text-decoration: none;
     display: inline-block;
 }
+.more-details-btn:hover,
 .next-step-button:hover {
     background-color: #0056b3;
 }

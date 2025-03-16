@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Diagram</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+
+    <style>
+        .clickable {
+            position: absolute;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        /* Position clickable elements */
+        #inChat { top: 25px; left: 338px; width: 70px; height: 44px}
+        #inSwitch { top: 155px; left: 390px; width: 85px; height: 44px}
+        #tmfAPI1 { top: 115px; left: 390px; width: 95px; height: 25px}
+        #tmfAPI2 { top: 287px; left: 555px; width: 95px; height: 25px}
+        #inNet { top: 334px; left: 552px; width: 84px; height: 42px}
+        #tmfAPI3 { top: 287px; left: 105px; width: 95px; height: 25px}
+        #inOrch { top: 334px; left: 222px; width: 90px; height: 44px}
+        #K8S { top: 462px; left: 215px; width: 90px; height: 44px}
+        #C5G { top: 462px; left: 452px; width: 95px; height: 44px}
+    </style>
+</head>
+<body>
+
+    <!-- Header Container -->
+    <div class="header-container">
+        <span>INTEND 5G4DATA MVS</span>
+        <div class="logos">
+            <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
+            <div class="logo-black-bg">
+                <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="info-container" style="max-width: 770px;">
+            <h1>Summary</h1>
+            <p>
+                Based on the information already given in the previous steps, the figure below shows our (Telenor's) view of the first version of the MVS for the 5G4DATA use case, the inChat, inSwitch, etc., boxes are clickable and will display what we think that the different tools need to consider. Note that this is our view, and it might need to be adjusted in a dialogue with the tool owners.
+            </p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="diagram-container" style="position: relative;">
+            <img src="{{ url_for('static', filename='first_5g4data_mvs.png') }}" alt="Diagram" width="750">
+            <div id="inChat" class="clickable" data-md="inChat.md"></div>
+            <div id="tmfAPI1" class="clickable" data-md="send_intent.md"></div>
+            <div id="inSwitch" class="clickable" data-md="inSwitch.md"></div>
+            <div id="tmfAPI2" class="clickable" data-md="send_intent.md"></div>
+            <div id="inNet" class="clickable" data-md="inNet.md"></div>
+            <div id="tmfAPI3" class="clickable" data-md="send_intent.md"></div>
+            <div id="inOrch" class="clickable" data-md="inOrch.md"></div>
+            <div id="K8S" class="clickable" data-md="K8S.md"></div>
+            <div id="C5G" class="clickable" data-md="5GC.md"></div>
+        </div>
+    </div>
+
+    <!-- Modal for displaying markdown -->
+    <div id="markdownModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">✖</button>
+            <h3>More Details</h3>
+            <div id="markdown-content">Loading documentation...</div>
+        </div>
+    </div>
+
+    <script>
+        document.querySelectorAll(".clickable").forEach(element => {
+            element.addEventListener("click", async function () {
+                const mdFile = "{{ url_for('static', filename='') }}" + this.dataset.md;
+                openModal(mdFile);
+            });
+        });
+
+        async function openModal(mdFile) {
+            const modal = document.getElementById("markdownModal");
+            const content = document.getElementById("markdown-content");
+            modal.style.display = "flex";
+
+            try {
+                let response = await fetch(mdFile);
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                let text = await response.text();
+                content.innerHTML = marked.parse(text);
+            } catch (error) {
+                console.error("Error loading markdown:", error);
+                content.innerHTML = "<p>Error loading details. Check console for more information.</p>";
+            }
+        }
+
+        function closeModal() {
+            document.getElementById("markdownModal").style.display = "none";
+        }
+
+        // Close modal on outside click
+        window.onclick = function(event) {
+            let modal = document.getElementById("markdownModal");
+            if (event.target === modal) {
+                modal.style.display = "none";
+            }
+        };
+    </script>
+
+</body>
+</html>

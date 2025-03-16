@@ -1,0 +1,1 @@
+# Placeholder for inNet description for 5G4DATA MVS

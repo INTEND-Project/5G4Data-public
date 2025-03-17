@@ -144,7 +144,7 @@ Compute intent example (as given to inNet as handler)
 5g4data:CX1 a icm:Context ;
   5g4data:DataCenter "EC1" ;
   5g4data:Application "AR-retail-app" ;
-  5g4data:DeploymentDescriptor "http://intend.eu/5G4DataWorkloadCatalogue/appx-deployment.yaml" ;
+  5g4data:DeploymentDescriptor "http://intend.eu/5G4DataWorkloadCatalogue/ar-retail-app-deployment.yaml" ;
 .
 
 5g4data:RE1 a icm:ReportingExpectation ;

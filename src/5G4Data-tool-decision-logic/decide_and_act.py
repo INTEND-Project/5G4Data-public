@@ -54,12 +54,8 @@ def decide_and_act(latencies, required_latency):
         potential_latency_reduction_slice + potential_latency_reduction_local_dc
     )
 
-    if new_latency_with_both <= required_latency:
-        output.append("⚡ Configure network slice and place application in local data center")
-        output.append("✅ Intent with network slice Expectation and deployment to local edge Expectation needed.")
-        show_next_step = True
 
-    elif (current_latency_total - potential_latency_reduction_slice) <= required_latency:
+    if (current_latency_total - potential_latency_reduction_slice) <= required_latency:
         output.append("⚡ Configure network slice")
         output.append("✅ Intent with only network slice Expectation needed.")
         show_next_step = True
@@ -67,6 +63,11 @@ def decide_and_act(latencies, required_latency):
     elif (current_latency_total - potential_latency_reduction_local_dc) <= required_latency:
         output.append("⚡ Place application in local data center")
         output.append("✅ Intent with only deployment to local edge Expectation needed.")
+        show_next_step = True
+        
+    elif new_latency_with_both <= required_latency:
+        output.append("⚡ Configure network slice and place application in local data center")
+        output.append("✅ Intent with network slice Expectation and deployment to local edge Expectation needed.")
         show_next_step = True
 
     else:

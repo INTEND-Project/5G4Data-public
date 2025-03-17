@@ -24,21 +24,22 @@
     <div class="container">
         <div class="info-container" style="max-width: 770px;">
             <h1>Next Step: Intent Creation</h1>
-            <p><strong>To be able to fill in <i>network QoS Expectations</i> in the Intent the following needs to be established:</strong></p>
+            
+            <p><strong>To accurately define <i>Network QoS Expectations</i> in the Intent template, the following parameters must be determined:</strong></p>
             <ol>
-                <li>The expected latency end to end (in ms)</li>
-                <li>The expected bandwidth (in mbit/s)</li>
-                <li>The area the slice should be valid for (geo polygon)</li>
-                <li>Other needs (e.g., green expectations, cost expectations)</li>
+                <li>The expected end-to-end latency (in milliseconds) for the workload</li>
+                <li>The required bandwidth (in Mbps) for the workload</li>
+                <li>The geographical area where the network slice should be valid (geo polygon)</li>
+                <li>Additional considerations (e.g., sustainability goals, cost constraints, or other future requirements)</li>
             </ol>
-            <p><strong>To be able to fill in <i>deployment Expectations</i> in the Intent the following needs to be established:</strong></p>
+    
+            <p><strong>To properly specify <i>Deployment Expectations</i> in the Intent template, the following details must be established:</strong></p>
             <ol>
-                <li>The Edge datacenter for deployment</li>
-                <li>The compute latency requirement</li>
-                <li>The workload that should be deployed (unique ID from the catalog)</li>
-                <li>The workload deployment descriptor URL</li>
+                <li>The Edge data center where the workload will be deployed</li>
+                <li>The required compute latency for the workload</li>
+                <li>The workload to be deployed (unique ID from the catalog)</li>
+                <li>The workload deployment descriptor URL (also available in the catalog)</li>
             </ol>
-
             <!-- More Details Button -->
             <button class="more-details-btn" onclick="openModal()">More details</button>
             <div class="button-container">
@@ -50,10 +51,11 @@
             </p>
             <div class="next-step-container">
                 <a href="{{ url_for('third_step') }}" class="next-step-button">Next Step</a>
-            </div>
-
+            </div>            
         </div>
     </div>
+
+       
     <!-- Modal for displaying markdown -->
     <div id="markdownModal" class="modal">
         <div class="modal-content">

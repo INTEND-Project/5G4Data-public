@@ -1,4 +1,3 @@
 # INTEND 5G4DATA Workload Catalog
-
-A simple Go + Fiber app that serves a static frontend for interacting with ChartMuseum or visualizing 5G workloads.
+This is the INTEND 5G4DATA use case Workload catalog. It will be used by inChat or inSwitch to find workloads that the user wants to deploy to edge datacenters. The catalogue contains helm charts that can be referenced in Intent Expectations for workload deployment.
 

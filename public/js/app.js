@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <td>
                                 ${chart.icon ? `<img src="${chart.icon}" alt="icon" class="chart-icon">` : ""}
                             </td>
-                            <td><a href="#" class="chart-name" data-name="${chart.name}">${chart.name}</a></td>
+                            <td>${chart.name || "N/A"}</td>
                             <td>${chart.type || "N/A"}</td>
                             <td>${chart.description || "N/A"}</td>
                             <td>${chart.version}</td>

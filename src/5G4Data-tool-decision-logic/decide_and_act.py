@@ -96,13 +96,13 @@ def first_step():
 
     return render_template("first-step.html", result=result, latencies=latencies, show_next_step=show_next_step)
 
-@app.route("/second-step")
-def second_step():
-    return render_template("second-step.html")
+@app.route("/create-intent-step")
+def create_intent_step():
+    return render_template("create-intent-step.html")
 
-@app.route("/third-step")
-def third_step():
-    return render_template("third-step.html")
+@app.route("/send-intent-step")
+def send_intent_step():
+    return render_template("send-intent-step.html")
 
 @app.route("/summary")
 def summary():

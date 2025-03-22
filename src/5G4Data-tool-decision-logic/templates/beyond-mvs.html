@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beyond MVS</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <!-- Header Container -->
+    <div class="header-container">
+        <span>Beyond Minimal Viable Scenario</span>
+        <div class="logos">
+            <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
+            <div class="logo-black-bg">
+                <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="info-container" style="max-width: 770px;">
+            <h1>Beyond 5G4DATA Minimal Viable Scenario</h1>
+            <h3 style="text-align: left;">From open to closed control loops and handling state of intents</h3>
+            <p>
+                The first MVS will use an open control loop (meaning fire and forget intents). The next version will use closed control loops (for all intent owners and intent handlers). This means that reports from an intent handler will be sent to the report owner as specified in ReportinExpectations in the issued Intent. Intent reports can be of different types. We will introduce state for intents and one report type will be state change reports, including if the intent is complying or degrading. States for creation (received, accepted) and deletion (removed) will also be part of state changes reports. Another type of report is related to reporting of metrics (for intents that specifies expectations with specific requirements for target property values).
+
+                We will also start to look into how the intent owners should act if reports indicates that intents are not performing as they should.
+            </p>
+            <h3 style="text-align: left;">Discovery mechanism allowing intent owner finding appropriate handler</h3>
+            <p>
+                Across use cases, intents will have very different semantics. Note that it will still be possible to express many differnt types of intents using the TM Forum Intent ontology since the ontology only defines the syntax. With potentially large span in intent semantics it is probably difficult to create one singe intent handler. This implies that handlers will only be able to handle intents within its scope (domain). This brings up the question: How can an intent owner find an intent handler that is capable of handling the semantics in my intent(s)? We will look into if some sort of discovery mechanism could be used, and that intent owners registers their capabilities in a intent manager registry. Intent owners can then use this registry to discover handlers capable of handling their type of intent(s).
+            </p>
+            
+
+            <!-- Home and Next buttons -->
+            <div class="button-container">
+                <a href="{{ url_for('index') }}" class="home-button">Back to Home</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

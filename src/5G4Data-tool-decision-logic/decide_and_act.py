@@ -108,6 +108,10 @@ def send_intent_step():
 def summary():
     return render_template("summary.html")
 
+@app.route('/beyond-mvs')
+def beyond_mvs():
+    return render_template('beyond-mvs.html')
+
 if __name__ == "__main__":
     port = 5000  # Default port
     if len(sys.argv) > 1:

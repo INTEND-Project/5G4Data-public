@@ -146,7 +146,7 @@ input[type="submit"]:hover {
 .button-group {
     display: flex; /* Aligns buttons in a row */
     gap: 10px; /* Adds space between buttons */
-    justify-content: center;
+    justify-content: flex-start; /* ensures left alignment */
     margin-top: 20px; /* Adjust spacing above the buttons */
 }
 .more-details-btn,
@@ -161,9 +161,10 @@ input[type="submit"]:hover {
     text-decoration: none;
     display: inline-block;
 }
+
 .more-details-btn:hover,
 .next-step-button:hover {
-    background-color: #0056b3;
+    background-color: #00b333;
 }
 
 /* Modal styles */
@@ -199,21 +200,6 @@ input[type="submit"]:hover {
     cursor: pointer;
     float: right;
     font-size: 16px;
-}
-
-.more-details-btn {
-    margin-top: 20px;
-    background-color: #007BFF;
-    color: white;
-    border: none;
-    padding: 10px;
-    font-size: 16px;
-    cursor: pointer;
-    border-radius: 5px;
-}
-
-.more-details-btn:hover {
-    background-color: #0056b3;
 }
 
 .button-container {

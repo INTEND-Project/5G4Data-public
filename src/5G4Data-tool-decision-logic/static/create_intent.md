@@ -28,7 +28,7 @@ Slice QoS intent example (as given to inNet as handler):
 @prefix set:  <http://www.w3.org/2000/10/swap/set#> .
 @prefix quan: <http://www.w3.org/2000/10/swap/quantities#> .
 @prefix geo:  <http://www.opengis.net/ont/geosparql#> .
-@prefix 5g4data: <http://5g4data.eu/5g4data#> .
+@prefix 5g4data: <http://intend.eu/5g4data#> .
 
 5g4data:I1 a icm:Intent ;
     log:allOf ( 5g4data:DE1 5g4data:RE1 ) ;

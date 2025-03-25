@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INTEND Intent Simulator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            font-family: sans-serif;
+            background: #f4f4f4;
+        }
+
+        .main-header {
+            background-color: #1885f1; /* Deep blue */
+            height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: white;
+            padding: 10px;
+            position: relative;
+        }
+
+        .logo {
+            height: 60px; /* Adjust as needed */
+            margin-bottom: 10px;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 20px;
+            color: white;
+        }
+
+        .container { 
+            max-width: 800px; 
+            margin-top: 2em;
+        }
+        
+        .form-group { 
+            margin-bottom: 1rem; 
+        }
+        
+        .btn-danger { 
+            margin-top: 1rem; 
+        }
+        
+        .status {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 4px;
+        }
+        
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .sequence-params {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <a href="https://intendproject.eu/" target="_blank" rel="noopener noreferrer">
+            <img src="{{ url_for('static', filename='img/intend_logo.gif') }}" alt="INTEND Logo" class="logo" />
+        </a>
+        <h1 class="title">INTEND Intent Simulator</h1>
+    </header>
+
+    <div class="container">
+        <form id="intentForm">
+            <div class="form-group">
+                <label for="intentType">Intent Type:</label>
+                <select class="form-control" id="intentType" required>
+                    <option value="network">Network Intent</option>
+                    <option value="workload">Workload Intent</option>
+                    <option value="combined">Combined Network & Deployment Intent</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="latency">Latency (ms):</label>
+                <input type="number" class="form-control" id="latency" value="20" required>
+            </div>
+
+            <div class="form-group" id="bandwidthGroup">
+                <label for="bandwidth">Bandwidth (mbit/s):</label>
+                <input type="number" class="form-control" id="bandwidth" value="300" required>
+            </div>
+
+            <div class="form-group" id="datacenterGroup" style="display: none;">
+                <label for="datacenter">Data Center:</label>
+                <input type="text" class="form-control" id="datacenter" value="EC1" required>
+            </div>
+
+            <div class="form-group" id="applicationGroup" style="display: none;">
+                <label for="application">Application:</label>
+                <input type="text" class="form-control" id="application" value="AR-retail-app" required>
+            </div>
+
+            <div class="form-group">
+                <label for="generationType">Generation Type:</label>
+                <select class="form-control" id="generationType" required>
+                    <option value="single">Single Intent</option>
+                    <option value="sequence">Sequence</option>
+                </select>
+            </div>
+
+            <div class="sequence-params" id="sequenceParams">
+                <div class="form-group">
+                    <label for="count">Number of Intents:</label>
+                    <input type="number" class="form-control" id="count" value="1" min="1" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="interval">Random interval between Intents (0-seconds):</label>
+                    <input type="number" class="form-control" id="interval" value="0" min="0" step="0.1" required>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Generate Intent</button>
+        </form>
+
+        <button id="deleteAll" class="btn btn-danger">Delete All Intents</button>
+
+        <div id="status" class="status"></div>
+
+        <div class="mt-4">
+            <h3>Generated Intents</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Intent ID</th>
+                        <th>Type</th>
+                        <th>Source File</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="intentList">
+                    <!-- Intents will be listed here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Intent Details Modal -->
+    <div class="modal fade" id="intentModal" tabindex="-1" role="dialog" aria-labelledby="intentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="intentModalLabel">Intent Details</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <pre id="intentDetails" class="bg-light p-3 rounded"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('intentType').addEventListener('change', function() {
+            const bandwidthGroup = document.getElementById('bandwidthGroup');
+            const datacenterGroup = document.getElementById('datacenterGroup');
+            const applicationGroup = document.getElementById('applicationGroup');
+            
+            const isNetwork = this.value === 'network';
+            const isWorkload = this.value === 'workload';
+            const isCombined = this.value === 'combined';
+            
+            bandwidthGroup.style.display = (isNetwork || isCombined) ? 'block' : 'none';
+            datacenterGroup.style.display = (isWorkload || isCombined) ? 'block' : 'none';
+            applicationGroup.style.display = (isWorkload || isCombined) ? 'block' : 'none';
+        });
+
+        document.getElementById('generationType').addEventListener('change', function() {
+            const sequenceParams = document.getElementById('sequenceParams');
+            sequenceParams.style.display = this.value === 'sequence' ? 'block' : 'none';
+        });
+
+        document.getElementById('intentForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const intentType = document.getElementById('intentType').value;
+            const latency = document.getElementById('latency').value;
+            const bandwidth = document.getElementById('bandwidth').value;
+            const datacenter = document.getElementById('datacenter').value;
+            const application = document.getElementById('application').value;
+            const generationType = document.getElementById('generationType').value;
+            const count = document.getElementById('count').value;
+            const interval = document.getElementById('interval').value;
+
+            const parameters = {
+                latency: latency
+            };
+
+            if (intentType === 'network' || intentType === 'combined') {
+                parameters.bandwidth = bandwidth;
+            }
+
+            if (intentType === 'workload' || intentType === 'combined') {
+                parameters.datacenter = datacenter;
+                parameters.application = application;
+            }
+
+            const requestData = {
+                intent_type: intentType,
+                parameters: parameters
+            };
+
+            if (generationType === 'sequence') {
+                requestData.count = count;
+                requestData.interval = interval;
+            }
+
+            try {
+                const response = await fetch('http://localhost:5001/api/generate-intent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                const resultDiv = document.getElementById('status');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultDiv.textContent = data.error;
+                    resultDiv.className = 'status error';
+                } else {
+                    resultDiv.textContent = data.message;
+                    resultDiv.className = 'status success';
+                    
+                    // Add new intents to the list
+                    updateIntentList();
+                }
+            } catch (error) {
+                const resultDiv = document.getElementById('status');
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.className = 'status error';
+            }
+        });
+
+        async function showIntentDetails(intentId) {
+            try {
+                const response = await fetch(`http://localhost:5001/api/get-intent/${intentId}`);
+                const data = await response.json();
+                
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || `Failed to load intent: ${response.status}`);
+                }
+                
+                const intentDetails = document.getElementById('intentDetails');
+                console.log("Received data:", data); // Debug log
+                
+                if (!data.data) {
+                    intentDetails.textContent = "No data received from server";
+                    return;
+                }
+                
+                // Format the turtle data while preserving indentation
+                const formattedData = data.data
+                    .split('\n')
+                    .map(line => line)  // Don't trim, preserve whitespace
+                    .filter(line => line)  // Keep all non-empty lines
+                    .join('\n');
+                
+                if (!formattedData) {
+                    intentDetails.textContent = "No intent data found";
+                    return;
+                }
+                
+                intentDetails.textContent = formattedData;
+                $('#intentModal').modal('show');
+            } catch (error) {
+                const resultDiv = document.getElementById('status');
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.className = 'status error';
+                console.error("Error fetching intent:", error); // Debug log
+            }
+        }
+
+        document.getElementById('deleteAll').addEventListener('click', async function() {
+            if (!confirm('Are you sure you want to delete all intents? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:5001/api/delete-all-intents', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const resultDiv = document.getElementById('status');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultDiv.textContent = data.error;
+                    resultDiv.className = 'status error';
+                } else {
+                    resultDiv.textContent = data.message;
+                    resultDiv.className = 'status success';
+                }
+            } catch (error) {
+                const resultDiv = document.getElementById('status');
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.className = 'status error';
+            }
+        });
+
+        function updateIntentList() {
+            fetch('/api/query-intents')
+                .then(response => response.json())
+                .then(data => {
+                    const intentList = document.getElementById('intentList');
+                    intentList.innerHTML = '';
+                    
+                    data.intents.forEach(intent => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td><a href="#" onclick="showIntentDetails('${intent.id}')">${intent.id}</a></td>
+                            <td>${intent.type}</td>
+                            <td>${intent.sourceFile ? `<a href="#" onclick="showIntentFile('${intent.sourceFile}')">View Source</a>` : 'N/A'}</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" onclick="deleteIntent('${intent.id}')">Delete</button>
+                            </td>
+                        `;
+                        intentList.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Error fetching intents:', error));
+        }
+
+        async function showIntentFile(filepath) {
+            try {
+                console.log("Fetching file:", filepath);  // Debug log
+                const response = await fetch(`/api/intent-file/${encodeURIComponent(filepath)}`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                }
+                
+                const content = await response.text();
+                console.log("Received content:", content);  // Debug log
+                
+                // Update the modal content
+                const intentDetails = document.getElementById('intentDetails');
+                intentDetails.textContent = content;
+                
+                // Update the modal title
+                document.getElementById('intentModalLabel').textContent = 'Intent Source File';
+                
+                // Show the modal
+                $('#intentModal').modal('show');
+            } catch (error) {
+                console.error("Error fetching file:", error);  // Debug log
+                const resultDiv = document.getElementById('status');
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.className = 'status error';
+            }
+        }
+    </script>
+</body>
+</html> 

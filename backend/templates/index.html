@@ -176,6 +176,8 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        const API_BASE_URL = 'http://localhost:5001';
+
         document.getElementById('intentType').addEventListener('change', function() {
             const bandwidthGroup = document.getElementById('bandwidthGroup');
             const datacenterGroup = document.getElementById('datacenterGroup');
@@ -231,7 +233,7 @@
             }
 
             try {
-                const response = await fetch('http://localhost:5001/api/generate-intent', {
+                const response = await fetch(`${API_BASE_URL}/api/generate-intent`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -267,7 +269,7 @@
 
         async function showIntentDetails(intentId) {
             try {
-                const response = await fetch(`http://localhost:5001/api/get-intent/${intentId}`);
+                const response = await fetch(`${API_BASE_URL}/api/get-intent/${intentId}`);
                 const data = await response.json();
                 
                 if (!response.ok || data.error) {
@@ -310,7 +312,7 @@
             }
 
             try {
-                const response = await fetch('http://localhost:5001/api/delete-all-intents', {
+                const response = await fetch(`${API_BASE_URL}/api/delete-all-intents`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -332,6 +334,8 @@
                 } else {
                     resultDiv.textContent = data.message;
                     resultDiv.className = 'status success';
+                    // Update the table after successful deletion
+                    updateIntentList();
                 }
             } catch (error) {
                 const resultDiv = document.getElementById('status');
@@ -341,11 +345,21 @@
         });
 
         function updateIntentList() {
-            fetch('/api/query-intents')
-                .then(response => response.json())
+            fetch(`${API_BASE_URL}/api/query-intents`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     const intentList = document.getElementById('intentList');
                     intentList.innerHTML = '';
+                    
+                    if (!data.intents) {
+                        console.error('No intents array in response:', data);
+                        return;
+                    }
                     
                     data.intents.forEach(intent => {
                         const row = document.createElement('tr');
@@ -360,13 +374,18 @@
                         intentList.appendChild(row);
                     });
                 })
-                .catch(error => console.error('Error fetching intents:', error));
+                .catch(error => {
+                    console.error('Error fetching intents:', error);
+                    const resultDiv = document.getElementById('status');
+                    resultDiv.textContent = `Error fetching intents: ${error.message}`;
+                    resultDiv.className = 'status error';
+                });
         }
 
         async function showIntentFile(filepath) {
             try {
                 console.log("Fetching file:", filepath);  // Debug log
-                const response = await fetch(`/api/intent-file/${encodeURIComponent(filepath)}`);
+                const response = await fetch(`${API_BASE_URL}/api/intent-file/${encodeURIComponent(filepath)}`);
                 
                 if (!response.ok) {
                     const errorData = await response.json();
@@ -392,6 +411,9 @@
                 resultDiv.className = 'status error';
             }
         }
+
+        // Call updateIntentList when the page loads
+        document.addEventListener('DOMContentLoaded', updateIntentList);
     </script>
 </body>
 </html> 

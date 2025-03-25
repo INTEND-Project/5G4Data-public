@@ -11,9 +11,9 @@ class IntentGenerator:
         self.xsd = Namespace("http://www.w3.org/2001/XMLSchema#")
         self.rdf = Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
         self.rdfs = Namespace("http://www.w3.org/2000/01/rdf-schema#")
-        self.log = Namespace("http://www.w3.org/2000/10/swap/log#")
-        self.set = Namespace("http://www.w3.org/2000/10/swap/set#")
-        self.quan = Namespace("http://www.w3.org/2000/10/swap/quantities#")
+        self.log = Namespace("http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/")
+        self.set = Namespace("http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/")
+        self.quan = Namespace("http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/")
         self.geo = Namespace("http://www.opengis.net/ont/geosparql#")
         self.data = Namespace("http://5g4data.eu/5g4data#")
 
@@ -27,35 +27,13 @@ class IntentGenerator:
         else:
             raise ValueError(f"Unknown intent type: {intent_type}")
 
-    def generate_sequence(self, intent_type, parameters, count, interval):
+    def generate_sequence(self, intent_type, parameters, count=1, interval=0):
         intents = []
         for _ in range(count):
-            # Create a copy of parameters to modify
-            modified_params = parameters.copy()
-            
-            # Add random variations to latency and bandwidth
-            if intent_type == "network":
-                # Randomize latency between 80% and 120% of the original value, rounded to integer
-                base_latency = int(parameters.get("latency", 20))
-                modified_params["latency"] = round(random.uniform(base_latency * 0.8, base_latency * 1.2))
-                
-                # Randomize bandwidth between 90% and 110% of the original value, rounded to integer
-                base_bandwidth = int(parameters.get("bandwidth", 300))
-                modified_params["bandwidth"] = round(random.uniform(base_bandwidth * 0.9, base_bandwidth * 1.1))
-            elif intent_type == "workload":
-                # Randomize compute latency between 80% and 120% of the original value, rounded to integer
-                base_latency = int(parameters.get("latency", 20))
-                modified_params["latency"] = round(random.uniform(base_latency * 0.8, base_latency * 1.2))
-            
-            # Generate the intent with modified parameters
-            intent = self.generate(intent_type, modified_params)
+            intent = self.generate(intent_type, parameters)
             intents.append(intent)
-            
-            # Random delay between 0 and the specified interval
-            if interval > 0:
-                delay = random.uniform(0, interval)
-                time.sleep(delay)
-        
+            if interval > 0 and _ < count - 1:
+                time.sleep(interval)
         return intents
 
     def _generate_network_intent(self, params):
@@ -212,7 +190,7 @@ class IntentGenerator:
         g.add((de2_uri, self.log.allOf, self.data[c3_id]))
         g.add((de2_uri, self.log.allOf, self.data[cx2_id]))
 
-        # Create network conditions
+        # Create conditions
         c1_uri = self.data[c1_id]
         g.add((c1_uri, RDF.type, self.icm.Condition))
         g.add((c1_uri, self.set.forAll, self._create_latency_condition(g, params.get("latency", 20))))
@@ -221,18 +199,16 @@ class IntentGenerator:
         g.add((c2_uri, RDF.type, self.icm.Condition))
         g.add((c2_uri, self.set.forAll, self._create_bandwidth_condition(g, params.get("bandwidth", 300))))
 
-        # Create deployment condition
         c3_uri = self.data[c3_id]
         g.add((c3_uri, RDF.type, self.icm.Condition))
         g.add((c3_uri, self.set.forAll, self._create_compute_latency_condition(g, params.get("latency", 20))))
 
-        # Create network context
+        # Create contexts
         cx1_uri = self.data[cx1_id]
         g.add((cx1_uri, RDF.type, self.icm.Context))
         g.add((cx1_uri, self.data.appliesToRegion, self.data[region_id]))
         g.add((cx1_uri, self.data.appliesToCustomer, Literal(params.get("customer", "+47 90914547"))))
 
-        # Create deployment context
         cx2_uri = self.data[cx2_id]
         g.add((cx2_uri, RDF.type, self.icm.Context))
         g.add((cx2_uri, self.data.DataCenter, Literal(params.get("datacenter", "EC1"))))

@@ -66,11 +66,26 @@ def get_intent(intent_id):
 
 @app.route('/api/delete-all-intents', methods=['POST'])
 def delete_all_intents():
+    """Delete all intents from the repository and the intents directory"""
     try:
+        # Delete all intents from GraphDB
         graphdb_client.delete_all_intents()
+        
+        # Delete all .ttl files from the intents directory
+        intents_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'intents')
+        for file in os.listdir(intents_dir):
+            if file.endswith('.ttl'):
+                file_path = os.path.join(intents_dir, file)
+                try:
+                    os.remove(file_path)
+                    print(f"Deleted file: {file_path}")
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {str(e)}")
+        
         return jsonify({"message": "All intents deleted successfully"})
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        print(f"Error deleting intents: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/intent-file/<path:filepath>')
 def get_intent_file(filepath):
@@ -102,7 +117,7 @@ def query_intents():
         query = """
         PREFIX data5g: <http://5g4data.eu/5g4data#>
         PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
-        PREFIX log: <http://www.w3.org/2000/10/swap/log#>
+        PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
         
         SELECT DISTINCT ?intent ?id ?type ?sourceFile
         WHERE {
@@ -121,7 +136,10 @@ def query_intents():
         ORDER BY ?id
         """
         
+        print("Executing SPARQL query:", query)  # Debug print
         results = graphdb_client.query_intents(query)
+        print("Query results:", results)  # Debug print
+        
         intents = []
         for binding in results['results']['bindings']:
             intent = {
@@ -131,10 +149,11 @@ def query_intents():
             }
             intents.append(intent)
         
+        print("Processed intents:", intents)  # Debug print
         return jsonify({'intents': intents})
         
     except Exception as e:
-        print(f"Error querying intents: {str(e)}")
+        print(f"Error querying intents: {str(e)}")  # Debug print
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

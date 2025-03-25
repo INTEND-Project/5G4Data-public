@@ -1,5 +1,5 @@
 import requests
-from rdflib import Graph, URIRef, Literal
+from rdflib import Graph, URIRef, Literal, Namespace
 import json
 import re
 import os
@@ -63,6 +63,13 @@ class GraphDBClient:
             # Use SPARQL CONSTRUCT with property path traversal
             construct_query = f"""
             PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            PREFIX data5g: <http://5g4data.eu/5g4data#>
+            PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+            PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
+            PREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>
+            PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
+            PREFIX dct: <http://purl.org/dc/terms/>
+            PREFIX geo: <http://www.opengis.net/ont/geosparql#>
             
             CONSTRUCT {{
                 ?s ?p ?o .
@@ -85,8 +92,22 @@ class GraphDBClient:
             )
             response.raise_for_status()
             
-            print("Generated Turtle:", response.text)  # Debug print
-            return response.text
+            # Parse the response into an RDFlib Graph to control serialization
+            g = Graph()
+            g.parse(data=response.text, format="turtle")
+            
+            # Bind the prefixes we want to use
+            g.bind("data5g", Namespace("http://5g4data.eu/5g4data#"))
+            g.bind("icm", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/"))
+            g.bind("log", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/"))
+            g.bind("set", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/"))
+            g.bind("quan", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/"))
+            g.bind("dct", Namespace("http://purl.org/dc/terms/"))
+            g.bind("geo", Namespace("http://www.opengis.net/ont/geosparql#"))
+            g.bind("rdf", Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
+            
+            # Serialize with our preferred prefixes
+            return g.serialize(format="turtle")
             
         except requests.exceptions.RequestException as e:
             print(f"Error retrieving intent data: {str(e)}")

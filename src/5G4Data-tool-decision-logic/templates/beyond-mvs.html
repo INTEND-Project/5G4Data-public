@@ -31,6 +31,11 @@
             <p>
                 Across use cases, intents will have very different semantics. Note that it will still be possible to express many differnt types of intents using the TM Forum Intent ontology since the ontology only defines the syntax. With potentially large span in intent semantics it is probably difficult to create one singe intent handler. This implies that handlers will only be able to handle intents within its scope (domain). This brings up the question: How can an intent owner find an intent handler that is capable of handling the semantics in my intent(s)? We will look into if some sort of discovery mechanism could be used, and that intent owners registers their capabilities in a intent manager registry. Intent owners can then use this registry to discover handlers capable of handling their type of intent(s).
             </p>
+            <h3 style="text-align: left;">Intent provenance</h3>
+            <p>
+                We will also look into how intent provenance can be used to trace the origin of an intent by introducing a new property in the Intent ontology. This can be useful if intents are not performing as expected. Part of the provenance will be the intent history, including the state changes of the intent, intent owner/handler relationships and which customer the intent is related to. The provenance could be part of the explainability of an intent and its evolution over time and may be visualized in a UI.
+            </p>
+
             <img src="{{ url_for('static', filename='closed-loop.png') }}" alt="Closed Loop Diagram" style="max-width: 100%; height: auto; margin: 1.5em 0;">
 
 

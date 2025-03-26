@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>INTEND 5G4DATA Workload Catalog</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+</head>
+<body>
+    <header class="main-header">
+        <a href="https://intendproject.eu/" target="_blank" rel="noopener noreferrer">
+            <img src="/images/intend_logo.gif" alt="INTEND Logo" class="logo" />
+        </a>
+        <h1 class="title">INTEND 5G4DATA Workload Catalog</h1>
+        <div class="chartmuseum-credit">
+            <a href="https://chartmuseum.com/" target="_blank" rel="noopener noreferrer">
+                <span class="chartmuseum-logo-wrapper">
+                    <img src="/images/chartmuseum-logo.png" alt="ChartMuseum Logo" />
+                </span>
+                <span>Backend credit to ChartMuseum</span>
+            </a>
+        </div>
+            
+    </header>
+
+    <script src="/js/app.js"></script>
+
+    <main class="content">
+        <div class="table-container">
+            <table id="chart-table">
+                <thead>
+                    <tr>
+                        <th>Icon</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Chart Version</th>
+                        <th>App Version</th>
+                        <th>Delete</th>
+                    </tr>
+                </thead>
+                <tbody id="chart-table-body">
+                    <!-- Data will be populated here -->
+                </tbody>
+            </table>
+
+            <div id="pagination-bar">
+                <div id="left-controls">
+                    <input type="file" id="chart-upload-input" name="chart" accept=".tgz" style="display: none;" />
+                    <button id="add-chart">➕ Add New Chart</button>
+                </div>
+
+                <div id="pagination-controls-wrapper">
+                    <div id="pagination-controls">
+                        <button id="prev-page">⬅ Prev</button>
+                        <span id="page-info">Page 1</span>
+                        <button id="next-page">Next ➡</button>
+                    </div>
+                </div>
+            </div>
+
+            <p id="upload-status" style="margin-top: 0.5em; font-style: italic; text-align: center;"></p>
+        </div>
+    </main>
+</body>
+</html>

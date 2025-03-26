@@ -143,7 +143,7 @@ data5g:C1 a icm:Condition ;
 data5g:CX1 a icm:Context ;
   data5g:DataCenter "EC1" ;
   data5g:Application "AR-retail-app" ;
-  data5g:DeploymentDescriptor "http://intend.eu/data5gWorkloadCatalogue/ar-retail-app-deployment.yaml" ;
+  data5g:DeploymentDescriptor "http://intend.eu/data5gWorkloadCatalogue/ar-retail-app-deployment.tgz" ;
 .
 
 data5g:RE1 a icm:ReportingExpectation ;

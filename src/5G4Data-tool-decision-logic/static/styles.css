@@ -139,6 +139,40 @@ input[type="submit"]:hover {
     max-height: none;
     overflow-y: visible;
 }
+/* Content layout styles */
+.content-wrapper {
+    width: 100%;
+    max-width: 750px;
+    margin: 0 auto;
+    padding-bottom: 40px;
+}
+
+.text-content {
+    width: 100%;
+}
+
+.img-container.float-left {
+    float: left;
+    width: 50%;
+    max-width: 375px;
+    margin: 0 20px 20px 0;
+    clear: both;
+}
+.img-container.float-left + p {
+    margin-top: 0;
+}
+
+.img-container img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+}
+
+.text-left {
+    text-align: left;
+}
+
 .next-step-container {
     margin-top: 20px;
     text-align: center;

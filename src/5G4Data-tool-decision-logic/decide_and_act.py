@@ -78,9 +78,12 @@ def decide_and_act(latencies, required_latency):
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    show_next_step = False
+    return render_template("index.html")
 
-    return render_template("index.html", show_next_step=show_next_step)
+@app.route("/infrastructure-description")
+def infrastructure_description():
+    show_next_step = False
+    return render_template("infrastructure-description.html", show_next_step=show_next_step)
 
 @app.route("/first-step", methods=["GET", "POST"])
 def first_step():

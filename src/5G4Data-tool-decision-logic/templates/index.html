@@ -1,148 +1,32 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
-    <script>
-        L_NO_TOUCH = false;
-        L_DISABLE_3D = false;
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.6.0/dist/leaflet.js"></script>
-    <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script> 
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.6.0/dist/leaflet.css"/>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css"/>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css"/>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"/>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-
-<body>
-    <div class="header-container">
-        <span>INTEND 5G4DATA MVS</span>
-        <div class="logos">
-            <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
-            <div class="logo-black-bg">
-                <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
-            </div>
-        </div>
-    </div>
-    
-    <div class="container">
-        <div class="map-container">
-            <div id="map"></div>
-        </div>
-    </div>
-    <div class="container">
-        <div class="info-container" style="max-width: 750px;">
-            <h1>INTEND 5G4DATA Infrastructure</h1>
-            <p>In the map above, the markers indicates where the Edge data centers for the 5G4DATA use case is located. It is possible to click on the marker to get more details about the datacentre. The 5G4Data use case will explore how 5G networks and 5G connected Edge data centres can be part of an intent-based data pipeline continuum. The 5G4Data use-case explores how to utilize usage of intents to facilitate Quality of Service (QoS) assurance in 5G Standalone (SA) networks and leveraging deployment of containerized workloads to Edge data centres to enable qualities that would not be possible to obtain with centralized computing. A key aspect of the use-case is the dynamic provisioning of network slices, ensuring that decentralized workloads receive dedicated network resources optimized for the customer’s needs. This guarantees that for example real-time inference applications can function without disruptions and with privacy in mind, thus addressing critical performance requirements not possible to achieve in centralized cloud-based solutions. To complement the network slicing capabilities, containerized workloads are deployed in container environments at Edge data centres, significantly reducing the distance between data sources (UEs) and processing nodes. This approach minimizes response times compared to traditional cloud-based inference, making real-time applications feasible across various domains.
-                </p>
-            <!-- More Details Button -->
-            <div class="button-row" style="display: flex; gap: 10px; margin-top: 1em;">
-                <button class="more-details-btn" onclick="openModal()">More details</button>
-            </div>
-            <p></p>
-            <p>The use case is all about configuring the 5G network to meet needed requirements for an application that is accesed from devices connected to a 5G network (e.g. Mobile phones, AR Goggles, IoT devices, Drones). In order to meet the latency needs of an application it might be needed to deploy or move the application to an Edge datacenter. A user expresses what their goal is in natural language using the inChat tool and inChat needs to find out what type of intent is needed. For this use case, two types of intents are possible: a) Intents that results in configuration of the 5G network using a slice, b) Deployement of an application to an edge datacenter. The combination of the two is also possible. inChat needs to figure out if a) or b) or a combination of the two are needed. Click the next button to know more about how this can be done.</p>
-            <div class="next-step-container">
-                <div class="button-row" style="display: flex; gap: 10px; margin-top: 1em;">
-                    <a href="{{ url_for('first_step') }}" class="next-step-button">Next Step</a>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- Modal for displaying markdown -->
-    <div id="markdownModal" class="modal">
-        <div class="modal-content">
-            <button class="modal-close" onclick="closeModal()">✖</button>
-            <h3>More Details</h3>
-            <div id="markdownContent">Loading...</div>
-        </div>
-    </div>
-
-    <script>
-        // Initialize Leaflet Map
-        var map = L.map("map").setView([65, 19], 4);
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="content-wrapper">
+        <h1 class="text-left">INTEND - Intent-Based Data Operation in the Computing Continuum</h1>
         
-        // Add OpenStreetMap tile layer
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution: "&copy; OpenStreetMap contributors"
-        }).addTo(map);
+        <div class="text-content">
+            <div class="img-container float-left">
+                <img src="{{ url_for('static', filename='intend_overall_story.jpg') }}" alt="INTEND Overall Story">
+            </div>
+            
+            <p class="text-left">The INTEND project <a href="https://intendproject.eu/" target="_blank">[https://intendproject.eu/]</a> explores how intent-based management can transform operations across the computing continuum—from cloud to edge—by leveraging agents powered by generative AI and domain knowledge. These intelligent agents aim to autonomously manage resources and applications in alignment with human stakeholder intentions, interpreting high-level goals rather than requiring low-level directives.</p>
+            
+            <p class="text-left">Telenor's contribution to INTEND focuses on enabling future services in 5G and upcoming 6G networks. This includes providing differentiated network quality and supporting the dynamic deployment of compute workloads to Edge data centres. As the role of Edge computing grows, we envision a future where these Edge nodes are deeply integrated within the cellular infrastructure. This integration will allow customers to focus on what they want to achieve—expressed in natural language—rather than specifying how networks and compute resources should be configured.</p>
+            
+            <p class="text-left">To make this possible, intent-based automation tools must be able to translate business-level objectives into actionable, technical configurations. We believe that managing the full lifecycle of such intents will be a key enabler for unlocking the full potential of complex infrastructure while simplifying user interaction. Ultimately, this approach empowers customers to achieve their business goals without needing to become experts in telecom or edge computing.</p>
+            
+            <div class="img-container float-left">
+                <img src="{{ url_for('static', filename='intend_infrastructure.jpg') }}" alt="INTEND Infrastructure">
+            </div>
+            
+            <p class="text-left">Our use case within INTEND is called 5G4Data—short for customer-oriented 5G data infrastructure. It investigates how to make advanced network and compute features available to customers in a simplified, accessible way. We are aligning with ongoing work in the telecom community, such as the TM Forum's efforts around Autonomous Networks. Specifically, we are using the intent ontology they've developed as a foundation for expressing and interpreting customer intents. This formal, standardized approach is crucial to building scalable, interoperable solutions.</p>
+            
+            <p class="text-left">Although our INTEND use case has a defined scope, it supports a broader vision: intent-driven, autonomous network operations. As networks become more complex and customer expectations continue to rise, this shift will be critical. The INTEND project is an important step in Telenor's journey toward meeting those challenges and preparing for the next generation of communication services.</p>
+        </div>
 
-        // Function to load and parse CSV data
-        function loadCSV(csvFile) {
-            Papa.parse(csvFile, {
-                download: true,
-                header: true,
-                delimiter: ";",
-                complete: function(results) {
-                    addMarkers(results.data);
-                }
-            });
-        }
-
-        // Function to add markers from CSV data
-        function addMarkers(data) {
-            data.forEach(function(row) {
-                if (!row.Latitude || !row.Longitude || !row.City) return; // Skip invalid rows
-                
-                var lat = parseFloat(row.Latitude);
-                var lon = parseFloat(row.Longitude);
-                
-                var popupContent = `
-                    <b>City:</b> ${row.City}<br>
-                    <b>Cluster ID:</b> ${row.Cluster_ID}<br>
-                    <b>GPUs:</b> ${row.GPUs}<br>
-                    <b>CPUs:</b> ${row.CPUs}<br>
-                    <b>Memory:</b> ${row.Memory}<br>
-                    <b>Major Electricity Source:</b> ${row.Major_source_of_electricity}<br>
-                    <b>Cost of Compute:</b> ${row.Cost_of_compute}<br>
-                    <a href="${row.Access}" target="_blank">Access Edge API</a>
-                `;
-
-                var marker = L.marker([lat, lon]).addTo(map);
-                marker.bindPopup(popupContent);
-                marker.bindTooltip(row.City, { sticky: true });
-            });
-        }
-        function openModal() {
-            document.getElementById("markdownModal").style.display = "flex";
-
-            fetch("{{ url_for('static', filename='mvs.md') }}")
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-                    return response.text();
-                })
-                .then(markdown => {
-                    document.getElementById("markdownContent").innerHTML = marked.parse(markdown);
-                })
-                .catch(error => {
-                    console.error("Error loading markdown:", error);
-                    document.getElementById("markdownContent").innerHTML = "Error loading details. Check console for more information.";
-                });
-        }
-
-        function closeModal() {
-            document.getElementById("markdownModal").style.display = "none";
-        }
-
-        // Load the CSV file (must be in the same directory as the HTML file)
-        loadCSV("static/5G4Data_Nordic_Edge_Datacenters.csv");
-
-        // Close the modal when clicking outside of it
-        window.onclick = function(event) {
-            let modal = document.getElementById("markdownModal");
-            if (event.target === modal) {
-                modal.style.display = "none";
-            }
-        }
-    </script>
-    
-</body>
-</html>
+        <div class="next-step-container">
+            <a href="{{ url_for('infrastructure_description') }}" class="next-step-button">Next Stage</a>
+        </div>
+    </div>
+</div>
+{% endblock %} 

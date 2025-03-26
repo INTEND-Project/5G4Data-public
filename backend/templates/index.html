@@ -412,6 +412,43 @@
             }
         }
 
+        async function deleteIntent(intentId) {
+            if (!confirm(`Are you sure you want to delete intent ${intentId}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/delete-intent/${intentId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const resultDiv = document.getElementById('status');
+                
+                if (data.error) {
+                    resultDiv.textContent = data.error;
+                    resultDiv.className = 'status error';
+                } else {
+                    resultDiv.textContent = data.message;
+                    resultDiv.className = 'status success';
+                    
+                    // Update the intent list
+                    updateIntentList();
+                }
+            } catch (error) {
+                const resultDiv = document.getElementById('status');
+                resultDiv.textContent = `Error: ${error.message}`;
+                resultDiv.className = 'status error';
+            }
+        }
+
         // Call updateIntentList when the page loads
         document.addEventListener('DOMContentLoaded', updateIntentList);
     </script>

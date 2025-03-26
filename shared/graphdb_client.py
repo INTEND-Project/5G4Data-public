@@ -147,4 +147,64 @@ class GraphDBClient:
             headers=headers
         )
         response.raise_for_status()
-        return response.text 
+        return response.text
+
+    def delete_intent(self, intent_id: str):
+        """Delete a specific intent and its associated file"""
+        try:
+            # First, get the source file path
+            query = f"""
+            PREFIX data5g: <http://5g4data.eu/5g4data#>
+            SELECT ?sourceFile
+            WHERE {{
+                <http://5g4data.eu/5g4data#I{intent_id}> data5g:sourceFile ?sourceFile .
+            }}
+            """
+            
+            headers = {
+                'Accept': 'application/sparql-results+json',
+                'Content-Type': 'application/sparql-query'
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/repositories/{self.repository}",
+                data=query.encode("utf-8"),
+                headers=headers
+            )
+            response.raise_for_status()
+            results = response.json()
+            
+            # Delete the file if it exists
+            if results['results']['bindings']:
+                source_file = results['results']['bindings'][0]['sourceFile']['value']
+                file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), source_file)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            
+            # Delete all triples related to the intent
+            delete_query = f"""
+            DELETE {{
+                ?s ?p ?o
+            }}
+            WHERE {{
+                ?s ?p ?o .
+                <http://5g4data.eu/5g4data#I{intent_id}> (^!rdf:type|!rdf:type)* ?s .
+            }}
+            """
+            
+            headers = {
+                'Content-Type': 'application/sparql-update'
+            }
+            
+            response = requests.post(
+                self.sparql_endpoint,
+                data=delete_query,
+                headers=headers
+            )
+            response.raise_for_status()
+            
+            return response.text
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Error deleting intent: {str(e)}")
+            raise Exception(f"Failed to delete intent: {str(e)}") 

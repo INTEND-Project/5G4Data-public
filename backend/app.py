@@ -156,5 +156,16 @@ def query_intents():
         print(f"Error querying intents: {str(e)}")  # Debug print
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/delete-intent/<intent_id>', methods=['DELETE'])
+def delete_intent(intent_id):
+    """Delete a specific intent and its associated file"""
+    try:
+        # Delete from GraphDB
+        graphdb_client.delete_intent(intent_id)
+        return jsonify({"message": f"Intent {intent_id} deleted successfully"})
+    except Exception as e:
+        print(f"Error deleting intent: {str(e)}")  # Debug print
+        return jsonify({"error": str(e)}), 400
+
 if __name__ == '__main__':
     app.run(debug=True) 

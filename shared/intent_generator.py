@@ -56,12 +56,13 @@ class IntentGenerator:
         c2_id = f"C{uuid.uuid4().hex[:8]}"
         cx_id = f"CX{uuid.uuid4().hex[:8]}"
         region_id = f"R{uuid.uuid4().hex[:8]}"
+        re_id = f"RE{uuid.uuid4().hex[:8]}"
 
         # Create intent
         intent_uri = self.data[intent_id]
         g.add((intent_uri, RDF.type, self.icm.Intent))
         g.add((intent_uri, self.log.allOf, self.data[de_id]))
-        g.add((intent_uri, self.log.allOf, self.data["RE1"]))
+        g.add((intent_uri, self.log.allOf, self.data[re_id]))
 
         # Create delivery expectation
         de_uri = self.data[de_id]
@@ -92,6 +93,12 @@ class IntentGenerator:
         g.add((region_uri, RDF.type, self.geo.Feature))
         g.add((region_uri, self.geo.hasGeometry, self._create_polygon(g, params.get("region", "POLYGON((69.673545 18.921344, 69.673448 18.924026, 69.672195 18.923903, 69.672356 18.921052))"))))
 
+        # Create reporting expectation
+        re_uri = self.data[re_id]
+        g.add((re_uri, RDF.type, self.icm.ReportingExpectation))
+        g.add((re_uri, self.icm.target, self.data["network-slice"]))
+        g.add((re_uri, self.dct.description, Literal("Report if expectation is met with reports including metrics related to expectations.")))
+
         return g.serialize(format="turtle")
 
     def _generate_workload_intent(self, params):
@@ -112,12 +119,13 @@ class IntentGenerator:
         de_id = f"DE{uuid.uuid4().hex[:8]}"
         c1_id = f"C{uuid.uuid4().hex[:8]}"
         cx_id = f"CX{uuid.uuid4().hex[:8]}"
+        re_id = f"RE{uuid.uuid4().hex[:8]}"
 
         # Create intent
         intent_uri = self.data[intent_id]
         g.add((intent_uri, RDF.type, self.icm.Intent))
         g.add((intent_uri, self.log.allOf, self.data[de_id]))
-        g.add((intent_uri, self.log.allOf, self.data["RE2"]))
+        g.add((intent_uri, self.log.allOf, self.data[re_id]))
 
         # Create deployment expectation
         de_uri = self.data[de_id]
@@ -138,6 +146,12 @@ class IntentGenerator:
         g.add((cx_uri, self.data.DataCenter, Literal(params.get("datacenter", "EC1"))))
         g.add((cx_uri, self.data.Application, Literal(params.get("application", "AR-retail-app"))))
         g.add((cx_uri, self.data.DeploymentDescriptor, Literal(params.get("descriptor", "http://intend.eu/5G4DataWorkloadCatalogue/appx-deployment.yaml"))))
+
+        # Create reporting expectation
+        re_uri = self.data[re_id]
+        g.add((re_uri, RDF.type, self.icm.ReportingExpectation))
+        g.add((re_uri, self.icm.target, self.data["deployment"]))
+        g.add((re_uri, self.dct.description, Literal("Report if expectation is met with reports including metrics related to expectations.")))
 
         return g.serialize(format="turtle")
 
@@ -164,14 +178,16 @@ class IntentGenerator:
         cx1_id = f"CX{uuid.uuid4().hex[:8]}"
         cx2_id = f"CX{uuid.uuid4().hex[:8]}"
         region_id = f"R{uuid.uuid4().hex[:8]}"
+        re1_id = f"RE{uuid.uuid4().hex[:8]}"
+        re2_id = f"RE{uuid.uuid4().hex[:8]}"
 
         # Create intent
         intent_uri = self.data[intent_id]
         g.add((intent_uri, RDF.type, self.icm.Intent))
         g.add((intent_uri, self.log.allOf, self.data[de1_id]))
         g.add((intent_uri, self.log.allOf, self.data[de2_id]))
-        g.add((intent_uri, self.log.allOf, self.data["RE1"]))
-        g.add((intent_uri, self.log.allOf, self.data["RE2"]))
+        g.add((intent_uri, self.log.allOf, self.data[re1_id]))
+        g.add((intent_uri, self.log.allOf, self.data[re2_id]))
 
         # Create network delivery expectation
         de1_uri = self.data[de1_id]
@@ -219,6 +235,17 @@ class IntentGenerator:
         region_uri = self.data[region_id]
         g.add((region_uri, RDF.type, self.geo.Feature))
         g.add((region_uri, self.geo.hasGeometry, self._create_polygon(g, params.get("region", "POLYGON((69.673545 18.921344, 69.673448 18.924026, 69.672195 18.923903, 69.672356 18.921052))"))))
+
+        # Create reporting expectations
+        re1_uri = self.data[re1_id]
+        g.add((re1_uri, RDF.type, self.icm.ReportingExpectation))
+        g.add((re1_uri, self.icm.target, self.data["network-slice"]))
+        g.add((re1_uri, self.dct.description, Literal("Report if expectation is met with reports including metrics related to expectations.")))
+
+        re2_uri = self.data[re2_id]
+        g.add((re2_uri, RDF.type, self.icm.ReportingExpectation))
+        g.add((re2_uri, self.icm.target, self.data["deployment"]))
+        g.add((re2_uri, self.dct.description, Literal("Report if expectation is met with reports including metrics related to expectations.")))
 
         return g.serialize(format="turtle")
 

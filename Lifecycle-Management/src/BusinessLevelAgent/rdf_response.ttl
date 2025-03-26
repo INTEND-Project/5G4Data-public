@@ -1,0 +1,63 @@
+@prefix icm:  <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix geo:  <http://www.opengis.net/ont/geosparql#> .
+@prefix intendproject: <http://intendproject.eu/> .
+@prefix log: <http://intendproject.eu/logic#> .
+@prefix set: <http://intendproject.eu/set#> .
+@prefix quan: <http://intendproject.eu/quantitative#> .
+
+intendproject:I1 a icm:Intent ;
+    log:allOf ( intendproject:DE1 intendproject:RE1 ) ;
+.
+
+intendproject:DE1 a icm:DeliveryExpectation ;
+    icm:target intendproject:inSwitch ;
+    dct:description "AAAAA"@en ;
+    log:allOf ( intendproject:C1 intendproject:C2 intendproject:C3 intendproject:CX1 )
+.
+
+intendproject:C1 a icm:Condition ;
+    set:forAll ( _:X
+        [ icm:valuesOfTargetProperty ( intendproject:Telenor5GLatency ) ]
+        quan:smaller ( _:X [ rdf:value "BBBBB"^^xsd:decimal ;
+                             quan:unit "ms"
+                           ] )
+    )
+.
+
+intendproject:C2 a icm:Condition ;
+    set:forAll ( _:X
+        [ icm:valuesOfTargetProperty ( intendproject:Telenor5GBandwidth ) ]
+        quan:larger ( _:X [ rdf:value "CCCCC"^^xsd:decimal ;
+                             quan:unit "mbit/s"
+                           ] )
+    )
+.
+
+intendproject:C3 a icm:Condition ;
+    set:forAll ( _:X
+        [ icm:valuesOfTargetProperty ( intendproject:TelenorEdgeComputeLatency ) ]
+        quan:smaller ( _:X [ rdf:value "DDDDD"^^xsd:decimal ;
+                             quan:unit "ms"
+                           ] )
+    )
+.
+
+intendproject:CX1 a icm:Context ;
+    intendproject:appliesToRegion intendproject:K1ShoppingMallRegion ;
+.
+
+intendproject:K1ShoppingMallRegion a geo:Feature ;
+    geo:hasGeometry [
+        a geo:Polygon ;
+        geo:asWKT "POLYGON((LAT1 LONG1, LAT2 LONG2, LAT3 LONG3, LAT4 LONG4))"^^geo:wktLiteral ;
+    ] ;
+.
+
+intendproject:RE1 a icm:ReportingExpectation ;
+    icm:target intendproject:inSwitch ;
+    dct:description "Report if expectation is met with reports including metrics related to expectations"@en ;
+.

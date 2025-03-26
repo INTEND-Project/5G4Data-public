@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Use TM Forum management API (TMF921) to send Intent</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+
+    <!-- Header Container -->
+    <div class="header-container">
+        <span>INTEND 5G4DATA MVS</span>
+        <div class="logos">
+            <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
+            <div class="logo-black-bg">
+                <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="info-container" style="max-width: 770px;">
+            <h1>Next Step: Send Intent to handler</h1>
+            <p>
+                When a proper TM Forum formatted intent has been formed, it is time to send it to an intent handler that is capable of understanding and fulfilling the intent. TM Forum has created an API for this, and we have created a reference implementation for the needed parts of this API for the 5G4DATA use case MVS. The reference implementation includes an <a href="https://www.openapis.org/" target="_blank">OpenAPI specification</a>, meaning that server stubs can be generated in many programming languages and tech stack setups. Click the more details button to see more.
+            </p>
+            
+
+            <!-- Button Group -->
+            <div class="button-group">
+                <button class="more-details-btn" onclick="openModal()">More details</button>
+                <a href="{{ url_for('summary') }}" class="next-step-button">Summary</a>
+            </div>
+
+            <div class="button-container">
+                <a href="{{ url_for('index') }}" class="home-button">Back to Home</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for displaying markdown -->
+    <div id="markdownModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">✖</button>
+            <h3>More Details</h3>
+            <div id="markdownContent">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Modal for displaying summary -->
+    <div id="summaryModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeSummary()">✖</button>
+            <h3>Summary</h3>
+            <div id="summaryContent">Loading...</div>
+        </div>
+    </div>
+
+    <script>
+        function openModal() {
+            document.getElementById("markdownModal").style.display = "flex";
+
+            fetch("{{ url_for('static', filename='send_intent.md') }}")
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.text();
+                })
+                .then(markdown => {
+                    document.getElementById("markdownContent").innerHTML = marked.parse(markdown);
+                })
+                .catch(error => {
+                    console.error("Error loading markdown:", error);
+                    document.getElementById("markdownContent").innerHTML = "Error loading details. Check console for more information.";
+                });
+        }
+
+        function closeModal() {
+            document.getElementById("markdownModal").style.display = "none";
+        }
+
+        function showSummary() {
+            document.getElementById("summaryModal").style.display = "flex";
+
+            fetch("{{ url_for('static', filename='summary.md') }}")
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.text();
+                })
+                .then(markdown => {
+                    document.getElementById("summaryContent").innerHTML = marked.parse(markdown);
+                })
+                .catch(error => {
+                    console.error("Error loading summary:", error);
+                    document.getElementById("summaryContent").innerHTML = "Error loading summary. Check console for more information.";
+                });
+        }
+
+        function closeSummary() {
+            document.getElementById("summaryModal").style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            let markdownModal = document.getElementById("markdownModal");
+            let summaryModal = document.getElementById("summaryModal");
+
+            if (event.target === markdownModal) {
+                markdownModal.style.display = "none";
+            }
+            if (event.target === summaryModal) {
+                summaryModal.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+# Ignore if python virtual environments exist
+src/SlicereportQuestionAnswerAgent/lifecycle_python_env/
+src/AddIntentReportsToKnowledgeGraph/lifecycle_python_env/

@@ -1,0 +1,2 @@
+# K8S
+This represents the Kubernetes cluster that is running at every edge datacenter location. In the figure it is represented by one recangular box, but it is actually many (currently 40). inOrch controls all of them and is capable of deploying workloads to any of the datacenter k8s clusters. Which one inOrch will deploy to is determined by the content of the Intent that inOrch receives from inSwitch.

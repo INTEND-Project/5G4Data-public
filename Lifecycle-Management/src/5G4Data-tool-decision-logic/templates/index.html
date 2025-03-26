@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="content-wrapper">
+        <h1 class="text-left">INTEND - Intent-Based Data Operation in the Computing Continuum</h1>
+        
+        <div class="text-content">
+            <div class="img-container float-left">
+                <img src="{{ url_for('static', filename='intend_overall_story.jpg') }}" alt="INTEND Overall Story">
+            </div>
+            
+            <p class="text-left">The INTEND project <a href="https://intendproject.eu/" target="_blank">[https://intendproject.eu/]</a> explores how intent-based management can transform operations across the computing continuum—from cloud to edge—by leveraging agents powered by generative AI and domain knowledge. These intelligent agents aim to autonomously manage resources and applications in alignment with human stakeholder intentions, interpreting high-level goals rather than requiring low-level directives.</p>
+            
+            <p class="text-left">Telenor's contribution to INTEND focuses on enabling future services in 5G and upcoming 6G networks. This includes providing differentiated network quality and supporting the dynamic deployment of compute workloads to Edge data centres. As the role of Edge computing grows, we envision a future where these Edge nodes are deeply integrated within the cellular infrastructure. This integration will allow customers to focus on what they want to achieve—expressed in natural language—rather than specifying how networks and compute resources should be configured.</p>
+            
+            <p class="text-left">To make this possible, intent-based automation tools must be able to translate business-level objectives into actionable, technical configurations. We believe that managing the full lifecycle of such intents will be a key enabler for unlocking the full potential of complex infrastructure while simplifying user interaction. Ultimately, this approach empowers customers to achieve their business goals without needing to become experts in telecom or edge computing.</p>
+            
+            <div class="img-container float-left">
+                <img src="{{ url_for('static', filename='intend_infrastructure.jpg') }}" alt="INTEND Infrastructure">
+            </div>
+            
+            <p class="text-left">Our use case within INTEND is called 5G4Data—short for customer-oriented 5G data infrastructure. It investigates how to make advanced network and compute features available to customers in a simplified, accessible way. We are aligning with ongoing work in the telecom community, such as the TM Forum's efforts around Autonomous Networks. Specifically, we are using the intent ontology they've developed as a foundation for expressing and interpreting customer intents. This formal, standardized approach is crucial to building scalable, interoperable solutions.</p>
+            
+            <p class="text-left">Although our INTEND use case has a defined scope, it supports a broader vision: intent-driven, autonomous network operations. As networks become more complex and customer expectations continue to rise, this shift will be critical. The INTEND project is an important step in Telenor's journey toward meeting those challenges and preparing for the next generation of communication services.</p>
+        </div>
+
+        <div class="next-step-container">
+            <a href="{{ url_for('infrastructure_description') }}" class="next-step-button">Next Stage</a>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,64 @@
+@prefix icm:  <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix log:  <http://www.w3.org/2000/10/swap/log#> .
+@prefix set:  <http://www.w3.org/2000/10/swap/set#> .
+@prefix quan: <http://www.w3.org/2000/10/swap/quantities#> .
+@prefix geo:  <http://www.opengis.net/ont/geosparql#> .
+@prefix intendproject: <http://intendproject.eu/> .
+
+# inSwitch decided that the business intent received from inChat needs to be split up
+# into two service level intents. One for the expectations to the 5G network and one for
+# the expectations to the compute. This one is the one for the 5G network.
+# This service level intent will be sent to inNet (the target of the intent) and
+# will also be stored in the knowledge graph (could be used by inCoord for coordination)
+
+intendproject:I1 a icm:Intent ;
+  log:allOf ( intendproject:DE1 intendproject:RE1 ) ;
+.
+
+# inSwitch decided that the latency and bandwidth expectations can be handled by inNet (target)
+intendproject:DE1 a icm:DeliveryExpectation ;
+  icm:target intendproject:inNet ;
+  dct:description "Ensure low latency and sufficient bandwidth in the 5G network for customer +47 90914547 store in Tromsø."@en ;
+  log:allOf ( intendproject:C1 intendproject:C2 intentproject:CX1) ;
+.
+
+# The latency and bandwidth expectations is taken directly from the businesss level intent
+intendproject:C1 a icm:Condition ;
+  set:forAll ( _:X
+    [ icm:valuesOfTargetProperty ( intendproject:5GTelenorLatency ) ]
+    quan:smaller ( _:X [ rdf:value "10"^^xsd:decimal ;
+      quan:unit "ms"
+    ] )
+  ) ;
+.
+
+intendproject:C2 a icm:Condition ;
+  set:forAll ( _:X
+    [ icm:valuesOfTargetProperty ( intendproject:5GTelenorBandwidth ) ]
+    quan:larger ( _:X [ rdf:value "300"^^xsd:decimal ;
+      quan:unit "mbit/s"
+    ] )
+  ) ;
+.
+
+# The geographical context is also taken directly from the business level intent
+
+intendproject:CX1 a icm:Context ;
+  intendproject:appliesToRegion intendproject:K1ShoppingMallRegion ;
+.
+
+intendproject:K1ShoppingMallRegion a geo:Feature ;
+  geo:hasGeometry [
+    a geo:Polygon ;
+    geo:asWKT "POLYGON((69.673545 18.921344, 69.673448 18.924026, 69.672195 18.923903, 69.672356 18.921052))"^^geo:wktLiteral ;
+  ] ;
+.
+
+intendproject:RE1 a icm:ReportingExpectation ;
+  icm:target intendproject:5GNetwork ;
+  dct:description "Report if expectation is met with reports including metrics related to expectations."@en ;
+.

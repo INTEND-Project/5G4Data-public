@@ -1,0 +1,83 @@
+This is an example of a dialogue conducted using the slice_measurement_QA_agent.py program.
+The agent will output the query generated towards the knowledge graph in addition to the answer to the question.
+
+-----------------------------------------------------------------------------------------------
+
+SlicereportQuestionAnswerAgent:bash> python slice_measurement_QA_agent.py 
+Welcome to the slice intent reports Latency Measurements QA agent. Type 'exit' to quit.
+
+Enter your question: How many measurements are there?
+
+> Entering new OntotextGraphDBQAChain chain...
+Generated SPARQL:
+PREFIX ex: <http://example.com/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT (COUNT(?measurement) AS ?measurementCount)
+WHERE {
+  ex:Slice1 ex:hasLatencyMeasurement ?measurement .
+}
+> Finished chain.
+Response: {'query': 'How many measurements are there?', 'result': 'There are 100 measurements.'}
+
+Enter your question: How many seconds are there between the first and second measurement?
+
+> Entering new OntotextGraphDBQAChain chain...
+Generated SPARQL:
+PREFIX ex: <http://example.com/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ((xsd:dateTime(?secondTime) - xsd:dateTime(?firstTime)) AS ?secondsDifference)
+WHERE {
+  ex:Slice1 ex:hasLatencyMeasurement ?firstMeasurement, ?secondMeasurement .
+  ?firstMeasurement prov:generatedAtTime ?firstTime .
+  ?secondMeasurement prov:generatedAtTime ?secondTime .
+}
+ORDER BY ?firstTime
+LIMIT 2
+
+> Finished chain.
+Response: {'query': 'How many seconds is there between the first and second measurement?', 'result': "The first measurement is a duration of 'P0D', which represents a period of zero days, and the second measurement is 'PT1M', which represents a period of one minute. The difference between these two durations is one minute, which is equivalent to 60 seconds."}
+
+Enter your question: What is the max, min and average latency?
+
+> Entering new OntotextGraphDBQAChain chain...
+Generated SPARQL:
+PREFIX ex: <http://example.com/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT (MAX(?value) AS ?maxLatency) (MIN(?value) AS ?minLatency) (AVG(?value) AS ?avgLatency)
+WHERE {
+  ?measurement a ex:LatencyMeasurement ;
+               rdf:value ?value .
+}
+
+> Finished chain.
+Response: {'query': 'What is the max, min and average latency?', 'result': 'The maximum latency is 9.13, the minimum latency is 4.13, and the average latency is 6.2643.'}
+
+Enter your question: If the original intent for the slice was to provide a latency less than 10ms on average, would you say that the intent is fulfilled for slice1? Answer only Yes or No.
+
+
+> Entering new OntotextGraphDBQAChain chain...
+Generated SPARQL:
+PREFIX ex: <http://example.com/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT (IF(AVG(?latency) < 10, "Yes", "No") AS ?intentFulfilled)
+WHERE {
+  ex:Slice1 ex:hasLatencyMeasurement ?measurement .
+  ?measurement rdf:value ?latency .
+}
+
+> Finished chain.
+Response: {'query': 'If the original intent for the slice was to provide a latency less than 10ms on average, would you say that the intent is fulfilled for slice1? Answer only Yes or No.', 'result': 'Yes.'}

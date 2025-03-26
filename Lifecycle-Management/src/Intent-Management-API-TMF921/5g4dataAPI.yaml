@@ -1,0 +1,373 @@
+openapi: 3.0.1
+info:
+  title: INTEND 5G4DATA use case; Intent Management API
+  description: Swagger UI environment for the INTEND project 5G4DATA Intent Management API specification
+  version: 1.0.0
+servers:
+  - url: '{apiRoot}/intentManagement/'
+    variables:
+      apiRoot:
+        default: 'https://5g4data'
+        enum:
+          - 'https://5g4data'
+tags:
+  - name: intent
+    description: Operations for Intent Resource
+paths:
+  /intent:
+    get:
+      tags:
+        - intent
+      summary: List or find Intent objects
+      operationId: listIntent
+      parameters:
+        - $ref: '#/components/parameters/Fields'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/200IntentArray'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '405':
+          $ref: '#/components/responses/405'
+        '500':
+          $ref: '#/components/responses/500'
+        '501':
+          $ref: '#/components/responses/501'
+        '503':
+          $ref: '#/components/responses/503'
+    post:
+      tags:
+        - intent
+      summary: Creates an Intent
+      operationId: createIntent
+      parameters:
+        - $ref: '#/components/parameters/Fields'
+      requestBody:
+        $ref: '#/components/requestBodies/Intent_FVO'
+      responses:
+        '201':
+          $ref: '#/components/responses/201Intent'
+        '202':
+          description: Accepted
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '405':
+          $ref: '#/components/responses/405'
+        '409':
+          $ref: '#/components/responses/409'
+        '500':
+          $ref: '#/components/responses/500'
+        '501':
+          $ref: '#/components/responses/501'
+        '503':
+          $ref: '#/components/responses/503'
+  /intent/{id}:
+    get:
+      tags:
+        - intent
+      summary: Retrieves an Intent by ID
+      operationId: retrieveIntent
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Fields'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Intent_Get'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '405':
+          $ref: '#/components/responses/405'
+        '500':
+          $ref: '#/components/responses/500'
+        '501':
+          $ref: '#/components/responses/501'
+        '503':
+          $ref: '#/components/responses/503'
+    patch:
+      tags:
+        - intent
+      summary: Updates partially an Intent
+      operationId: patchIntent
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Fields'
+      requestBody:
+        $ref: '#/components/requestBodies/Intent_MVO'
+      responses:
+        '200':
+          $ref: '#/components/responses/200Intent_Patch'
+        '202':
+          description: Accepted
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '405':
+          $ref: '#/components/responses/405'
+        '409':
+          $ref: '#/components/responses/409'
+        '500':
+          $ref: '#/components/responses/500'
+        '501':
+          $ref: '#/components/responses/501'
+        '503':
+          $ref: '#/components/responses/503'
+    delete:
+      tags:
+        - intent
+      summary: Deletes an Intent
+      operationId: deleteIntent
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '202':
+          $ref: '#/components/responses/202'
+        '204':
+          $ref: '#/components/responses/204'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '405':
+          $ref: '#/components/responses/405'
+        '409':
+          $ref: '#/components/responses/409'
+        '500':
+          $ref: '#/components/responses/500'
+        '501':
+          $ref: '#/components/responses/501'
+        '503':
+          $ref: '#/components/responses/503'
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Identifier of the resource
+      schema:
+        type: string
+    Fields:
+      name: fields
+      in: query
+      description: Comma‐separated list of properties to be returned in response
+      schema:
+        type: string
+    Offset:
+      name: offset
+      in: query
+      description: Index for the start of returned resources
+      schema:
+        type: integer
+    Limit:
+      name: limit
+      in: query
+      description: Number of resources to be returned
+      schema:
+        type: integer
+  requestBodies:
+    Intent_FVO:
+      description: The Intent to be created
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Intent_FVO'
+    Intent_MVO:
+      description: The Intent to be patched
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Intent_MVO'
+  responses:
+    200IntentArray:
+      description: Successful response - an array of Intent objects
+      headers:
+        X-Total-Count:
+          description: Total count of matching resources
+          schema:
+            type: integer
+        X-Result-Count:
+          description: Number of resources in this response
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/Intent'
+    200Intent_Get:
+      description: Successful response - a single Intent object
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Intent'
+    200Intent_Patch:
+      description: Successful response - the updated Intent object
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Intent'
+    201Intent:
+      description: Intent successfully created
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Intent'
+    202:
+      description: Accepted
+    204:
+      description: Deleted
+    400:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    401:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    403:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    404:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    405:
+      description: Method Not Allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    409:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    500:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    501:
+      description: Not Implemented
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    503:
+      description: Service Unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Intent:
+      type: object
+      description: An Intent instance
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        validFor:
+          $ref: '#/components/schemas/TimePeriod'
+        version:
+          type: string
+        priority:
+          type: string
+        isBundled:
+          type: boolean
+        context:
+          type: string
+        creationDate:
+          type: string
+          format: date-time
+        lastUpdate:
+          type: string
+          format: date-time
+        lifecycleStatus:
+          type: string
+        statusChangeDate:
+          type: string
+          format: date-time
+        intentSpecification:
+          $ref: '#/components/schemas/EntityRef'
+    Intent_FVO:
+      allOf:
+        - $ref: '#/components/schemas/Intent'
+      description: Full view object for Intent creation
+    Intent_MVO:
+      allOf:
+        - $ref: '#/components/schemas/Intent'
+      description: Minimal view object for Intent patching
+    TimePeriod:
+      type: object
+      properties:
+        startDateTime:
+          type: string
+          format: date-time
+        endDateTime:
+          type: string
+          format: date-time
+    EntityRef:
+      type: object
+      description: A reference to an entity
+      properties:
+        id:
+          type: string
+        href:
+          type: string
+        name:
+          type: string
+    Error:
+      type: object
+      description: Error response
+      properties:
+        code:
+          type: string
+        reason:
+          type: string

@@ -1,0 +1,1 @@
+My retail store AR application is not giving my customers a good experience. It seems to be lagging, possibly due to high latency or poor bandwidth. Please fix it. The AR goggles are connected to Telenor 5G network in my store in Tromsø, Norway. My store is located in the K1 shopping mall.

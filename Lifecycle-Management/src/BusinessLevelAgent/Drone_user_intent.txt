@@ -1,0 +1,1 @@
+I am going to fly my drone for a rescue mission in Tromsdalen, Norway and I need to be sure that 4K video is sent to an object detection classifications model to detect people and their winter equipment like skis, etc. using the ObjectDetectionModel is sent to my graphical user interface in real-time without loss.

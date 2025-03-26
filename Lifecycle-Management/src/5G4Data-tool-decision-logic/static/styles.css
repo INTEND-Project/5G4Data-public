@@ -1,0 +1,241 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 40px;
+    background-color: #f4f4f4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 750px;
+}
+.header-container {
+    width: 100%;
+    max-width: 750px;
+    height: auto;
+    background-color: lightblue;
+    padding: 10px 15px;
+    text-align: left;
+    font-size: 30px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 5px;
+    margin-top: 20px; /* Moves header down */
+}
+
+.logos {
+    display: flex;
+    align-items: center;
+    gap: 10px;  /* Reduce gap slightly if the spacing is off */
+}
+.logos img {
+    max-height: 50px; /* Ensure logo images match */
+    width: auto;
+}
+
+.logo-black-bg {
+    background-color: black;
+    padding: 5px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo-black-bg img {
+    height: 50px; /* Ensure consistent height */
+}
+
+
+.container {
+    display: flex;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: 750px;
+    margin-top: 10px;
+}
+.form-container {
+    flex: 1;
+    background: white;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0px 0px 10px gray;
+    margin-right: 20px;
+    max-width: 270px;
+    align-self: flex-start;
+}
+.info-container {
+    flex: 1;
+    background: white;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0px 0px 10px gray;
+    max-width: 400px;
+    text-align: center;
+}
+.info-container p, .info-container ol {
+    text-align: left;
+}
+.info-container ol {
+    padding-left: 20px;
+    list-style-type: lower-alpha;
+}
+.map-container {
+    width: 100%;
+    max-width: 750px;
+    height: 400px; /* Adjust height as needed */
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+}
+
+label {
+    display: block;
+    margin-top: 10px;
+    cursor: pointer;
+    text-align: left;
+}
+input {
+    width: 100%;
+    padding: 8px;
+    margin-top: 5px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+input[type="submit"] {
+    background-color: #28a745;
+    color: white;
+    cursor: pointer;
+}
+input[type="submit"]:hover {
+    background-color: #218838;
+}
+
+.result-container {
+    margin-top: 20px;
+    width: 100%;
+    max-width: 750px;
+}
+.result {
+    padding: 15px;
+    background: white;
+    border-radius: 5px;
+    box-shadow: 0px 0px 10px gray;
+    text-align: left;
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    max-height: none;
+    overflow-y: visible;
+}
+/* Content layout styles */
+.content-wrapper {
+    width: 100%;
+    max-width: 750px;
+    margin: 0 auto;
+    padding-bottom: 40px;
+}
+
+.text-content {
+    width: 100%;
+}
+
+.img-container.float-left {
+    float: left;
+    width: 50%;
+    max-width: 375px;
+    margin: 0 20px 20px 0;
+    clear: both;
+}
+.img-container.float-left + p {
+    margin-top: 0;
+}
+
+.img-container img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+}
+
+.text-left {
+    text-align: left;
+}
+
+.next-step-container {
+    margin-top: 20px;
+    text-align: center;
+}
+.button-group {
+    display: flex; /* Aligns buttons in a row */
+    gap: 10px; /* Adds space between buttons */
+    justify-content: flex-start; /* ensures left alignment */
+    margin-top: 20px; /* Adjust spacing above the buttons */
+}
+.more-details-btn,
+.next-step-button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.more-details-btn:hover,
+.next-step-button:hover {
+    background-color: #00b333;
+}
+
+/* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 20px;
+    border-radius: 5px;
+    width: 100%;
+    max-width: 750px;
+    text-align: left;
+    max-height: 80%;
+    overflow-y: auto;
+}
+
+.modal-close {
+    background: red;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    float: right;
+    font-size: 16px;
+}
+
+.button-container {
+    margin-top: 15px;  /* Adds space before the Back to Home button */
+}

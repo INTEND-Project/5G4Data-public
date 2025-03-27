@@ -1,26 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create TM Forum formatted Intent</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <!-- Include Showdown.js (Markdown to HTML Converter) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.0.3/showdown.min.js"></script>
-</head>
-<body>
+{% extends "base.html" %}
 
-    <!-- Header Container -->
-    <div class="header-container">
-        <span>INTEND 5G4DATA MVS</span>
-        <div class="logos">
-            <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
-            <div class="logo-black-bg">
-                <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
-            </div>
-        </div>
-    </div>
+{% block title %}Create TM Forum formatted Intent{% endblock %}
 
+{% block content %}
     <div class="container">
         <div class="info-container" style="max-width: 770px;">
             <h1>Next Step: Intent Creation</h1>
@@ -138,5 +120,4 @@
             });
         });
     </script>
-</body>
-</html>
+{% endblock %}

@@ -1,23 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beyond MVS</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-</head>
-<body>
-    <!-- Header Container -->
-    <div class="header-container">
-        <span>Beyond Minimal Viable Scenario</span>
-        <div class="logos">
-            <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
-            <div class="logo-black-bg">
-                <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
-            </div>
-        </div>
-    </div>
+{% extends "base.html" %}
 
+{% block title %}Beyond MVS{% endblock %}
+
+{% block content %}
     <div class="container">
         <div class="info-container" style="max-width: 770px;">
             <h1>Beyond 5G4DATA Minimal Viable Scenario</h1>
@@ -38,12 +23,10 @@
 
             <img src="{{ url_for('static', filename='closed-loop.png') }}" alt="Closed Loop Diagram" style="max-width: 100%; height: auto; margin: 1.5em 0;">
 
-
             <!-- Home and Next buttons -->
             <div class="button-container">
                 <a href="{{ url_for('index') }}" class="home-button">Back to Home</a>
             </div>
         </div>
     </div>
-</body>
-</html>
+{% endblock %}

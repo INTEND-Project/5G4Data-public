@@ -1,25 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Use TM Forum management API (TMF921) to send Intent</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-</head>
-<body>
+{% extends "base.html" %}
 
-    <!-- Header Container -->
-    <div class="header-container">
-        <span>INTEND 5G4DATA MVS</span>
-        <div class="logos">
-            <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
-            <div class="logo-black-bg">
-                <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
-            </div>
-        </div>
-    </div>
+{% block title %}Use TM Forum management API (TMF921) to send Intent{% endblock %}
 
+{% block content %}
     <div class="container">
         <div class="info-container" style="max-width: 770px;">
             <h1>Next Step: Send Intent to handler</h1>
@@ -117,5 +100,4 @@
             }
         }
     </script>
-</body>
-</html>
+{% endblock %}

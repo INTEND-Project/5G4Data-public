@@ -1,0 +1,80 @@
+/* Tooltip wrapper */
+.latency-form .tooltip-wrapper {
+    margin-bottom: 15px;
+}
+
+/* Tooltip container */
+.latency-form .tooltip {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+/* Tooltip text */
+.latency-form .tooltip .tooltiptext {
+    visibility: hidden;
+    width: 250px;
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    padding: 5px;
+    border-radius: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%; 
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+/* Tooltip arrow */
+.latency-form .tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #555 transparent transparent transparent;
+}
+
+/* Show the tooltip text when hovering */
+.latency-form .tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Label styles */
+.latency-form .tooltip label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+}
+
+/* Numbered circle */
+.latency-form .tooltip label::before {
+    content: attr(data-number);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background-color: #007bff;
+    color: white;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+/* Numbered circle colors */
+.latency-form .tooltip label[data-number="1"]::before { background-color: #FF0000; }
+.latency-form .tooltip label[data-number="2"]::before { background-color: #05f932; }
+.latency-form .tooltip label[data-number="3"]::before { background-color: #6b80f7; }
+.latency-form .tooltip label[data-number="4"]::before { background-color: #f59139; }
+.latency-form .tooltip label[data-number="5"]::before { background-color: #33ffeb; } 

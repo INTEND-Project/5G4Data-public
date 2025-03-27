@@ -1,12 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Diagram</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+{% extends "base.html" %}
 
+{% block title %}Interactive Diagram{% endblock %}
+
+{% block styles %}
     <style>
         .clickable {
             position: absolute;
@@ -26,20 +22,9 @@
         #K8S { top: 462px; left: 215px; width: 90px; height: 44px}
         #C5G { top: 462px; left: 452px; width: 95px; height: 44px}
     </style>
-</head>
-<body>
+{% endblock %}
 
-    <!-- Header Container -->
-    <div class="header-container">
-        <span>INTEND 5G4DATA MVS</span>
-        <div class="logos">
-            <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
-            <div class="logo-black-bg">
-                <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
-            </div>
-        </div>
-    </div>
-
+{% block content %}
     <div class="container">
         <div class="info-container" style="max-width: 770px;">
             <h1>Summary</h1>
@@ -54,8 +39,6 @@
                 <a href="{{ url_for('beyond_mvs') }}" class="more-details-btn">Beyond MVS</a>
             </div>
         </div>
-        
-
     </div>
 
     <div class="container">
@@ -118,6 +101,4 @@
             }
         };
     </script>
-
-</body>
-</html>
+{% endblock %}

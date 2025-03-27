@@ -11,6 +11,7 @@ docker run -p 5000:5000 latency-estimator
 The tutorial is now running, you can access it in your browser like this (http://localhost:5000). 
 
 ⚠️ Note that you need to change the port number to the port you are using if you changed it from the default port 5000
+
 ⚠️ Note that the tutorial will try to display the (Workload Catalog)[https://github.com/INTEND-Project/5G4Data-public/tree/main/Workload-Catalog]. If this service is not running, the view will be empty.
 
 The latency estimator tool (which is part of the turorial) was developed based on the description below.

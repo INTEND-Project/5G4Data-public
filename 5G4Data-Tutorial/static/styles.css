@@ -239,3 +239,69 @@ input[type="submit"]:hover {
 .button-container {
     margin-top: 15px;  /* Adds space before the Back to Home button */
 }
+
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+/* Tooltip text */
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 250px;
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    padding: 5px;
+    border-radius: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%; 
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+/* Tooltip arrow */
+.tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #555 transparent transparent transparent;
+}
+
+/* Show the tooltip text when hovering */
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+.tooltip label {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Adds space between the circle and text */
+}
+
+.tooltip label::before {
+    content: attr(data-number); /* Gets the number from the `data-number` attribute */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background-color: #007bff; /* Blue color */
+    color: white;
+    border-radius: 50%; /* Makes it a circle */
+    font-size: 14px;
+    font-weight: bold;
+}
+.tooltip label[data-number="1"]::before { background-color: #FF0000; } /* Red-Orange */
+.tooltip label[data-number="2"]::before { background-color: #05f932; } /* Blue */
+.tooltip label[data-number="3"]::before { background-color: #6b80f7; } /* Green */
+.tooltip label[data-number="4"]::before { background-color: #f59139; } /* Yellow */
+.tooltip label[data-number="5"]::before { background-color: #33ffeb; } /* Purple */
+

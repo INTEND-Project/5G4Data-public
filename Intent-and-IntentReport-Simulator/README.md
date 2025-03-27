@@ -33,13 +33,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-3. Install frontend dependencies:
-```bash
-cd frontend
-npm install
-```
-
-4. Configure environment variables:
+3. Configure environment variables:
 Create a `.env` file in the root directory with:
 ```
 FLASK_APP=backend/app.py
@@ -54,13 +48,7 @@ GRAPHDB_URL=http://localhost:7200
 flask run
 ```
 
-2. Start the frontend development server:
-```bash
-cd frontend
-npm start
-```
-
-3. Open your browser and navigate to `http://localhost:3000`
+2. Open your browser and navigate to `http://localhost:3000` (or other port number, if you changed it)
 
 ## Usage
 
@@ -71,7 +59,7 @@ npm start
 
 ## Intent Templates
 
-The simulator supports two types of intents:
+The simulator supports three types of intents:
 
 1. Network Configuration Intents:
    - Configure network slices with QoS guarantees
@@ -80,3 +68,7 @@ The simulator supports two types of intents:
 2. Workload Deployment Intents:
    - Deploy cloud-native applications
    - Configure compute requirements and deployment locations 
+
+3. Combined Network and Workload Intents:
+   - Simultaneously configure network slices and deploy applications
+   - Integrate both network QoS and compute requirements in a single intent 

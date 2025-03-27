@@ -3,8 +3,9 @@ We have created a tutorial that explains some of the decisions that the tools ne
 
 It is also possible to clone this repository (or copy the content to a local folder on your computer) and do this:
 ```
-docker build -t latency-estimator .
-docker run -p 5000:5000 latency-estimator 
+docker build -t 5g4data-tutorial .
+docker run -p 5000:5000 5g4data-tutorial -d 5g4data-tutorial
+# Or with a bit more security: docker run --cap-drop ALL --security-opt no-new-privileges -p 5003:5000 --name 5g4data-tutorial -d 5g4data-tutorial
 # If port 5000 is in use on your computer, change the first 5000 to an unused port (e.g. 5001:5000)
 ```
 

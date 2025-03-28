@@ -17,7 +17,7 @@
             </p>
                 
             <p>
-                The use case leverages deployment of containerized workloads to Edge data centres to achieve performance characteristics that centralized computing cannot provide. A key aspect of the use-case is the dynamic provisioning of network slices, ensuring that decentralized workloads receive dedicated network resources optimized for the customer’s needs. This guarantees that for example real-time inference applications can function without disruptions and with privacy in mind, thus addressing critical performance requirements not possible to achieve in centralized cloud-based solutions. To complement the network slicing capabilities, containerized workloads are deployed in container environments at Edge data centres, significantly reducing the distance between data sources (UEs) and processing nodes. This approach minimizes response times compared to traditional cloud-based inference, making real-time applications feasible across various domains.
+                The use case leverages deployment of containerized workloads to Edge data centres to achieve performance characteristics that centralized computing cannot provide. A key aspect of the use-case is the dynamic provisioning of network slices, ensuring that decentralized workloads receive dedicated network resources optimized for the customer's needs. This guarantees that for example real-time inference applications can function without disruptions and with privacy in mind, thus addressing critical performance requirements not possible to achieve in centralized cloud-based solutions. To complement the network slicing capabilities, containerized workloads are deployed in container environments at Edge data centres, significantly reducing the distance between data sources (UEs) and processing nodes. This approach minimizes response times compared to traditional cloud-based inference, making real-time applications feasible across various domains.
             </p>
             <!-- More Details Button -->
             <div class="button-row" style="display: flex; gap: 10px; margin-top: 1em;">
@@ -89,7 +89,7 @@
         function openModal() {
             document.getElementById("markdownModal").style.display = "flex";
 
-            fetch("{{ url_for('static', filename='mvs.md') }}")
+            fetch("{{ url_for('static', filename='markdown/mvs.md') }}")
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! Status: ${response.status}`);

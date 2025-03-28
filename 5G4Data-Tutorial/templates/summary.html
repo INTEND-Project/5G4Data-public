@@ -68,7 +68,7 @@
     <script>
         document.querySelectorAll(".clickable").forEach(element => {
             element.addEventListener("click", async function () {
-                const mdFile = "{{ url_for('static', filename='') }}" + this.dataset.md;
+                const mdFile = "{{ url_for('static', filename='markdown/') }}" + this.dataset.md;
                 openModal(mdFile);
             });
         });

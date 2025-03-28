@@ -119,7 +119,7 @@
         function openModal() {
             document.getElementById("markdownModal").style.display = "flex";
 
-            fetch("{{ url_for('static', filename='decisions.md') }}")
+            fetch("{{ url_for('static', filename='markdown/decisions.md') }}")
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! Status: ${response.status}`);

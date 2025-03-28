@@ -79,7 +79,7 @@
             document.getElementById("markdownModal").style.display = "flex";
 
             // Fetch and convert Markdown content
-            fetch("{{ url_for('static', filename='create_intent.md') }}")
+            fetch("{{ url_for('static', filename='markdown/create_intent.md') }}")
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! Status: ${response.status}`);

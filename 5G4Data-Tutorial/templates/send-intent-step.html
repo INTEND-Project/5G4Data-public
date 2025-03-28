@@ -45,7 +45,7 @@
         function openModal() {
             document.getElementById("markdownModal").style.display = "flex";
 
-            fetch("{{ url_for('static', filename='send_intent.md') }}")
+            fetch("{{ url_for('static', filename='markdown/send_intent.md') }}")
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! Status: ${response.status}`);
@@ -68,7 +68,7 @@
         function showSummary() {
             document.getElementById("summaryModal").style.display = "flex";
 
-            fetch("{{ url_for('static', filename='summary.md') }}")
+            fetch("{{ url_for('static', filename='markdown/summary.md') }}")
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! Status: ${response.status}`);

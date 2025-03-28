@@ -12,14 +12,13 @@
     <div class="header-container">
         <span>INTEND 5G4Data Tutorial</span>
         <div class="logos">
-            <img src="{{ url_for('static', filename='telenor_logo.png') }}" alt="Telenor Logo">
+            <img src="{{ url_for('static', filename='images/telenor_logo.png') }}" alt="Telenor Logo">
             <div class="logo-black-bg">
-                <img src="{{ url_for('static', filename='intend_logo.gif') }}" alt="INTEND Project Logo">
+                <img src="{{ url_for('static', filename='images/intend_logo.gif') }}" alt="INTEND Project Logo">
             </div>
         </div>
     </div>
     <div class="image-container">
-        <img src="{{ url_for('static', filename='latency_legs.png') }}" alt="Latency Legs Diagram">
     </div>
     <div class="container">
         <div class="form-container">
@@ -91,7 +90,10 @@
             </p>
             <!-- More Details Button -->
             <button class="more-details-btn" onclick="openModal()">More details</button>
-
+            <div class="next-step-container">
+                <a href="{{ url_for('create_intent_step') }}" class="next-step-button">Next Step</a>
+            </div>
+    
         </div>
     </div>
 
@@ -100,9 +102,6 @@
             <div class="result">
                 <pre>{{ result }}</pre>
             </div>
-        </div>
-        <div class="next-step-container">
-            <a href="{{ url_for('create_intent_step') }}" class="next-step-button">Next Step</a>
         </div>
     {% endif %}
 
@@ -113,8 +112,8 @@
             <h3>More Details</h3>
             <div id="markdownContent">Loading...</div>
         </div>
+    
     </div>
-
     <script>
         function openModal() {
             document.getElementById("markdownModal").style.display = "flex";

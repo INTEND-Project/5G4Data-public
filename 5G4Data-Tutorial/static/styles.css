@@ -240,6 +240,21 @@ input[type="submit"]:hover {
     margin-top: 15px;  /* Adds space before the Back to Home button */
 }
 
+.key-takeaway-btn {
+    background-color: #806f0d;
+    color: #000;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.3s;
+}
+
+.key-takeaway-btn:hover {
+    background-color: #FFC000;
+}
+
 .tooltip {
     position: relative;
     display: inline-block;

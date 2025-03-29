@@ -27,15 +27,38 @@
 <body>
     <!-- Header Container -->
     <div class="header-container">
-        <span>INTEND 5G4Data Tutorial</span>
-        <div class="logos">
-            <img src="{{ url_for('static', filename='images/telenor_logo.png') }}" alt="Telenor Logo">
-            <div class="logo-black-bg">
-                <img src="{{ url_for('static', filename='images/intend_logo.gif') }}" alt="INTEND Project Logo">
+        <div class="header-content">
+            <span>INTEND 5G4Data Tutorial</span>
+            <div class="logos">
+                <img src="{{ url_for('static', filename='images/telenor_logo.png') }}" alt="Telenor Logo">
+                <div class="logo-black-bg">
+                    <img src="{{ url_for('static', filename='images/intend_logo.gif') }}" alt="INTEND Project Logo">
+                </div>
             </div>
         </div>
     </div>
 
-    {% block content %}{% endblock %}
+    <div class="page-container">
+        <!-- Table of Contents Sidebar -->
+        <div class="sidebar">
+            <h2>Table of Contents</h2>
+            <ul>
+                <li><a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}class="active"{% endif %}>Introduction</a></li>
+                <li><a href="{{ url_for('use_case') }}" {% if request.endpoint == 'use_case' %}class="active"{% endif %}>5G4Data use case</a></li>
+                <li><a href="{{ url_for('infrastructure_description') }}" {% if request.endpoint == 'infrastructure_description' %}class="active"{% endif %}>Infrastructure</a></li>
+                <li><a href="{{ url_for('mvs') }}" {% if request.endpoint == 'mvs' %}class="active"{% endif %}>Minimal Viable Scenario</a></li>
+                <li><a href="{{ url_for('intent_specification') }}" {% if request.endpoint == 'intent_specification' %}class="active"{% endif %}>Intent specification</a></li>
+                <li><a href="{{ url_for('create_intent_step') }}" {% if request.endpoint == 'create_intent_step' %}class="active"{% endif %}>Intent creation</a></li>
+                <li><a href="{{ url_for('send_intent_step') }}" {% if request.endpoint == 'send_intent_step' %}class="active"{% endif %}>Intent communication</a></li>
+                <li><a href="{{ url_for('summary') }}" {% if request.endpoint == 'summary' %}class="active"{% endif %}>Summary</a></li>
+                <li><a href="{{ url_for('beyond_mvs') }}" {% if request.endpoint == 'beyond_mvs' %}class="active"{% endif %}>Beyond MVS</a></li>
+            </ul>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
 </body>
 </html> 

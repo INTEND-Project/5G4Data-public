@@ -119,6 +119,10 @@ def beyond_mvs():
 def use_case():
     return render_template("use-case.html")
 
+@app.route("/mvs")
+def mvs():
+    return render_template("mvs.html")
+
 if __name__ == "__main__":
     port = 5000  # Default port
     if len(sys.argv) > 1:

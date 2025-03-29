@@ -3,6 +3,16 @@
 {% block title %}Decide what type of Intent(s) needed{% endblock %}
 
 {% block content %}
+<div class="container">
+    <div class="content-wrapper">
+        <p>
+            The customer’s requirements could be understood through dialogue with INTEND tools (inChat and inSwitch)  which will make suggestions for specific network configurations and workload placements based on QoS estimations. The selected actions will be specified as intents formatted according to TM Forum intent ontology definition.​
+        </p>
+        <p>
+            Below, we illustrate the decisions to be made by the tools using a tool for simplified latency estimation based on information tied to a customer experiencing lagging problem for an AR application.
+        ​</p>
+    </div>
+</div>
 <div class="image-container">
     <img src="{{ url_for('static', filename='images/latency_legs.png') }}" alt="Latency Legs Diagram">
 </div>

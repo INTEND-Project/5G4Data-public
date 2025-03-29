@@ -1,151 +1,134 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Decide what type of Intent(s) needed</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-</head>
-<body>
-    <!-- Header Container -->
-    <div class="header-container">
-        <span>INTEND 5G4Data Tutorial</span>
-        <div class="logos">
-            <img src="{{ url_for('static', filename='images/telenor_logo.png') }}" alt="Telenor Logo">
-            <div class="logo-black-bg">
-                <img src="{{ url_for('static', filename='images/intend_logo.gif') }}" alt="INTEND Project Logo">
+{% extends "base.html" %}
+
+{% block title %}Decide what type of Intent(s) needed{% endblock %}
+
+{% block content %}
+<div class="image-container">
+    <img src="{{ url_for('static', filename='images/latency_legs.png') }}" alt="Latency Legs Diagram">
+</div>
+<div class="container">
+    <div class="form-container">
+        <h2>Intent(s) option estimator</h2>
+
+        <form method="POST">
+            <div class="tooltip">
+                <label for="L" data-number="1">Required Latency (ms):</label>
+                <span class="tooltiptext">The maximum acceptable total latency for your application, including all latency elements.</span>
             </div>
-        </div>
-    </div>
-    <div class="image-container">
-        <img src="{{ url_for('static', filename='images/latency_legs.png') }}" alt="Latency Legs Diagram">
-    </div>
-    <div class="container">
-        <div class="form-container">
-            <h2>Intent(s) option estimator</h2>
+            <input type="text" name="L" id="L" value="{{ latencies.L }}" class="required-latency" required>
 
-            <form method="POST">
-                <div class="tooltip">
-                    <label for="L" data-number="1">Required Latency (ms):</label>
-                    <span class="tooltiptext">The maximum acceptable total latency for your application, including all latency elements.</span>
-                </div>
-                <input type="text" name="L" id="L" value="{{ latencies.L }}" class="required-latency" required>
-
-                <div class="tooltip">
-                    <label for="g" data-number="2">UE to gNodeB (ms):</label>
-                    <span class="tooltiptext">Latency from User Equipment (UE) to the gNodeB (base station). This is usually low since the closest gNodeB is probably close.</span>
-                </div>
-                <input type="text" name="g" id="g" value="{{ latencies.g }}" required>
-
-                <div class="tooltip">
-                    <label for="b" data-number="3">gNodeB to Breakout Point (ms):</label>
-                    <span class="tooltiptext">Latency from the base station (gNodeB) to the breakout point.</span>
-                </div>
-                <input type="text" name="b" id="b" value="{{ latencies.b }}" required>
-
-                <div class="tooltip">
-                    <label for="s" data-number="4">Breakout Point to Server (ms):</label>
-                    <span class="tooltiptext">Latency from the breakout point to the application server.</span>
-                </div>
-                <input type="text" name="s" id="s" value="{{ latencies.s }}" required>
-
-                <div class="tooltip">
-                    <label for="c" data-number="5">Compute Latency (ms):</label>
-                    <span class="tooltiptext">Time taken by the application server to process data and send results back to the client application.</span>
-                </div>
-                <input type="text" name="c" id="c" value="{{ latencies.c }}" required>
-
-                <div class="tooltip">
-                    <label for="S">Latency Reduction (Slicing) (ms):</label>
-                    <span class="tooltiptext">Expected reduction in latency from using network slicing.</span>
-                </div>
-                <input type="text" name="S" id="S" value="{{ latencies.S }}" required>
-
-                <div class="tooltip">
-                    <label for="D">Latency Reduction (Local DC) (ms):</label>
-                    <span class="tooltiptext">Expected reduction in latency by using a local data center.</span>
-                </div>
-                <input type="text" name="D" id="D" value="{{ latencies.D }}" required>
-
-                <input type="submit" value="Decide Intent(s) needed">
-            </form>
-        </div>
-
-        <div class="info-container">
-            <h3>About This Tool</h3>
-            
-            <p>
-                This tool will decide which of the three possible actions need to be taken to meet the required total latency. The possible actions are:
-            </p>
-            <ol>
-                <li>It is only needed to configure a network slice.</li>
-                <li>It is only needed to move the application to a datacenter that is closer to the handsets (UE).</li>
-                <li>It is needed to do both a) and b).</li>
-            </ol>
-            <p>
-                For b), the local datacenter that the application must be moved to may be drawn from a set of local datacenters that would all make it possible to meet the latency requirement specified.
-            </p>
-            <p>
-                <strong>Hopefully, all of the values we are asking you to input in this tool could be calculated. The synthetic data we have provided could be used to do such calculations. Calculations could be done by AI agents in combination with common knowledge that resides in an LLM, or algorithmically (for simplicity in the MVS). This is something the tool owners need to dwell over. If some of the numbers can't be retrieved/deduced we need to add something to the synthetic data or make some simplifying assumptions allowing algorithmic calculations.</strong>
-            </p>
-            <!-- More Details Button -->
-            <button class="more-details-btn" onclick="openModal()">More details</button>
-            <div class="next-step-container">
-                <a href="{{ url_for('create_intent_step') }}" class="next-step-button">Next Step</a>
+            <div class="tooltip">
+                <label for="g" data-number="2">UE to gNodeB (ms):</label>
+                <span class="tooltiptext">Latency from User Equipment (UE) to the gNodeB (base station). This is usually low since the closest gNodeB is probably close.</span>
             </div>
-    
-        </div>
-    </div>
+            <input type="text" name="g" id="g" value="{{ latencies.g }}" required>
 
-    {% if result %}
-        <div class="result-container">
-            <div class="result">
-                <pre>{{ result }}</pre>
+            <div class="tooltip">
+                <label for="b" data-number="3">gNodeB to Breakout Point (ms):</label>
+                <span class="tooltiptext">Latency from the base station (gNodeB) to the breakout point.</span>
             </div>
-        </div>
-    {% endif %}
+            <input type="text" name="b" id="b" value="{{ latencies.b }}" required>
 
-    <!-- Modal for displaying markdown -->
-    <div id="markdownModal" class="modal">
-        <div class="modal-content">
-            <button class="modal-close" onclick="closeModal()">✖</button>
-            <h3>More Details</h3>
-            <div id="markdownContent">Loading...</div>
-        </div>
-    
+            <div class="tooltip">
+                <label for="s" data-number="4">Breakout Point to Server (ms):</label>
+                <span class="tooltiptext">Latency from the breakout point to the application server.</span>
+            </div>
+            <input type="text" name="s" id="s" value="{{ latencies.s }}" required>
+
+            <div class="tooltip">
+                <label for="c" data-number="5">Compute Latency (ms):</label>
+                <span class="tooltiptext">Time taken by the application server to process data and send results back to the client application.</span>
+            </div>
+            <input type="text" name="c" id="c" value="{{ latencies.c }}" required>
+
+            <div class="tooltip">
+                <label for="S">Latency Reduction (Slicing) (ms):</label>
+                <span class="tooltiptext">Expected reduction in latency from using network slicing.</span>
+            </div>
+            <input type="text" name="S" id="S" value="{{ latencies.S }}" required>
+
+            <div class="tooltip">
+                <label for="D">Latency Reduction (Local DC) (ms):</label>
+                <span class="tooltiptext">Expected reduction in latency by using a local data center.</span>
+            </div>
+            <input type="text" name="D" id="D" value="{{ latencies.D }}" required>
+
+            <input type="submit" value="Decide Intent(s) needed">
+        </form>
     </div>
-    <script>
-        function openModal() {
-            document.getElementById("markdownModal").style.display = "flex";
 
-            fetch("{{ url_for('static', filename='markdown/decisions.md') }}")
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-                    return response.text();
-                })
-                .then(markdown => {
-                    document.getElementById("markdownContent").innerHTML = marked.parse(markdown);
-                })
-                .catch(error => {
-                    console.error("Error loading markdown:", error);
-                    document.getElementById("markdownContent").innerHTML = "Error loading details. Check console for more information.";
-                });
-        }
+    <div class="info-container">
+        <h3>About This Tool</h3>
+        
+        <p>
+            This tool will decide which of the three possible actions need to be taken to meet the required total latency. The possible actions are:
+        </p>
+        <ol>
+            <li>It is only needed to configure a network slice.</li>
+            <li>It is only needed to move the application to a datacenter that is closer to the handsets (UE).</li>
+            <li>It is needed to do both a) and b).</li>
+        </ol>
+        <p>
+            For b), the local datacenter that the application must be moved to may be drawn from a set of local datacenters that would all make it possible to meet the latency requirement specified.
+        </p>
+        <p>
+            <strong>Hopefully, all of the values we are asking you to input in this tool could be calculated. The synthetic data we have provided could be used to do such calculations. Calculations could be done by AI agents in combination with common knowledge that resides in an LLM, or algorithmically (for simplicity in the MVS). This is something the tool owners need to dwell over. If some of the numbers can't be retrieved/deduced we need to add something to the synthetic data or make some simplifying assumptions allowing algorithmic calculations.</strong>
+        </p>
+        <!-- More Details Button -->
+        <button class="more-details-btn" onclick="openModal()">More details</button>
+        <div class="next-step-container">
+            <a href="{{ url_for('create_intent_step') }}" class="next-step-button">Next Step</a>
+        </div>
+    </div>
+</div>
 
-        function closeModal() {
-            document.getElementById("markdownModal").style.display = "none";
-        }
+{% if result %}
+    <div class="result-container">
+        <div class="result">
+            <pre>{{ result }}</pre>
+        </div>
+    </div>
+{% endif %}
 
-        // Close the modal when clicking outside of it
-        window.onclick = function(event) {
-            let modal = document.getElementById("markdownModal");
-            if (event.target === modal) {
-                modal.style.display = "none";
-            }
+<!-- Modal for displaying markdown -->
+<div id="markdownModal" class="modal">
+    <div class="modal-content">
+        <button class="modal-close" onclick="closeModal()">✖</button>
+        <h3>More Details</h3>
+        <div id="markdownContent">Loading...</div>
+    </div>
+</div>
+
+<script>
+    function openModal() {
+        document.getElementById("markdownModal").style.display = "flex";
+
+        fetch("{{ url_for('static', filename='markdown/decisions.md') }}")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.text();
+            })
+            .then(markdown => {
+                document.getElementById("markdownContent").innerHTML = marked.parse(markdown);
+            })
+            .catch(error => {
+                console.error("Error loading markdown:", error);
+                document.getElementById("markdownContent").innerHTML = "Error loading details. Check console for more information.";
+            });
+    }
+
+    function closeModal() {
+        document.getElementById("markdownModal").style.display = "none";
+    }
+
+    // Close the modal when clicking outside of it
+    window.onclick = function(event) {
+        let modal = document.getElementById("markdownModal");
+        if (event.target === modal) {
+            modal.style.display = "none";
         }
-    </script>
-</body>
-</html>
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}5G4Data Use Case{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="content-wrapper">
+        <h1 class="text-left">5G4Data Use Case</h1>
+        
+        <p class="text-left">
+            Our use case within INTEND is called 5G4Data—short for customer-oriented 5G data infrastructure. It investigates how to make advanced network and compute features available to customers in a simplified, accessible way. We are aligning with ongoing work in the telecom community, such as the TM Forum's efforts around Autonomous Networks. Specifically, we are using the intent ontology they've developed as a foundation for expressing and interpreting customer intents. This formal, standardized approach is crucial to building scalable, interoperable solutions.
+    
+        </p>
+            
+        <p class="text-left">
+            Although our INTEND use case has a defined scope, it supports a broader vision: intent-driven, autonomous network operations. As networks become more complex and customer expectations continue to rise, this shift will be critical. The INTEND project is an important step in Telenor's journey toward meeting those challenges and preparing for the next generation of communication services.
+        
+        </p>
+    </div>
+</div>
+
+<div class="img-container" style="width: 100%; max-width: 750px; margin: 10px auto;">
+    <img src="{{ url_for('static', filename='images/intend_infrastructure.jpg') }}" alt="INTEND Infrastructure">
+</div>
+
+<div style="margin-top: 10px; width: 100%; max-width: 750px;">
+    <div style="display: flex; gap: 10px; margin-top: 1em; justify-content: flex-start;">
+        <button class="key-takeaway-btn" onclick="openMarkdownModal('keyTakeawayModal', '/static/markdown/key_takeaway_intent.md', 'Key Takeaway')">Key takeaway</button>
+        <a href="{{ url_for('infrastructure_description') }}" class="next-step-button">Next Step</a>
+    </div>
+</div>
+
+<!-- Modal for displaying use case details -->
+<div id="useCaseModal" class="modal">
+    <div class="modal-content">
+        <button class="modal-close" onclick="closeMarkdownModal('useCaseModal')">✖</button>
+        <h3 id="useCaseModalTitle">Use Case Details</h3>
+        <div id="useCaseModalContent" class="markdown-content">Loading...</div>
+    </div>
+</div>
+{% endblock %} 

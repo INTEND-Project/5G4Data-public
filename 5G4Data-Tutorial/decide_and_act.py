@@ -85,8 +85,8 @@ def infrastructure_description():
     show_next_step = False
     return render_template("infrastructure-description.html", show_next_step=show_next_step)
 
-@app.route("/first-step", methods=["GET", "POST"])
-def first_step():
+@app.route("/intent-specification", methods=["GET", "POST"])
+def intent_specification():
     result = None
     show_next_step = False
     latencies = {"L": "", "g": "", "b": "", "s": "", "c": "", "S": "", "D": ""}
@@ -97,7 +97,7 @@ def first_step():
         required_latency = float(latencies["L"])
         result, show_next_step = decide_and_act(latencies_float, required_latency)
 
-    return render_template("first-step.html", result=result, latencies=latencies, show_next_step=show_next_step)
+    return render_template("intent-specification.html", result=result, latencies=latencies, show_next_step=show_next_step)
 
 @app.route("/create-intent-step")
 def create_intent_step():

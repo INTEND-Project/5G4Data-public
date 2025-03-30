@@ -57,7 +57,12 @@
 
         <!-- Main Content -->
         <div class="main-content">
-            {% block content %}{% endblock %}
+            <div class="container">
+                <div class="info-container" style="max-width: 770px;">
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+
         </div>
     </div>
 </body>

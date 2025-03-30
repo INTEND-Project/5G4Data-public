@@ -1,19 +1,18 @@
 {% extends "base.html" %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="content-wrapper">
-        <h1 class="text-left">INTEND - Intent-Based Data Operation in the Computing Continuum</h1>
+<div class="content-wrapper">
+    <h1 class="text-left">INTEND - Intent-Based Data Operation in the Computing Continuum</h1>
+    
+    <div class="text-content">
+        <div class="img-container float-left">
+            <img src="{{ url_for('static', filename='images/intend_overall_story.jpg') }}" alt="INTEND Overall Story">
+        </div>
         
-        <div class="text-content">
-            <div class="img-container float-left">
-                <img src="{{ url_for('static', filename='images/intend_overall_story.jpg') }}" alt="INTEND Overall Story">
-            </div>
-            
-            <p class="text-left">
-                <a href="https://intendproject.eu/" target="_blank">The INTEND project</a> explores how intent-based management can transform operations across the computing continuum—from cloud to edge—by leveraging agents powered by generative AI and domain knowledge. These intelligent agents aim to autonomously manage resources and applications in alignment with human stakeholder intentions, interpreting high-level goals rather than requiring low-level directives
-            </p>
-            
-            
+        <p class="text-left">
+            <a href="https://intendproject.eu/" target="_blank">The INTEND project</a> explores how intent-based management can transform operations across the computing continuum—from cloud to edge—by leveraging agents powered by generative AI and domain knowledge. These intelligent agents aim to autonomously manage resources and applications in alignment with human stakeholder intentions, interpreting high-level goals rather than requiring low-level directives
+        </p>
+        
         <div class="next-step-container">
             <div class="button-row" style="display: flex; gap: 10px; margin-top: 1em;">
                 <button class="key-takeaway-btn" onclick="openMarkdownModal('keyTakeawayModal', '/static/markdown/key_takeaway_intent.md', 'Key Takeaway')">Key takeaway</button>

@@ -3,67 +3,63 @@
 {% block title %}Create TM Forum formatted Intent{% endblock %}
 
 {% block content %}
-    <div class="container">
-        <div class="info-container" style="max-width: 770px;">
-            <h1>Next Step: Intent Creation</h1>
-            
-            <p><strong>To accurately define <i>Network QoS Expectations</i> in the Intent template, the following parameters must be determined:</strong></p>
-            <ol>
-                <li>The expected end-to-end latency (in milliseconds) for the workload</li>
-                <li>The required bandwidth (in Mbps) for the workload</li>
-                <li>The geographical area where the network slice should be valid (geo polygon)</li>
-                <li>Additional considerations (e.g., sustainability goals, cost constraints, or other future requirements)</li>
-            </ol>
+    <h1>Intent Creation</h1>
     
-            <p><strong>To properly specify <i>Deployment Expectations</i> in the Intent template, the following details must be established:</strong></p>
-            <ol>
-                <li>The Edge data center where the workload will be deployed</li>
-                <li>The required compute latency for the workload</li>
-                <li>The workload to be deployed (unique ID from the catalog)</li>
-                <li>The workload deployment descriptor URL (also available in the catalog)</li>
-            </ol>
-            <p>
-                We have created a PoC workload catalog with an API that can be used to retrieve workload details (Click on the "View catalog" button to see the front end for the "Workload catalog". The API is described in the <a href="https://chartmuseum.com/docs/" target="_blank" rel="noopener noreferrer">ChartMuseum documentation</a>. Our 5G4DATA workload catalog frontend uses ChartMuseum as the backend.)
-            </p>
-            
-            <!-- Button Section: View Catalog + More Details -->
-            <div class="button-row" style="display: flex; gap: 10px; margin-top: 1em;">
-                <!-- View Catalog Button (Toggles iframe) -->
-                <button class="more-details-btn" id="toggleCatalogBtn">View Catalog Frontend</button>
+    <p><strong>To accurately define <i>Network QoS Expectations</i> in the Intent template, the following parameters must be determined:</strong></p>
+    <ol>
+        <li>The expected end-to-end latency (in milliseconds) for the workload</li>
+        <li>The required bandwidth (in Mbps) for the workload</li>
+        <li>The geographical area where the network slice should be valid (geo polygon)</li>
+        <li>Additional considerations (e.g., sustainability goals, cost constraints, or other future requirements)</li>
+    </ol>
 
-                <!-- More Details Button -->
-                <button class="more-details-btn" onclick="openModal()">More details</button>
+    <p><strong>To properly specify <i>Deployment Expectations</i> in the Intent template, the following details must be established:</strong></p>
+    <ol>
+        <li>The Edge data center where the workload will be deployed</li>
+        <li>The required compute latency for the workload</li>
+        <li>The workload to be deployed (unique ID from the catalog)</li>
+        <li>The workload deployment descriptor URL (also available in the catalog)</li>
+    </ol>
+    <p>
+        We have created a PoC workload catalog with an API that can be used to retrieve workload details (Click on the "View catalog" button to see the front end for the "Workload catalog". The API is described in the <a href="https://chartmuseum.com/docs/" target="_blank" rel="noopener noreferrer">ChartMuseum documentation</a>. Our 5G4DATA workload catalog frontend uses ChartMuseum as the backend.)
+    </p>
+    
+    <!-- Button Section: View Catalog + More Details -->
+    <div class="button-row" style="display: flex; gap: 10px; margin-top: 1em;">
+        <!-- View Catalog Button (Toggles iframe) -->
+        <button class="more-details-btn" id="toggleCatalogBtn">View Catalog Frontend</button>
+
+        <!-- More Details Button -->
+        <button class="more-details-btn" onclick="openModal()">More details</button>
+    </div>
+
+    <!-- Hidden iframe container for external app (scaled down) -->
+    <div id="catalogIframeContainer" style="margin-top: 1em; display: none;">
+        <div style="overflow: auto; width: 100%;">
+            <div style="transform: scale(0.9); transform-origin: top left; width: 111.11%; height: 1000px;">
+                <iframe 
+                    src="http://start5g-1.cs.uit.no:3004/" 
+                    width="100%" 
+                    height="1000px" 
+                    style="border: 1px solid #ccc;">
+                </iframe>
             </div>
-
-            <!-- Hidden iframe container for external app (scaled down) -->
-            <div id="catalogIframeContainer" style="margin-top: 1em; display: none;">
-                <div style="overflow: auto; width: 100%;">
-                    <div style="transform: scale(0.9); transform-origin: top left; width: 111.11%; height: 1000px;">
-                        <iframe 
-                            src="http://start5g-1.cs.uit.no:3004/" 
-                            width="100%" 
-                            height="1000px" 
-                            style="border: 1px solid #ccc;">
-                        </iframe>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Home and Next buttons -->
-            <div class="button-container">
-                <a href="{{ url_for('index') }}" class="home-button">Back to Home</a>
-            </div>
-
-            <p>
-                When a business level Intent with the needed Expectation(s) have been created, it is time for inChat to send it to inSwitch, and when inSwitch has created the needed resource level Intent(s) it is time to send them to inNet and inOrch. TM Forum has designed a Intent management API that can be used. Click the next button to get to know more about that (and yes, we have created a reference implementation)
-            </p>
-            <div class="next-step-container">
-                <div class="button-row" style="display: flex; gap: 10px; margin-top: 1em;">
-                    <a href="{{ url_for('send_intent_step') }}" class="next-step-button">Next Step</a>
-                </div>
-            </div>            
         </div>
     </div>
+
+    <!-- Home and Next buttons -->
+    <div class="button-container">
+        <a href="{{ url_for('index') }}" class="home-button">Back to Home</a>
+    </div>
+
+    <p>
+        When a business level Intent with the needed Expectation(s) have been created, it is time for inChat to send it to inSwitch, and when inSwitch has created the needed resource level Intent(s) it is time to send them to inNet and inOrch. TM Forum has designed a Intent management API that can be used. Click the next button to get to know more about that (and yes, we have created a reference implementation)
+    </p>
+    <div class="next-step-container">
+        <div class="button-row" style="display: flex; gap: 10px; margin-top: 1em;">
+            <a href="{{ url_for('send_intent_step') }}" class="next-step-button">Next Step</a>
+        </div>
+    </div>            
 
     <!-- Modal for displaying markdown -->
     <div id="markdownModal" class="modal">

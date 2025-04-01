@@ -1,3 +1,0 @@
-pip==24.3.1
-setuptools==65.5.0
-SPARQLWrapper==2.0.0

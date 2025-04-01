@@ -3,15 +3,15 @@
 {% block title %}Create TM Forum formatted Intent{% endblock %}
 
 {% block content %}
-    <h1>Intent Creation</h1>
+    <h1>Intent creation</h1>
     <p>
-        For the MVS, we have simplified the creation of intents by providing templates for the two types of intents that can be handled in the use case (network and deployment). We have also provided a template for the combination of the two in one single intent (meaning that the Intent contains Expectations for both the network and the deployment). The templates are conformant with the <a href="https://www.tmforum.org/resources/introductory-guide/tr292-tm-forum-intent-ontology-tio-v3-6-0/" target="_blank" rel="noopener noreferrer">TM Forum Intent Ontology</a>. An overview of the structure of intents following the TM Forum Intent ontology is shown in the image below.
+        For the MVS, we have simplified the creation of intents by providing templates for the two types of intents that can be handled in the use case (network configuration and workload deployment). We have also provided a template for the combination of the two in one single intent (meaning that the intent contains expectations for both the network and the deployment). The templates are conformant with the <a href="https://www.tmforum.org/resources/introductory-guide/tr292-tm-forum-intent-ontology-tio-v3-6-0/" target="_blank" rel="noopener noreferrer">TM Forum Intent Ontology</a>. An overview of the structure of intents following the TM Forum Intent ontology is shown in the image below.
     </p>
     <div class="img-container" style="width: 100%; max-width: 350px; margin: 0 auto;">
         <img src="{{ url_for('static', filename='images/intent-structure.png') }}" alt="TM Forum Intent structure">
     </div>
     <p><strong>
-        To accurately define <i>Network QoS Expectations</i> in the Intent template, the following parameters must be determined:
+        To accurately define <i>network QoS expectations</i> in the intent template, the following parameters must be extracted or deduced from the dialogue with the customer:
     </strong></p>
     <ol>
         <li>The expected end-to-end latency (in milliseconds) for the workload</li>
@@ -20,21 +20,21 @@
         <li>Additional considerations (e.g., sustainability goals, cost constraints, or other future requirements)</li>
     </ol>
 
-    <p><strong>To properly specify <i>Deployment Expectations</i> in the Intent template, the following details must be established:</strong></p>
+    <p><strong>To properly specify <i>deployment expectations</i> in the intent template, the following details must be established:</strong></p>
     <ol>
-        <li>The Edge data center where the workload will be deployed</li>
+        <li>The edge data center where the workload will be deployed</li>
         <li>The required compute latency for the workload</li>
         <li>The workload to be deployed (unique ID from the catalog)</li>
         <li>The workload deployment descriptor URL (also available in the catalog)</li>
     </ol>
     <p>
-        We have created a PoC workload catalog with an API that can be used to retrieve the workload details needed in the Intent deployment template (Click on the "View catalog" button to see the front end for the "Workload catalog". The API is described in the <a href="https://chartmuseum.com/docs/" target="_blank" rel="noopener noreferrer">ChartMuseum documentation</a>. Our 5G4DATA workload catalog frontend uses ChartMuseum as the backend.)
+        We have created a PoC workload catalog with an API that can be used to retrieve the workload details needed in the intent deployment template (Click on the "View catalog" button to see the front end for the "Workload catalog". The API is described in the <a href="https://chartmuseum.com/docs/" target="_blank" rel="noopener noreferrer">ChartMuseum documentation</a>. Our 5G4Data workload catalog frontend uses ChartMuseum as the backend.)
     </p>
     
     <!-- Button Section: View Catalog + More Details -->
     <div class="button-row" style="display: flex; gap: 10px; margin-top: 1em;">
         <!-- View Catalog Button (Toggles iframe) -->
-        <button class="more-details-btn" id="toggleCatalogBtn">View Catalog Frontend</button>
+        <button class="more-details-btn" id="toggleCatalogBtn">View workload catalog</button>
 
         <!-- More Details Button -->
         <button class="more-details-btn" onclick="openModal()">More details</button>
@@ -60,7 +60,7 @@
     </div>
 
     <p>
-        When a business level Intent with the needed Expectation(s) have been created, it is time for inChat to send it to inSwitch, and when inSwitch has created the needed resource level Intent(s) it is time to send them to inNet and inOrch. TM Forum has designed a Intent management API that can be used. Click the next button to get to know more about that (and yes, we have created a reference implementation)
+        When a high level intent with the needed high level expectation(s) have been created, it is time for inChat to send it to inSwitch, and when inSwitch has created the needed lower level intent(s) it is time to send them to inNet and inOrch. TM Forum has designed an intent management API that can be used. Click the next button to get to know more about that (and yes, we have created a reference implementation)
     </p>
     <div class="next-step-container">
         <div class="button-row" style="display: flex; gap: 10px; margin-top: 1em;">
@@ -119,7 +119,7 @@
             toggleBtn.addEventListener("click", function () {
                 const isVisible = catalogContainer.style.display === "block";
                 catalogContainer.style.display = isVisible ? "none" : "block";
-                toggleBtn.textContent = isVisible ? "View Catalog frontend" : "Hide Catalog frontend";
+                toggleBtn.textContent = isVisible ? "View workload catalog" : "Hide workload catalog";
             });
         });
     </script>

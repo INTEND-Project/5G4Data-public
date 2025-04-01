@@ -47,7 +47,7 @@
                 <li><a href="{{ url_for('use_case') }}" {% if request.endpoint == 'use_case' %}class="active"{% endif %}>5G4Data use case</a></li>
                 <li><a href="{{ url_for('infrastructure_description') }}" {% if request.endpoint == 'infrastructure_description' %}class="active"{% endif %}>Infrastructure</a></li>
                 <li><a href="{{ url_for('mvs') }}" {% if request.endpoint == 'mvs' %}class="active"{% endif %}>Minimal Viable Scenario</a></li>
-                <li><a href="{{ url_for('intent_specification') }}" {% if request.endpoint == 'intent_specification' %}class="active"{% endif %}>Intent specification</a></li>
+                <li><a href="{{ url_for('intent_specification') }}" {% if request.endpoint == 'intent_specification' %}class="active"{% endif %}>Intent preparation</a></li>
                 <li><a href="{{ url_for('create_intent_step') }}" {% if request.endpoint == 'create_intent_step' %}class="active"{% endif %}>Intent creation</a></li>
                 <li><a href="{{ url_for('send_intent_step') }}" {% if request.endpoint == 'send_intent_step' %}class="active"{% endif %}>Intent communication</a></li>
                 <li><a href="{{ url_for('summary') }}" {% if request.endpoint == 'summary' %}class="active"{% endif %}>Summary</a></li>

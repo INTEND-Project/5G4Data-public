@@ -31,7 +31,7 @@ Note also that it could be interesting to experiment with the hub/listener route
 
 
 ## The API definition
-The API definition that OpenAPI uses is expressed in yaml. The 5G4DATA API description can be found in the file [5g4dataAPI.yaml](5g4dataAPI.yaml). It contains all the details about the API. OpenAPI can automatically generate the server stubs from this file.
+The API definition that OpenAPI uses is expressed in yaml. The 5G4DATA API description can be found in the file [5g4dataAPI.yaml](https://github.com/INTEND-Project/5G4Data-public/blob/main/Lifecycle-Management/src/Intent-Management-API-TMF921/5g4dataAPI.yaml). It contains all the details about the API. OpenAPI can automatically generate the server stubs from this file.
 
 ## Generate the server stubs
 The easiest way to create the stubs is by using the docker version of the OpenAPI generator. Open a terminal window in the folder where the yaml file is stored and type

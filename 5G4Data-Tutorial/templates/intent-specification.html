@@ -3,15 +3,51 @@
 {% block title %}Decide what type of Intent(s) needed{% endblock %}
 
 {% block content %}
+<style>
+    .number-circle {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 20px;
+        color: white;
+        font-weight: bold;
+        margin-right: 5px;
+    }
+    .number-1 { background-color: #FF0000; }
+    .number-2 { background-color: #00FF00; }
+    .number-3 { background-color: #0000FF; }
+    .number-4 { background-color: #FFA500; }
+    .number-5 { background-color: #00FFFF; }
+    .button-text {
+        display: inline-block;
+        padding: 4px 8px;
+        background-color: #28a745;
+        color: white;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: bold;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        font-size: 0.9em;
+    }
+    .button-text:hover {
+        background-color: #218838;
+    }
+</style>
 <div class="container">
     <div class="content-wrapper">
         <h1>Intent preparation</h1>
         <p>
-            The customer’s requirements could be extracted through dialogue with INTEND tools (inChat and inSwitch)  which will make suggestions for specific network configurations and workload placements based on QoS estimations. The customer objectives (needs) will be specified as intents formatted according to TM Forum intent ontology definition.​
+            The customer's requirements could be extracted through dialogue with INTEND tools (inChat and inSwitch)  which will make suggestions for specific network configurations and workload placements based on QoS estimations. The customer objectives (needs) will be specified as high level intents formatted according to TM Forum intent ontology definition.​
         </p>
         <p>
-            Below, we illustrate the decisions to be made by the tools using a tool for simplified latency estimation based on information tied to a customer experiencing lagging problem for an AR application.
-        ​</p>
+            Below, we illustrate the decisions to be made by the tools to fulfill a customer's (or an application's) need for low latency. The available options are to a) configure the network to decrease the latency (setting up a slice); b) move the application closer to the user, or; do both. To decide on which would be a viable option there is a need to estimate (or ideally measure) current latencies in different parts of the communication path as outlined in the sketch below. <span class="number-circle number-1">1</span>Total latency; <span class="number-circle number-2">2</span>Radio access network latency; <span class="number-circle number-3">3</span>Transport network Latency; <span class="number-circle number-4">4</span>Internet latency, and; <span class="number-circle number-5">5</span>Local edge data center latency. Further an estimation of possible latency reductions tied to the different parts needs to be done to make an informed decision on which option to choose. 
+        </p>
+        <p>
+            To the lower left we have provided a simplified latency estimation model for this purpose. Fill in values for the different fields and push the <span class="button-text">Decide intent(s) needed</span> button in the form below to get a calculation of current latency  and suggested action(s) / intent(s) displayed.​ Note that this model is a simplification. Still, for this MVS it suits the purpose of selecting among the available options.​​
+        </p>
     </div>
 </div>
 <div class="image-container">
@@ -19,7 +55,7 @@
 </div>
 <div class="container">
     <div class="form-container">
-        <h2>Intent(s) option estimator</h2>
+        <h2>Latency estimation model</h2>
 
         <form method="POST">
             <div class="tooltip">
@@ -64,7 +100,7 @@
             </div>
             <input type="text" name="D" id="D" value="{{ latencies.D }}" required>
 
-            <input type="submit" value="Decide Intent(s) needed">
+            <input type="submit" value="Decide intent(s) needed">
         </form>
     </div>
 
@@ -83,7 +119,7 @@
             For b), the local datacenter that the application must be moved to may be drawn from a set of local datacenters that would all make it possible to meet the latency requirement specified.
         </p>
         <p>
-            <strong>Hopefully, all of the values we are asking you to input in this tool could be calculated. The synthetic data we have provided could be used to do such calculations. Calculations could be done by AI agents in combination with common knowledge that resides in an LLM, or algorithmically (for simplicity in the MVS). This is something the tool owners need to dwell over. If some of the numbers can't be retrieved/deduced we need to add something to the synthetic data or make some simplifying assumptions allowing algorithmic calculations.</strong>
+            <strong>Hopefully, the tool owners will be able to calculate the asked input for this model based on the offered synthetic data. Calculations could be done by AI agents in combination with common knowledge that resides in an LLM, or algorithmically (for simplicity in the MVS). This is something the tool owners need to dwell over. If some of the numbers can't be retrieved/deduced, we need to add something to the synthetic data or make some simplifying assumptions allowing algorithmic calculations.​</strong>
         </p>
         <!-- More Details Button -->
         <button class="more-details-btn" onclick="openModal()">More details</button>

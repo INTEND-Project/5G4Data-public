@@ -45,7 +45,8 @@ GRAPHDB_URL=http://localhost:7200
 
 1. Start the backend server:
 ```bash
-flask run
+export PYTHONPATH=$PYTHONPATH:.
+flask run # optional add port like this --port 5003
 ```
 
 2. Open your browser and navigate to `http://localhost:3000` (or other port number, if you changed it)

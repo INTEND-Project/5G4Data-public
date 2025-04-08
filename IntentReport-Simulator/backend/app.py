@@ -159,21 +159,26 @@ def generate_turtle(report_data):
     """Generate Turtle format for an intent report"""
     report_id = str(uuid.uuid4())
     
+    # Define the full namespaces
+    icm_ns = "http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/"
+    data5g_ns = "http://5g4data.eu/5g4data#"
+    xsd_ns = "http://www.w3.org/2001/XMLSchema#"
+    
     # Start with the base statement
-    turtle = f'<icm:R{report_id}> a <icm:IntentReport> ;'
-    turtle += f' <icm:about> <data5g:I{report_data["intent_id"]}> ;'
-    turtle += f' <icm:reportNumber> "{report_data["report_number"]}"^^<xsd:integer> ;'
-    turtle += f' <icm:reportGenerated> "{report_data["report_generated"]}"^^<xsd:dateTime>'
+    turtle = f'<{icm_ns}R{report_id}> a <{icm_ns}IntentReport> ;'
+    turtle += f' <{icm_ns}about> <{data5g_ns}I{report_data["intent_id"]}> ;'
+    turtle += f' <{icm_ns}reportNumber> "{report_data["report_number"]}"^^<{xsd_ns}integer> ;'
+    turtle += f' <{icm_ns}reportGenerated> "{report_data["report_generated"]}"^^<{xsd_ns}dateTime>'
 
     # Add state based on report type
     if 'intent_handling_state' in report_data:
-        turtle += f' ; <icm:intentHandlingState> "{report_data["intent_handling_state"]}"'
+        turtle += f' ; <{icm_ns}intentHandlingState> "{report_data["intent_handling_state"]}"'
     elif 'intent_update_state' in report_data:
-        turtle += f' ; <icm:intentUpdateState> "{report_data["intent_update_state"]}"'
+        turtle += f' ; <{icm_ns}intentUpdateState> "{report_data["intent_update_state"]}"'
 
     # Add reason if present
     if report_data.get('reason'):
-        turtle += f' ; <icm:reason> "{report_data["reason"]}"'
+        turtle += f' ; <{icm_ns}reason> "{report_data["reason"]}"'
 
     # Close the turtle statement
     turtle += ' .'

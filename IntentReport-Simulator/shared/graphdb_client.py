@@ -84,8 +84,8 @@ class IntentReportClient:
     def get_last_intent_report(self, intent_id):
         """Get the most recent report for a specific intent"""
         query = f"""
-        PREFIX icm: <icm:>
-        PREFIX data5g: <data5g:>
+        PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+        PREFIX data5g: <http://5g4data.eu/5g4data#>
         PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
         PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
         
@@ -121,8 +121,17 @@ class IntentReportClient:
             binding = results["results"]["bindings"][0]
             report_uri = binding["report"]["value"]
             
-            # Format the Turtle data using the simple prefix format
-            turtle = f'icm:{report_uri.split(":")[-1]} rdf:type icm:IntentReport ;\n'
+            # Format the Turtle data with prefixes first
+            turtle = "@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .\n"
+            turtle += "@prefix data5g: <http://5g4data.eu/5g4data#> .\n"
+            turtle += "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n"
+            turtle += "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n\n"
+            
+            # Extract the report ID from the URI
+            report_id = report_uri.split('/')[-1]
+            
+            # Add the report data using simplified prefixes
+            turtle += f'icm:{report_id} rdf:type icm:IntentReport ;\n'
             turtle += f'    icm:about data5g:I{intent_id} ;\n'
             turtle += f'    icm:reportNumber "{binding["number"]["value"]}"^^xsd:integer ;\n'
             turtle += f'    icm:reportGenerated "{binding["timestamp"]["value"]}"^^xsd:dateTime'
@@ -143,8 +152,8 @@ class IntentReportClient:
     def get_highest_intent_report_number(self, intent_id):
         """Get the highest report number for a specific intent"""
         query = f"""
-        PREFIX icm: <icm:>
-        PREFIX data5g: <data5g:>
+        PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+        PREFIX data5g: <http://5g4data.eu/5g4data#>
         PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
         PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
         

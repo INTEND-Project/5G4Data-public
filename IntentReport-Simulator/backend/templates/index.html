@@ -84,6 +84,20 @@
         .btn-sm:last-child {
             margin-right: 0;
         }
+
+        .report-type-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .report-type-buttons .btn.active {
+            background-color: #0d6efd;
+            color: white;
+        }
+
+        .report-form {
+            margin-top: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -99,70 +113,93 @@
         <div class="form-container">
             <h3>Create Intent Report</h3>
             <form id="intentReportForm">
-                <!-- Selected Intent Reference -->
+                <!-- Report Type Selection -->
                 <div class="form-group">
-                    <label for="intentIdDisplay">Selected Intent ID:</label>
-                    <input type="text" class="form-control" id="intentIdDisplay" readonly placeholder="Click 'Create report' on an intent below">
-                    <input type="hidden" id="intentId">
-                </div>
-                
-                <!-- Report Metadata -->
-                <div class="form-group">
-                    <label for="reportNumber">Report Number:</label>
-                    <input type="number" class="form-control" id="reportNumber" readonly>
+                    <label class="d-block mb-2">Select report type:</label>
+                    <div class="report-type-buttons mb-3">
+                        <button type="button" class="btn btn-outline-primary me-2" data-report-type="STATE_CHANGE">State Change</button>
+                        <button type="button" class="btn btn-outline-primary me-2" data-report-type="UPDATE_CHANGE">Update Change</button>
+                        <button type="button" class="btn btn-outline-primary" data-report-type="EXPECTATION">Expectation</button>
+                    </div>
+                    <input type="hidden" id="reportType" required>
                 </div>
 
-                <div class="form-group">
-                    <label for="reportGenerated">Report Generated:</label>
-                    <input type="datetime-local" class="form-control" id="reportGenerated" required>
+                <!-- State Change Form -->
+                <div id="stateChangeForm" class="report-form" style="display: none;">
+                    <div class="form-group">
+                        <label for="intentIdDisplay">Selected Intent ID:</label>
+                        <input type="text" class="form-control" id="intentIdDisplay" readonly placeholder="Click 'Create report' on an intent below">
+                        <input type="hidden" id="intentId">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reportNumber">Report Number:</label>
+                        <input type="number" class="form-control" id="reportNumber" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reportGenerated">Report Generated:</label>
+                        <input type="datetime-local" class="form-control" id="reportGenerated">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="intentHandlingState">Intent Handling State:</label>
+                        <select class="form-control" id="intentHandlingState" required>
+                            <option value="StateIntentReceived">StateIntentReceived</option>
+                            <option value="StateCompliant">StateCompliant</option>
+                            <option value="StateDegraded">StateDegraded</option>
+                            <option value="StateFinalizing">StateFinalizing</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reason">Reason:</label>
+                        <textarea class="form-control" id="reason" rows="3"></textarea>
+                    </div>
                 </div>
 
-                <!-- Intent Handling State -->
-                <div class="form-group">
-                    <label for="intentHandlingState">Intent Handling State:</label>
-                    <select class="form-control" id="intentHandlingState" required>
-                        <option value="RECEIVED">Received</option>
-                        <option value="ACCEPTED">Accepted</option>
-                        <option value="IN_PROGRESS">In Progress</option>
-                        <option value="COMPLETED">Completed</option>
-                        <option value="FAILED">Failed</option>
-                        <option value="REJECTED">Rejected</option>
-                    </select>
+                <!-- Update Change Form -->
+                <div id="updateChangeForm" class="report-form" style="display: none;">
+                    <div class="form-group">
+                        <label for="intentIdDisplay_update">Selected Intent ID:</label>
+                        <input type="text" class="form-control" id="intentIdDisplay_update" readonly placeholder="Click 'Create report' on an intent below">
+                        <input type="hidden" id="intentId_update">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reportNumber_update">Report Number:</label>
+                        <input type="number" class="form-control" id="reportNumber_update" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reportGenerated_update">Report Generated:</label>
+                        <input type="datetime-local" class="form-control" id="reportGenerated_update">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="intentUpdateState">Intent Update State:</label>
+                        <select class="form-control" id="intentUpdateState" required>
+                            <option value="StateNoUpdate">StateNoUpdate</option>
+                            <option value="StateUpdateReceived">StateUpdateReceived</option>
+                            <option value="StateUpdating">StateUpdating</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reason_update">Reason:</label>
+                        <textarea class="form-control" id="reason_update" rows="3"></textarea>
+                    </div>
                 </div>
 
-                <!-- Intent Update State -->
-                <div class="form-group">
-                    <label for="intentUpdateState">Intent Update State:</label>
-                    <select class="form-control" id="intentUpdateState" required>
-                        <option value="NO_UPDATE_NEEDED">No Update Needed</option>
-                        <option value="UPDATE_IN_PROGRESS">Update In Progress</option>
-                        <option value="UPDATE_COMPLETED">Update Completed</option>
-                        <option value="UPDATE_FAILED">Update Failed</option>
-                    </select>
+                <!-- Expectation Form -->
+                <div id="expectationForm" class="report-form" style="display: none;">
+                    <!-- Placeholder for expectation form -->
+                    <div class="form-group">
+                        <p>Expectation form coming soon...</p>
+                    </div>
                 </div>
 
-                <!-- Result -->
-                <div class="form-group">
-                    <label for="result">Result:</label>
-                    <select class="form-control" id="result" required>
-                        <option value="true">True</option>
-                        <option value="false">False</option>
-                    </select>
-                </div>
-
-                <!-- Reason -->
-                <div class="form-group">
-                    <label for="reason">Reason:</label>
-                    <textarea class="form-control" id="reason" rows="3"></textarea>
-                </div>
-
-                <!-- Target Report -->
-                <div class="form-group">
-                    <label for="targetCount">Target Count:</label>
-                    <input type="number" class="form-control" id="targetCount" min="0" value="0">
-                </div>
-
-                <button type="submit" class="btn btn-primary btn-lg">Generate Report</button>
+                <button type="submit" class="btn btn-primary btn-lg mt-3">Generate Report</button>
             </form>
         </div>
 
@@ -203,7 +240,7 @@
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const API_BASE_URL = `http://${window.location.host}`;
 
@@ -213,7 +250,121 @@
             
             // Initialize the list of intents first
             updateIntentList();
+
+            // Add click handlers to all report type buttons
+            const reportTypeButtons = document.querySelectorAll('.report-type-buttons button');
+            reportTypeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const type = this.getAttribute('data-report-type');
+                    selectReportType(type);
+                });
+            });
+
+            // Initialize the form submission handler
+            const form = document.getElementById('intentReportForm');
+            if (form) {
+                form.addEventListener('submit', handleFormSubmit);
+            }
         });
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            console.log('Form submitted');  // Debug log
+            
+            const reportType = document.getElementById('reportType')?.value;
+            console.log('Report type:', reportType);  // Debug log
+            
+            if (!reportType) {
+                showStatus('Please select a report type', 'error');
+                return;
+            }
+            
+            // Get the correct form elements based on report type
+            const formPrefix = reportType === 'UPDATE_CHANGE' ? '_update' : '';
+            const intentId = document.getElementById(`intentId${formPrefix}`)?.value;
+            console.log('Intent ID:', intentId);  // Debug log
+            
+            if (!intentId) {
+                showStatus('Please select an intent first by clicking "Create report" button', 'error');
+                return;
+            }
+            
+            // Collect form data based on report type
+            const reportData = {
+                intent_id: intentId,
+                report_number: document.getElementById(`reportNumber${formPrefix}`)?.value,
+                report_generated: document.getElementById(`reportGenerated${formPrefix}`)?.value,
+                reason: document.getElementById(`reason${formPrefix}`)?.value
+            };
+
+            // Add state based on report type
+            if (reportType === 'STATE_CHANGE') {
+                reportData.intent_handling_state = document.getElementById('intentHandlingState')?.value;
+            } else if (reportType === 'UPDATE_CHANGE') {
+                reportData.intent_update_state = document.getElementById('intentUpdateState')?.value;
+            }
+
+            console.log('Sending report data:', reportData);  // Debug log
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/generate-report`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(reportData)
+                });
+
+                console.log('Response status:', response.status);  // Debug log
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Response data:', data);  // Debug log
+                
+                if (data.error) {
+                    showStatus(data.error, 'error');
+                } else {
+                    showStatus(data.message, 'success');
+                    resetForm(formPrefix);
+                }
+            } catch (error) {
+                console.error('Error submitting form:', error);
+                showStatus(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function showStatus(message, type) {
+            const resultDiv = document.getElementById('status');
+            if (resultDiv) {
+                resultDiv.textContent = message;
+                resultDiv.className = `status ${type}`;
+            }
+        }
+
+        function resetForm(formPrefix) {
+            const reason = document.getElementById(`reason${formPrefix}`);
+            const reportGenerated = document.getElementById(`reportGenerated${formPrefix}`);
+            const reportNumber = document.getElementById(`reportNumber${formPrefix}`);
+            
+            if (reason) reason.value = '';
+            
+            // Update timestamp
+            if (reportGenerated) {
+                const now = new Date();
+                now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                reportGenerated.value = now.toISOString().slice(0,16);
+            }
+            
+            // Increment report number
+            if (reportNumber) {
+                reportNumber.value = (parseInt(reportNumber.value, 10) || 0) + 1;
+            }
+        }
 
         function updateIntentList() {
             console.log('Fetching intents from:', `${API_BASE_URL}/api/query-intents`);
@@ -266,53 +417,82 @@
         }
 
         function selectIntentForReport(intentId) {
-            console.log('Selecting intent for report:', intentId);
-            const intentIdDisplay = document.getElementById('intentIdDisplay');
-            const intentIdHidden = document.getElementById('intentId');
-            const reportNumber = document.getElementById('reportNumber');
-            const reportGenerated = document.getElementById('reportGenerated');
-            
-            // Clear the previous report number first
-            if (reportNumber) {
-                reportNumber.value = '';
+            const reportType = document.getElementById('reportType')?.value;
+            if (!reportType) {
+                const resultDiv = document.getElementById('status');
+                if (resultDiv) {
+                    resultDiv.textContent = 'Please select a report type first';
+                    resultDiv.className = 'status error';
+                }
+                return;
             }
 
-            if (intentIdDisplay && intentIdHidden) {
-                intentIdDisplay.value = intentId;
-                intentIdHidden.value = intentId;
+            // Set values based on the report type
+            if (reportType === 'STATE_CHANGE') {
+                const intentIdDisplay = document.getElementById('intentIdDisplay');
+                const intentIdHidden = document.getElementById('intentId');
+                const reportNumber = document.getElementById('reportNumber');
+                const reportGenerated = document.getElementById('reportGenerated');
                 
-                // Set default timestamp
-                const now = new Date();
-                now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-                if (reportGenerated) {
-                    reportGenerated.value = now.toISOString().slice(0,16);
+                if (intentIdDisplay && intentIdHidden) {
+                    intentIdDisplay.value = intentId;
+                    intentIdHidden.value = intentId;
+                    
+                    // Set default timestamp
+                    const now = new Date();
+                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                    if (reportGenerated) {
+                        reportGenerated.value = now.toISOString().slice(0,16);
+                    }
+                    
+                    // Fetch next report number
+                    fetchNextReportNumber(intentId, reportNumber);
                 }
+            } else if (reportType === 'UPDATE_CHANGE') {
+                const intentIdDisplay = document.getElementById('intentIdDisplay_update');
+                const intentIdHidden = document.getElementById('intentId_update');
+                const reportNumber = document.getElementById('reportNumber_update');
+                const reportGenerated = document.getElementById('reportGenerated_update');
                 
-                // Fetch the next report number for this specific intent
-                console.log('Fetching next report number for intent:', intentId);
-                fetch(`${API_BASE_URL}/api/get-next-report-number/${intentId}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.json().then(data => {
-                                throw new Error(data.error || `HTTP error! status: ${response.status}`);
-                            });
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log('Received next report number:', data.next_number);
-                        if (reportNumber) {
-                            reportNumber.value = data.next_number;
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error fetching next report number:', error);
-                        // Set to 1 if there's an error (likely no existing reports)
-                        if (reportNumber) {
-                            reportNumber.value = 1;
-                        }
-                    });
+                if (intentIdDisplay && intentIdHidden) {
+                    intentIdDisplay.value = intentId;
+                    intentIdHidden.value = intentId;
+                    
+                    // Set default timestamp
+                    const now = new Date();
+                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                    if (reportGenerated) {
+                        reportGenerated.value = now.toISOString().slice(0,16);
+                    }
+                    
+                    // Fetch next report number
+                    fetchNextReportNumber(intentId, reportNumber);
+                }
             }
+        }
+
+        // Helper function to fetch next report number
+        function fetchNextReportNumber(intentId, reportNumberElement) {
+            fetch(`${API_BASE_URL}/api/get-next-report-number/${intentId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (reportNumberElement) {
+                        reportNumberElement.value = data.next_number;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching next report number:', error);
+                    if (reportNumberElement) {
+                        reportNumberElement.value = 1;
+                    }
+                });
         }
 
         function showIntentDetails(intentId) {
@@ -346,7 +526,7 @@
 
         function showLastReport(intentId) {
             console.log('Fetching last report for intent:', intentId);
-            fetch(`${API_BASE_URL}/api/get-last-report/${intentId}`)
+            fetch(`${API_BASE_URL}/api/get-last-intent-report/${intentId}`)
                 .then(response => {
                     if (!response.ok) {
                         return response.json().then(data => {
@@ -356,12 +536,11 @@
                     return response.json();
                 })
                 .then(data => {
+                    if (!data.data) {
+                        throw new Error('No report data received');
+                    }
                     const intentDetails = document.getElementById('intentDetails');
                     if (intentDetails) {
-                        // Check if we have actual report data
-                        if (!data.data || data.data.trim() === '') {
-                            throw new Error('No report data available');
-                        }
                         intentDetails.textContent = data.data;
                         // Update modal title to indicate this is a report
                         const modalTitle = document.getElementById('intentModalLabel');
@@ -381,92 +560,45 @@
                 });
         }
 
-        // Form submission handler
-        const form = document.getElementById('intentReportForm');
-        if (form) {
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                const intentId = document.getElementById('intentId')?.value;
-                if (!intentId) {
-                    const resultDiv = document.getElementById('status');
-                    if (resultDiv) {
-                        resultDiv.textContent = 'Please select an intent first by clicking "Create report" button';
-                        resultDiv.className = 'status error';
-                    }
-                    return;
-                }
-                
-                const reportData = {
-                    intent_id: intentId,
-                    report_number: document.getElementById('reportNumber')?.value,
-                    report_generated: document.getElementById('reportGenerated')?.value,
-                    intent_handling_state: document.getElementById('intentHandlingState')?.value,
-                    intent_update_state: document.getElementById('intentUpdateState')?.value,
-                    result: document.getElementById('result')?.value === 'true',
-                    reason: document.getElementById('reason')?.value,
-                    target_count: parseInt(document.getElementById('targetCount')?.value || '0', 10)
-                };
+        function selectReportType(type) {
+            console.log('Selecting report type:', type);
 
-                try {
-                    const response = await fetch(`${API_BASE_URL}/api/generate-intent-report`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify(reportData)
-                    });
+            // Update hidden input
+            const reportTypeInput = document.getElementById('reportType');
+            if (reportTypeInput) {
+                reportTypeInput.value = type;
+            }
 
-                    const resultDiv = document.getElementById('status');
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    
-                    const data = await response.json();
-                    
-                    if (data.error) {
-                        if (resultDiv) {
-                            resultDiv.textContent = data.error;
-                            resultDiv.className = 'status error';
-                        }
-                    } else {
-                        if (resultDiv) {
-                            resultDiv.textContent = data.message;
-                            resultDiv.className = 'status success';
-                        }
-                        
-                        // Reset form except for the intent ID
-                        const reason = document.getElementById('reason');
-                        const targetCount = document.getElementById('targetCount');
-                        const reportGenerated = document.getElementById('reportGenerated');
-                        const reportNumber = document.getElementById('reportNumber');
-                        
-                        if (reason) reason.value = '';
-                        if (targetCount) targetCount.value = '0';
-                        
-                        // Update timestamp
-                        if (reportGenerated) {
-                            const now = new Date();
-                            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-                            reportGenerated.value = now.toISOString().slice(0,16);
-                        }
-                        
-                        // Increment report number
-                        if (reportNumber) {
-                            reportNumber.value = (parseInt(reportNumber.value, 10) || 0) + 1;
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error submitting form:', error);
-                    const resultDiv = document.getElementById('status');
-                    if (resultDiv) {
-                        resultDiv.textContent = `Error: ${error.message}`;
-                        resultDiv.className = 'status error';
-                    }
+            // Update button styles
+            const buttons = document.querySelectorAll('.report-type-buttons .btn');
+            buttons.forEach(button => {
+                if (button.getAttribute('data-report-type') === type) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
                 }
             });
+
+            // Hide all forms first
+            const allForms = document.querySelectorAll('.report-form');
+            allForms.forEach(form => {
+                form.style.display = 'none';
+            });
+
+            // Show the selected form
+            const formMap = {
+                'STATE_CHANGE': 'stateChangeForm',
+                'UPDATE_CHANGE': 'updateChangeForm',
+                'EXPECTATION': 'expectationForm'
+            };
+
+            const formToShow = document.getElementById(formMap[type]);
+            if (formToShow) {
+                console.log('Showing form:', formMap[type]);
+                formToShow.style.display = 'block';
+            } else {
+                console.log('Form not found:', formMap[type]);
+            }
         }
     </script>
 </body>

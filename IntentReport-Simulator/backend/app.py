@@ -13,13 +13,19 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 
-from shared.graphdb_client import GraphDBClient
+from shared.graphdb_client import IntentReportClient
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:5001", "http://127.0.0.1:5001"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Accept"]
+    }
+})
 
 # Initialize two GraphDB clients - one for intents and one for reports
 graphdb_url = os.getenv('GRAPHDB_URL', 'http://start5g-1:7200')
@@ -30,8 +36,9 @@ print(f"Connecting to GraphDB at {graphdb_url}")
 print(f"Using repository 'intents' for intents")
 print(f"Using repository 'intent-reports' for reports")
 
-intents_client = GraphDBClient(graphdb_url, repository='intents')
-reports_client = GraphDBClient(graphdb_url, repository='intent-reports')
+# Initialize clients with explicit repository names
+intents_client = IntentReportClient(graphdb_url, repository='intents')
+reports_client = IntentReportClient(graphdb_url, repository='intent-reports')
 
 @app.route('/')
 def index():
@@ -41,26 +48,7 @@ def index():
 def query_intents():
     """Query all intents with their details"""
     try:
-        query = """
-        PREFIX data5g: <http://5g4data.eu/5g4data#>
-        PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
-        PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
-        
-        SELECT DISTINCT ?intent ?id ?type
-        WHERE {
-            ?intent a icm:Intent ;
-                log:allOf ?de .
-            ?de icm:target ?target .
-            BIND(REPLACE(STR(?intent), ".*#I", "") AS ?id)
-            BIND(IF(?target = data5g:network-slice, "Network",
-                    IF(?target = data5g:deployment, "Workload",
-                    IF(?target = data5g:network-slice && EXISTS { ?intent log:allOf data5g:RE2 }, "Combined", "Unknown"))) AS ?type)
-            FILTER(STRSTARTS(STR(?de), "http://5g4data.eu/5g4data#DE"))
-        }
-        ORDER BY ?id
-        """
-        
-        results = intents_client.query_intents(query)
+        results = intents_client.get_intents()
         
         intents = []
         for binding in results['results']['bindings']:
@@ -90,72 +78,107 @@ def get_intent(intent_id):
         print("Error:", str(e))
         return jsonify({"error": str(e)}), 400
 
-@app.route('/api/generate-intent-report', methods=['POST'])
+@app.route('/api/generate-report', methods=['POST'])
 def generate_intent_report():
+    print("=== Received request to /api/generate-report ===")  # Debug log
+    print(f"Request method: {request.method}")  # Debug log
+    print(f"Request headers: {dict(request.headers)}")  # Debug log
+    print(f"Request data: {request.get_data()}")  # Debug log
+    
     try:
-        data = request.get_json()
+        report_data = request.json
+        print(f"Received report data: {report_data}")  # Debug log
         
-        # Validate required fields
-        required_fields = ['intent_id', 'intent_handling_state', 'report_generated']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({"error": f"Missing required field: {field}"}), 400
-
-        # Create report in Turtle format
-        report_id = str(uuid.uuid4())
-        report_turtle = f"""
-        @prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
-        @prefix ir: <http://example.org/intent-reports#> .
-        @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-
-        ir:{report_id} a icm:IntentReport ;
-            icm:about <http://5g4data.eu/5g4data#I{data['intent_id']}> ;
-            icm:reportNumber "{data.get('report_number', '1')}"^^xsd:integer ;
-            icm:reportGenerated "{data['report_generated']}"^^xsd:dateTime ;
-            icm:intentHandlingState "{data['intent_handling_state']}" ;
-            icm:intentUpdateState "{data.get('intent_update_state', 'NO_UPDATE_NEEDED')}" ;
-            icm:result "{str(data.get('result', 'true')).lower()}"^^xsd:boolean ;
-            icm:reason "{data.get('reason', '')}" ;
-            icm:targetCount "{data.get('target_count', 0)}"^^xsd:integer .
-        """
-
-        # Store the report in the intent-reports repository
-        reports_client.store_report(report_turtle)
-
-        return jsonify({
-            "message": "Intent report generated successfully",
-            "report_id": report_id
-        })
+        # Generate Turtle format
+        turtle_data = generate_turtle(report_data)
+        print(f"Generated Turtle data: {turtle_data}")  # Debug log
+        
+        # Store in GraphDB using the reports client
+        response = reports_client.store_intent_report(turtle_data)
+        print(f"GraphDB response: {response}")  # Debug log
+        
+        return jsonify({"status": "success", "message": "Report generated successfully"})
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        print(f"Error generating report: {str(e)}")  # Debug log
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/api/get-last-report/<intent_id>', methods=['GET'])
-def get_last_report(intent_id):
+@app.route('/api/get-last-intent-report/<intent_id>')
+def get_last_intent_report(intent_id):
     try:
-        report_data = reports_client.get_last_report(intent_id)
+        # Get the last report from GraphDB
+        turtle_data = reports_client.get_last_intent_report(intent_id)
+        if not turtle_data:
+            return jsonify({"error": f"No report found for intent {intent_id}"}), 404
         
-        if not report_data.strip():
-            return jsonify({"error": f"No reports found for intent {intent_id}"}), 404
-            
-        return jsonify({
-            "intent_id": intent_id,
-            "data": report_data
-        })
+        return jsonify({"data": turtle_data})
     except Exception as e:
-        print("Error:", str(e))
-        return jsonify({"error": str(e)}), 400
+        print(f"Error getting last report: {str(e)}")  # Debug log
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/get-next-report-number/<intent_id>', methods=['GET'])
 def get_next_report_number(intent_id):
     try:
         print(f"Fetching next report number for intent: {intent_id}")  # Debug log
-        highest_number = reports_client.get_highest_report_number(intent_id)
+        highest_number = reports_client.get_highest_intent_report_number(intent_id)
         next_number = highest_number + 1
         print(f"Current highest number: {highest_number}, next number: {next_number}")  # Debug log
         return jsonify({"next_number": next_number})
     except Exception as e:
         print(f"Error getting next report number: {str(e)}")
         return jsonify({"error": str(e)}), 400
+
+@app.route('/api/debug/list-reports/<intent_id>')
+def list_reports(intent_id):
+    try:
+        # Query to get all reports for the intent
+        query = f"""
+        PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+        PREFIX data5g: <http://5g4data.eu/5g4data#>
+        PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+        
+        SELECT ?report ?number ?timestamp
+        WHERE {{
+            ?report a icm:IntentReport ;
+                    icm:about data5g:I{intent_id} ;
+                    icm:reportNumber ?number ;
+                    icm:reportGenerated ?timestamp .
+        }}
+        ORDER BY DESC(?timestamp)
+        """
+        response = requests.post(
+            f"{reports_client.base_url}/repositories/{reports_client.repository}/sparql",
+            data={"query": query},
+            headers={"Accept": "application/sparql-results+json"}
+        )
+        response.raise_for_status()
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def generate_turtle(report_data):
+    """Generate Turtle format for an intent report"""
+    report_id = str(uuid.uuid4())
+    
+    # Start with the base statement
+    turtle = f'<icm:R{report_id}> a <icm:IntentReport> ;'
+    turtle += f' <icm:about> <data5g:I{report_data["intent_id"]}> ;'
+    turtle += f' <icm:reportNumber> "{report_data["report_number"]}"^^<xsd:integer> ;'
+    turtle += f' <icm:reportGenerated> "{report_data["report_generated"]}"^^<xsd:dateTime>'
+
+    # Add state based on report type
+    if 'intent_handling_state' in report_data:
+        turtle += f' ; <icm:intentHandlingState> "{report_data["intent_handling_state"]}"'
+    elif 'intent_update_state' in report_data:
+        turtle += f' ; <icm:intentUpdateState> "{report_data["intent_update_state"]}"'
+
+    # Add reason if present
+    if report_data.get('reason'):
+        turtle += f' ; <icm:reason> "{report_data["reason"]}"'
+
+    # Close the turtle statement
+    turtle += ' .'
+    
+    return turtle
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))

@@ -5,323 +5,211 @@ import re
 import os
 from datetime import datetime
 
-class GraphDBClient:
-    def __init__(self, base_url="http://start5g-1.cs.uit.no:7200", repository="intents"):
+class IntentReportClient:
+    def __init__(self, base_url="http://start5g-1.cs.uit.no:7200", repository="intent-reports"):
         self.base_url = base_url
         self.repository = repository
         self.sparql_endpoint = f"{base_url}/repositories/{repository}/statements"
         self.query_endpoint = f"{base_url}/repositories/{repository}/sparql"
-        # Create intents directory if it doesn't exist
-        self.intents_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'intents')
-        os.makedirs(self.intents_dir, exist_ok=True)
+        self.intents_repository = "intents"  # Repository where intents are stored
+        self.auth = None  # No authentication by default
 
-    def store_intent(self, intent_data, file_path=None):
-        """Store an intent in GraphDB and return its ID"""
-        headers = {
-            'Content-Type': 'application/x-turtle'
-        }
-        response = requests.post(
-            self.sparql_endpoint,
-            data=intent_data,
-            headers=headers
-        )
-        response.raise_for_status()
+    def get_intents(self):
+        """Get a list of all intents from the intents repository"""
+        print(f"Fetching intents from repository: {self.intents_repository}")  # Debug log
+        query = """
+        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+        PREFIX data5g: <http://5g4data.eu/5g4data#>
+        PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
         
-        # Extract intent ID from the response
-        # The intent ID is in the form "I<uuid>" in the turtle data
-        match = re.search(r'data5g:I([a-f0-9]{8})', intent_data)
-        if match:
-            intent_id = match.group(1)
-            
-            # Generate a timestamp for the filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"intent_{intent_id}_{timestamp}.ttl"
-            file_path = os.path.join(self.intents_dir, filename)
-            
-            # Save the Turtle data to a file
-            with open(file_path, 'w') as f:
-                f.write(intent_data)
-            
-            # Store the relative path as a property of the intent
-            relative_path = os.path.relpath(file_path, os.path.dirname(os.path.dirname(__file__)))
-            file_triple = f"""
-            <http://5g4data.eu/5g4data#I{intent_id}> <http://5g4data.eu/5g4data#sourceFile> "{relative_path}" .
-            """
+        SELECT DISTINCT ?intent ?id ?type
+        WHERE {
+            ?intent a icm:Intent ;
+                log:allOf ?de .
+            ?de icm:target ?target .
+            BIND(REPLACE(STR(?intent), ".*#I", "") AS ?id)
+            BIND(IF(?target = data5g:network-slice, "Network",
+                    IF(?target = data5g:deployment, "Workload",
+                    IF(?target = data5g:network-slice && EXISTS { ?intent log:allOf data5g:RE2 }, "Combined", "Unknown"))) AS ?type)
+            FILTER(STRSTARTS(STR(?de), "http://5g4data.eu/5g4data#DE"))
+        }
+        ORDER BY ?id
+        """
+        headers = {
+            'Accept': 'application/sparql-results+json',
+            'Content-Type': 'application/sparql-query'
+        }
+        try:
             response = requests.post(
-                self.sparql_endpoint,
-                data=file_triple,
+                f"{self.base_url}/repositories/{self.intents_repository}",
+                data=query.encode('utf-8'),
                 headers=headers
             )
+            print(f"GraphDB response status: {response.status_code}")  # Debug log
+            print(f"GraphDB response: {response.text}")  # Debug log
             response.raise_for_status()
-            
-            return intent_id
-        return None
+            return response.json()
+        except Exception as e:
+            print(f"Error fetching intents: {str(e)}")  # Debug log
+            raise
 
-    def get_intent(self, intent_id: str) -> str:
-        """Get all statements related to an intent using property path traversal."""
+    def store_intent_report(self, turtle_data):
+        """Store an intent report in GraphDB"""
         try:
-            # Use SPARQL CONSTRUCT with property path traversal
-            construct_query = f"""
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX data5g: <http://5g4data.eu/5g4data#>
-            PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
-            PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
-            PREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>
-            PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
-            PREFIX dct: <http://purl.org/dc/terms/>
-            PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+            # First, check if the repository exists
+            if not self.repository_exists("intent-reports"):
+                self.create_repository("intent-reports")
             
-            CONSTRUCT {{
-                ?s ?p ?o .
-            }}
-            WHERE {{
-                ?s ?p ?o .
-                <http://5g4data.eu/5g4data#I{intent_id}> (^!rdf:type|!rdf:type)* ?s .
-            }}
-            """
+            # Store the turtle data
+            response = requests.post(
+                f"{self.base_url}/repositories/intent-reports/statements",
+                headers={"Content-Type": "application/x-turtle"},
+                data=turtle_data,
+                auth=self.auth
+            )
             
-            headers = {
-                "Accept": "text/turtle",
-                "Content-Type": "application/sparql-query"
-            }
+            if response.status_code == 204:
+                print(f"Successfully stored intent report in GraphDB")
+                return True
+            else:
+                print(f"Failed to store intent report. Status code: {response.status_code}")
+                print(f"Response: {response.text}")
+                return False
             
+        except Exception as e:
+            print(f"Error storing intent report: {str(e)}")
+            return False
+
+    def get_last_intent_report(self, intent_id):
+        """Get the most recent report for a specific intent"""
+        query = f"""
+        PREFIX icm: <icm:>
+        PREFIX data5g: <data5g:>
+        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+        
+        SELECT ?report ?number ?timestamp ?state ?reason
+        WHERE {{
+            ?report rdf:type icm:IntentReport ;
+                    icm:about data5g:I{intent_id} ;
+                    icm:reportNumber ?number ;
+                    icm:reportGenerated ?timestamp .
+            OPTIONAL {{ ?report icm:intentHandlingState ?state }}
+            OPTIONAL {{ ?report icm:reason ?reason }}
+        }}
+        ORDER BY DESC(?timestamp)
+        LIMIT 1
+        """
+        headers = {
+            'Accept': 'application/sparql-results+json',
+            'Content-Type': 'application/sparql-query'
+        }
+        try:
             response = requests.post(
                 f"{self.base_url}/repositories/{self.repository}",
-                data=construct_query.encode("utf-8"),
+                data=query.encode('utf-8'),
                 headers=headers
             )
             response.raise_for_status()
+            results = response.json()
             
-            # Parse the response into an RDFlib Graph to control serialization
-            g = Graph()
-            g.parse(data=response.text, format="turtle")
+            if not results["results"]["bindings"]:
+                return None
             
-            # Bind the prefixes we want to use
-            g.bind("data5g", Namespace("http://5g4data.eu/5g4data#"))
-            g.bind("icm", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/"))
-            g.bind("log", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/"))
-            g.bind("set", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/"))
-            g.bind("quan", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/"))
-            g.bind("dct", Namespace("http://purl.org/dc/terms/"))
-            g.bind("geo", Namespace("http://www.opengis.net/ont/geosparql#"))
-            g.bind("rdf", Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
+            # Get the first (and only) result
+            binding = results["results"]["bindings"][0]
+            report_uri = binding["report"]["value"]
             
-            # Serialize with our preferred prefixes
-            return g.serialize(format="turtle")
+            # Format the Turtle data using the simple prefix format
+            turtle = f'icm:{report_uri.split(":")[-1]} rdf:type icm:IntentReport ;\n'
+            turtle += f'    icm:about data5g:I{intent_id} ;\n'
+            turtle += f'    icm:reportNumber "{binding["number"]["value"]}"^^xsd:integer ;\n'
+            turtle += f'    icm:reportGenerated "{binding["timestamp"]["value"]}"^^xsd:dateTime'
             
+            if "state" in binding:
+                turtle += f' ;\n    icm:intentHandlingState "{binding["state"]["value"]}"'
+            
+            if "reason" in binding:
+                turtle += f' ;\n    icm:reason "{binding["reason"]["value"]}"'
+            
+            turtle += ' .'
+            
+            return turtle
         except requests.exceptions.RequestException as e:
-            print(f"Error retrieving intent data: {str(e)}")
-            raise Exception(f"Failed to retrieve intent data: {str(e)}")
+            print(f"Error fetching last report: {str(e)}")
+            return None
 
-    def query_intents(self, query):
-        """Execute a SPARQL query on the stored intents"""
+    def get_highest_intent_report_number(self, intent_id):
+        """Get the highest report number for a specific intent"""
+        query = f"""
+        PREFIX icm: <icm:>
+        PREFIX data5g: <data5g:>
+        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+        
+        SELECT (MAX(xsd:integer(?reportNum)) as ?maxReportNum)
+        WHERE {{
+            ?report rdf:type icm:IntentReport ;
+                    icm:about data5g:I{intent_id} ;
+                    icm:reportNumber ?reportNum .
+        }}
+        """
         headers = {
             'Accept': 'application/sparql-results+json',
             'Content-Type': 'application/sparql-query'
         }
         response = requests.post(
             f"{self.base_url}/repositories/{self.repository}",
-            data=query.encode("utf-8"),
+            data=query.encode('utf-8'),
             headers=headers
         )
         response.raise_for_status()
-        return response.json()
+        results = response.json()
+        if results["results"]["bindings"] and "maxReportNum" in results["results"]["bindings"][0]:
+            return int(results["results"]["bindings"][0]["maxReportNum"]["value"])
+        return 0
 
-    def delete_all_intents(self):
-        """Delete all intents from the repository"""
-        # SPARQL query to delete all triples
-        delete_query = """
-        DELETE {
-            ?s ?p ?o
-        }
-        WHERE {
-            ?s ?p ?o
-        }
-        """
-        headers = {
-            'Content-Type': 'application/sparql-update'
-        }
-        response = requests.post(
-            self.sparql_endpoint,
-            data=delete_query,
-            headers=headers
-        )
-        response.raise_for_status()
-        return response.text
-
-    def delete_intent(self, intent_id: str):
-        """Delete a specific intent and its associated file"""
+    def repository_exists(self, repo_id):
+        """Check if a repository exists"""
         try:
-            # First, get the source file path
-            query = f"""
-            PREFIX data5g: <http://5g4data.eu/5g4data#>
-            SELECT ?sourceFile
-            WHERE {{
-                <http://5g4data.eu/5g4data#I{intent_id}> data5g:sourceFile ?sourceFile .
-            }}
-            """
-            
-            headers = {
-                'Accept': 'application/sparql-results+json',
-                'Content-Type': 'application/sparql-query'
-            }
-            
-            response = requests.post(
-                f"{self.base_url}/repositories/{self.repository}",
-                data=query.encode("utf-8"),
-                headers=headers
+            response = requests.get(
+                f"{self.base_url}/rest/repositories",
+                headers={"Accept": "application/json"}
             )
             response.raise_for_status()
-            results = response.json()
+            repositories = response.json()
             
-            # Delete the file if it exists
-            if results['results']['bindings']:
-                source_file = results['results']['bindings'][0]['sourceFile']['value']
-                file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), source_file)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-            
-            # Delete all triples related to the intent
-            delete_query = f"""
-            DELETE {{
-                ?s ?p ?o
-            }}
-            WHERE {{
-                ?s ?p ?o .
-                <http://5g4data.eu/5g4data#I{intent_id}> (^!rdf:type|!rdf:type)* ?s .
-            }}
-            """
-            
-            headers = {
-                'Content-Type': 'application/sparql-update'
-            }
-            
-            response = requests.post(
-                self.sparql_endpoint,
-                data=delete_query,
-                headers=headers
-            )
-            response.raise_for_status()
-            
-            return response.text
-            
-        except requests.exceptions.RequestException as e:
-            print(f"Error deleting intent: {str(e)}")
-            raise Exception(f"Failed to delete intent: {str(e)}")
-
-    def store_report(self, report_data):
-        """Store an intent report in GraphDB"""
-        headers = {
-            'Content-Type': 'application/x-turtle'
-        }
-        response = requests.post(
-            self.sparql_endpoint,
-            data=report_data,
-            headers=headers
-        )
-        response.raise_for_status()
-        return response.text
-
-    def get_last_report(self, intent_id: str) -> str:
-        """Get the most recent complete report for a given intent."""
-        try:
-            # Query to get the complete latest report with all its properties
-            query = """
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
-            PREFIX ir: <http://example.org/intent-reports#>
-            PREFIX data5g: <http://5g4data.eu/5g4data#>
-            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-            
-            CONSTRUCT {
-                ?report ?p ?o .
-                ?o ?p2 ?o2 .
-            }
-            WHERE {
-                {
-                    SELECT ?report
-                    WHERE {
-                        ?report a icm:IntentReport ;
-                                icm:about data5g:I%s ;
-                                icm:reportGenerated ?generated .
-                    }
-                    ORDER BY DESC(xsd:dateTime(?generated))
-                    LIMIT 1
-                }
-                ?report ?p ?o .
-                OPTIONAL { ?o ?p2 ?o2 }
-            }
-            """ % intent_id
-
-            headers = {
-                "Accept": "text/turtle",
-                "Content-Type": "application/sparql-query"
-            }
-            
-            response = requests.post(
-                f"{self.base_url}/repositories/{self.repository}",
-                data=query.encode("utf-8"),
-                headers=headers
-            )
-            response.raise_for_status()
-            
-            # Parse the response into an RDFlib Graph to control serialization
-            g = Graph()
-            g.parse(data=response.text, format="turtle")
-            
-            # Bind the prefixes we want to use for cleaner output
-            g.bind("icm", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/"))
-            g.bind("ir", Namespace("http://example.org/intent-reports#"))
-            g.bind("data5g", Namespace("http://5g4data.eu/5g4data#"))
-            g.bind("xsd", Namespace("http://www.w3.org/2001/XMLSchema#"))
-            
-            # Serialize with sorted triples for consistent output
-            return g.serialize(format="turtle")
-            
+            # The response is a list of repository IDs
+            return repo_id in repositories
         except Exception as e:
-            print(f"Error getting last report: {str(e)}")
-            raise 
+            print(f"Error checking if repository exists: {str(e)}")
+            return False
 
-    def get_highest_report_number(self, intent_id: str) -> int:
-        """Get the highest report number for a given intent."""
+    def create_repository(self, repo_id):
+        """Create a new repository"""
         try:
-            query = """
-            PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
-            PREFIX data5g: <http://5g4data.eu/5g4data#>
-            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-            
-            SELECT (MAX(xsd:integer(?reportNum)) as ?maxReportNum)
-            WHERE {
-                ?report a icm:IntentReport ;
-                        icm:about data5g:I%s ;
-                        icm:reportNumber ?reportNum .
-            }
-            """ % intent_id
-
-            print(f"Executing query for intent {intent_id}")  # Debug log
-            
-            headers = {
-                "Accept": "application/sparql-results+json",
-                "Content-Type": "application/sparql-query"
+            # GraphDB requires a specific config for repository creation
+            config = {
+                "id": repo_id,
+                "type": "free",
+                "title": f"{repo_id} Repository",
+                "ruleset": "owl-horst-optimized"
             }
             
             response = requests.post(
-                f"{self.base_url}/repositories/{self.repository}",
-                data=query.encode("utf-8"),
-                headers=headers
+                f"{self.base_url}/rest/repositories",
+                headers={"Content-Type": "application/json"},
+                json=config
             )
-            response.raise_for_status()
             
-            result = response.json()
-            # When no reports exist, SPARQL returns a binding with no value
-            if (not result["results"]["bindings"] or 
-                not result["results"]["bindings"][0] or 
-                "maxReportNum" not in result["results"]["bindings"][0] or 
-                not result["results"]["bindings"][0]["maxReportNum"].get("value")):
-                return 0  # Will result in next number being 1
-            
-            return int(result["results"]["bindings"][0]["maxReportNum"]["value"])
-            
+            if response.status_code == 201:
+                print(f"Repository {repo_id} created successfully")
+                return True
+            else:
+                print(f"Failed to create repository {repo_id}. Status code: {response.status_code}")
+                print(f"Response: {response.text}")
+                return False
         except Exception as e:
-            print(f"Error getting highest report number: {str(e)}")
-            raise 
+            print(f"Error creating repository: {str(e)}")
+            return False 

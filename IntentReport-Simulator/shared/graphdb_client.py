@@ -220,4 +220,108 @@ class GraphDBClient:
             headers=headers
         )
         response.raise_for_status()
-        return response.text 
+        return response.text
+
+    def get_last_report(self, intent_id: str) -> str:
+        """Get the most recent complete report for a given intent."""
+        try:
+            # Query to get the complete latest report with all its properties
+            query = """
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+            PREFIX ir: <http://example.org/intent-reports#>
+            PREFIX data5g: <http://5g4data.eu/5g4data#>
+            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+            
+            CONSTRUCT {
+                ?report ?p ?o .
+                ?o ?p2 ?o2 .
+            }
+            WHERE {
+                {
+                    SELECT ?report
+                    WHERE {
+                        ?report a icm:IntentReport ;
+                                icm:about data5g:I%s ;
+                                icm:reportGenerated ?generated .
+                    }
+                    ORDER BY DESC(xsd:dateTime(?generated))
+                    LIMIT 1
+                }
+                ?report ?p ?o .
+                OPTIONAL { ?o ?p2 ?o2 }
+            }
+            """ % intent_id
+
+            headers = {
+                "Accept": "text/turtle",
+                "Content-Type": "application/sparql-query"
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/repositories/{self.repository}",
+                data=query.encode("utf-8"),
+                headers=headers
+            )
+            response.raise_for_status()
+            
+            # Parse the response into an RDFlib Graph to control serialization
+            g = Graph()
+            g.parse(data=response.text, format="turtle")
+            
+            # Bind the prefixes we want to use for cleaner output
+            g.bind("icm", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/"))
+            g.bind("ir", Namespace("http://example.org/intent-reports#"))
+            g.bind("data5g", Namespace("http://5g4data.eu/5g4data#"))
+            g.bind("xsd", Namespace("http://www.w3.org/2001/XMLSchema#"))
+            
+            # Serialize with sorted triples for consistent output
+            return g.serialize(format="turtle")
+            
+        except Exception as e:
+            print(f"Error getting last report: {str(e)}")
+            raise 
+
+    def get_highest_report_number(self, intent_id: str) -> int:
+        """Get the highest report number for a given intent."""
+        try:
+            query = """
+            PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+            PREFIX data5g: <http://5g4data.eu/5g4data#>
+            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+            
+            SELECT (MAX(xsd:integer(?reportNum)) as ?maxReportNum)
+            WHERE {
+                ?report a icm:IntentReport ;
+                        icm:about data5g:I%s ;
+                        icm:reportNumber ?reportNum .
+            }
+            """ % intent_id
+
+            print(f"Executing query for intent {intent_id}")  # Debug log
+            
+            headers = {
+                "Accept": "application/sparql-results+json",
+                "Content-Type": "application/sparql-query"
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/repositories/{self.repository}",
+                data=query.encode("utf-8"),
+                headers=headers
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            # When no reports exist, SPARQL returns a binding with no value
+            if (not result["results"]["bindings"] or 
+                not result["results"]["bindings"][0] or 
+                "maxReportNum" not in result["results"]["bindings"][0] or 
+                not result["results"]["bindings"][0]["maxReportNum"].get("value")):
+                return 0  # Will result in next number being 1
+            
+            return int(result["results"]["bindings"][0]["maxReportNum"]["value"])
+            
+        except Exception as e:
+            print(f"Error getting highest report number: {str(e)}")
+            raise 

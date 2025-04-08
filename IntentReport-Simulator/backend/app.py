@@ -6,6 +6,7 @@ from datetime import datetime
 import uuid
 import json
 from dotenv import load_dotenv
+import requests
 
 # Add parent directory to Python path to find shared module
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -126,6 +127,34 @@ def generate_intent_report():
             "report_id": report_id
         })
     except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/api/get-last-report/<intent_id>', methods=['GET'])
+def get_last_report(intent_id):
+    try:
+        report_data = reports_client.get_last_report(intent_id)
+        
+        if not report_data.strip():
+            return jsonify({"error": f"No reports found for intent {intent_id}"}), 404
+            
+        return jsonify({
+            "intent_id": intent_id,
+            "data": report_data
+        })
+    except Exception as e:
+        print("Error:", str(e))
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/api/get-next-report-number/<intent_id>', methods=['GET'])
+def get_next_report_number(intent_id):
+    try:
+        print(f"Fetching next report number for intent: {intent_id}")  # Debug log
+        highest_number = reports_client.get_highest_report_number(intent_id)
+        next_number = highest_number + 1
+        print(f"Current highest number: {highest_number}, next number: {next_number}")  # Debug log
+        return jsonify({"next_number": next_number})
+    except Exception as e:
+        print(f"Error getting next report number: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 if __name__ == '__main__':

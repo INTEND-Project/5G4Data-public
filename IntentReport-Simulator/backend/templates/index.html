@@ -76,6 +76,14 @@
             margin-bottom: 20px;
             color: #343a40;
         }
+        
+        .btn-sm {
+            margin-right: 4px;
+        }
+        
+        .btn-sm:last-child {
+            margin-right: 0;
+        }
     </style>
 </head>
 <body>
@@ -101,7 +109,7 @@
                 <!-- Report Metadata -->
                 <div class="form-group">
                     <label for="reportNumber">Report Number:</label>
-                    <input type="number" class="form-control" id="reportNumber" min="1" required>
+                    <input type="number" class="form-control" id="reportNumber" readonly>
                 </div>
 
                 <div class="form-group">
@@ -240,7 +248,8 @@
                             <td><a href="#" onclick="showIntentDetails('${intent.id}'); return false;">${intent.id}</a></td>
                             <td>${intent.type}</td>
                             <td>
-                                <button class="btn btn-success btn-sm" onclick="selectIntentForReport('${intent.id}')">Create report</button>
+                                <button class="btn btn-success btn-sm me-2" onclick="selectIntentForReport('${intent.id}')">Create report</button>
+                                <button class="btn btn-info btn-sm" onclick="showLastReport('${intent.id}')">Show last report</button>
                             </td>
                         `;
                         intentList.appendChild(row);
@@ -257,25 +266,52 @@
         }
 
         function selectIntentForReport(intentId) {
+            console.log('Selecting intent for report:', intentId);
             const intentIdDisplay = document.getElementById('intentIdDisplay');
             const intentIdHidden = document.getElementById('intentId');
+            const reportNumber = document.getElementById('reportNumber');
+            const reportGenerated = document.getElementById('reportGenerated');
+            
+            // Clear the previous report number first
+            if (reportNumber) {
+                reportNumber.value = '';
+            }
+
             if (intentIdDisplay && intentIdHidden) {
                 intentIdDisplay.value = intentId;
                 intentIdHidden.value = intentId;
                 
-                // Set default values for the form
+                // Set default timestamp
                 const now = new Date();
                 now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-                
-                const reportGenerated = document.getElementById('reportGenerated');
                 if (reportGenerated) {
                     reportGenerated.value = now.toISOString().slice(0,16);
                 }
                 
-                const reportNumber = document.getElementById('reportNumber');
-                if (reportNumber) {
-                    reportNumber.value = '1';
-                }
+                // Fetch the next report number for this specific intent
+                console.log('Fetching next report number for intent:', intentId);
+                fetch(`${API_BASE_URL}/api/get-next-report-number/${intentId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(data => {
+                                throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Received next report number:', data.next_number);
+                        if (reportNumber) {
+                            reportNumber.value = data.next_number;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching next report number:', error);
+                        // Set to 1 if there's an error (likely no existing reports)
+                        if (reportNumber) {
+                            reportNumber.value = 1;
+                        }
+                    });
             }
         }
 
@@ -290,11 +326,53 @@
                     const intentDetails = document.getElementById('intentDetails');
                     if (intentDetails) {
                         intentDetails.textContent = data.data;
+                        // Reset modal title for intent details
+                        const modalTitle = document.getElementById('intentModalLabel');
+                        if (modalTitle) {
+                            modalTitle.textContent = 'Intent Details';
+                        }
                         $('#intentModal').modal('show');
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching intent details:', error);
+                    const resultDiv = document.getElementById('status');
+                    if (resultDiv) {
+                        resultDiv.textContent = `Error: ${error.message}`;
+                        resultDiv.className = 'status error';
+                    }
+                });
+        }
+
+        function showLastReport(intentId) {
+            console.log('Fetching last report for intent:', intentId);
+            fetch(`${API_BASE_URL}/api/get-last-report/${intentId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const intentDetails = document.getElementById('intentDetails');
+                    if (intentDetails) {
+                        // Check if we have actual report data
+                        if (!data.data || data.data.trim() === '') {
+                            throw new Error('No report data available');
+                        }
+                        intentDetails.textContent = data.data;
+                        // Update modal title to indicate this is a report
+                        const modalTitle = document.getElementById('intentModalLabel');
+                        if (modalTitle) {
+                            modalTitle.textContent = `Last Report for Intent ${intentId}`;
+                        }
+                        $('#intentModal').modal('show');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching last report:', error);
                     const resultDiv = document.getElementById('status');
                     if (resultDiv) {
                         resultDiv.textContent = `Error: ${error.message}`;

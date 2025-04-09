@@ -131,6 +131,16 @@
                 </div>
             </div>
 
+            <div class="form-group">
+                <label for="handler">Handler (optional):</label>
+                <input type="text" class="form-control" id="handler" placeholder="Enter handler name">
+            </div>
+
+            <div class="form-group">
+                <label for="owner">Owner (optional):</label>
+                <input type="text" class="form-control" id="owner" placeholder="Enter owner name">
+            </div>
+
             <button type="submit" class="btn btn-primary">Generate Intent</button>
         </form>
 
@@ -208,6 +218,8 @@
             const generationType = document.getElementById('generationType').value;
             const count = document.getElementById('count').value;
             const interval = document.getElementById('interval').value;
+            const handler = document.getElementById('handler').value.trim();
+            const owner = document.getElementById('owner').value.trim();
 
             const parameters = {
                 latency: latency
@@ -220,6 +232,14 @@
             if (intentType === 'workload' || intentType === 'combined') {
                 parameters.datacenter = datacenter;
                 parameters.application = application;
+            }
+
+            // Add handler and owner to parameters if they are not empty
+            if (handler) {
+                parameters.handler = handler;
+            }
+            if (owner) {
+                parameters.owner = owner;
             }
 
             const requestData = {
@@ -366,7 +386,7 @@
                         row.innerHTML = `
                             <td><a href="#" onclick="showIntentDetails('${intent.id}')">${intent.id}</a></td>
                             <td>${intent.type}</td>
-                            <td>${intent.sourceFile ? `<a href="#" onclick="showIntentFile('${intent.id}.ttl')">View Source</a>` : 'N/A'}</td>
+                            <td><a href="#" onclick="showIntentFile('${intent.id}.ttl')">View Source</a></td>
                             <td>
                                 <button class="btn btn-danger btn-sm" onclick="deleteIntent('${intent.id}')">Delete</button>
                             </td>

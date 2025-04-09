@@ -16,6 +16,7 @@ class IntentGenerator:
         self.quan = Namespace("http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/")
         self.geo = Namespace("http://www.opengis.net/ont/geosparql#")
         self.data = Namespace("http://5g4data.eu/5g4data#")
+        self.imo = Namespace("http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/")
 
     def generate(self, intent_type, parameters):
         if intent_type == "network":
@@ -48,6 +49,7 @@ class IntentGenerator:
         g.bind("quan", self.quan)
         g.bind("geo", self.geo)
         g.bind("data5g", self.data)
+        g.bind("imo", self.imo)
 
         # Generate unique IDs (Will the first 8 characters of the UUID be enough?)
         intent_id = f"I{uuid.uuid4().hex}"
@@ -63,6 +65,12 @@ class IntentGenerator:
         g.add((intent_uri, RDF.type, self.icm.Intent))
         g.add((intent_uri, self.log.allOf, self.data[de_id]))
         g.add((intent_uri, self.log.allOf, self.data[re_id]))
+
+        # Add handler and owner if provided
+        if "handler" in params and params["handler"]:
+            g.add((intent_uri, self.imo.handler, Literal(params["handler"], datatype=self.xsd.string)))
+        if "owner" in params and params["owner"]:
+            g.add((intent_uri, self.imo.owner, Literal(params["owner"], datatype=self.xsd.string)))
 
         # Create delivery expectation
         de_uri = self.data[de_id]
@@ -113,6 +121,7 @@ class IntentGenerator:
         g.bind("quan", self.quan)
         g.bind("geo", self.geo)
         g.bind("data5g", self.data)
+        g.bind("imo", self.imo)
 
         # Generate unique IDs
         intent_id = f"I{uuid.uuid4().hex}"
@@ -126,6 +135,12 @@ class IntentGenerator:
         g.add((intent_uri, RDF.type, self.icm.Intent))
         g.add((intent_uri, self.log.allOf, self.data[de_id]))
         g.add((intent_uri, self.log.allOf, self.data[re_id]))
+
+        # Add handler and owner if provided
+        if "handler" in params and params["handler"]:
+            g.add((intent_uri, self.imo.handler, Literal(params["handler"])))
+        if "owner" in params and params["owner"]:
+            g.add((intent_uri, self.imo.owner, Literal(params["owner"])))
 
         # Create deployment expectation
         de_uri = self.data[de_id]
@@ -167,6 +182,7 @@ class IntentGenerator:
         g.bind("quan", self.quan)
         g.bind("geo", self.geo)
         g.bind("data5g", self.data)
+        g.bind("imo", self.imo)
 
         # Generate unique IDs
         intent_id = f"I{uuid.uuid4().hex[:8]}"
@@ -188,6 +204,12 @@ class IntentGenerator:
         g.add((intent_uri, self.log.allOf, self.data[de2_id]))
         g.add((intent_uri, self.log.allOf, self.data[re1_id]))
         g.add((intent_uri, self.log.allOf, self.data[re2_id]))
+
+        # Add handler and owner if provided
+        if "handler" in params and params["handler"]:
+            g.add((intent_uri, self.imo.handler, Literal(params["handler"])))
+        if "owner" in params and params["owner"]:
+            g.add((intent_uri, self.imo.owner, Literal(params["owner"])))
 
         # Create network delivery expectation
         de1_uri = self.data[de1_id]

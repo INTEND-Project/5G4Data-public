@@ -42,18 +42,6 @@ class GraphDBClient:
             with open(file_path, 'w') as f:
                 f.write(intent_data)
             
-            # Store the relative path as a property of the intent
-            relative_path = os.path.relpath(file_path, os.path.dirname(os.path.dirname(__file__)))
-            file_triple = f"""
-            <http://5g4data.eu/5g4data#I{intent_id}> <http://5g4data.eu/5g4data#sourceFile> "{relative_path}" .
-            """
-            response = requests.post(
-                self.sparql_endpoint,
-                data=file_triple,
-                headers=headers
-            )
-            response.raise_for_status()
-            
             return intent_id
         return None
 
@@ -70,6 +58,7 @@ class GraphDBClient:
             PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
             PREFIX dct: <http://purl.org/dc/terms/>
             PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+            PREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/>
             
             CONSTRUCT {{
                 ?s ?p ?o .
@@ -105,6 +94,7 @@ class GraphDBClient:
             g.bind("dct", Namespace("http://purl.org/dc/terms/"))
             g.bind("geo", Namespace("http://www.opengis.net/ont/geosparql#"))
             g.bind("rdf", Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
+            g.bind("imo", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/"))
             
             # Serialize with our preferred prefixes
             return g.serialize(format="turtle")
@@ -152,34 +142,10 @@ class GraphDBClient:
     def delete_intent(self, intent_id: str):
         """Delete a specific intent and its associated file"""
         try:
-            # First, get the source file path
-            query = f"""
-            PREFIX data5g: <http://5g4data.eu/5g4data#>
-            SELECT ?sourceFile
-            WHERE {{
-                <http://5g4data.eu/5g4data#I{intent_id}> data5g:sourceFile ?sourceFile .
-            }}
-            """
-            
-            headers = {
-                'Accept': 'application/sparql-results+json',
-                'Content-Type': 'application/sparql-query'
-            }
-            
-            response = requests.post(
-                f"{self.base_url}/repositories/{self.repository}",
-                data=query.encode("utf-8"),
-                headers=headers
-            )
-            response.raise_for_status()
-            results = response.json()
-            
             # Delete the file if it exists
-            if results['results']['bindings']:
-                source_file = results['results']['bindings'][0]['sourceFile']['value']
-                file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), source_file)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
+            file_path = os.path.join(self.intents_dir, f"{intent_id}.ttl")
+            if os.path.exists(file_path):
+                os.remove(file_path)
             
             # Delete all triples related to the intent
             delete_query = f"""

@@ -203,6 +203,14 @@ def generate_turtle(report_data):
         cet_time = now.strftime("%Y-%m-%dT%H:%M:%S+01:00")
         turtle += f' <{icm_ns}reportGenerated> "{cet_time}"^^<{xsd_ns}dateTime>'
 
+    # Add handler if provided
+    if report_data.get('handler'):
+        turtle += f' ; <{imo_ns}handler> "{report_data["handler"]}"'
+
+    # Add owner if provided
+    if report_data.get('owner'):
+        turtle += f' ; <{imo_ns}owner> "{report_data["owner"]}"'
+
     # Add state based on report type
     if 'intent_handling_state' in report_data:
         turtle += f' ; <{icm_ns}intentHandlingState> <{imo_ns}{report_data["intent_handling_state"]}>'

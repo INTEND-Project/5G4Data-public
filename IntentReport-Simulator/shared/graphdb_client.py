@@ -143,48 +143,57 @@ class IntentReportClient:
             print(f"Error storing intent report: {str(e)}")
             return False
 
-    def get_last_intent_report(self, intent_id):
-        """Get the most recent report for a specific intent"""
-        query = f"""
-        PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
-        PREFIX data5g: <http://5g4data.eu/5g4data#>
-        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-        PREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/>
+    def get_last_intent_report(self, intent_id: str) -> Optional[str]:
+        """Get the last intent report for a specific intent.
         
-        SELECT ?report ?number ?timestamp ?state ?reason
-        WHERE {{
-            ?report rdf:type icm:IntentReport ;
-                    icm:about data5g:I{intent_id} ;
-                    icm:reportNumber ?number ;
-                    icm:reportGenerated ?timestamp .
-            OPTIONAL {{ ?report icm:intentHandlingState ?state }}
-            OPTIONAL {{ ?report icm:reason ?reason }}
-        }}
-        ORDER BY DESC(?timestamp)
-        LIMIT 1
+        Args:
+            intent_id: The ID of the intent
+            
+        Returns:
+            The report content as a string, or None if not found
         """
-        headers = {
-            'Accept': 'application/sparql-results+json',
-            'Content-Type': 'application/sparql-query'
-        }
         try:
+            query = f"""
+            PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+            PREFIX data5g: <http://5g4data.eu/5g4data#>
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+            PREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/>
+            
+            SELECT ?report ?number ?timestamp ?state ?reason ?handler ?owner
+            WHERE {{
+                ?report rdf:type icm:IntentReport ;
+                        icm:about data5g:I{intent_id} ;
+                        icm:reportNumber ?number ;
+                        icm:reportGenerated ?timestamp .
+                OPTIONAL {{ ?report icm:intentHandlingState ?state }}
+                OPTIONAL {{ ?report icm:intentUpdateState ?state }}
+                OPTIONAL {{ ?report icm:reason ?reason }}
+                OPTIONAL {{ ?report imo:handler ?handler }}
+                OPTIONAL {{ ?report imo:owner ?owner }}
+            }}
+            ORDER BY DESC(?timestamp)
+            LIMIT 1
+            """
+            
+            headers = {
+                'Accept': 'application/sparql-results+json',
+                'Content-Type': 'application/sparql-query'
+            }
+            
             response = requests.post(
                 f"{self.base_url}/repositories/{self.repository}",
                 data=query.encode('utf-8'),
                 headers=headers
             )
             response.raise_for_status()
-            results = response.json()
             
-            if not results["results"]["bindings"]:
+            result = response.json()
+            if not result.get('results', {}).get('bindings'):
                 return None
-            
-            # Get the first (and only) result
-            binding = results["results"]["bindings"][0]
-            report_uri = binding["report"]["value"]
-            
+                
             # Format the Turtle data with prefixes first
+            binding = result['results']['bindings'][0]
             turtle = "@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .\n"
             turtle += "@prefix data5g: <http://5g4data.eu/5g4data#> .\n"
             turtle += "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n"
@@ -192,6 +201,7 @@ class IntentReportClient:
             turtle += "@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/> .\n\n"
             
             # Extract the report ID from the URI
+            report_uri = binding['report']['value']
             report_id = report_uri.split('/')[-1]
             
             # Add the report data using simplified prefixes
@@ -206,15 +216,22 @@ class IntentReportClient:
                 state_name = state_uri.split('/')[-1]
                 turtle += f' ;\n    icm:intentHandlingState imo:{state_name}'
             
+            if "handler" in binding:
+                turtle += f' ;\n    imo:handler "{binding["handler"]["value"]}"'
+            
+            if "owner" in binding:
+                turtle += f' ;\n    imo:owner "{binding["owner"]["value"]}"'
+            
             if "reason" in binding:
                 turtle += f' ;\n    icm:reason "{binding["reason"]["value"]}"'
             
             turtle += ' .'
             
             return turtle
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching last report: {str(e)}")
-            return None
+            
+        except Exception as e:
+            print(f"Error getting last intent report: {str(e)}")
+            raise
 
     def get_highest_intent_report_number(self, intent_id):
         """Get the highest report number for a specific intent"""
@@ -308,7 +325,7 @@ class IntentReportClient:
             PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
             PREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/>
             
-            SELECT ?report ?number ?timestamp ?state ?reason
+            SELECT ?report ?number ?timestamp ?state ?reason ?handler ?owner
             WHERE {{
                 ?report rdf:type icm:IntentReport ;
                         icm:about data5g:I{intent_id} ;
@@ -316,7 +333,10 @@ class IntentReportClient:
                         icm:reportGenerated ?timestamp .
                 FILTER (?number = "{report_number}"^^xsd:integer)
                 OPTIONAL {{ ?report icm:intentHandlingState ?state }}
+                OPTIONAL {{ ?report icm:intentUpdateState ?state }}
                 OPTIONAL {{ ?report icm:reason ?reason }}
+                OPTIONAL {{ ?report imo:handler ?handler }}
+                OPTIONAL {{ ?report imo:owner ?owner }}
             }}
             ORDER BY DESC(?timestamp)
             LIMIT 1
@@ -361,6 +381,12 @@ class IntentReportClient:
                 state_uri = binding["state"]["value"]
                 state_name = state_uri.split('/')[-1]
                 turtle += f' ;\n    icm:intentHandlingState imo:{state_name}'
+            
+            if "handler" in binding:
+                turtle += f' ;\n    imo:handler "{binding["handler"]["value"]}"'
+            
+            if "owner" in binding:
+                turtle += f' ;\n    imo:owner "{binding["owner"]["value"]}"'
             
             if "reason" in binding:
                 turtle += f' ;\n    icm:reason "{binding["reason"]["value"]}"'

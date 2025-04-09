@@ -5,14 +5,13 @@ Start with only the intent list shown. Add "Create Report" selection (select one
 
 # Changes to the intent reports
 
-We could consider to add more info in the reports, some obvious additions are shown in the table:
+~~We could consider to add more info in the reports, some obvious additions are shown in the table:~~
 
-| Field | Property | Why it's useful |
+~~| Field | Property | Why it's useful |
 |-------|----------|-----------------|
 | Handler | `imo:handler` | Identifies who reported |
 | Owner | `imo:owner` (via `icm:about`) | Traces ownership |
-| Update state | `icm:intentUpdateState` | Indicates parallel update activity |
-| Reason | `icm:reason` | Explainability |
+| Reason | `icm:reason` | Explainability |~~
 
 We should probably add owner and handler to the intent as well.
 

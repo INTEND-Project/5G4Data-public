@@ -44,6 +44,10 @@ reports_client = IntentReportClient(graphdb_url, repository='intent-reports')
 def index():
     return render_template('index.html')
 
+@app.route('/intentReport')
+def intent_report():
+    return render_template('intentReport.html')
+
 @app.route('/api/query-intents')
 def query_intents():
     """Query all intents with their details"""

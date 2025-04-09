@@ -366,7 +366,7 @@
                         row.innerHTML = `
                             <td><a href="#" onclick="showIntentDetails('${intent.id}')">${intent.id}</a></td>
                             <td>${intent.type}</td>
-                            <td>${intent.sourceFile ? `<a href="#" onclick="showIntentFile('${intent.sourceFile}')">View Source</a>` : 'N/A'}</td>
+                            <td>${intent.sourceFile ? `<a href="#" onclick="showIntentFile('${intent.id}.ttl')">View Source</a>` : 'N/A'}</td>
                             <td>
                                 <button class="btn btn-danger btn-sm" onclick="deleteIntent('${intent.id}')">Delete</button>
                             </td>

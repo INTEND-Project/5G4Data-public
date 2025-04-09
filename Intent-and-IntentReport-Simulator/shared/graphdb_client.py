@@ -29,13 +29,13 @@ class GraphDBClient:
         
         # Extract intent ID from the response
         # The intent ID is in the form "I<uuid>" in the turtle data
-        match = re.search(r'data5g:I([a-f0-9]{8})', intent_data)
+        match = re.search(r'data5g:I([a-f0-9]{32})', intent_data)
         if match:
             intent_id = match.group(1)
             
             # Generate a timestamp for the filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"intent_{intent_id}_{timestamp}.ttl"
+            filename = f"{intent_id}.ttl"
             file_path = os.path.join(self.intents_dir, filename)
             
             # Save the Turtle data to a file

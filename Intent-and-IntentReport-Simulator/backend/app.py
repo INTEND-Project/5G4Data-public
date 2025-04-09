@@ -94,7 +94,7 @@ def get_intent_file(filepath):
         # Get the project root directory (one level up from backend)
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         # Construct the full path to the intent file
-        full_path = os.path.join(project_root, filepath)
+        full_path = os.path.join(project_root, "intents/", filepath)
         print(f"Attempting to read file: {full_path}")  # Debug print
         
         if not os.path.exists(full_path):

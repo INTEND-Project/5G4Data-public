@@ -14,6 +14,63 @@ class IntentReportClient:
         self.intents_repository = "intents"  # Repository where intents are stored
         self.auth = None  # No authentication by default
 
+    def get_intent(self, intent_id: str) -> str:
+        """Get all statements related to an intent using property path traversal."""
+        try:
+            # Use SPARQL CONSTRUCT with property path traversal
+            construct_query = f"""
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            PREFIX data5g: <http://5g4data.eu/5g4data#>
+            PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+            PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
+            PREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>
+            PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
+            PREFIX dct: <http://purl.org/dc/terms/>
+            PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+            
+            CONSTRUCT {{
+                ?s ?p ?o .
+            }}
+            WHERE {{
+                ?s ?p ?o .
+                <http://5g4data.eu/5g4data#I{intent_id}> (^!rdf:type|!rdf:type)* ?s .
+            }}
+            """
+            
+            headers = {
+                "Accept": "text/turtle",
+                "Content-Type": "application/sparql-query"
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/repositories/{self.repository}",
+                data=construct_query.encode("utf-8"),
+                headers=headers
+            )
+            response.raise_for_status()
+            
+            # Parse the response into an RDFlib Graph to control serialization
+            g = Graph()
+            g.parse(data=response.text, format="turtle")
+            
+            # Bind the prefixes we want to use
+            g.bind("data5g", Namespace("http://5g4data.eu/5g4data#"))
+            g.bind("icm", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/"))
+            g.bind("log", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/"))
+            g.bind("set", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/"))
+            g.bind("quan", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/"))
+            g.bind("dct", Namespace("http://purl.org/dc/terms/"))
+            g.bind("geo", Namespace("http://www.opengis.net/ont/geosparql#"))
+            g.bind("rdf", Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
+            
+            # Serialize with our preferred prefixes
+            return g.serialize(format="turtle")
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Error retrieving intent data: {str(e)}")
+            raise Exception(f"Failed to retrieve intent data: {str(e)}")
+
+
     def get_intents(self):
         """Get a list of all intents from the intents repository"""
         print(f"Fetching intents from repository: {self.intents_repository}")  # Debug log

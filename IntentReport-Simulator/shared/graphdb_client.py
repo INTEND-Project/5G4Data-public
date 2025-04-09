@@ -118,6 +118,10 @@ class IntentReportClient:
             if not self.repository_exists("intent-reports"):
                 self.create_repository("intent-reports")
             
+            # Add the imo prefix to the turtle data if it's not already there
+            if "@prefix imo:" not in turtle_data:
+                turtle_data = "@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/> .\n" + turtle_data
+            
             # Store the turtle data
             response = requests.post(
                 f"{self.base_url}/repositories/intent-reports/statements",
@@ -145,6 +149,7 @@ class IntentReportClient:
         PREFIX data5g: <http://5g4data.eu/5g4data#>
         PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
         PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+        PREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/>
         
         SELECT ?report ?number ?timestamp ?state ?reason
         WHERE {{
@@ -182,7 +187,8 @@ class IntentReportClient:
             turtle = "@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .\n"
             turtle += "@prefix data5g: <http://5g4data.eu/5g4data#> .\n"
             turtle += "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n"
-            turtle += "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n\n"
+            turtle += "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n"
+            turtle += "@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/> .\n\n"
             
             # Extract the report ID from the URI
             report_id = report_uri.split('/')[-1]
@@ -194,7 +200,10 @@ class IntentReportClient:
             turtle += f'    icm:reportGenerated "{binding["timestamp"]["value"]}"^^xsd:dateTime'
             
             if "state" in binding:
-                turtle += f' ;\n    icm:intentHandlingState "{binding["state"]["value"]}"'
+                # Extract just the state name from the full URI
+                state_uri = binding["state"]["value"]
+                state_name = state_uri.split('/')[-1]
+                turtle += f' ;\n    icm:intentHandlingState imo:{state_name}'
             
             if "reason" in binding:
                 turtle += f' ;\n    icm:reason "{binding["reason"]["value"]}"'

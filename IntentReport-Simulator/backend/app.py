@@ -163,6 +163,7 @@ def generate_turtle(report_data):
     icm_ns = "http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/"
     data5g_ns = "http://5g4data.eu/5g4data#"
     xsd_ns = "http://www.w3.org/2001/XMLSchema#"
+    imo_ns = "http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/"
     
     # Start with the base statement
     turtle = f'<{icm_ns}RP{report_id}> a <{icm_ns}IntentReport> ;'
@@ -172,9 +173,9 @@ def generate_turtle(report_data):
 
     # Add state based on report type
     if 'intent_handling_state' in report_data:
-        turtle += f' ; <{icm_ns}intentHandlingState> "{report_data["intent_handling_state"]}"'
+        turtle += f' ; <{icm_ns}intentHandlingState> <{imo_ns}{report_data["intent_handling_state"]}>'
     elif 'intent_update_state' in report_data:
-        turtle += f' ; <{icm_ns}intentUpdateState> "{report_data["intent_update_state"]}"'
+        turtle += f' ; <{icm_ns}intentUpdateState> <{imo_ns}{report_data["intent_update_state"]}>'
 
     # Add reason if present
     if report_data.get('reason'):

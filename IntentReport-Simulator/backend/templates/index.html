@@ -76,13 +76,15 @@
 
     <div class="container">
         <div class="mt-4">
-            <h3>Available Intents</h3>
+            <h3>Create or Show Intent Reports</h3>
             <table class="table table-striped">
                 <thead class="thead-dark">
                     <tr>
-                        <th>Intent ID</th>
+                        <th>Intent Identifier</th>
                         <th>Type</th>
-                        <th>Actions</th>
+                        <th>Create</th>
+                        <th>Show Report #</th>
+                        <th>Show</th>
                     </tr>
                 </thead>
                 <tbody id="intentList">
@@ -160,7 +162,15 @@
                                     <option value="UPDATE_CHANGE">Update Change</option>
                                     <option value="EXPECTATION">Expectation</option>
                                 </select>
-                                <button class="btn btn-info btn-sm mt-1" onclick="showLastReport('${intent.id}')">Show last report</button>
+                            </td>
+                            <td>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" class="form-control" placeholder="Enter report #" 
+                                           onkeypress="if(event.keyCode === 13) showReportByNumber('${intent.id}', this.value)">
+                                </div>
+                            </td>
+                            <td>
+                                <button class="btn btn-info btn-sm" onclick="showLastReport('${intent.id}')">Last report</button>
                             </td>
                         `;
                         intentList.appendChild(row);
@@ -223,6 +233,42 @@
                 })
                 .catch(error => {
                     console.error('Error fetching last report:', error);
+                    showStatus(`Error: ${error.message}`, 'error');
+                });
+        }
+
+        function showReportByNumber(intentId, reportNumber) {
+            if (!reportNumber) {
+                showStatus('Please enter a report number', 'error');
+                return;
+            }
+            
+            console.log('Fetching report', reportNumber, 'for intent:', intentId);
+            fetch(`${API_BASE_URL}/api/get-report-by-number/${intentId}/${reportNumber}`)
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (!data.data) {
+                        throw new Error('No report data received');
+                    }
+                    const intentDetails = document.getElementById('intentDetails');
+                    if (intentDetails) {
+                        intentDetails.textContent = data.data;
+                        const modalTitle = document.getElementById('intentModalLabel');
+                        if (modalTitle) {
+                            modalTitle.textContent = `Report #${reportNumber} for Intent ${intentId}`;
+                        }
+                        $('#intentModal').modal('show');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching report by number:', error);
                     showStatus(`Error: ${error.message}`, 'error');
                 });
         }

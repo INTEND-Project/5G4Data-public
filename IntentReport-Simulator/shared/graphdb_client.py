@@ -4,6 +4,7 @@ import json
 import re
 import os
 from datetime import datetime
+from typing import Optional
 
 class IntentReportClient:
     def __init__(self, base_url="http://start5g-1.cs.uit.no:7200", repository="intent-reports"):
@@ -287,4 +288,87 @@ class IntentReportClient:
                 return False
         except Exception as e:
             print(f"Error creating repository: {str(e)}")
-            return False 
+            return False
+
+    def get_intent_report_by_number(self, intent_id: str, report_number: int) -> Optional[str]:
+        """Get an intent report by its report number for a specific intent.
+        
+        Args:
+            intent_id: The ID of the intent
+            report_number: The report number to retrieve
+            
+        Returns:
+            The report content as a string, or None if not found
+        """
+        try:
+            query = f"""
+            PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+            PREFIX data5g: <http://5g4data.eu/5g4data#>
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+            PREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/>
+            
+            SELECT ?report ?number ?timestamp ?state ?reason
+            WHERE {{
+                ?report rdf:type icm:IntentReport ;
+                        icm:about data5g:I{intent_id} ;
+                        icm:reportNumber ?number ;
+                        icm:reportGenerated ?timestamp .
+                FILTER (?number = "{report_number}"^^xsd:integer)
+                OPTIONAL {{ ?report icm:intentHandlingState ?state }}
+                OPTIONAL {{ ?report icm:reason ?reason }}
+            }}
+            ORDER BY DESC(?timestamp)
+            LIMIT 1
+            """
+            
+            headers = {
+                'Accept': 'application/sparql-results+json',
+                'Content-Type': 'application/sparql-query'
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/repositories/{self.repository}",
+                data=query.encode('utf-8'),
+                headers=headers
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            if not result.get('results', {}).get('bindings'):
+                return None
+                
+            # Format the Turtle data with prefixes first
+            binding = result['results']['bindings'][0]
+            turtle = "@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .\n"
+            turtle += "@prefix data5g: <http://5g4data.eu/5g4data#> .\n"
+            turtle += "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n"
+            turtle += "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n"
+            turtle += "@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/> .\n\n"
+            
+            # Extract the report ID from the URI
+            report_uri = binding['report']['value']
+            report_id = report_uri.split('/')[-1]
+            
+            # Add the report data using simplified prefixes
+            turtle += f'icm:{report_id} rdf:type icm:IntentReport ;\n'
+            turtle += f'    icm:about data5g:I{intent_id} ;\n'
+            turtle += f'    icm:reportNumber "{binding["number"]["value"]}"^^xsd:integer ;\n'
+            turtle += f'    icm:reportGenerated "{binding["timestamp"]["value"]}"^^xsd:dateTime'
+            
+            if "state" in binding:
+                # Extract just the state name from the full URI
+                state_uri = binding["state"]["value"]
+                state_name = state_uri.split('/')[-1]
+                turtle += f' ;\n    icm:intentHandlingState imo:{state_name}'
+            
+            if "reason" in binding:
+                turtle += f' ;\n    icm:reason "{binding["reason"]["value"]}"'
+            
+            turtle += ' .'
+            
+            return turtle
+            
+        except Exception as e:
+            print(f"Error getting intent report by number: {str(e)}")
+            raise 

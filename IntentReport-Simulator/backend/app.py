@@ -159,6 +159,19 @@ def list_reports(intent_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/get-report-by-number/<intent_id>/<report_number>')
+def get_report_by_number(intent_id, report_number):
+    try:
+        # Use the reports_client to get the report by number
+        report_data = reports_client.get_intent_report_by_number(intent_id, int(report_number))
+        if not report_data:
+            return jsonify({'error': f'No report found with number {report_number} for intent {intent_id}'}), 404
+            
+        return jsonify({'data': report_data})
+    except Exception as e:
+        print(f"Error getting report by number: {str(e)}")  # Debug log
+        return jsonify({'error': str(e)}), 500
+
 def generate_turtle(report_data):
     """Generate Turtle format for an intent report"""
     report_id = str(uuid.uuid4())

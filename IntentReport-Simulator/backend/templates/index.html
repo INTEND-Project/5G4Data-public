@@ -139,7 +139,7 @@
 
                     <div class="form-group">
                         <label for="reportGenerated">Report Generated:</label>
-                        <input type="datetime-local" class="form-control" id="reportGenerated">
+                        <input type="text" class="form-control" id="reportGenerated" placeholder="YYYY-MM-DDTHH:mm:ssZ">
                     </div>
 
                     <div class="form-group">
@@ -173,7 +173,7 @@
 
                     <div class="form-group">
                         <label for="reportGenerated_update">Report Generated:</label>
-                        <input type="datetime-local" class="form-control" id="reportGenerated_update">
+                        <input type="text" class="form-control" id="reportGenerated_update" placeholder="YYYY-MM-DDTHH:mm:ssZ">
                     </div>
 
                     <div class="form-group">
@@ -353,11 +353,22 @@
             
             if (reason) reason.value = '';
             
-            // Update timestamp
+            // Update timestamp with CET/CEST timezone
             if (reportGenerated) {
                 const now = new Date();
-                now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-                reportGenerated.value = now.toISOString().slice(0,16);
+                // Check if we're in DST (CEST, UTC+2)
+                const isDST = now.getTimezoneOffset() < 0;
+                const offsetString = isDST ? '+02:00' : '+01:00';
+                
+                // Get local time components
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+                const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+                reportGenerated.value = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}${offsetString}`;
             }
             
             // Increment report number
@@ -438,11 +449,22 @@
                     intentIdDisplay.value = intentId;
                     intentIdHidden.value = intentId;
                     
-                    // Set default timestamp
-                    const now = new Date();
-                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                    // Set default timestamp with CET/CEST timezone
                     if (reportGenerated) {
-                        reportGenerated.value = now.toISOString().slice(0,16);
+                        const now = new Date();
+                        // Check if we're in DST (CEST, UTC+2)
+                        const isDST = now.getTimezoneOffset() < 0;
+                        const offsetString = isDST ? '+02:00' : '+01:00';
+                        
+                        // Get local time components
+                        const year = now.getFullYear();
+                        const month = String(now.getMonth() + 1).padStart(2, '0');
+                        const day = String(now.getDate()).padStart(2, '0');
+                        const hours = String(now.getHours()).padStart(2, '0');
+                        const minutes = String(now.getMinutes()).padStart(2, '0');
+                        const seconds = String(now.getSeconds()).padStart(2, '0');
+                        const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+                        reportGenerated.value = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}${offsetString}`;
                     }
                     
                     // Fetch next report number
@@ -458,11 +480,22 @@
                     intentIdDisplay.value = intentId;
                     intentIdHidden.value = intentId;
                     
-                    // Set default timestamp
-                    const now = new Date();
-                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                    // Set default timestamp with CET/CEST timezone
                     if (reportGenerated) {
-                        reportGenerated.value = now.toISOString().slice(0,16);
+                        const now = new Date();
+                        // Check if we're in DST (CEST, UTC+2)
+                        const isDST = now.getTimezoneOffset() < 0;
+                        const offsetString = isDST ? '+02:00' : '+01:00';
+                        
+                        // Get local time components
+                        const year = now.getFullYear();
+                        const month = String(now.getMonth() + 1).padStart(2, '0');
+                        const day = String(now.getDate()).padStart(2, '0');
+                        const hours = String(now.getHours()).padStart(2, '0');
+                        const minutes = String(now.getMinutes()).padStart(2, '0');
+                        const seconds = String(now.getSeconds()).padStart(2, '0');
+                        const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+                        reportGenerated.value = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}${offsetString}`;
                     }
                     
                     // Fetch next report number

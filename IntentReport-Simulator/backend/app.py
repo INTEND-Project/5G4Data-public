@@ -169,7 +169,22 @@ def generate_turtle(report_data):
     turtle = f'<{icm_ns}RP{report_id}> a <{icm_ns}IntentReport> ;'
     turtle += f' <{icm_ns}about> <{data5g_ns}I{report_data["intent_id"]}> ;'
     turtle += f' <{icm_ns}reportNumber> "{report_data["report_number"]}"^^<{xsd_ns}integer> ;'
-    turtle += f' <{icm_ns}reportGenerated> "{report_data["report_generated"]}"^^<{xsd_ns}dateTime>'
+    
+    # Ensure timestamp is properly formatted
+    timestamp = report_data.get("report_generated", "")
+    if timestamp:
+        # If timestamp already has timezone, use it as is
+        if '+' in timestamp or 'Z' in timestamp:
+            turtle += f' <{icm_ns}reportGenerated> "{timestamp}"^^<{xsd_ns}dateTime>'
+        else:
+            # If no timezone, assume it's CET and add +01:00
+            turtle += f' <{icm_ns}reportGenerated> "{timestamp}+01:00"^^<{xsd_ns}dateTime>'
+    else:
+        # If no timestamp provided, use current time in CET
+        now = datetime.now()
+        # Add CET timezone offset (+01:00)
+        cet_time = now.strftime("%Y-%m-%dT%H:%M:%S+01:00")
+        turtle += f' <{icm_ns}reportGenerated> "{cet_time}"^^<{xsd_ns}dateTime>'
 
     # Add state based on report type
     if 'intent_handling_state' in report_data:

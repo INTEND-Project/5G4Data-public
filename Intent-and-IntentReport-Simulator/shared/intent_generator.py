@@ -49,14 +49,14 @@ class IntentGenerator:
         g.bind("geo", self.geo)
         g.bind("data5g", self.data)
 
-        # Generate unique IDs
-        intent_id = f"I{uuid.uuid4().hex[:8]}"
-        de_id = f"DE{uuid.uuid4().hex[:8]}"
-        c1_id = f"C{uuid.uuid4().hex[:8]}"
-        c2_id = f"C{uuid.uuid4().hex[:8]}"
-        cx_id = f"CX{uuid.uuid4().hex[:8]}"
-        region_id = f"R{uuid.uuid4().hex[:8]}"
-        re_id = f"RE{uuid.uuid4().hex[:8]}"
+        # Generate unique IDs (Will the first 8 characters of the UUID be enough?)
+        intent_id = f"I{uuid.uuid4().hex}"
+        de_id = f"DE{uuid.uuid4().hex}"
+        c1_id = f"CO{uuid.uuid4().hex}"
+        c2_id = f"CO{uuid.uuid4().hex}"
+        cx_id = f"CX{uuid.uuid4().hex}"
+        region_id = f"RG{uuid.uuid4().hex}"
+        re_id = f"RE{uuid.uuid4().hex}"
 
         # Create intent
         intent_uri = self.data[intent_id]

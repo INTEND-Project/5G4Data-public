@@ -165,7 +165,7 @@ def generate_turtle(report_data):
     xsd_ns = "http://www.w3.org/2001/XMLSchema#"
     
     # Start with the base statement
-    turtle = f'<{icm_ns}R{report_id}> a <{icm_ns}IntentReport> ;'
+    turtle = f'<{icm_ns}RP{report_id}> a <{icm_ns}IntentReport> ;'
     turtle += f' <{icm_ns}about> <{data5g_ns}I{report_data["intent_id"]}> ;'
     turtle += f' <{icm_ns}reportNumber> "{report_data["report_number"]}"^^<{xsd_ns}integer> ;'
     turtle += f' <{icm_ns}reportGenerated> "{report_data["report_generated"]}"^^<{xsd_ns}dateTime>'

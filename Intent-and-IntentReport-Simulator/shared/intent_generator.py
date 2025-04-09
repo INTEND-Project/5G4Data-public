@@ -115,11 +115,11 @@ class IntentGenerator:
         g.bind("data5g", self.data)
 
         # Generate unique IDs
-        intent_id = f"I{uuid.uuid4().hex[:8]}"
-        de_id = f"DE{uuid.uuid4().hex[:8]}"
-        c1_id = f"C{uuid.uuid4().hex[:8]}"
-        cx_id = f"CX{uuid.uuid4().hex[:8]}"
-        re_id = f"RE{uuid.uuid4().hex[:8]}"
+        intent_id = f"I{uuid.uuid4().hex}"
+        de_id = f"DE{uuid.uuid4().hex}"
+        c1_id = f"CO{uuid.uuid4().hex}"
+        cx_id = f"CX{uuid.uuid4().hex}"
+        re_id = f"RE{uuid.uuid4().hex}"
 
         # Create intent
         intent_uri = self.data[intent_id]

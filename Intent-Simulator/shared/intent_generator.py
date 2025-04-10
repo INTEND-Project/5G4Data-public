@@ -199,17 +199,17 @@ class IntentGenerator:
             polygon = "POLYGON((69.673545 18.921344, 69.673448 18.924026, 69.672195 18.923903, 69.672356 18.921052))"
 
         # Generate unique IDs
-        intent_id = f"I{uuid.uuid4().hex[:8]}"
-        de1_id = f"DE{uuid.uuid4().hex[:8]}"
-        de2_id = f"DE{uuid.uuid4().hex[:8]}"
-        c1_id = f"C{uuid.uuid4().hex[:8]}"
-        c2_id = f"C{uuid.uuid4().hex[:8]}"
-        c3_id = f"C{uuid.uuid4().hex[:8]}"
-        cx1_id = f"CX{uuid.uuid4().hex[:8]}"
-        cx2_id = f"CX{uuid.uuid4().hex[:8]}"
-        region_id = f"R{uuid.uuid4().hex[:8]}"
-        re1_id = f"RE{uuid.uuid4().hex[:8]}"
-        re2_id = f"RE{uuid.uuid4().hex[:8]}"
+        intent_id = f"I{uuid.uuid4().hex}"
+        de1_id = f"DE{uuid.uuid4().hex}"
+        de2_id = f"DE{uuid.uuid4().hex}"
+        c1_id = f"C{uuid.uuid4().hex}"
+        c2_id = f"C{uuid.uuid4().hex}"
+        c3_id = f"C{uuid.uuid4().hex}"
+        cx1_id = f"CX{uuid.uuid4().hex}"
+        cx2_id = f"CX{uuid.uuid4().hex}"
+        region_id = f"R{uuid.uuid4().hex}"
+        re1_id = f"RE{uuid.uuid4().hex}"
+        re2_id = f"RE{uuid.uuid4().hex}"
 
         # Create intent
         intent_uri = self.data[intent_id]

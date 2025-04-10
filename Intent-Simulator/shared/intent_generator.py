@@ -61,7 +61,7 @@ class IntentGenerator:
 
         # Generate unique IDs (Will the first 8 characters of the UUID be enough?)
         intent_id = f"I{uuid.uuid4().hex}"
-        de_id = f"DE{uuid.uuid4().hex}"
+        de_id = f"NE{uuid.uuid4().hex}"
         c1_id = f"CO{uuid.uuid4().hex}"
         c2_id = f"CO{uuid.uuid4().hex}"
         cx_id = f"CX{uuid.uuid4().hex}"
@@ -82,7 +82,7 @@ class IntentGenerator:
 
         # Create delivery expectation
         de_uri = self.data[de_id]
-        g.add((de_uri, RDF.type, self.icm.DeliveryExpectation))
+        g.add((de_uri, RDF.type, self.data.NetworkExpectation))
         g.add((de_uri, self.icm.target, self.data["network-slice"]))
         g.add((de_uri, self.dct.description, Literal(params.get("description", "Ensure QoS guarantees for network slice"))))
         g.add((de_uri, self.log.allOf, self.data[c1_id]))
@@ -200,14 +200,14 @@ class IntentGenerator:
 
         # Generate unique IDs
         intent_id = f"I{uuid.uuid4().hex}"
-        de1_id = f"DE{uuid.uuid4().hex}"
+        de1_id = f"NE{uuid.uuid4().hex}"
         de2_id = f"DE{uuid.uuid4().hex}"
-        c1_id = f"C{uuid.uuid4().hex}"
-        c2_id = f"C{uuid.uuid4().hex}"
-        c3_id = f"C{uuid.uuid4().hex}"
+        c1_id = f"CO{uuid.uuid4().hex}"
+        c2_id = f"CO{uuid.uuid4().hex}"
+        c3_id = f"CO{uuid.uuid4().hex}"
         cx1_id = f"CX{uuid.uuid4().hex}"
         cx2_id = f"CX{uuid.uuid4().hex}"
-        region_id = f"R{uuid.uuid4().hex}"
+        region_id = f"RG{uuid.uuid4().hex}"
         re1_id = f"RE{uuid.uuid4().hex}"
         re2_id = f"RE{uuid.uuid4().hex}"
 
@@ -225,16 +225,16 @@ class IntentGenerator:
         if "owner" in params and params["owner"]:
             g.add((intent_uri, self.imo.owner, Literal(params["owner"])))
 
-        # Create network delivery expectation
+        # Create network expectation
         de1_uri = self.data[de1_id]
-        g.add((de1_uri, RDF.type, self.icm.DeliveryExpectation))
+        g.add((de1_uri, RDF.type, self.data.NetworkExpectation))
         g.add((de1_uri, self.icm.target, self.data["network-slice"]))
         g.add((de1_uri, self.dct.description, Literal(params.get("description", "Ensure QoS guarantees for network slice"))))
         g.add((de1_uri, self.log.allOf, self.data[c1_id]))
         g.add((de1_uri, self.log.allOf, self.data[c2_id]))
         g.add((de1_uri, self.log.allOf, self.data[cx1_id]))
 
-        # Create deployment delivery expectation
+        # Create deployment expectation
         de2_uri = self.data[de2_id]
         g.add((de2_uri, RDF.type, self.data.DeploymentExpectation))
         g.add((de2_uri, self.icm.target, self.data["deployment"]))

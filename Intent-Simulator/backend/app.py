@@ -122,23 +122,17 @@ def query_intents():
         PREFIX data5g: <http://5g4data.eu/5g4data#>
         PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
         PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
-        
-        SELECT DISTINCT ?intent ?id ?type ?sourceFile
+        SELECT DISTINCT ?intent ?id ?type
         WHERE {
             ?intent a icm:Intent ;
-                log:allOf ?de .
-            ?de icm:target ?target .
+                log:allOf ?extype .
+            ?extype icm:target ?target .
             BIND(REPLACE(STR(?intent), ".*#I", "") AS ?id)
             BIND(IF(?target = data5g:network-slice, "Network",
                     IF(?target = data5g:deployment, "Workload",
                     IF(?target = data5g:network-slice && EXISTS { ?intent log:allOf data5g:RE2 }, "Combined", "Unknown"))) AS ?type)
-            OPTIONAL {
-                ?intent data5g:sourceFile ?sourceFile .
-            }
-            FILTER(STRSTARTS(STR(?de), "http://5g4data.eu/5g4data#DE"))
         }
-        ORDER BY ?id
-        """
+        ORDER BY ?id"""
         
         print("Executing SPARQL query:", query)  # Debug print
         results = graphdb_client.query_intents(query)

@@ -488,7 +488,7 @@
           "calcs": [
             "last"
           ],
-          "fields": "/^DeliveryExpectationCount$/",
+          "fields": "/^NetworkExpectationCount$/",
           "values": true
         },
         "showPercentChange": false,
@@ -504,11 +504,11 @@
           },
           "hide": false,
           "query": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
-          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?DeliveryExpectationCount)\nWHERE {\n  ?intent rdf:type icm:Intent ;\n         log:allOf ?expectation .\n  ?expectation a icm:DeliveryExpectation .\n}",
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?NetworkExpectationCount)\nWHERE {\n  ?intent rdf:type icm:Intent ;\n         log:allOf ?expectation .\n  ?expectation a data5g:NetworkExpectation .\n}",
           "refId": "A"
         }
       ],
-      "title": "Delivery",
+      "title": "Network",
       "transformations": [
         {
           "id": "convertFieldType",
@@ -516,7 +516,7 @@
             "conversions": [
               {
                 "destinationType": "number",
-                "targetField": "DeliveryExpectationCount"
+                "targetField": "NetworkExpectationCount"
               }
             ],
             "fields": {}
@@ -620,5 +620,5 @@
   "timezone": "",
   "title": "TMForum Intent Dashboard",
   "uid": "fehp0b02wcf7ke",
-  "version": 39
+  "version": 41
 }

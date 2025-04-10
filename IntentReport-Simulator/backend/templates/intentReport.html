@@ -184,9 +184,35 @@
 
                 <!-- Expectation Form -->
                 <div id="expectationForm" class="report-form" style="display: none;">
-                    <!-- Placeholder for expectation form -->
                     <div class="form-group">
-                        <p>Expectation form coming soon...</p>
+                        <label for="intentIdDisplay_expectation">Selected Intent ID:</label>
+                        <input type="text" class="form-control" id="intentIdDisplay_expectation" readonly>
+                        <input type="hidden" id="intentId_expectation">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reportNumber_expectation">Report Number:</label>
+                        <input type="number" class="form-control" id="reportNumber_expectation" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reportGenerated_expectation">Report Generated:</label>
+                        <input type="text" class="form-control" id="reportGenerated_expectation" placeholder="YYYY-MM-DDTHH:mm:ssZ">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="handler_expectation">Handler:</label>
+                        <input type="text" class="form-control" id="handler_expectation" placeholder="Enter handler name">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="owner_expectation">Owner:</label>
+                        <input type="text" class="form-control" id="owner_expectation" placeholder="Enter owner name">
+                    </div>
+
+                    <!-- Container for dynamic expectation and condition fields -->
+                    <div id="expectationFieldsContainer" class="mt-4">
+                        <!-- Fields will be dynamically added here -->
                     </div>
                 </div>
 
@@ -249,8 +275,14 @@
                 formToShow.style.display = 'block';
             }
             
-            // Set the intent ID
-            const formPrefix = reportType === 'UPDATE_CHANGE' ? '_update' : '';
+            // Set the intent ID and form prefix based on report type
+            let formPrefix = '';
+            if (reportType === 'UPDATE_CHANGE') {
+                formPrefix = '_update';
+            } else if (reportType === 'EXPECTATION') {
+                formPrefix = '_expectation';
+            }
+            
             document.getElementById(`intentIdDisplay${formPrefix}`).value = intentId;
             document.getElementById(`intentId${formPrefix}`).value = intentId;
             
@@ -272,6 +304,86 @@
             
             // Fetch next report number
             fetchNextReportNumber(intentId, document.getElementById(`reportNumber${formPrefix}`));
+
+            // For Expectation form, fetch and parse the intent's turtle representation
+            if (reportType === 'EXPECTATION') {
+                fetch(`${API_BASE_URL}/api/get-intent/${intentId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        const turtle = data.data;
+                        
+                        // Debug output for turtle representation
+                        console.log('\n=== Turtle Representation ===');
+                        console.log(turtle);
+                        console.log('===========================\n');
+
+                        const { expectations, conditions } = parseTurtleRepresentation(turtle);
+                        
+                        // Debug output for parsed results
+                        console.log('=== Parsed Results ===');
+                        console.log('Expectations:');
+                        expectations.forEach(exp => {
+                            console.log(`- ${exp.id}: ${exp.description}`);
+                        });
+                        console.log('\nConditions:');
+                        conditions.forEach(cond => {
+                            console.log(`- ${cond}`);
+                        });
+                        console.log('====================\n');
+
+                        const container = document.getElementById('expectationFieldsContainer');
+                        
+                        // Clear any existing fields
+                        container.innerHTML = '';
+                        
+                        // Add Expectations section
+                        if (expectations.length > 0) {
+                            const expectationsHeader = document.createElement('h4');
+                            expectationsHeader.textContent = 'Expectations';
+                            container.appendChild(expectationsHeader);
+                            
+                            expectations.forEach((expectation, index) => {
+                                const id = `expectation-${index}`;
+                                createCheckboxField(expectation, id, container);
+                                
+                                // Add container for additional fields
+                                const additionalFields = document.createElement('div');
+                                additionalFields.id = `${id}-additional`;
+                                additionalFields.style.display = 'none';
+                                additionalFields.className = 'additional-fields';
+                                container.appendChild(additionalFields);
+                            });
+                        }
+                        
+                        // Add Conditions section
+                        if (conditions.length > 0) {
+                            const conditionsHeader = document.createElement('h4');
+                            conditionsHeader.textContent = 'Conditions';
+                            container.appendChild(conditionsHeader);
+                            
+                            conditions.forEach((condition, index) => {
+                                const id = `condition-${index}`;
+                                createCheckboxField(condition, id, container);
+                                
+                                // Add container for additional fields
+                                const additionalFields = document.createElement('div');
+                                additionalFields.id = `${id}-additional`;
+                                additionalFields.style.display = 'none';
+                                additionalFields.className = 'additional-fields';
+                                container.appendChild(additionalFields);
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching intent:', error);
+                        showStatus('Error loading intent details', 'error');
+                    });
+            }
         }
 
         async function handleFormSubmit(e) {
@@ -370,6 +482,110 @@
                         reportNumberElement.value = 1;
                     }
                 });
+        }
+
+        function parseTurtleRepresentation(turtle) {
+            const expectations = [];
+            const conditions = [];
+            
+            // Split the turtle into lines and process each line
+            const lines = turtle.split('\n');
+            
+            // First, collect all expectations and their descriptions
+            const expectationDescriptions = {};
+            let currentExpectation = null;
+            
+            for (const line of lines) {
+                // Look for any type of expectation (DeploymentExpectation, NetworkExpectation, etc.)
+                if (line.includes('a data5g:') && line.includes('Expectation')) {
+                    const match = line.match(/data5g:([^\s]+)\s+a\s+data5g:([^\s]+)/);
+                    if (match) {
+                        currentExpectation = match[1];
+                    }
+                }
+                
+                // Also look for icm:ReportingExpectation
+                if (line.includes('a icm:ReportingExpectation')) {
+                    const match = line.match(/data5g:([^\s]+)\s+a\s+icm:ReportingExpectation/);
+                    if (match) {
+                        currentExpectation = match[1];
+                    }
+                }
+                
+                // Look for expectation descriptions
+                if (currentExpectation && line.includes('dct:description')) {
+                    const match = line.match(/dct:description\s+"([^"]+)"/);
+                    if (match) {
+                        expectationDescriptions[currentExpectation] = match[1];
+                        currentExpectation = null;
+                    }
+                }
+                
+                // Look for condition patterns
+                if (line.includes('a icm:Condition')) {
+                    const conditionMatch = line.match(/data5g:([^\s]+)\s+a\s+icm:Condition/);
+                    if (conditionMatch) {
+                        conditions.push(conditionMatch[1]);
+                    }
+                }
+            }
+            
+            // Now look for the Intent's allOf list to get the expectation references
+            for (const line of lines) {
+                if (line.includes('a icm:Intent')) {
+                    // Find the line with log:allOf
+                    const allOfLine = lines.find(l => l.includes('log:allOf'));
+                    if (allOfLine) {
+                        // Extract all expectations from the allOf list
+                        const matches = allOfLine.match(/data5g:([^\s,]+)/g);
+                        if (matches) {
+                            matches.forEach(match => {
+                                const expectationId = match.replace('data5g:', '');
+                                if (expectationDescriptions[expectationId]) {
+                                    expectations.push({
+                                        id: expectationId,
+                                        description: expectationDescriptions[expectationId]
+                                    });
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            
+            return { expectations, conditions };
+        }
+
+        function createCheckboxField(label, id, container) {
+            const div = document.createElement('div');
+            div.className = 'form-group expectation-field';
+            
+            const checkboxDiv = document.createElement('div');
+            checkboxDiv.className = 'form-check';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'form-check-input';
+            checkbox.id = id;
+            
+            const checkboxLabel = document.createElement('label');
+            checkboxLabel.className = 'form-check-label';
+            checkboxLabel.htmlFor = id;
+            checkboxLabel.textContent = label.description || label; // Use description if available
+            
+            checkboxDiv.appendChild(checkbox);
+            checkboxDiv.appendChild(checkboxLabel);
+            div.appendChild(checkboxDiv);
+            
+            // Add event listener to show/hide additional fields when checkbox is clicked
+            checkbox.addEventListener('change', function() {
+                const additionalFields = document.getElementById(`${id}-additional`);
+                if (additionalFields) {
+                    additionalFields.style.display = this.checked ? 'block' : 'none';
+                }
+            });
+            
+            container.appendChild(div);
         }
     </script>
 </body>

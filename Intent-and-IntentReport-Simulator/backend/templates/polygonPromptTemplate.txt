@@ -1,0 +1,3 @@
+I will give you a name of a place and you will have to find out where it is and you will give me a bounding box (5km by 5km) like this surrounding the place:
+POLYGON((69.673545 18.921344, 69.673448 18.924026, 69.672195 18.923903, 69.672356 18.921052))
+Only output the boundingbox, nothing else. The name of the place is: 

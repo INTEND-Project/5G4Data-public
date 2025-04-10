@@ -3,6 +3,8 @@ from rdflib.namespace import RDFS
 import uuid
 import time
 import random
+import openai
+import os
 
 class IntentGenerator:
     def __init__(self):
@@ -50,6 +52,12 @@ class IntentGenerator:
         g.bind("geo", self.geo)
         g.bind("data5g", self.data)
         g.bind("imo", self.imo)
+
+        # Get polygon from location if provided
+        if "location" in params and params["location"]:
+            polygon = self._get_polygon_from_location(params["location"])
+        else:
+            polygon = "POLYGON((69.673545 18.921344, 69.673448 18.924026, 69.672195 18.923903, 69.672356 18.921052))"
 
         # Generate unique IDs (Will the first 8 characters of the UUID be enough?)
         intent_id = f"I{uuid.uuid4().hex}"
@@ -99,7 +107,7 @@ class IntentGenerator:
         # Create region
         region_uri = self.data[region_id]
         g.add((region_uri, RDF.type, self.geo.Feature))
-        g.add((region_uri, self.geo.hasGeometry, self._create_polygon(g, params.get("region", "POLYGON((69.673545 18.921344, 69.673448 18.924026, 69.672195 18.923903, 69.672356 18.921052))"))))
+        g.add((region_uri, self.geo.hasGeometry, self._create_polygon(g, polygon)))
 
         # Create reporting expectation
         re_uri = self.data[re_id]
@@ -184,6 +192,12 @@ class IntentGenerator:
         g.bind("data5g", self.data)
         g.bind("imo", self.imo)
 
+        # Get polygon from location if provided
+        if "location" in params and params["location"]:
+            polygon = self._get_polygon_from_location(params["location"])
+        else:
+            polygon = "POLYGON((69.673545 18.921344, 69.673448 18.924026, 69.672195 18.923903, 69.672356 18.921052))"
+
         # Generate unique IDs
         intent_id = f"I{uuid.uuid4().hex[:8]}"
         de1_id = f"DE{uuid.uuid4().hex[:8]}"
@@ -256,7 +270,7 @@ class IntentGenerator:
         # Create region
         region_uri = self.data[region_id]
         g.add((region_uri, RDF.type, self.geo.Feature))
-        g.add((region_uri, self.geo.hasGeometry, self._create_polygon(g, params.get("region", "POLYGON((69.673545 18.921344, 69.673448 18.924026, 69.672195 18.923903, 69.672356 18.921052))"))))
+        g.add((region_uri, self.geo.hasGeometry, self._create_polygon(g, polygon)))
 
         # Create reporting expectations
         re1_uri = self.data[re1_id]
@@ -303,6 +317,47 @@ class IntentGenerator:
         g.add((bnode, RDF.type, self.geo.Polygon))
         g.add((bnode, self.geo.asWKT, Literal(wkt, datatype=self.geo.wktLiteral)))
         return bnode
+
+    def _get_polygon_from_location(self, location):
+        """Get a polygon for a location using ChatGPT 4o-mini"""
+        import openai
+        import os
+        
+        try:
+            # Read the prompt template
+            # Get the project root directory (one level up from shared)
+            project_root = os.path.dirname(os.path.dirname(__file__))
+            template_path = os.path.join(project_root, 'backend', 'templates', 'polygonPromptTemplate.txt')
+            print(f"Looking for template at: {template_path}")  # Debug print
+            with open(template_path, 'r') as f:
+                prompt_template = f.read()
+            
+            # Add the location to the prompt
+            prompt = prompt_template + location
+            print(f"Generated prompt: {prompt}")  # Debug print
+            
+            # Get the polygon from ChatGPT 4o-mini
+            api_key = os.getenv('OPENAI_API_KEY')
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY environment variable is not set")
+            
+            client = openai.OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            
+            # Extract the polygon from the response
+            polygon = response.choices[0].message.content.strip()
+            print(f"Received polygon: {polygon}")  # Debug print
+            return polygon
+        except Exception as e:
+            print(f"Error getting polygon from location: {str(e)}")  # Debug print
+            import traceback
+            print(traceback.format_exc())  # Print full traceback
+            raise
 
     def _create_blank_node(self, triples):
         bnode = BNode()

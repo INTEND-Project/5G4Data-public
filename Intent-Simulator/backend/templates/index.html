@@ -197,6 +197,7 @@
             const bandwidthGroup = document.getElementById('bandwidthGroup');
             const datacenterGroup = document.getElementById('datacenterGroup');
             const applicationGroup = document.getElementById('applicationGroup');
+            const locationGroup = document.getElementById('locationGroup');
             
             const isNetwork = this.value === 'network';
             const isWorkload = this.value === 'workload';
@@ -205,6 +206,7 @@
             bandwidthGroup.style.display = (isNetwork || isCombined) ? 'block' : 'none';
             datacenterGroup.style.display = (isWorkload || isCombined) ? 'block' : 'none';
             applicationGroup.style.display = (isWorkload || isCombined) ? 'block' : 'none';
+            locationGroup.style.display = (isNetwork || isCombined) ? 'block' : 'none';
         });
 
         document.getElementById('generationType').addEventListener('change', function() {
@@ -233,6 +235,7 @@
 
             if (intentType === 'network' || intentType === 'combined') {
                 parameters.bandwidth = bandwidth;
+                parameters.location = location;
             }
 
             if (intentType === 'workload' || intentType === 'combined') {

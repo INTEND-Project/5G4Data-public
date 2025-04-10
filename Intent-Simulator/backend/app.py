@@ -24,6 +24,7 @@ def index():
 def generate_intent():
     try:
         data = request.get_json()
+        print("Received data:", data)  # Debug print
         intent_type = data.get('intent_type')
         parameters = data.get('parameters', {})
         count = int(data.get('count', 1))
@@ -47,6 +48,9 @@ def generate_intent():
                 "intent_ids": [intent_id]
             })
     except Exception as e:
+        print(f"Error generating intent: {str(e)}")  # Debug print
+        import traceback
+        print(traceback.format_exc())  # Print full traceback
         return jsonify({"error": str(e)}), 400
 
 @app.route('/api/get-intent/<intent_id>', methods=['GET'])

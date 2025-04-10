@@ -34,6 +34,7 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+.env
 
 # Project specific
 intents/*.ttl

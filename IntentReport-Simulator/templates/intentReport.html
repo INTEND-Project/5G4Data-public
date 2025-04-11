@@ -38,7 +38,7 @@
         }
 
         .container { 
-            max-width: 800px; 
+            max-width: 1000px; 
             margin-top: 2em;
         }
         
@@ -332,7 +332,11 @@
                         });
                         console.log('\nConditions:');
                         conditions.forEach(cond => {
-                            console.log(`- ${cond}`);
+                            if (cond.description) {
+                                console.log(`- ${cond.id}: ${cond.description}`);
+                            } else {
+                                console.log(`- ${cond.id}`);
+                            }
                         });
                         console.log('====================\n');
 
@@ -493,7 +497,9 @@
             
             // First, collect all expectations and their descriptions
             const expectationDescriptions = {};
+            const conditionDescriptions = {};
             let currentExpectation = null;
+            let currentCondition = null;
             
             for (const line of lines) {
                 // Look for any type of expectation (DeploymentExpectation, NetworkExpectation, etc.)
@@ -512,6 +518,18 @@
                     }
                 }
                 
+                // Look for condition patterns
+                if (line.includes('a icm:Condition')) {
+                    const conditionMatch = line.match(/data5g:([^\s]+)\s+a\s+icm:Condition/);
+                    if (conditionMatch) {
+                        currentCondition = conditionMatch[1];
+                        conditions.push({
+                            id: currentCondition,
+                            description: null // Will be updated if description is found
+                        });
+                    }
+                }
+                
                 // Look for expectation descriptions
                 if (currentExpectation && line.includes('dct:description')) {
                     const match = line.match(/dct:description\s+"([^"]+)"/);
@@ -521,11 +539,16 @@
                     }
                 }
                 
-                // Look for condition patterns
-                if (line.includes('a icm:Condition')) {
-                    const conditionMatch = line.match(/data5g:([^\s]+)\s+a\s+icm:Condition/);
-                    if (conditionMatch) {
-                        conditions.push(conditionMatch[1]);
+                // Look for condition descriptions
+                if (currentCondition && line.includes('dct:description')) {
+                    const match = line.match(/dct:description\s+"([^"]+)"/);
+                    if (match) {
+                        // Find the condition in the array and update its description
+                        const conditionIndex = conditions.findIndex(c => c.id === currentCondition);
+                        if (conditionIndex !== -1) {
+                            conditions[conditionIndex].description = match[1];
+                        }
+                        currentCondition = null;
                     }
                 }
             }
@@ -571,7 +594,20 @@
             const checkboxLabel = document.createElement('label');
             checkboxLabel.className = 'form-check-label';
             checkboxLabel.htmlFor = id;
-            checkboxLabel.textContent = label.description || label; // Use description if available
+            
+            // Format the label with both identifier and description when available
+            if (typeof label === 'object' && label.id) {
+                if (label.description) {
+                    // For items that have both id and description
+                    checkboxLabel.textContent = `${label.id}: ${label.description}`;
+                } else {
+                    // For items with only id and no description
+                    checkboxLabel.textContent = label.id;
+                }
+            } else {
+                // For primitive values (fallback)
+                checkboxLabel.textContent = label;
+            }
             
             checkboxDiv.appendChild(checkbox);
             checkboxDiv.appendChild(checkboxLabel);

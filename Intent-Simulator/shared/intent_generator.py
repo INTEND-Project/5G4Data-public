@@ -92,10 +92,14 @@ class IntentGenerator:
         # Create conditions
         c1_uri = self.data[c1_id]
         g.add((c1_uri, RDF.type, self.icm.Condition))
+        description = f"Latency value condition: {params.get('latency', 20)}"
+        g.add((c1_uri, self.dct.description, Literal(description)))
         g.add((c1_uri, self.set.forAll, self._create_latency_condition(g, params.get("latency", 20))))
 
         c2_uri = self.data[c2_id]
         g.add((c2_uri, RDF.type, self.icm.Condition))
+        description = f"Bandwidth value condition: {params.get('bandwidth', 300)}"
+        g.add((c2_uri, self.dct.description, Literal(description)))
         g.add((c2_uri, self.set.forAll, self._create_bandwidth_condition(g, params.get("bandwidth", 300))))
 
         # Create context
@@ -327,7 +331,7 @@ class IntentGenerator:
             # Read the prompt template
             # Get the project root directory (one level up from shared)
             project_root = os.path.dirname(os.path.dirname(__file__))
-            template_path = os.path.join(project_root, 'backend', 'templates', 'polygonPromptTemplate.txt')
+            template_path = os.path.join(project_root, 'templates', 'polygonPromptTemplate.txt')
             print(f"Looking for template at: {template_path}")  # Debug print
             with open(template_path, 'r') as f:
                 prompt_template = f.read()

@@ -44,7 +44,7 @@ def generate_intent():
             intent = intent_generator.generate(intent_type, parameters)
             intent_id = graphdb_client.store_intent(intent)
             return jsonify({
-                "message": "Intent generated and stored successfully",
+                "message": f"Intent generated and stored successfully: {intent_id}",
                 "intent_ids": [intent_id]
             })
     except Exception as e:

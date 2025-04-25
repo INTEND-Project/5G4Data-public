@@ -115,13 +115,20 @@
 
                     <div class="form-group">
                         <label for="handler">Handler:</label>
-                        <input type="text" class="form-control" id="handler" placeholder="Enter handler name">
+                        <input type="text" class="form-control" id="handler" placeholder="Enter handler name or select from list" list="agentList">
                     </div>
 
                     <div class="form-group">
                         <label for="owner">Owner:</label>
-                        <input type="text" class="form-control" id="owner" placeholder="Enter owner name">
+                        <input type="text" class="form-control" id="owner" placeholder="Enter owner name or select from list" list="agentList">
                     </div>
+
+                    <datalist id="agentList">
+                        <option value="inChat">
+                        <option value="inSwitch">
+                        <option value="inNet">
+                        <option value="inOrch">
+                    </datalist>
 
                     <div class="form-group">
                         <label for="intentHandlingState">Intent Handling State:</label>
@@ -159,12 +166,12 @@
 
                     <div class="form-group">
                         <label for="handler_update">Handler:</label>
-                        <input type="text" class="form-control" id="handler_update" placeholder="Enter handler name">
+                        <input type="text" class="form-control" id="handler_update" placeholder="Enter handler name or select from list" list="agentList">
                     </div>
 
                     <div class="form-group">
                         <label for="owner_update">Owner:</label>
-                        <input type="text" class="form-control" id="owner_update" placeholder="Enter owner name">
+                        <input type="text" class="form-control" id="owner_update" placeholder="Enter owner name or select from list" list="agentList">
                     </div>
 
                     <div class="form-group">
@@ -202,12 +209,12 @@
 
                     <div class="form-group">
                         <label for="handler_expectation">Handler:</label>
-                        <input type="text" class="form-control" id="handler_expectation" placeholder="Enter handler name">
+                        <input type="text" class="form-control" id="handler_expectation" placeholder="Enter handler name or select from list" list="agentList">
                     </div>
 
                     <div class="form-group">
                         <label for="owner_expectation">Owner:</label>
-                        <input type="text" class="form-control" id="owner_expectation" placeholder="Enter owner name">
+                        <input type="text" class="form-control" id="owner_expectation" placeholder="Enter owner name or select from list" list="agentList">
                     </div>
 
                     <!-- Container for dynamic expectation and condition fields -->

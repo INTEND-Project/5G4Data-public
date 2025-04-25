@@ -137,13 +137,27 @@
             </div>
 
             <div class="form-group">
-                <label for="handler">Handler (optional):</label>
-                <input type="text" class="form-control" id="handler" placeholder="Enter handler name">
+                <label for="handler">Handler:</label>
+                <select class="form-control" id="handlerSelect">
+                    <option value="">Custom...</option>
+                    <option value="inChat">inChat</option>
+                    <option value="inSwitch">inSwitch</option>
+                    <option value="inNet">inNet</option>
+                    <option value="inOrch">inOrch</option>
+                </select>
+                <input type="text" class="form-control mt-2" id="handler" placeholder="Enter custom handler name" style="display: none;">
             </div>
 
             <div class="form-group">
-                <label for="owner">Owner (optional):</label>
-                <input type="text" class="form-control" id="owner" placeholder="Enter owner name">
+                <label for="owner">Owner:</label>
+                <select class="form-control" id="ownerSelect">
+                    <option value="">Custom...</option>
+                    <option value="inChat">inChat</option>
+                    <option value="inSwitch">inSwitch</option>
+                    <option value="inNet">inNet</option>
+                    <option value="inOrch">inOrch</option>
+                </select>
+                <input type="text" class="form-control mt-2" id="owner" placeholder="Enter custom owner name" style="display: none;">
             </div>
 
             <button type="submit" class="btn btn-primary">Generate Intent</button>
@@ -478,8 +492,37 @@
             }
         }
 
-        // Call updateIntentList when the page loads
-        document.addEventListener('DOMContentLoaded', updateIntentList);
+        document.addEventListener('DOMContentLoaded', function() {
+            updateIntentList();
+
+            // Handler dropdown and text input interaction
+            const handlerSelect = document.getElementById('handlerSelect');
+            const handlerInput = document.getElementById('handler');
+            
+            handlerSelect.addEventListener('change', function() {
+                if (this.value === '') {
+                    handlerInput.style.display = 'block';
+                    handlerInput.value = '';
+                } else {
+                    handlerInput.style.display = 'none';
+                    handlerInput.value = this.value;
+                }
+            });
+
+            // Owner dropdown and text input interaction
+            const ownerSelect = document.getElementById('ownerSelect');
+            const ownerInput = document.getElementById('owner');
+            
+            ownerSelect.addEventListener('change', function() {
+                if (this.value === '') {
+                    ownerInput.style.display = 'block';
+                    ownerInput.value = '';
+                } else {
+                    ownerInput.style.display = 'none';
+                    ownerInput.value = this.value;
+                }
+            });
+        });
     </script>
 </body>
 </html> 

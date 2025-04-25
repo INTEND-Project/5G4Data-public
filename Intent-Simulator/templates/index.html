@@ -92,13 +92,51 @@
             </div>
 
             <div class="form-group">
-                <label for="latency">Latency (ms):</label>
-                <input type="number" class="form-control" id="latency" value="20" required>
+                <label for="latencyOperator">Latency Operator:</label>
+                <select class="form-control" id="latencyOperator">
+                    <option value="smaller">smaller</option>
+                    <option value="atLeast">atLeast</option>
+                    <option value="atMost">atMost</option>
+                    <option value="greater">greater</option>
+                    <option value="inRange">inRange</option>
+                    <option value="mean">mean</option>
+                    <option value="median">median</option>
+                </select>
             </div>
 
-            <div class="form-group" id="bandwidthGroup">
-                <label for="bandwidth">Bandwidth (mbit/s):</label>
-                <input type="number" class="form-control" id="bandwidth" value="300" required>
+            <div class="form-group d-flex align-items-end">
+                <div class="flex-grow-1">
+                    <label for="latency">Latency (ms):</label>
+                    <input type="number" class="form-control" id="latency" value="20" required>
+                </div>
+                <div class="ms-2" id="latencyEndGroup" style="display: none;">
+                    <label for="latencyEnd">to (ms):</label>
+                    <input type="number" class="form-control" id="latencyEnd" value="20">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="bandwidthOperator">Bandwidth Operator:</label>
+                <select class="form-control" id="bandwidthOperator">
+                    <option value="larger">larger</option>
+                    <option value="atLeast">atLeast</option>
+                    <option value="atMost">atMost</option>
+                    <option value="greater">greater</option>
+                    <option value="inRange">inRange</option>
+                    <option value="mean">mean</option>
+                    <option value="median">median</option>
+                </select>
+            </div>
+
+            <div class="form-group d-flex align-items-end">
+                <div class="flex-grow-1">
+                    <label for="bandwidth">Bandwidth (mbit/s):</label>
+                    <input type="number" class="form-control" id="bandwidth" value="300" required>
+                </div>
+                <div class="ms-2" id="bandwidthEndGroup" style="display: none;">
+                    <label for="bandwidthEnd">to (mbit/s):</label>
+                    <input type="number" class="form-control" id="bandwidthEnd" value="300">
+                </div>
             </div>
 
             <div class="form-group" id="locationGroup">
@@ -232,8 +270,12 @@
             e.preventDefault();
             
             const intentType = document.getElementById('intentType').value;
+            const latencyOperator = document.getElementById('latencyOperator').value;
             const latency = document.getElementById('latency').value;
+            const latencyEnd = document.getElementById('latencyEnd').value;
+            const bandwidthOperator = document.getElementById('bandwidthOperator').value;
             const bandwidth = document.getElementById('bandwidth').value;
+            const bandwidthEnd = document.getElementById('bandwidthEnd').value;
             const location = document.getElementById('location').value;
             const datacenter = document.getElementById('datacenter').value;
             const application = document.getElementById('application').value;
@@ -244,12 +286,17 @@
             const owner = document.getElementById('owner').value.trim();
 
             const parameters = {
-                latency: latency
+                latency_operator: latencyOperator,
+                latency: latency,
+                latency_end: latencyEnd,
+                bandwidth_operator: bandwidthOperator,
+                bandwidth: bandwidth,
+                bandwidth_end: bandwidthEnd,
+                location: location
             };
 
             if (intentType === 'network' || intentType === 'combined') {
                 parameters.bandwidth = bandwidth;
-                parameters.location = location;
             }
 
             if (intentType === 'workload' || intentType === 'combined') {
@@ -495,9 +542,11 @@
         document.addEventListener('DOMContentLoaded', function() {
             updateIntentList();
 
-            // Handler dropdown and text input interaction
+            // Handler and owner dropdown handling
             const handlerSelect = document.getElementById('handlerSelect');
             const handlerInput = document.getElementById('handler');
+            const ownerSelect = document.getElementById('ownerSelect');
+            const ownerInput = document.getElementById('owner');
             
             handlerSelect.addEventListener('change', function() {
                 if (this.value === '') {
@@ -508,10 +557,6 @@
                     handlerInput.value = this.value;
                 }
             });
-
-            // Owner dropdown and text input interaction
-            const ownerSelect = document.getElementById('ownerSelect');
-            const ownerInput = document.getElementById('owner');
             
             ownerSelect.addEventListener('change', function() {
                 if (this.value === '') {
@@ -520,6 +565,36 @@
                 } else {
                     ownerInput.style.display = 'none';
                     ownerInput.value = this.value;
+                }
+            });
+
+            // Latency operator handling
+            const latencyOperator = document.getElementById('latencyOperator');
+            const latencyEndGroup = document.getElementById('latencyEndGroup');
+            const latencyEnd = document.getElementById('latencyEnd');
+            
+            latencyOperator.addEventListener('change', function() {
+                if (this.value === 'inRange') {
+                    latencyEndGroup.style.display = 'block';
+                    latencyEnd.required = true;
+                } else {
+                    latencyEndGroup.style.display = 'none';
+                    latencyEnd.required = false;
+                }
+            });
+
+            // Bandwidth operator handling
+            const bandwidthOperator = document.getElementById('bandwidthOperator');
+            const bandwidthEndGroup = document.getElementById('bandwidthEndGroup');
+            const bandwidthEnd = document.getElementById('bandwidthEnd');
+            
+            bandwidthOperator.addEventListener('change', function() {
+                if (this.value === 'inRange') {
+                    bandwidthEndGroup.style.display = 'block';
+                    bandwidthEnd.required = true;
+                } else {
+                    bandwidthEndGroup.style.display = 'none';
+                    bandwidthEnd.required = false;
                 }
             });
         });

@@ -1,4 +1,5 @@
 from rdflib import Graph, Namespace, RDF, Literal, XSD, URIRef, BNode
+from rdflib.collection import Collection
 from rdflib.namespace import RDFS
 import uuid
 import time
@@ -94,13 +95,23 @@ class IntentGenerator:
         g.add((c1_uri, RDF.type, self.icm.Condition))
         description = f"Latency value condition: {params.get('latency', 20)}"
         g.add((c1_uri, self.dct.description, Literal(description)))
-        g.add((c1_uri, self.set.forAll, self._create_latency_condition(g, params.get("latency", 20))))
+        g.add((c1_uri, self.set.forAll, self._create_latency_condition(
+            g, 
+            params.get("latency", 20),
+            params.get("latency_operator", "smaller"),
+            params.get("latency_end")
+        )))
 
         c2_uri = self.data[c2_id]
         g.add((c2_uri, RDF.type, self.icm.Condition))
         description = f"Bandwidth value condition: {params.get('bandwidth', 300)}"
         g.add((c2_uri, self.dct.description, Literal(description)))
-        g.add((c2_uri, self.set.forAll, self._create_bandwidth_condition(g, params.get("bandwidth", 300))))
+        g.add((c2_uri, self.set.forAll, self._create_bandwidth_condition(
+            g, 
+            params.get("bandwidth", 300),
+            params.get("bandwidth_operator", "larger"),
+            params.get("bandwidth_end")
+        )))
 
         # Create context
         cx_uri = self.data[cx_id]
@@ -289,22 +300,84 @@ class IntentGenerator:
 
         return g.serialize(format="turtle")
 
-    def _create_latency_condition(self, g, latency):
+    def _create_latency_condition(self, g, latency, operator="smaller", latency_end=None):
         bnode = BNode()
-        value_bnode = BNode()
         g.add((bnode, self.icm.valuesOfTargetProperty, self.data["5GTelenorLatency"]))
-        g.add((bnode, self.quan.smaller, value_bnode))
-        g.add((value_bnode, self.rdf.value, Literal(latency, datatype=self.xsd.decimal)))
-        g.add((value_bnode, self.quan.unit, Literal("ms")))
+        
+        # Map the operator to the corresponding quan property
+        operator_map = {
+            "smaller": self.quan.smaller,
+            "atLeast": self.quan.atLeast,
+            "atMost": self.quan.atMost,
+            "greater": self.quan.greater,
+            "inRange": self.quan.inRange,
+            "mean": self.quan.mean,
+            "median": self.quan.median
+        }
+        
+        if operator == "inRange" and latency_end is not None:
+            # For inRange, we need three arguments:
+            # 1. The property to check (data5g:5GTelenorLatency)
+            # 2. The lower bound
+            # 3. The upper bound
+            lower_bnode = BNode()
+            g.add((lower_bnode, self.rdf.value, Literal(latency, datatype=self.xsd.decimal)))
+            g.add((lower_bnode, self.quan.unit, Literal("ms")))
+            
+            upper_bnode = BNode()
+            g.add((upper_bnode, self.rdf.value, Literal(latency_end, datatype=self.xsd.decimal)))
+            g.add((upper_bnode, self.quan.unit, Literal("ms")))
+            
+            # Create a list of the three arguments using RDFlib's Collection
+            list_bnode = BNode()
+            g.add((bnode, operator_map[operator], list_bnode))
+            Collection(g, list_bnode, [self.data["5GTelenorLatency"], lower_bnode, upper_bnode])
+        else:
+            value_bnode = BNode()
+            g.add((bnode, operator_map[operator], value_bnode))
+            g.add((value_bnode, self.rdf.value, Literal(latency, datatype=self.xsd.decimal)))
+            g.add((value_bnode, self.quan.unit, Literal("ms")))
+        
         return bnode
 
-    def _create_bandwidth_condition(self, g, bandwidth):
+    def _create_bandwidth_condition(self, g, bandwidth, operator="larger", bandwidth_end=None):
         bnode = BNode()
-        value_bnode = BNode()
         g.add((bnode, self.icm.valuesOfTargetProperty, self.data["5GTelenorBandwidth"]))
-        g.add((bnode, self.quan.larger, value_bnode))
-        g.add((value_bnode, self.rdf.value, Literal(bandwidth, datatype=self.xsd.decimal)))
-        g.add((value_bnode, self.quan.unit, Literal("mbit/s")))
+        
+        # Map the operator to the corresponding quan property
+        operator_map = {
+            "larger": self.quan.larger,
+            "atLeast": self.quan.atLeast,
+            "atMost": self.quan.atMost,
+            "greater": self.quan.greater,
+            "inRange": self.quan.inRange,
+            "mean": self.quan.mean,
+            "median": self.quan.median
+        }
+        
+        if operator == "inRange" and bandwidth_end is not None:
+            # For inRange, we need three arguments:
+            # 1. The property to check (data5g:5GTelenorBandwidth)
+            # 2. The lower bound
+            # 3. The upper bound
+            lower_bnode = BNode()
+            g.add((lower_bnode, self.rdf.value, Literal(bandwidth, datatype=self.xsd.decimal)))
+            g.add((lower_bnode, self.quan.unit, Literal("mbit/s")))
+            
+            upper_bnode = BNode()
+            g.add((upper_bnode, self.rdf.value, Literal(bandwidth_end, datatype=self.xsd.decimal)))
+            g.add((upper_bnode, self.quan.unit, Literal("mbit/s")))
+            
+            # Create a list of the three arguments using RDFlib's Collection
+            list_bnode = BNode()
+            g.add((bnode, operator_map[operator], list_bnode))
+            Collection(g, list_bnode, [self.data["5GTelenorBandwidth"], lower_bnode, upper_bnode])
+        else:
+            value_bnode = BNode()
+            g.add((bnode, operator_map[operator], value_bnode))
+            g.add((value_bnode, self.rdf.value, Literal(bandwidth, datatype=self.xsd.decimal)))
+            g.add((value_bnode, self.quan.unit, Literal("mbit/s")))
+        
         return bnode
 
     def _create_compute_latency_condition(self, g, latency):

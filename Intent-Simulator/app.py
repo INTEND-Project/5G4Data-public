@@ -96,7 +96,7 @@ def get_intent_file(filepath):
     """Serve the intent file content"""
     try:
         # Get the project root directory (one level up from backend)
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        project_root = os.path.dirname(os.path.abspath(__file__))
         # Construct the full path to the intent file
         full_path = os.path.join(project_root, "intents/", filepath)
         print(f"Attempting to read file: {full_path}")  # Debug print

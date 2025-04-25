@@ -66,6 +66,7 @@ class GraphDBClient:
             WHERE {{
                 ?s ?p ?o .
                 <http://5g4data.eu/5g4data#I{intent_id}> (^!rdf:type|!rdf:type)* ?s .
+                FILTER(?p != rdf:type || ?o != rdf:List)
             }}
             """
             

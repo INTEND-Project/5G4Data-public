@@ -328,10 +328,23 @@ class IntentGenerator:
             g.add((upper_bnode, self.rdf.value, Literal(latency_end, datatype=self.xsd.decimal)))
             g.add((upper_bnode, self.quan.unit, Literal("ms")))
             
-            # Create a list of the three arguments using RDFlib's Collection
+            # Create a list of the three arguments manually
             list_bnode = BNode()
             g.add((bnode, operator_map[operator], list_bnode))
-            Collection(g, list_bnode, [self.data["5GTelenorLatency"], lower_bnode, upper_bnode])
+            
+            # First element
+            g.add((list_bnode, self.rdf.first, self.data["5GTelenorLatency"]))
+            list_bnode2 = BNode()
+            g.add((list_bnode, self.rdf.rest, list_bnode2))
+            
+            # Second element
+            g.add((list_bnode2, self.rdf.first, lower_bnode))
+            list_bnode3 = BNode()
+            g.add((list_bnode2, self.rdf.rest, list_bnode3))
+            
+            # Third element
+            g.add((list_bnode3, self.rdf.first, upper_bnode))
+            g.add((list_bnode3, self.rdf.rest, self.rdf.nil))
         else:
             value_bnode = BNode()
             g.add((bnode, operator_map[operator], value_bnode))
@@ -368,10 +381,23 @@ class IntentGenerator:
             g.add((upper_bnode, self.rdf.value, Literal(bandwidth_end, datatype=self.xsd.decimal)))
             g.add((upper_bnode, self.quan.unit, Literal("mbit/s")))
             
-            # Create a list of the three arguments using RDFlib's Collection
+            # Create a list of the three arguments manually
             list_bnode = BNode()
             g.add((bnode, operator_map[operator], list_bnode))
-            Collection(g, list_bnode, [self.data["5GTelenorBandwidth"], lower_bnode, upper_bnode])
+            
+            # First element
+            g.add((list_bnode, self.rdf.first, self.data["5GTelenorBandwidth"]))
+            list_bnode2 = BNode()
+            g.add((list_bnode, self.rdf.rest, list_bnode2))
+            
+            # Second element
+            g.add((list_bnode2, self.rdf.first, lower_bnode))
+            list_bnode3 = BNode()
+            g.add((list_bnode2, self.rdf.rest, list_bnode3))
+            
+            # Third element
+            g.add((list_bnode3, self.rdf.first, upper_bnode))
+            g.add((list_bnode3, self.rdf.rest, self.rdf.nil))
         else:
             value_bnode = BNode()
             g.add((bnode, operator_map[operator], value_bnode))

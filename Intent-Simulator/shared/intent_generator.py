@@ -93,24 +93,36 @@ class IntentGenerator:
         # Create conditions
         c1_uri = self.data[c1_id]
         g.add((c1_uri, RDF.type, self.icm.Condition))
-        description = f"Latency value condition: {params.get('latency', 20)}"
+        latency_operator = params.get("latency_operator", "smaller")
+        latency = params.get("latency", 20)
+        latency_end = params.get("latency_end")
+        if latency_operator == "inRange" and latency_end is not None:
+            description = f"Latency condition quan:inRange: {latency} to {latency_end}ms"
+        else:
+            description = f"Latency condition quan:{latency_operator}: {latency}ms"
         g.add((c1_uri, self.dct.description, Literal(description)))
         g.add((c1_uri, self.set.forAll, self._create_latency_condition(
             g, 
-            params.get("latency", 20),
-            params.get("latency_operator", "smaller"),
-            params.get("latency_end")
+            latency,
+            latency_operator,
+            latency_end
         )))
 
         c2_uri = self.data[c2_id]
         g.add((c2_uri, RDF.type, self.icm.Condition))
-        description = f"Bandwidth value condition: {params.get('bandwidth', 300)}"
+        bandwidth_operator = params.get("bandwidth_operator", "larger")
+        bandwidth = params.get("bandwidth", 300)
+        bandwidth_end = params.get("bandwidth_end")
+        if bandwidth_operator == "inRange" and bandwidth_end is not None:
+            description = f"Bandwidth condition quan:inRange: {bandwidth} to {bandwidth_end}mbit/s"
+        else:
+            description = f"Bandwidth condition quan:{bandwidth_operator}: {bandwidth}mbit/s"
         g.add((c2_uri, self.dct.description, Literal(description)))
         g.add((c2_uri, self.set.forAll, self._create_bandwidth_condition(
             g, 
-            params.get("bandwidth", 300),
-            params.get("bandwidth_operator", "larger"),
-            params.get("bandwidth_end")
+            bandwidth,
+            bandwidth_operator,
+            bandwidth_end
         )))
 
         # Create context

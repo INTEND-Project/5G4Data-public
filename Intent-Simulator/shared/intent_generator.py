@@ -260,11 +260,21 @@ class IntentGenerator:
         # Create conditions
         c1_uri = self.data[c1_id]
         g.add((c1_uri, RDF.type, self.icm.Condition))
-        g.add((c1_uri, self.set.forAll, self._create_latency_condition(g, params.get("latency", 20))))
+        g.add((c1_uri, self.set.forAll, self._create_latency_condition(
+            g, 
+            params.get("latency", 20),
+            params.get("latency_operator", "smaller"),
+            params.get("latency_end")
+        )))
 
         c2_uri = self.data[c2_id]
         g.add((c2_uri, RDF.type, self.icm.Condition))
-        g.add((c2_uri, self.set.forAll, self._create_bandwidth_condition(g, params.get("bandwidth", 300))))
+        g.add((c2_uri, self.set.forAll, self._create_bandwidth_condition(
+            g, 
+            params.get("bandwidth", 300),
+            params.get("bandwidth_operator", "larger"),
+            params.get("bandwidth_end")
+        )))
 
         c3_uri = self.data[c3_id]
         g.add((c3_uri, RDF.type, self.icm.Condition))

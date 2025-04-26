@@ -105,7 +105,8 @@ class IntentGenerator:
             g, 
             latency,
             latency_operator,
-            latency_end
+            latency_end,
+            c1_id
         )))
 
         c2_uri = self.data[c2_id]
@@ -122,7 +123,8 @@ class IntentGenerator:
             g, 
             bandwidth,
             bandwidth_operator,
-            bandwidth_end
+            bandwidth_end,
+            c2_id
         )))
 
         # Create context
@@ -188,7 +190,7 @@ class IntentGenerator:
         # Create condition
         c1_uri = self.data[c1_id]
         g.add((c1_uri, RDF.type, self.icm.Condition))
-        g.add((c1_uri, self.set.forAll, self._create_compute_latency_condition(g, params.get("latency", 20))))
+        g.add((c1_uri, self.set.forAll, self._create_compute_latency_condition(g, params.get("latency", 20), c1_id)))
 
         # Create context
         cx_uri = self.data[cx_id]
@@ -276,7 +278,8 @@ class IntentGenerator:
             g, 
             params.get("latency", 20),
             params.get("latency_operator", "smaller"),
-            params.get("latency_end")
+            params.get("latency_end"),
+            c1_id
         )))
 
         c2_uri = self.data[c2_id]
@@ -285,12 +288,13 @@ class IntentGenerator:
             g, 
             params.get("bandwidth", 300),
             params.get("bandwidth_operator", "larger"),
-            params.get("bandwidth_end")
+            params.get("bandwidth_end"),
+            c2_id
         )))
 
         c3_uri = self.data[c3_id]
         g.add((c3_uri, RDF.type, self.icm.Condition))
-        g.add((c3_uri, self.set.forAll, self._create_compute_latency_condition(g, params.get("latency", 20))))
+        g.add((c3_uri, self.set.forAll, self._create_compute_latency_condition(g, params.get("latency", 20), c3_id)))
 
         # Create contexts
         cx1_uri = self.data[cx1_id]
@@ -322,9 +326,11 @@ class IntentGenerator:
 
         return g.serialize(format="turtle")
 
-    def _create_latency_condition(self, g, latency, operator="smaller", latency_end=None):
+    def _create_latency_condition(self, g, latency, operator="smaller", latency_end=None, condition_id=None):
         bnode = BNode()
-        g.add((bnode, self.icm.valuesOfTargetProperty, self.data["5GTelenorLatency"]))
+        # Create unique metric name by appending condition ID
+        metric_name = f"Latency-{condition_id}" if condition_id else "5GTelenorLatency"
+        g.add((bnode, self.icm.valuesOfTargetProperty, self.data[metric_name]))
         
         # Map the operator to the corresponding quan property
         operator_map = {
@@ -339,7 +345,7 @@ class IntentGenerator:
         
         if operator == "inRange" and latency_end is not None:
             # For inRange, we need three arguments:
-            # 1. The property to check (data5g:5GTelenorLatency)
+            # 1. The property to check (data5g:Latency-{condition_id})
             # 2. The lower bound
             # 3. The upper bound
             lower_bnode = BNode()
@@ -355,7 +361,7 @@ class IntentGenerator:
             g.add((bnode, operator_map[operator], list_bnode))
             
             # First element
-            g.add((list_bnode, self.rdf.first, self.data["5GTelenorLatency"]))
+            g.add((list_bnode, self.rdf.first, self.data[metric_name]))
             list_bnode2 = BNode()
             g.add((list_bnode, self.rdf.rest, list_bnode2))
             
@@ -375,9 +381,11 @@ class IntentGenerator:
         
         return bnode
 
-    def _create_bandwidth_condition(self, g, bandwidth, operator="larger", bandwidth_end=None):
+    def _create_bandwidth_condition(self, g, bandwidth, operator="larger", bandwidth_end=None, condition_id=None):
         bnode = BNode()
-        g.add((bnode, self.icm.valuesOfTargetProperty, self.data["5GTelenorBandwidth"]))
+        # Create unique metric name by appending condition ID
+        metric_name = f"Bandwidth-{condition_id}" if condition_id else "5GTelenorBandwidth"
+        g.add((bnode, self.icm.valuesOfTargetProperty, self.data[metric_name]))
         
         # Map the operator to the corresponding quan property
         operator_map = {
@@ -392,7 +400,7 @@ class IntentGenerator:
         
         if operator == "inRange" and bandwidth_end is not None:
             # For inRange, we need three arguments:
-            # 1. The property to check (data5g:5GTelenorBandwidth)
+            # 1. The property to check (data5g:Bandwidth-{condition_id})
             # 2. The lower bound
             # 3. The upper bound
             lower_bnode = BNode()
@@ -408,7 +416,7 @@ class IntentGenerator:
             g.add((bnode, operator_map[operator], list_bnode))
             
             # First element
-            g.add((list_bnode, self.rdf.first, self.data["5GTelenorBandwidth"]))
+            g.add((list_bnode, self.rdf.first, self.data[metric_name]))
             list_bnode2 = BNode()
             g.add((list_bnode, self.rdf.rest, list_bnode2))
             
@@ -428,13 +436,18 @@ class IntentGenerator:
         
         return bnode
 
-    def _create_compute_latency_condition(self, g, latency):
+    def _create_compute_latency_condition(self, g, latency, condition_id=None):
         bnode = BNode()
+        # Create unique metric name by appending condition ID
+        metric_name = f"ComputeLatency-{condition_id}" if condition_id else "ComputeLatency"
+        g.add((bnode, self.icm.valuesOfTargetProperty, self.data[metric_name]))
+        
+        # Create value node
         value_bnode = BNode()
-        g.add((bnode, self.icm.valuesOfTargetProperty, self.data["ComputeLatency"]))
         g.add((bnode, self.quan.smaller, value_bnode))
         g.add((value_bnode, self.rdf.value, Literal(latency, datatype=self.xsd.decimal)))
         g.add((value_bnode, self.quan.unit, Literal("ms")))
+        
         return bnode
 
     def _create_polygon(self, g, wkt):

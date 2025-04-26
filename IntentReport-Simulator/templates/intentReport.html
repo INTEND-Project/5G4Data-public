@@ -410,29 +410,75 @@
             const formPrefix = reportType === 'UPDATE_CHANGE' ? '_update' : '';
             const intentId = document.getElementById(`intentId${formPrefix}`)?.value;
             
-            if (!intentId) {
+            // Only require intent ID for state change and update change reports
+            if (reportType !== 'EXPECTATION' && !intentId) {
                 showStatus('Please select an intent first', 'error');
                 return;
             }
             
             // Collect form data based on report type
             const reportData = {
-                intent_id: intentId,
-                report_number: document.getElementById(`reportNumber${formPrefix}`)?.value,
+                report_type: reportType,
                 report_generated: document.getElementById(`reportGenerated${formPrefix}`)?.value,
                 handler: document.getElementById(`handler${formPrefix}`)?.value,
                 owner: document.getElementById(`owner${formPrefix}`)?.value,
                 reason: document.getElementById(`reason${formPrefix}`)?.value
             };
 
+            // Add intent ID only for state change and update change reports
+            if (reportType !== 'EXPECTATION') {
+                reportData.intent_id = intentId;
+                reportData.report_number = document.getElementById(`reportNumber${formPrefix}`)?.value;
+            }
+
             // Add state based on report type
             if (reportType === 'STATE_CHANGE') {
                 reportData.intent_handling_state = document.getElementById('intentHandlingState')?.value;
             } else if (reportType === 'UPDATE_CHANGE') {
                 reportData.intent_update_state = document.getElementById('intentUpdateState')?.value;
+            } else if (reportType === 'EXPECTATION') {
+                // Collect observation data for checked conditions
+                const observationData = [];
+                const conditionCheckboxes = document.querySelectorAll('input[type="checkbox"][id^="condition-"]:checked');
+                
+                console.log('Found checked condition checkboxes:', conditionCheckboxes.length);
+                
+                for (const checkbox of conditionCheckboxes) {
+                    const id = checkbox.id;
+                    console.log('Processing checkbox ID:', id);
+                    
+                    // Get the actual condition ID from the data attribute
+                    const conditionId = checkbox.dataset.conditionId;
+                    console.log('Extracted condition ID:', conditionId);
+                    
+                    const frequency = document.getElementById(`${id}-frequency`)?.value;
+                    const startTime = document.getElementById(`${id}-start-time`)?.value;
+                    const stopTime = document.getElementById(`${id}-stop-time`)?.value;
+                    
+                    console.log('Frequency:', frequency);
+                    console.log('Start Time:', startTime);
+                    console.log('Stop Time:', stopTime);
+                    
+                    if (frequency && startTime && stopTime) {
+                        observationData.push({
+                            condition_id: conditionId,
+                            frequency: parseInt(frequency),
+                            start_time: startTime,
+                            stop_time: stopTime
+                        });
+                    }
+                }
+                
+                console.log('Final observation data:', observationData);
+                
+                if (observationData.length > 0) {
+                    reportData.observation_data = observationData;
+                }
             }
 
             try {
+                console.log('Sending report data:', reportData);
+                
                 const response = await fetch(`${API_BASE_URL}/api/generate-report`, {
                     method: 'POST',
                     headers: {
@@ -598,6 +644,11 @@
             checkbox.className = 'form-check-input';
             checkbox.id = id;
             
+            // Store the actual condition ID as a data attribute
+            if (typeof label === 'object' && label.id) {
+                checkbox.dataset.conditionId = label.id;
+            }
+            
             const checkboxLabel = document.createElement('label');
             checkboxLabel.className = 'form-check-label';
             checkboxLabel.htmlFor = id;
@@ -625,6 +676,34 @@
                 const additionalFields = document.getElementById(`${id}-additional`);
                 if (additionalFields) {
                     additionalFields.style.display = this.checked ? 'block' : 'none';
+                    
+                    // If this is a condition checkbox and it's checked, add the observation fields
+                    if (id.startsWith('condition-') && this.checked) {
+                        additionalFields.innerHTML = `
+                            <div class="form-group mt-3">
+                                <label for="${id}-frequency">Frequency (in seconds):</label>
+                                <input type="number" class="form-control" id="${id}-frequency" min="1" value="5">
+                            </div>
+                            <div class="form-group mt-3">
+                                <label for="${id}-start-time">Start Time:</label>
+                                <input type="datetime-local" class="form-control" id="${id}-start-time">
+                            </div>
+                            <div class="form-group mt-3">
+                                <label for="${id}-stop-time">Stop Time:</label>
+                                <input type="datetime-local" class="form-control" id="${id}-stop-time">
+                            </div>
+                        `;
+                        
+                        // Set default start time to now in local timezone
+                        const startTimeInput = document.getElementById(`${id}-start-time`);
+                        const now = new Date();
+                        startTimeInput.value = now.toISOString().slice(0, 16);
+                        
+                        // Set default stop time to 1 hour from now in local timezone
+                        const stopTimeInput = document.getElementById(`${id}-stop-time`);
+                        const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+                        stopTimeInput.value = oneHourLater.toISOString().slice(0, 16);
+                    }
                 }
             });
             

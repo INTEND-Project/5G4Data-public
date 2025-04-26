@@ -7,6 +7,7 @@ import uuid
 import json
 from dotenv import load_dotenv
 import requests
+from observation_generator import ObservationGenerator
 
 # Add parent directory to Python path to find shared module
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,6 +40,9 @@ print(f"Using repository 'intent-reports' for reports")
 # Initialize clients with explicit repository names
 intents_client = IntentReportClient(graphdb_url, repository='intents')
 reports_client = IntentReportClient(graphdb_url, repository='intent-reports')
+
+# Initialize the observation generator
+observation_generator = ObservationGenerator(graphdb_url)
 
 @app.route('/')
 def index():
@@ -93,13 +97,36 @@ def generate_intent_report():
         report_data = request.json
         print(f"Received report data: {report_data}")  # Debug log
         
-        # Generate Turtle format
-        turtle_data = generate_turtle(report_data)
-        print(f"Generated Turtle data: {turtle_data}")  # Debug log
+        # Only generate and store Turtle format for state change and update change reports
+        if report_data.get('report_type') in ['STATE_CHANGE', 'UPDATE_CHANGE']:
+            # Generate Turtle format
+            turtle_data = generate_turtle(report_data)
+            print(f"Generated Turtle data: {turtle_data}")  # Debug log
+            
+            # Store in GraphDB using the reports client
+            response = reports_client.store_intent_report(turtle_data)
+            print(f"GraphDB response: {response}")  # Debug log
         
-        # Store in GraphDB using the reports client
-        response = reports_client.store_intent_report(turtle_data)
-        print(f"GraphDB response: {response}")  # Debug log
+        # If this is an expectation report with observation data, start observation generation
+        if report_data.get('report_type') == 'EXPECTATION' and 'observation_data' in report_data:
+            for observation in report_data['observation_data']:
+                print(f"\n=== Starting observation generation ===")
+                print(f"Condition ID: {observation['condition_id']}")
+                print(f"Frequency: {observation['frequency']} seconds")
+                print(f"Start Time: {observation['start_time']}")
+                print(f"Stop Time: {observation['stop_time']}")
+                
+                start_time = datetime.fromisoformat(observation['start_time'].replace('Z', '+00:00'))
+                stop_time = datetime.fromisoformat(observation['stop_time'].replace('Z', '+00:00'))
+                
+                task_id = observation_generator.start_observation_task(
+                    condition_id=observation['condition_id'],
+                    frequency=observation['frequency'],
+                    start_time=start_time,
+                    stop_time=stop_time
+                )
+                print(f"Started observation task {task_id} for condition {observation['condition_id']}")
+                print("=====================================\n")
         
         return jsonify({"status": "success", "message": "Report generated successfully"})
     except Exception as e:

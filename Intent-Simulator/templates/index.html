@@ -146,14 +146,40 @@
                 </div>
             </div>
 
-            <div class="form-group" id="datacenterGroup" style="display: none;">
-                <label for="datacenter">Data Center:</label>
-                <input type="text" class="form-control" id="datacenter" value="EC1" required>
-            </div>
+            <div id="workloadFields" style="display: none;">
+                <div class="form-group">
+                    <label for="computeLatencyOperator">Compute Latency Operator:</label>
+                    <select class="form-control" id="computeLatencyOperator">
+                        <option value="smaller">smaller</option>
+                        <option value="atLeast">atLeast</option>
+                        <option value="atMost">atMost</option>
+                        <option value="greater">greater</option>
+                        <option value="inRange">inRange</option>
+                        <option value="mean">mean</option>
+                        <option value="median">median</option>
+                    </select>
+                </div>
 
-            <div class="form-group" id="applicationGroup" style="display: none;">
-                <label for="application">Application:</label>
-                <input type="text" class="form-control" id="application" value="AR-retail-app" required>
+                <div class="form-group d-flex align-items-end">
+                    <div class="flex-grow-1">
+                        <label for="computeLatency">Compute Latency (ms):</label>
+                        <input type="number" class="form-control" id="computeLatency" value="20" required>
+                    </div>
+                    <div class="ms-2" id="computeLatencyEndGroup" style="display: none;">
+                        <label for="computeLatencyEnd">to (ms):</label>
+                        <input type="number" class="form-control" id="computeLatencyEnd" value="20">
+                    </div>
+                </div>
+
+                <div class="form-group" id="datacenterGroup">
+                    <label for="datacenter">Data Center:</label>
+                    <input type="text" class="form-control" id="datacenter" value="EC1" required>
+                </div>
+
+                <div class="form-group" id="applicationGroup">
+                    <label for="application">Application:</label>
+                    <input type="text" class="form-control" id="application" value="AR-retail-app" required>
+                </div>
             </div>
 
             <div class="form-group">
@@ -249,24 +275,21 @@
 
         document.getElementById('intentType').addEventListener('change', function() {
             const networkFields = document.getElementById('networkFields');
-            const datacenterGroup = document.getElementById('datacenterGroup');
-            const applicationGroup = document.getElementById('applicationGroup');
+            const workloadFields = document.getElementById('workloadFields');
             
             const isNetwork = this.value === 'network';
             const isWorkload = this.value === 'workload';
             const isCombined = this.value === 'combined';
             
-            // Show/hide workload-specific fields
-            datacenterGroup.style.display = (isWorkload || isCombined) ? 'block' : 'none';
-            applicationGroup.style.display = (isWorkload || isCombined) ? 'block' : 'none';
-            
-            // Show/hide network-specific fields
+            // Show/hide fields based on intent type
             networkFields.style.display = (isNetwork || isCombined) ? 'block' : 'none';
+            workloadFields.style.display = (isWorkload || isCombined) ? 'block' : 'none';
 
             // Update required attributes based on intent type
             document.getElementById('location').required = (isNetwork || isCombined);
             document.getElementById('latency').required = (isNetwork || isCombined);
             document.getElementById('bandwidth').required = (isNetwork || isCombined);
+            document.getElementById('computeLatency').required = (isWorkload || isCombined);
             document.getElementById('datacenter').required = (isWorkload || isCombined);
             document.getElementById('application').required = (isWorkload || isCombined);
         });
@@ -302,6 +325,9 @@
 
             // Get workload-specific fields if needed
             if (intentType === 'workload' || intentType === 'combined') {
+                parameters.compute_latency_operator = document.getElementById('computeLatencyOperator').value;
+                parameters.compute_latency = document.getElementById('computeLatency').value;
+                parameters.compute_latency_end = document.getElementById('computeLatencyEnd').value;
                 parameters.datacenter = document.getElementById('datacenter').value;
                 parameters.application = document.getElementById('application').value;
             }
@@ -597,6 +623,21 @@
                 } else {
                     bandwidthEndGroup.style.display = 'none';
                     bandwidthEnd.required = false;
+                }
+            });
+
+            // Compute latency operator handling
+            const computeLatencyOperator = document.getElementById('computeLatencyOperator');
+            const computeLatencyEndGroup = document.getElementById('computeLatencyEndGroup');
+            const computeLatencyEnd = document.getElementById('computeLatencyEnd');
+            
+            computeLatencyOperator.addEventListener('change', function() {
+                if (this.value === 'inRange') {
+                    computeLatencyEndGroup.style.display = 'block';
+                    computeLatencyEnd.required = true;
+                } else {
+                    computeLatencyEndGroup.style.display = 'none';
+                    computeLatencyEnd.required = false;
                 }
             });
         });

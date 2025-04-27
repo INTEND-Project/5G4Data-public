@@ -190,7 +190,21 @@ class IntentGenerator:
         # Create condition
         c1_uri = self.data[c1_id]
         g.add((c1_uri, RDF.type, self.icm.Condition))
-        g.add((c1_uri, self.set.forAll, self._create_compute_latency_condition(g, params.get("latency", 20), c1_id)))
+        compute_latency_operator = params.get("compute_latency_operator", "smaller")
+        compute_latency = params.get("compute_latency", 20)
+        compute_latency_end = params.get("compute_latency_end")
+        if compute_latency_operator == "inRange" and compute_latency_end is not None:
+            description = f"Compute latency condition quan:inRange: {compute_latency} to {compute_latency_end}ms"
+        else:
+            description = f"Compute latency condition quan:{compute_latency_operator}: {compute_latency}ms"
+        g.add((c1_uri, self.dct.description, Literal(description)))
+        g.add((c1_uri, self.set.forAll, self._create_compute_latency_condition(
+            g, 
+            compute_latency,
+            compute_latency_operator,
+            compute_latency_end,
+            c1_id
+        )))
 
         # Create context
         cx_uri = self.data[cx_id]
@@ -274,27 +288,57 @@ class IntentGenerator:
         # Create conditions
         c1_uri = self.data[c1_id]
         g.add((c1_uri, RDF.type, self.icm.Condition))
+        latency_operator = params.get("latency_operator", "smaller")
+        latency = params.get("latency", 20)
+        latency_end = params.get("latency_end")
+        if latency_operator == "inRange" and latency_end is not None:
+            description = f"Latency condition quan:inRange: {latency} to {latency_end}ms"
+        else:
+            description = f"Latency condition quan:{latency_operator}: {latency}ms"
+        g.add((c1_uri, self.dct.description, Literal(description)))
         g.add((c1_uri, self.set.forAll, self._create_latency_condition(
             g, 
-            params.get("latency", 20),
-            params.get("latency_operator", "smaller"),
-            params.get("latency_end"),
+            latency,
+            latency_operator,
+            latency_end,
             c1_id
         )))
 
         c2_uri = self.data[c2_id]
         g.add((c2_uri, RDF.type, self.icm.Condition))
+        bandwidth_operator = params.get("bandwidth_operator", "larger")
+        bandwidth = params.get("bandwidth", 300)
+        bandwidth_end = params.get("bandwidth_end")
+        if bandwidth_operator == "inRange" and bandwidth_end is not None:
+            description = f"Bandwidth condition quan:inRange: {bandwidth} to {bandwidth_end}mbit/s"
+        else:
+            description = f"Bandwidth condition quan:{bandwidth_operator}: {bandwidth}mbit/s"
+        g.add((c2_uri, self.dct.description, Literal(description)))
         g.add((c2_uri, self.set.forAll, self._create_bandwidth_condition(
             g, 
-            params.get("bandwidth", 300),
-            params.get("bandwidth_operator", "larger"),
-            params.get("bandwidth_end"),
+            bandwidth,
+            bandwidth_operator,
+            bandwidth_end,
             c2_id
         )))
 
         c3_uri = self.data[c3_id]
         g.add((c3_uri, RDF.type, self.icm.Condition))
-        g.add((c3_uri, self.set.forAll, self._create_compute_latency_condition(g, params.get("latency", 20), c3_id)))
+        compute_latency_operator = params.get("compute_latency_operator", "smaller")
+        compute_latency = params.get("compute_latency", 20)
+        compute_latency_end = params.get("compute_latency_end")
+        if compute_latency_operator == "inRange" and compute_latency_end is not None:
+            description = f"Compute latency condition quan:inRange: {compute_latency} to {compute_latency_end}ms"
+        else:
+            description = f"Compute latency condition quan:{compute_latency_operator}: {compute_latency}ms"
+        g.add((c3_uri, self.dct.description, Literal(description)))
+        g.add((c3_uri, self.set.forAll, self._create_compute_latency_condition(
+            g, 
+            compute_latency,
+            compute_latency_operator,
+            compute_latency_end,
+            c3_id
+        )))
 
         # Create contexts
         cx1_uri = self.data[cx1_id]
@@ -329,7 +373,7 @@ class IntentGenerator:
     def _create_latency_condition(self, g, latency, operator="smaller", latency_end=None, condition_id=None):
         bnode = BNode()
         # Create unique metric name by appending condition ID
-        metric_name = f"Latency-{condition_id}" if condition_id else "5GTelenorLatency"
+        metric_name = f"NetworkLatency-{condition_id}" if condition_id else "5GTelenorLatency"
         g.add((bnode, self.icm.valuesOfTargetProperty, self.data[metric_name]))
         
         # Map the operator to the corresponding quan property
@@ -345,7 +389,7 @@ class IntentGenerator:
         
         if operator == "inRange" and latency_end is not None:
             # For inRange, we need three arguments:
-            # 1. The property to check (data5g:Latency-{condition_id})
+            # 1. The property to check (data5g:NetworkLatency-{condition_id})
             # 2. The lower bound
             # 3. The upper bound
             lower_bnode = BNode()
@@ -436,17 +480,58 @@ class IntentGenerator:
         
         return bnode
 
-    def _create_compute_latency_condition(self, g, latency, condition_id=None):
+    def _create_compute_latency_condition(self, g, latency, operator="smaller", latency_end=None, condition_id=None):
         bnode = BNode()
         # Create unique metric name by appending condition ID
         metric_name = f"ComputeLatency-{condition_id}" if condition_id else "ComputeLatency"
         g.add((bnode, self.icm.valuesOfTargetProperty, self.data[metric_name]))
         
-        # Create value node
-        value_bnode = BNode()
-        g.add((bnode, self.quan.smaller, value_bnode))
-        g.add((value_bnode, self.rdf.value, Literal(latency, datatype=self.xsd.decimal)))
-        g.add((value_bnode, self.quan.unit, Literal("ms")))
+        # Map the operator to the corresponding quan property
+        operator_map = {
+            "smaller": self.quan.smaller,
+            "atLeast": self.quan.atLeast,
+            "atMost": self.quan.atMost,
+            "greater": self.quan.greater,
+            "inRange": self.quan.inRange,
+            "mean": self.quan.mean,
+            "median": self.quan.median
+        }
+        
+        if operator == "inRange" and latency_end is not None:
+            # For inRange, we need three arguments:
+            # 1. The property to check (data5g:ComputeLatency-{condition_id})
+            # 2. The lower bound
+            # 3. The upper bound
+            lower_bnode = BNode()
+            g.add((lower_bnode, self.rdf.value, Literal(latency, datatype=self.xsd.decimal)))
+            g.add((lower_bnode, self.quan.unit, Literal("ms")))
+            
+            upper_bnode = BNode()
+            g.add((upper_bnode, self.rdf.value, Literal(latency_end, datatype=self.xsd.decimal)))
+            g.add((upper_bnode, self.quan.unit, Literal("ms")))
+            
+            # Create a list of the three arguments manually
+            list_bnode = BNode()
+            g.add((bnode, operator_map[operator], list_bnode))
+            
+            # First element
+            g.add((list_bnode, self.rdf.first, self.data[metric_name]))
+            list_bnode2 = BNode()
+            g.add((list_bnode, self.rdf.rest, list_bnode2))
+            
+            # Second element
+            g.add((list_bnode2, self.rdf.first, lower_bnode))
+            list_bnode3 = BNode()
+            g.add((list_bnode2, self.rdf.rest, list_bnode3))
+            
+            # Third element
+            g.add((list_bnode3, self.rdf.first, upper_bnode))
+            g.add((list_bnode3, self.rdf.rest, self.rdf.nil))
+        else:
+            value_bnode = BNode()
+            g.add((bnode, operator_map[operator], value_bnode))
+            g.add((value_bnode, self.rdf.value, Literal(latency, datatype=self.xsd.decimal)))
+            g.add((value_bnode, self.quan.unit, Literal("ms")))
         
         return bnode
 

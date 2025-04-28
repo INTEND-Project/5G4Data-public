@@ -407,7 +407,7 @@
             }
             
             // Get the correct form elements based on report type
-            const formPrefix = reportType === 'UPDATE_CHANGE' ? '_update' : '';
+            const formPrefix = reportType === 'UPDATE_CHANGE' ? '_update' : (reportType === 'EXPECTATION' ? '_expectation' : '');
             const intentId = document.getElementById(`intentId${formPrefix}`)?.value;
             
             // Only require intent ID for state change and update change reports
@@ -425,9 +425,11 @@
                 reason: document.getElementById(`reason${formPrefix}`)?.value
             };
 
-            // Add intent ID only for state change and update change reports
+            // Add intent ID for all report types
+            reportData.intent_id = intentId;
+
+            // Add report number only for state change and update change reports
             if (reportType !== 'EXPECTATION') {
-                reportData.intent_id = intentId;
                 reportData.report_number = document.getElementById(`reportNumber${formPrefix}`)?.value;
             }
 
@@ -436,8 +438,10 @@
                 reportData.intent_handling_state = document.getElementById('intentHandlingState')?.value;
             } else if (reportType === 'UPDATE_CHANGE') {
                 reportData.intent_update_state = document.getElementById('intentUpdateState')?.value;
-            } else if (reportType === 'EXPECTATION') {
-                // Collect observation data for checked conditions
+            }
+            
+            // Collect observation data for checked conditions (for both UPDATE_CHANGE and EXPECTATION reports)
+            if (reportType === 'UPDATE_CHANGE' || reportType === 'EXPECTATION') {
                 const observationData = [];
                 const conditionCheckboxes = document.querySelectorAll('input[type="checkbox"][id^="condition-"]:checked');
                 
@@ -454,17 +458,23 @@
                     const frequency = document.getElementById(`${id}-frequency`)?.value;
                     const startTime = document.getElementById(`${id}-start-time`)?.value;
                     const stopTime = document.getElementById(`${id}-stop-time`)?.value;
+                    const minValue = document.getElementById(`${id}-min-value`)?.value;
+                    const maxValue = document.getElementById(`${id}-max-value`)?.value;
                     
                     console.log('Frequency:', frequency);
                     console.log('Start Time:', startTime);
                     console.log('Stop Time:', stopTime);
+                    console.log('Min Value:', minValue);
+                    console.log('Max Value:', maxValue);
                     
-                    if (frequency && startTime && stopTime) {
+                    if (frequency && startTime && stopTime && minValue && maxValue) {
                         observationData.push({
                             condition_id: conditionId,
                             frequency: parseInt(frequency),
                             start_time: startTime,
-                            stop_time: stopTime
+                            stop_time: stopTime,
+                            min_value: parseFloat(minValue),
+                            max_value: parseFloat(maxValue)
                         });
                     }
                 }
@@ -691,6 +701,20 @@
                             <div class="form-group mt-3">
                                 <label for="${id}-stop-time">Stop Time:</label>
                                 <input type="datetime-local" class="form-control" id="${id}-stop-time">
+                            </div>
+                            <div class="form-group mt-3">
+                                <h5>Metric Value Range</h5>
+                                <p class="text-muted">Specify the range for random metric values in the observation reports.</p>
+                                <div class="row">
+                                    <div class="col">
+                                        <label for="${id}-min-value">Minimum Value:</label>
+                                        <input type="number" class="form-control" id="${id}-min-value" min="0" step="0.1" value="10">
+                                    </div>
+                                    <div class="col">
+                                        <label for="${id}-max-value">Maximum Value:</label>
+                                        <input type="number" class="form-control" id="${id}-max-value" min="0" step="0.1" value="100">
+                                    </div>
+                                </div>
                             </div>
                         `;
                         

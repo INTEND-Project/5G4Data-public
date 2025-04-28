@@ -44,7 +44,7 @@ class IntentReportClient:
             }
             
             response = requests.post(
-                f"{self.base_url}/repositories/{self.repository}",
+                f"{self.base_url}/repositories/{self.intents_repository}",
                 data=construct_query.encode("utf-8"),
                 headers=headers
             )
@@ -103,7 +103,7 @@ class IntentReportClient:
                 headers=headers
             )
             print(f"GraphDB response status: {response.status_code}")  # Debug log
-            print(f"GraphDB response: {response.text}")  # Debug log
+            #print(f"GraphDB response: {response.text}")  # Debug log
             response.raise_for_status()
             return response.json()
         except Exception as e:

@@ -95,7 +95,6 @@ def generate_intent_report():
     
     try:
         report_data = request.json
-        print(f"Received report data: {report_data}")  # Debug log
         
         # Only generate and store Turtle format for state change and update change reports
         if report_data.get('report_type') in ['STATE_CHANGE', 'UPDATE_CHANGE']:
@@ -109,6 +108,15 @@ def generate_intent_report():
         
         # If this is an expectation report with observation data, start observation generation
         if report_data.get('report_type') == 'EXPECTATION' and 'observation_data' in report_data:
+            # Get the intent ID from the request data
+            intent_id = report_data.get('intent_id')
+            if not intent_id:
+                return jsonify({"status": "error", "message": "intent_id is required for Expectation reports"}), 400
+            # Get the intent data from GraphDB
+            intent_data = intents_client.get_intent(intent_id)
+            if not intent_data:
+                return jsonify({"status": "error", "message": f"Could not find intent with ID {intent_id}"}), 404
+            
             for observation in report_data['observation_data']:
                 print(f"\n=== Starting observation generation ===")
                 print(f"Condition ID: {observation['condition_id']}")
@@ -123,7 +131,10 @@ def generate_intent_report():
                     condition_id=observation['condition_id'],
                     frequency=observation['frequency'],
                     start_time=start_time,
-                    stop_time=stop_time
+                    stop_time=stop_time,
+                    min_value=observation['min_value'],
+                    max_value=observation['max_value'],
+                    turtle_data=intent_data
                 )
                 print(f"Started observation task {task_id} for condition {observation['condition_id']}")
                 print("=====================================\n")

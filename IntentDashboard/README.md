@@ -12,3 +12,11 @@ We need to add GraphDB as a datasource. There is a SPARQL plugin that we can use
 ![SPARQL plugin configuration](./SPARQL-plugin-config.png)
 
 ## Dashboards
+Panels in the Dashboard can use the graphdb datasource as shown in the figure by refering to it like this:
+```
+        "datasource": {
+          "type": "sparql",
+          "uid": "graphdb"
+        },
+
+```

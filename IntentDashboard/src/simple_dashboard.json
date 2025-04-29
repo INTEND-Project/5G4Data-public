@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 3,
   "links": [],
   "panels": [
     {
@@ -49,7 +49,7 @@
     {
       "datasource": {
         "type": "sparql",
-        "uid": "fehmempmzm8lcf"
+        "uid": "graphdb"
       },
       "fieldConfig": {
         "defaults": {
@@ -98,7 +98,7 @@
         {
           "datasource": {
             "type": "sparql",
-            "uid": "fehmempmzm8lcf"
+            "uid": "graphdb"
           },
           "hide": false,
           "query": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
@@ -110,10 +110,6 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "sparql",
-        "uid": "fehmempmzm8lcf"
-      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -161,7 +157,7 @@
         {
           "datasource": {
             "type": "sparql",
-            "uid": "fehmempmzm8lcf"
+            "uid": "graphdb"
           },
           "hide": false,
           "query": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
@@ -189,7 +185,7 @@
     {
       "datasource": {
         "type": "sparql",
-        "uid": "fehmempmzm8lcf"
+        "uid": "graphdb"
       },
       "fieldConfig": {
         "defaults": {
@@ -244,7 +240,7 @@
         {
           "datasource": {
             "type": "sparql",
-            "uid": "fehmempmzm8lcf"
+            "uid": "graphdb"
           },
           "format": "table",
           "intervalMs": 1000,
@@ -275,10 +271,6 @@
       "type": "piechart"
     },
     {
-      "datasource": {
-        "type": "flandersmake-sparql-datasource",
-        "uid": "fehmempmzm8lcf"
-      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -332,8 +324,8 @@
       "targets": [
         {
           "datasource": {
-            "type": "flandersmake-sparql-datasource",
-            "uid": "fehmempmzm8lcf"
+            "type": "sparql",
+            "uid": "graphdb"
           },
           "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT \n  (STRAFTER(STR(?target), \"5g4data#\") AS ?target_name)\n  (COUNT(DISTINCT ?intent) AS ?count)\nWHERE {\n  ?intent rdf:type ?intentType ;\n          ?op ?expectation .\n  FILTER(STRSTARTS(STR(?op), STR(log:)))  # ← capture any logical operator\n\n  ?expectation icm:target ?target .\n}\nGROUP BY ?target\n",
           "refId": "A"
@@ -362,8 +354,8 @@
     },
     {
       "datasource": {
-        "type": "flandersmake-sparql-datasource",
-        "uid": "fehmempmzm8lcf"
+        "type": "sparql",
+        "uid": "graphdb"
       },
       "fieldConfig": {
         "defaults": {
@@ -420,8 +412,8 @@
       "targets": [
         {
           "datasource": {
-            "type": "flandersmake-sparql-datasource",
-            "uid": "fehmempmzm8lcf"
+            "type": "sparql",
+            "uid": "graphdb"
           },
           "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT \n  ?target_name\n  (COUNT(DISTINCT ?intent) AS ?count)\nWHERE {\n  ?intent rdf:type icm:Intent ;\n          ?op1 ?expectation .\n  FILTER(STRSTARTS(STR(?op1), STR(log:)))\n\n  ?expectation a ?expectationType ;\n               ?op2 ?context .\n  FILTER(STRSTARTS(STR(?expectationType), STR(data5g:)))\n  FILTER(STRSTARTS(STR(?op2), STR(log:)))\n\n  ?context a icm:Context ;\n           data5g:DataCenter ?target_name .\n}\nGROUP BY ?target_name\nORDER BY DESC(?count)\nLIMIT 5\n",
           "refId": "A"
@@ -451,7 +443,7 @@
     {
       "datasource": {
         "type": "sparql",
-        "uid": "fehmempmzm8lcf"
+        "uid": "graphdb"
       },
       "fieldConfig": {
         "defaults": {
@@ -500,7 +492,7 @@
         {
           "datasource": {
             "type": "sparql",
-            "uid": "fehmempmzm8lcf"
+            "uid": "graphdb"
           },
           "hide": false,
           "query": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
@@ -528,7 +520,7 @@
     {
       "datasource": {
         "type": "sparql",
-        "uid": "fehmempmzm8lcf"
+        "uid": "graphdb"
       },
       "fieldConfig": {
         "defaults": {
@@ -595,7 +587,7 @@
         {
           "datasource": {
             "type": "sparql",
-            "uid": "fehmempmzm8lcf"
+            "uid": "graphdb"
           },
           "queryText": "PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\n\nSELECT DISTINCT \n  (STRAFTER(STR(?intent), \"5g4data#\") as ?intent_id)\n  (GROUP_CONCAT(DISTINCT ?description; separator=\"; \") as ?descriptions)\n  (STRAFTER(STR(?target), \"5g4data#\") as ?target_name)\n  (GROUP_CONCAT(DISTINCT ?exp_type; separator=\"\\n\") as ?expectation_types)\n  (MAX(?lat) as ?latency) \n  (MAX(?bw) as ?bandwidth)\nWHERE {\n  ?intent rdf:type ?intentType ;\n         log:allOf ?expectation .\n  ?expectation rdf:type ?expectationType ;\n              dct:description ?description .\n  BIND(IF(STRSTARTS(STR(?expectationType), STR(icm:)),\n      STRAFTER(STR(?expectationType), \"IntentCommonModel/\"),\n      STRAFTER(STR(?expectationType), \"5g4data#\")\n  ) as ?exp_type)\n  OPTIONAL {\n    ?expectation icm:target ?target .\n  }\n  OPTIONAL {\n    ?expectation log:allOf ?condition .\n    OPTIONAL {\n      ?condition set:forAll [ icm:valuesOfTargetProperty data5g:5GTelenorLatency ;\n                             quan:smaller [ rdf:value ?lat ] ]\n    }\n    OPTIONAL {\n      ?condition set:forAll [ icm:valuesOfTargetProperty data5g:5GTelenorBandwidth ;\n                             quan:larger [ rdf:value ?bw ] ]\n    }\n  }\n  FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n}\nGROUP BY ?intent ?target\nLIMIT 10",
           "refId": "A"
@@ -619,6 +611,6 @@
   "timepicker": {},
   "timezone": "",
   "title": "TMForum Intent Dashboard",
-  "uid": "fehp0b02wcf7ke",
-  "version": 41
+  "uid": "intent-overview",
+  "version": 6
 }

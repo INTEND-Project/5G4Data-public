@@ -1,0 +1,10 @@
+SELECT DISTINCT (STR(REPLACE(STR(?metricIRI), "^http://5g4data.eu/5g4data#", "")) AS ?metricID)
+WHERE {
+  ?intent <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/Intent> .
+  FILTER(STR(?intent) = CONCAT("http://5g4data.eu/5g4data#", "If1654d1299ba40e9a794386a9d708012"))
+
+  ?intent <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/allOf> ?expectation .
+  ?expectation <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/allOf> ?condition .
+  ?condition <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/forAll> ?blankNode .
+  ?blankNode <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/valuesOfTargetProperty> ?metricIRI .
+}

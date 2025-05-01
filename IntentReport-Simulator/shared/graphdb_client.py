@@ -31,10 +31,28 @@ class IntentReportClient:
             
             CONSTRUCT {{
                 ?s ?p ?o .
+                ?condition ?cp ?co .
+                ?condition dct:description ?desc .
+                ?condition quan:minValue ?minValue .
+                ?condition quan:maxValue ?maxValue .
+                ?condition quan:unit ?unit .
+                ?condition icm:valuesOfTargetProperty ?targetProp .
             }}
             WHERE {{
                 ?s ?p ?o .
                 <http://5g4data.eu/5g4data#I{intent_id}> (^!rdf:type|!rdf:type)* ?s .
+                
+                # Get all condition data
+                ?condition a icm:Condition ;
+                    ?cp ?co .
+                <http://5g4data.eu/5g4data#I{intent_id}> (^!rdf:type|!rdf:type)* ?condition .
+                
+                # Get specific condition properties
+                OPTIONAL {{ ?condition dct:description ?desc }}
+                OPTIONAL {{ ?condition quan:minValue ?minValue }}
+                OPTIONAL {{ ?condition quan:maxValue ?maxValue }}
+                OPTIONAL {{ ?condition quan:unit ?unit }}
+                OPTIONAL {{ ?condition icm:valuesOfTargetProperty ?targetProp }}
             }}
             """
             
@@ -157,25 +175,54 @@ class IntentReportClient:
             PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
             PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
             PREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/>
+            PREFIX dct: <http://purl.org/dc/terms/>
+            PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
             
-            SELECT ?report ?number ?timestamp ?state ?reason ?handler ?owner
+            CONSTRUCT {{
+                ?report rdf:type icm:IntentReport ;
+                        icm:about data5g:I{intent_id} ;
+                        icm:reportNumber ?number ;
+                        icm:reportGenerated ?timestamp .
+                ?report icm:intentHandlingState ?state .
+                ?report icm:reason ?reason .
+                ?report imo:handler ?handler .
+                ?report imo:owner ?owner .
+                
+                # Include condition data
+                ?condition rdf:type icm:Condition ;
+                          dct:description ?desc ;
+                          quan:minValue ?minValue ;
+                          quan:maxValue ?maxValue ;
+                          quan:unit ?unit ;
+                          icm:valuesOfTargetProperty ?targetProp .
+            }}
             WHERE {{
                 ?report rdf:type icm:IntentReport ;
                         icm:about data5g:I{intent_id} ;
                         icm:reportNumber ?number ;
                         icm:reportGenerated ?timestamp .
                 OPTIONAL {{ ?report icm:intentHandlingState ?state }}
-                OPTIONAL {{ ?report icm:intentUpdateState ?state }}
                 OPTIONAL {{ ?report icm:reason ?reason }}
                 OPTIONAL {{ ?report imo:handler ?handler }}
                 OPTIONAL {{ ?report imo:owner ?owner }}
+                
+                # Get condition data
+                OPTIONAL {{
+                    ?condition rdf:type icm:Condition ;
+                              dct:description ?desc ;
+                              quan:minValue ?minValue ;
+                              quan:maxValue ?maxValue ;
+                              quan:unit ?unit ;
+                              icm:valuesOfTargetProperty ?targetProp .
+                    data5g:I{intent_id} (^!rdf:type|!rdf:type)* ?condition .
+                }}
             }}
             ORDER BY DESC(?timestamp)
             LIMIT 1
             """
             
             headers = {
-                'Accept': 'application/sparql-results+json',
+                'Accept': 'text/turtle',
                 'Content-Type': 'application/sparql-query'
             }
             
@@ -186,46 +233,22 @@ class IntentReportClient:
             )
             response.raise_for_status()
             
-            result = response.json()
-            if not result.get('results', {}).get('bindings'):
-                return None
-                
-            # Format the Turtle data with prefixes first
-            binding = result['results']['bindings'][0]
-            turtle = "@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .\n"
-            turtle += "@prefix data5g: <http://5g4data.eu/5g4data#> .\n"
-            turtle += "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n"
-            turtle += "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n"
-            turtle += "@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/> .\n\n"
+            # Parse the response into an RDFlib Graph to control serialization
+            g = Graph()
+            g.parse(data=response.text, format="turtle")
             
-            # Extract the report ID from the URI
-            report_uri = binding['report']['value']
-            report_id = report_uri.split('/')[-1]
+            # Bind the prefixes we want to use
+            g.bind("data5g", Namespace("http://5g4data.eu/5g4data#"))
+            g.bind("icm", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/"))
+            g.bind("log", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/"))
+            g.bind("set", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/"))
+            g.bind("quan", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/"))
+            g.bind("dct", Namespace("http://purl.org/dc/terms/"))
+            g.bind("geo", Namespace("http://www.opengis.net/ont/geosparql#"))
+            g.bind("rdf", Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
             
-            # Add the report data using simplified prefixes
-            turtle += f'icm:{report_id} rdf:type icm:IntentReport ;\n'
-            turtle += f'    icm:about data5g:I{intent_id} ;\n'
-            turtle += f'    icm:reportNumber "{binding["number"]["value"]}"^^xsd:integer ;\n'
-            turtle += f'    icm:reportGenerated "{binding["timestamp"]["value"]}"^^xsd:dateTime'
-            
-            if "state" in binding:
-                # Extract just the state name from the full URI
-                state_uri = binding["state"]["value"]
-                state_name = state_uri.split('/')[-1]
-                turtle += f' ;\n    icm:intentHandlingState imo:{state_name}'
-            
-            if "handler" in binding:
-                turtle += f' ;\n    imo:handler "{binding["handler"]["value"]}"'
-            
-            if "owner" in binding:
-                turtle += f' ;\n    imo:owner "{binding["owner"]["value"]}"'
-            
-            if "reason" in binding:
-                turtle += f' ;\n    icm:reason "{binding["reason"]["value"]}"'
-            
-            turtle += ' .'
-            
-            return turtle
+            # Serialize with our preferred prefixes
+            return g.serialize(format="turtle")
             
         except Exception as e:
             print(f"Error getting last intent report: {str(e)}")

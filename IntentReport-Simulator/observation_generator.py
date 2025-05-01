@@ -4,12 +4,23 @@ import time
 import threading
 from typing import List, Dict
 import requests
+from dataclasses import dataclass
+
+@dataclass
+class TaskParams:
+    condition_id: str
+    frequency: int
+    start_time: datetime
+    stop_time: datetime
+    min_value: float
+    max_value: float
+    turtle_data: str
 
 class ObservationGenerator:
     def __init__(self, graphdb_url: str, repository: str = "intent-reports"):
         self.graphdb_url = graphdb_url
         self.repository = repository
-        self.running_tasks = {}
+        self.running_tasks = {}  # task_id: {'params': TaskParams, 'thread': Thread}
 
     def get_metric_type_from_condition(self, condition_id: str, intent_data: str) -> tuple[str, str]:
         """Determine the metric type and unit from the condition's Turtle data.
@@ -98,21 +109,32 @@ data5g:{observation_id} a met:Observation ;
             print(f"Error storing observation: {str(e)}")
             return False
 
-    def generate_observations(self, task_id: str, condition_id: str, frequency: int, 
-                            start_time: datetime, stop_time: datetime, min_value: float = 10, 
-                            max_value: float = 100, turtle_data: str = ""):
+    def generate_observations(self, task_id: str):
         """Generate observations for a condition at the specified frequency."""
-        current_time = start_time
+        task_info = self.running_tasks.get(task_id)
+        if not task_info:
+            return
+            
+        params = task_info['params']
+        current_time = params.start_time
         
-        while current_time <= stop_time and task_id in self.running_tasks:
+        while current_time <= params.stop_time and task_id in self.running_tasks:
+            # Always read latest params
+            params = self.running_tasks[task_id]['params']
             # Generate and store the observation
-            report_data = self.generate_observation_turtle(condition_id, current_time, min_value, max_value, turtle_data)
+            report_data = self.generate_observation_turtle(
+                params.condition_id, 
+                current_time, 
+                params.min_value, 
+                params.max_value, 
+                params.turtle_data
+            )
             print(f"Report data: {report_data}")
             self.store_observation(report_data)
             
             # Wait for the next interval (frequency is now in seconds)
-            time.sleep(frequency)
-            current_time += timedelta(seconds=frequency)
+            time.sleep(params.frequency)
+            current_time += timedelta(seconds=params.frequency)
         
         # Remove the task from running tasks when done
         if task_id in self.running_tasks:
@@ -123,19 +145,176 @@ data5g:{observation_id} a met:Observation ;
                              max_value: float = 100, turtle_data: str = "") -> str:
         """Start a new observation generation task."""
         task_id = str(uuid.uuid4())
-        self.running_tasks[task_id] = True
+        
+        # Create task parameters
+        params = TaskParams(
+            condition_id=condition_id,
+            frequency=frequency,
+            start_time=start_time,
+            stop_time=stop_time,
+            min_value=min_value,
+            max_value=max_value,
+            turtle_data=turtle_data
+        )
+        
+        # Store task info
+        self.running_tasks[task_id] = {
+            'params': params,
+            'thread': None
+        }
         
         # Start the observation generation in a separate thread
         thread = threading.Thread(
             target=self.generate_observations,
-            args=(task_id, condition_id, frequency, start_time, stop_time, min_value, max_value, turtle_data)
+            args=(task_id,)
         )
         thread.daemon = True
         thread.start()
+        
+        # Store thread reference
+        self.running_tasks[task_id]['thread'] = thread
         
         return task_id
 
     def stop_observation_task(self, task_id: str):
         """Stop an observation generation task."""
         if task_id in self.running_tasks:
-            self.running_tasks[task_id] = False 
+            del self.running_tasks[task_id]
+
+    def get_condition_description(self, condition_id: str, turtle_data: str) -> str:
+        """Extract the full condition description from Turtle data."""
+        print(f"\n=== Getting condition description for {condition_id} ===")
+        print("Turtle data:", turtle_data)
+        
+        lines = turtle_data.split('\n')
+        
+        # First get the metric type and unit
+        metric_type, unit = self.get_metric_type_from_condition(condition_id, turtle_data)
+        if metric_type == "Unknown":
+            return f"{condition_id}: Unknown condition"
+            
+        # Find the condition line
+        condition_line_index = -1
+        for i, line in enumerate(lines):
+            if f"data5g:{condition_id}" in line and "a icm:Condition" in line:
+                condition_line_index = i
+                print(f"Found condition at line {i}: {line}")
+                break
+        
+        if condition_line_index == -1:
+            print("Condition not found!")
+            return f"{condition_id}: Unknown condition"
+            
+        # Look for min and max values
+        min_value = None
+        max_value = None
+        range_type = None
+        
+        # Process lines after the condition
+        for i, line in enumerate(lines[condition_line_index:], start=condition_line_index):
+            line = line.strip()
+            print(f"Processing line: {line}")
+            
+            if "set:forAll" in line:
+                # Look for the inRange clause that belongs to this condition
+                for next_line in lines[i+1:]:
+                    next_line = next_line.strip()
+                    if "quan:inRange" in next_line and f"data5g:{metric_type}-{condition_id}" in next_line:
+                        range_type = "inRange"
+                        print("Found inRange type for this condition")
+                        # Look for values in subsequent lines
+                        values = []
+                        for value_line in lines[i+2:]:
+                            value_line = value_line.strip()
+                            if "rdf:value" in value_line:
+                                value = value_line.split("rdf:value")[1].strip().rstrip("]").strip()
+                                values.append(value)
+                                print(f"Found value: {value}")
+                            elif "quan:unit" in value_line:
+                                unit = value_line.split('"')[1]
+                                print(f"Found unit: {unit}")
+                            elif ")" in value_line and len(values) >= 2:
+                                break
+                        
+                        if len(values) >= 2:
+                            min_value = values[0]
+                            max_value = values[1]
+                            print(f"Set min value: {min_value}, max value: {max_value}")
+                        break
+                    elif "quan:atLeast" in next_line and f"data5g:{metric_type}-{condition_id}" in next_line:
+                        range_type = "atLeast"
+                        # Look for value in subsequent lines
+                        for value_line in lines[i+2:]:
+                            value_line = value_line.strip()
+                            if "rdf:value" in value_line:
+                                min_value = value_line.split("rdf:value")[1].strip().rstrip("]").strip()
+                                print(f"Found atLeast value: {min_value}")
+                                break
+                    elif "quan:atMost" in next_line and f"data5g:{metric_type}-{condition_id}" in next_line:
+                        range_type = "atMost"
+                        # Look for value in subsequent lines
+                        for value_line in lines[i+2:]:
+                            value_line = value_line.strip()
+                            if "rdf:value" in value_line:
+                                max_value = value_line.split("rdf:value")[1].strip().rstrip("]").strip()
+                                print(f"Found atMost value: {max_value}")
+                                break
+                    elif "quan:unit" in next_line:
+                        unit = next_line.split('"')[1]
+                        print(f"Found unit: {unit}")
+                    elif "]" in next_line and not any(x in next_line for x in ["rdf:value", "quan:unit"]):
+                        break
+        
+        # Construct the description
+        description = f"{metric_type}-{condition_id} "
+        
+        if range_type == "inRange" and min_value and max_value:
+            description += f"quan:inRange: {min_value} to {max_value}{unit}"
+        elif range_type == "atLeast" and min_value:
+            description += f"quan:atLeast: {min_value}{unit}"
+        elif range_type == "atMost" and max_value:
+            description += f"quan:atMost: {max_value}{unit}"
+        else:
+            description += f"condition"
+            
+        print(f"Constructed description: {description}")
+        return description
+
+    def get_active_tasks(self) -> List[Dict]:
+        """Get information about all active tasks."""
+        tasks = []
+        for task_id, task_info in self.running_tasks.items():
+            params = task_info['params']
+            # Get metric type and unit from the condition
+            metric_type, unit = self.get_metric_type_from_condition(params.condition_id, params.turtle_data)
+            # Get the full condition description
+            condition_description = self.get_condition_description(params.condition_id, params.turtle_data)
+            
+            # Use task-specific parameters
+            task_data = {
+                'task_id': task_id,
+                'condition_id': params.condition_id,
+                'metric_type': metric_type,
+                'unit': unit,
+                'condition_description': condition_description,
+                'frequency': params.frequency,  # Use task frequency
+                'min_value': float(params.min_value),  # Use task min value
+                'max_value': float(params.max_value),  # Use task max value
+                'start_time': params.start_time.isoformat(),
+                'stop_time': params.stop_time.isoformat()  # Use task stop time
+            }
+            tasks.append(task_data)
+        return tasks
+
+    def update_task_params(self, task_id: str, **kwargs) -> bool:
+        """Update parameters for a running task."""
+        if task_id not in self.running_tasks:
+            return False
+            
+        params = self.running_tasks[task_id]['params']
+        for key, value in kwargs.items():
+            if hasattr(params, key):
+                if key in ['start_time', 'stop_time'] and isinstance(value, str):
+                    value = datetime.fromisoformat(value)
+                setattr(params, key, value)
+        return True 

@@ -112,10 +112,13 @@ def generate_intent_report():
             intent_id = report_data.get('intent_id')
             if not intent_id:
                 return jsonify({"status": "error", "message": "intent_id is required for Expectation reports"}), 400
-            # Get the intent data from GraphDB
-            intent_data = intents_client.get_intent(intent_id)
-            if not intent_data:
+                
+            # Get the full Turtle data from the intents repository
+            turtle_data = intents_client.get_intent(intent_id)
+            if not turtle_data:
                 return jsonify({"status": "error", "message": f"Could not find intent with ID {intent_id}"}), 404
+            
+            print(f"Got Turtle data from intents repository: {turtle_data}")  # Debug log
             
             for observation in report_data['observation_data']:
                 print(f"\n=== Starting observation generation ===")
@@ -134,7 +137,7 @@ def generate_intent_report():
                     stop_time=stop_time,
                     min_value=observation['min_value'],
                     max_value=observation['max_value'],
-                    turtle_data=intent_data
+                    turtle_data=turtle_data
                 )
                 print(f"Started observation task {task_id} for condition {observation['condition_id']}")
                 print("=====================================\n")
@@ -209,6 +212,21 @@ def get_report_by_number(intent_id, report_number):
     except Exception as e:
         print(f"Error getting report by number: {str(e)}")  # Debug log
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/active-tasks', methods=['GET'])
+def get_active_tasks():
+    """Get information about all active observation tasks."""
+    tasks = observation_generator.get_active_tasks()
+    return jsonify(tasks)
+
+@app.route('/api/update-task/<task_id>', methods=['POST'])
+def update_task(task_id):
+    """Update parameters for a running observation task."""
+    data = request.json
+    success = observation_generator.update_task_params(task_id, **data)
+    if success:
+        return jsonify({'status': 'success'})
+    return jsonify({'error': 'Task not found'}), 404
 
 def generate_turtle(report_data):
     """Generate Turtle format for an intent report"""

@@ -96,6 +96,29 @@
         <div id="status" class="status"></div>
     </div>
 
+    <div class="container mt-4">
+        <h3>Active Observation Tasks</h3>
+        <div class="table-responsive">
+            <table class="table table-striped" id="activeTasksTable">
+                <thead>
+                    <tr>
+                        <th>Task ID</th>
+                        <th>Condition</th>
+                        <th>Frequency (s)</th>
+                        <th>Min Value</th>
+                        <th>Max Value</th>
+                        <th>Start Time</th>
+                        <th>Stop Time</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- Intent Details Modal -->
     <div class="modal fade" id="intentModal" tabindex="-1" role="dialog" aria-labelledby="intentModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg" role="document">
@@ -280,6 +303,91 @@
                 resultDiv.className = `status ${type}`;
             }
         }
+
+        async function loadActiveTasks() {
+            try {
+                const response = await fetch('/api/active-tasks');
+                const tasks = await response.json();
+                const tbody = document.querySelector('#activeTasksTable tbody');
+                tbody.innerHTML = '';
+                
+                tasks.forEach(task => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${task.task_id}</td>
+                        <td>${task.condition_description}</td>
+                        <td><input type="number" class="form-control" value="${task.frequency}" id="freq-${task.task_id}" onfocus="pauseRefresh()" onblur="resumeRefresh()"></td>
+                        <td><input type="number" class="form-control" value="${task.min_value}" id="min-${task.task_id}" onfocus="pauseRefresh()" onblur="resumeRefresh()"></td>
+                        <td><input type="number" class="form-control" value="${task.max_value}" id="max-${task.task_id}" onfocus="pauseRefresh()" onblur="resumeRefresh()"></td>
+                        <td>${new Date(task.start_time).toLocaleString()}</td>
+                        <td><input type="datetime-local" class="form-control" value="${task.stop_time.slice(0,16)}" id="stop-${task.task_id}" onfocus="pauseRefresh()" onblur="resumeRefresh()"></td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" onclick="updateTask('${task.task_id}')">Update</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error loading active tasks:', error);
+            }
+        }
+
+        let refreshInterval;
+        let isRefreshing = true;
+
+        function pauseRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                isRefreshing = false;
+            }
+        }
+
+        function resumeRefresh() {
+            if (!isRefreshing) {
+                refreshInterval = setInterval(loadActiveTasks, 5000);
+                isRefreshing = true;
+            }
+        }
+
+        async function updateTask(taskId) {
+            try {
+                const frequency = document.getElementById(`freq-${taskId}`).value;
+                const min_value = document.getElementById(`min-${taskId}`).value;
+                const max_value = document.getElementById(`max-${taskId}`).value;
+                const stop_time = document.getElementById(`stop-${taskId}`).value;
+
+                const response = await fetch(`/api/update-task/${taskId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        frequency: parseInt(frequency),
+                        min_value: parseFloat(min_value),
+                        max_value: parseFloat(max_value),
+                        stop_time: stop_time
+                    })
+                });
+
+                if (response.ok) {
+                    alert('Task updated successfully!');
+                    loadActiveTasks(); // Refresh the table
+                } else {
+                    const error = await response.json();
+                    alert('Error updating task: ' + error.error);
+                }
+            } catch (error) {
+                console.error('Error updating task:', error);
+                alert('Error updating task. Please try again.');
+            }
+        }
+
+        // Load active tasks when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadActiveTasks();
+            // Start the refresh interval
+            refreshInterval = setInterval(loadActiveTasks, 5000);
+        });
     </script>
 </body>
 </html> 

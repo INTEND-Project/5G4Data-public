@@ -577,6 +577,35 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intent_id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Show details",
+                    "url": "${__data.fields.intent_link}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intent_link"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
           }
         ]
       },
@@ -654,5 +683,5 @@
   "timezone": "",
   "title": "TMForum Intent Dashboard",
   "uid": "intent-overview",
-  "version": 37
+  "version": 39
 }

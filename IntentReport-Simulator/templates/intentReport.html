@@ -325,9 +325,9 @@
                         const turtle = data.data;
                         
                         // Debug output for turtle representation
-                        console.log('\n=== Turtle Representation ===');
-                        console.log(turtle);
-                        console.log('===========================\n');
+                        // console.log('\n=== Turtle Representation ===');
+                        // console.log(turtle);
+                        // console.log('===========================\n');
 
                         const { expectations, conditions } = parseTurtleRepresentation(turtle);
                         
@@ -352,29 +352,10 @@
                         // Clear any existing fields
                         container.innerHTML = '';
                         
-                        // Add Expectations section
-                        if (expectations.length > 0) {
-                            const expectationsHeader = document.createElement('h4');
-                            expectationsHeader.textContent = 'Expectations';
-                            container.appendChild(expectationsHeader);
-                            
-                            expectations.forEach((expectation, index) => {
-                                const id = `expectation-${index}`;
-                                createCheckboxField(expectation, id, container);
-                                
-                                // Add container for additional fields
-                                const additionalFields = document.createElement('div');
-                                additionalFields.id = `${id}-additional`;
-                                additionalFields.style.display = 'none';
-                                additionalFields.className = 'additional-fields';
-                                container.appendChild(additionalFields);
-                            });
-                        }
-                        
-                        // Add Conditions section
+                        // Add Expectation Conditions section
                         if (conditions.length > 0) {
                             const conditionsHeader = document.createElement('h4');
-                            conditionsHeader.textContent = 'Conditions';
+                            conditionsHeader.textContent = 'Select Expectation Conditions to generate observation reports for:';
                             container.appendChild(conditionsHeader);
                             
                             conditions.forEach((condition, index) => {

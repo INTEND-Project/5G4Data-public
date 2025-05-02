@@ -83,7 +83,7 @@
                         <th>Intent Identifier</th>
                         <th>Type</th>
                         <th>Create</th>
-                        <th>Show Report #</th>
+                        <th>Show State Change Report #</th>
                         <th>Show</th>
                     </tr>
                 </thead>
@@ -97,7 +97,7 @@
     </div>
 
     <div class="container mt-4">
-        <h3>Active Observation Tasks</h3>
+        <h3>Active Expectation Condition Observation Tasks</h3>
         <div class="table-responsive">
             <table class="table table-striped" id="activeTasksTable">
                 <thead>
@@ -183,7 +183,7 @@
                                     <option value="">Select report type...</option>
                                     <option value="STATE_CHANGE">State Change</option>
                                     <option value="UPDATE_CHANGE">Update Change</option>
-                                    <option value="EXPECTATION">Expectation</option>
+                                    <option value="EXPECTATION">Expectation Condition</option>
                                 </select>
                             </td>
                             <td>
@@ -193,7 +193,7 @@
                                 </div>
                             </td>
                             <td>
-                                <button class="btn btn-info btn-sm" onclick="showLastReport('${intent.id}')">Last report</button>
+                                <button class="btn btn-info btn-sm" onclick="showLastReport('${intent.id}')">Last state change report</button>
                             </td>
                         `;
                         intentList.appendChild(row);

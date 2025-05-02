@@ -183,9 +183,6 @@ data5g:{observation_id} a met:Observation ;
 
     def get_condition_description(self, condition_id: str, turtle_data: str) -> str:
         """Extract the full condition description from Turtle data."""
-        print(f"\n=== Getting condition description for {condition_id} ===")
-        print("Turtle data:", turtle_data)
-        
         lines = turtle_data.split('\n')
         
         # First get the metric type and unit
@@ -198,11 +195,9 @@ data5g:{observation_id} a met:Observation ;
         for i, line in enumerate(lines):
             if f"data5g:{condition_id}" in line and "a icm:Condition" in line:
                 condition_line_index = i
-                print(f"Found condition at line {i}: {line}")
                 break
         
         if condition_line_index == -1:
-            print("Condition not found!")
             return f"{condition_id}: Unknown condition"
             
         # Look for min and max values
@@ -213,7 +208,6 @@ data5g:{observation_id} a met:Observation ;
         # Process lines after the condition
         for i, line in enumerate(lines[condition_line_index:], start=condition_line_index):
             line = line.strip()
-            print(f"Processing line: {line}")
             
             if "set:forAll" in line:
                 # Look for the inRange clause that belongs to this condition
@@ -221,7 +215,6 @@ data5g:{observation_id} a met:Observation ;
                     next_line = next_line.strip()
                     if "quan:inRange" in next_line and f"data5g:{metric_type}-{condition_id}" in next_line:
                         range_type = "inRange"
-                        print("Found inRange type for this condition")
                         # Look for values in subsequent lines
                         values = []
                         for value_line in lines[i+2:]:
@@ -229,17 +222,14 @@ data5g:{observation_id} a met:Observation ;
                             if "rdf:value" in value_line:
                                 value = value_line.split("rdf:value")[1].strip().rstrip("]").strip()
                                 values.append(value)
-                                print(f"Found value: {value}")
                             elif "quan:unit" in value_line:
                                 unit = value_line.split('"')[1]
-                                print(f"Found unit: {unit}")
                             elif ")" in value_line and len(values) >= 2:
                                 break
                         
                         if len(values) >= 2:
                             min_value = values[0]
                             max_value = values[1]
-                            print(f"Set min value: {min_value}, max value: {max_value}")
                         break
                     elif "quan:atLeast" in next_line and f"data5g:{metric_type}-{condition_id}" in next_line:
                         range_type = "atLeast"
@@ -248,7 +238,6 @@ data5g:{observation_id} a met:Observation ;
                             value_line = value_line.strip()
                             if "rdf:value" in value_line:
                                 min_value = value_line.split("rdf:value")[1].strip().rstrip("]").strip()
-                                print(f"Found atLeast value: {min_value}")
                                 break
                     elif "quan:atMost" in next_line and f"data5g:{metric_type}-{condition_id}" in next_line:
                         range_type = "atMost"
@@ -257,11 +246,9 @@ data5g:{observation_id} a met:Observation ;
                             value_line = value_line.strip()
                             if "rdf:value" in value_line:
                                 max_value = value_line.split("rdf:value")[1].strip().rstrip("]").strip()
-                                print(f"Found atMost value: {max_value}")
                                 break
                     elif "quan:unit" in next_line:
                         unit = next_line.split('"')[1]
-                        print(f"Found unit: {unit}")
                     elif "]" in next_line and not any(x in next_line for x in ["rdf:value", "quan:unit"]):
                         break
         
@@ -277,8 +264,16 @@ data5g:{observation_id} a met:Observation ;
         else:
             description += f"condition"
             
-        print(f"Constructed description: {description}")
         return description
+
+    def extract_intent_id(self, turtle_data: str) -> str:
+        """Extract the intent ID from the Turtle data."""
+        for line in turtle_data.split('\n'):
+            if 'a icm:Intent' in line:
+                parts = line.strip().split()
+                if parts and parts[0].startswith('data5g:'):
+                    return parts[0].replace('data5g:', '').strip().replace('\n', '')
+        return ''
 
     def get_active_tasks(self) -> List[Dict]:
         """Get information about all active tasks."""
@@ -289,10 +284,12 @@ data5g:{observation_id} a met:Observation ;
             metric_type, unit = self.get_metric_type_from_condition(params.condition_id, params.turtle_data)
             # Get the full condition description
             condition_description = self.get_condition_description(params.condition_id, params.turtle_data)
-            
+            # Extract intent_id from the Turtle data
+            intent_id = self.extract_intent_id(params.turtle_data)
             # Use task-specific parameters
             task_data = {
                 'task_id': task_id,
+                'intent_id': intent_id,
                 'condition_id': params.condition_id,
                 'metric_type': metric_type,
                 'unit': unit,

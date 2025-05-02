@@ -44,6 +44,10 @@ reports_client = IntentReportClient(graphdb_url, repository='intent-reports')
 # Initialize the observation generator
 observation_generator = ObservationGenerator(graphdb_url)
 
+@app.route('/test')
+def test():
+    return render_template('test.html')
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -227,6 +231,48 @@ def update_task(task_id):
     if success:
         return jsonify({'status': 'success'})
     return jsonify({'error': 'Task not found'}), 404
+
+@app.route('/api/last-observation-report/<intent_id>/<observed_metric>')
+def get_last_observation_report(intent_id, observed_metric):
+    """Return the last observation report for a given observed metric in Turtle format."""
+    try:
+        # Compose the SPARQL query
+        query = f'''
+        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
+        PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+        PREFIX data5g: <http://5g4data.eu/5g4data#>
+        PREFIX met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/>
+
+        SELECT ?observation ?value ?unit ?obtainedAt WHERE {{
+          ?observation met:observedMetric data5g:{observed_metric} ;
+                       met:observedValue ?valueNode ;
+                       met:obtainedAt ?obtainedAt .
+          ?valueNode rdf:value ?value ;
+                     quan:unit ?unit .
+        }}
+        ORDER BY DESC(?obtainedAt)
+        LIMIT 1
+        '''
+        response = requests.post(
+            f"{reports_client.base_url}/repositories/{reports_client.repository}",
+            data={"query": query},
+            headers={"Accept": "application/sparql-results+json"}
+        )
+        if response.status_code != 200:
+            return jsonify({"error": f"SPARQL query failed: {response.text}"}), 500
+        results = response.json()
+        bindings = results.get('results', {}).get('bindings', [])
+        if not bindings:
+            return jsonify({"data": "No observation report found."})
+        b = bindings[0]
+        # Format as Turtle
+        turtle = f"""@prefix met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .\n@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n@prefix data5g: <http://5g4data.eu/5g4data#> .\n\n"""
+        turtle += f"{b['observation']['value']} a met:Observation ;\n    met:observedMetric data5g:{observed_metric} ;\n    met:observedValue [ rdf:value {b['value']['value']} ; quan:unit \"{b['unit']['value']}\" ] ;\n    met:obtainedAt \"{b['obtainedAt']['value']}\"^^xsd:dateTime .\n"
+        return jsonify({"data": turtle})
+    except Exception as e:
+        print(f"Error getting last observation report: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 def generate_turtle(report_data):
     """Generate Turtle format for an intent report"""

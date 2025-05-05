@@ -79,6 +79,8 @@ def main():
                     help="Optional output CSV filename. If not set, defaults to '<type>_simulated.csv'.")
     parser.add_argument("--plot", action="store_true",
                     help="If set, plot the generated data. Otherwise only CSV is created.")
+    parser.add_argument("--values_only", action="store_true",
+                    help="If set, only output raw values in the CSV (no headers, no timestamps, no units).")
 
     args = parser.parse_args()
 
@@ -120,7 +122,11 @@ def main():
 
 
     # Save CSV
-    data.to_csv(csv_output_path, index=False)
+    if args.values_only:
+        data[['value']].to_csv(csv_output_path, index=False, header=False)
+    else:
+        data.to_csv(csv_output_path, index=False)
+
     print(f"Data saved to {csv_output_path}")
 
     if args.plot:

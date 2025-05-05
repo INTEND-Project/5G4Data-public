@@ -44,6 +44,9 @@ reports_client = IntentReportClient(graphdb_url, repository='intent-reports')
 # Initialize the observation generator
 observation_generator = ObservationGenerator(graphdb_url)
 
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploaded_value_files')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 @app.route('/test')
 def test():
     return render_template('test.html')
@@ -130,18 +133,20 @@ def generate_intent_report():
                 print(f"Frequency: {observation['frequency']} seconds")
                 print(f"Start Time: {observation['start_time']}")
                 print(f"Stop Time: {observation['stop_time']}")
-                
                 start_time = datetime.fromisoformat(observation['start_time'].replace('Z', '+00:00'))
                 stop_time = datetime.fromisoformat(observation['stop_time'].replace('Z', '+00:00'))
-                
+                min_value = observation.get('min_value', 10)
+                max_value = observation.get('max_value', 100)
+                value_file = observation.get('value_file')
                 task_id = observation_generator.start_observation_task(
                     condition_id=observation['condition_id'],
                     frequency=observation['frequency'],
                     start_time=start_time,
                     stop_time=stop_time,
-                    min_value=observation['min_value'],
-                    max_value=observation['max_value'],
-                    turtle_data=turtle_data
+                    min_value=min_value,
+                    max_value=max_value,
+                    turtle_data=turtle_data,
+                    value_file=value_file
                 )
                 print(f"Started observation task {task_id} for condition {observation['condition_id']}")
                 print("=====================================\n")
@@ -273,6 +278,20 @@ def get_last_observation_report(intent_id, observed_metric):
     except Exception as e:
         print(f"Error getting last observation report: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/upload-value-file', methods=['POST'])
+def upload_value_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    # Save the file with a unique name
+    ext = os.path.splitext(file.filename)[1]
+    filename = f"valuefile_{uuid.uuid4().hex}{ext}"
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(filepath)
+    return jsonify({'filename': filename})
 
 def generate_turtle(report_data):
     """Generate Turtle format for an intent report"""

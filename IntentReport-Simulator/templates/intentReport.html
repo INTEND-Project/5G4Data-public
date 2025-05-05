@@ -437,24 +437,45 @@
                     const frequency = document.getElementById(`${id}-frequency`)?.value;
                     const startTime = document.getElementById(`${id}-start-time`)?.value;
                     const stopTime = document.getElementById(`${id}-stop-time`)?.value;
-                    const minValue = document.getElementById(`${id}-min-value`)?.value;
-                    const maxValue = document.getElementById(`${id}-max-value`)?.value;
-                    
-                    console.log('Frequency:', frequency);
-                    console.log('Start Time:', startTime);
-                    console.log('Stop Time:', stopTime);
-                    console.log('Min Value:', minValue);
-                    console.log('Max Value:', maxValue);
-                    
-                    if (frequency && startTime && stopTime && minValue && maxValue) {
-                        observationData.push({
+                    // Determine value source
+                    const valueSource = document.querySelector(`input[name="${id}-value-source"]:checked`)?.value;
+                    let minValue = null, maxValue = null, valueFile = null, valueFileName = null;
+                    if (valueSource === 'range') {
+                        minValue = document.getElementById(`${id}-min-value`)?.value;
+                        maxValue = document.getElementById(`${id}-max-value`)?.value;
+                    } else if (valueSource === 'file') {
+                        valueFile = document.getElementById(`${id}-value-file`)?.files[0];
+                        if (valueFile) {
+                            // Upload the file to the backend and get the filename
+                            const formData = new FormData();
+                            formData.append('file', valueFile);
+                            const uploadResp = await fetch('/api/upload-value-file', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            if (uploadResp.ok) {
+                                const uploadData = await uploadResp.json();
+                                valueFileName = uploadData.filename;
+                            } else {
+                                showStatus('Failed to upload value file', 'error');
+                                return;
+                            }
+                        }
+                    }
+                    if (frequency && startTime && stopTime && ((valueSource === 'range' && minValue && maxValue) || (valueSource === 'file' && valueFileName))) {
+                        const obs = {
                             condition_id: conditionId,
                             frequency: parseInt(frequency),
                             start_time: startTime,
-                            stop_time: stopTime,
-                            min_value: parseFloat(minValue),
-                            max_value: parseFloat(maxValue)
-                        });
+                            stop_time: stopTime
+                        };
+                        if (valueSource === 'range') {
+                            obs.min_value = parseFloat(minValue);
+                            obs.max_value = parseFloat(maxValue);
+                        } else if (valueSource === 'file') {
+                            obs.value_file = valueFileName;
+                        }
+                        observationData.push(obs);
                     }
                 }
                 
@@ -665,8 +686,6 @@
                 const additionalFields = document.getElementById(`${id}-additional`);
                 if (additionalFields) {
                     additionalFields.style.display = this.checked ? 'block' : 'none';
-                    
-                    // If this is a condition checkbox and it's checked, add the observation fields
                     if (id.startsWith('condition-') && this.checked) {
                         additionalFields.innerHTML = `
                             <div class="form-group mt-3">
@@ -682,30 +701,57 @@
                                 <input type="datetime-local" class="form-control" id="${id}-stop-time">
                             </div>
                             <div class="form-group mt-3">
-                                <h5>Metric Value Range</h5>
-                                <p class="text-muted">Specify the range for random metric values in the observation reports.</p>
-                                <div class="row">
-                                    <div class="col">
-                                        <label for="${id}-min-value">Minimum Value:</label>
-                                        <input type="number" class="form-control" id="${id}-min-value" min="0" step="0.1" value="10">
-                                    </div>
-                                    <div class="col">
-                                        <label for="${id}-max-value">Maximum Value:</label>
-                                        <input type="number" class="form-control" id="${id}-max-value" min="0" step="0.1" value="100">
-                                    </div>
+                                <label>Value Source:</label><br>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="${id}-value-source" id="${id}-range-radio" value="range" checked>
+                                    <label class="form-check-label" for="${id}-range-radio">Metric Value Range</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="${id}-value-source" id="${id}-file-radio" value="file">
+                                    <label class="form-check-label" for="${id}-file-radio">Read values from file</label>
+                                </div>
+                            </div>
+                            <div id="${id}-range-fields">
+                                <div class="form-group mt-3">
+                                    <label for="${id}-min-value">Minimum Value:</label>
+                                    <input type="number" class="form-control" id="${id}-min-value" min="0" step="0.1" value="10">
+                                </div>
+                                <div class="form-group mt-3">
+                                    <label for="${id}-max-value">Maximum Value:</label>
+                                    <input type="number" class="form-control" id="${id}-max-value" min="0" step="0.1" value="100">
+                                </div>
+                            </div>
+                            <div id="${id}-file-field" style="display:none;">
+                                <div class="form-group mt-3">
+                                    <label for="${id}-value-file">Upload Value File:</label>
+                                    <input type="file" class="form-control" id="${id}-value-file" accept=".txt,.csv">
                                 </div>
                             </div>
                         `;
-                        
-                        // Set default start time to now in local timezone
+                        // Set default start/stop time if those fields exist
                         const startTimeInput = document.getElementById(`${id}-start-time`);
-                        const now = new Date();
-                        startTimeInput.value = now.toISOString().slice(0, 16);
-                        
-                        // Set default stop time to 1 hour from now in local timezone
+                        if (startTimeInput) {
+                            const now = new Date();
+                            startTimeInput.value = now.toISOString().slice(0, 16);
+                        }
                         const stopTimeInput = document.getElementById(`${id}-stop-time`);
-                        const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
-                        stopTimeInput.value = oneHourLater.toISOString().slice(0, 16);
+                        if (stopTimeInput) {
+                            const oneHourLater = new Date(Date.now() + 60 * 60 * 1000);
+                            stopTimeInput.value = oneHourLater.toISOString().slice(0, 16);
+                        }
+                        // Always set up the event listeners for the radio buttons
+                        document.getElementById(`${id}-range-radio`).addEventListener('change', function() {
+                            if (this.checked) {
+                                document.getElementById(`${id}-range-fields`).style.display = '';
+                                document.getElementById(`${id}-file-field`).style.display = 'none';
+                            }
+                        });
+                        document.getElementById(`${id}-file-radio`).addEventListener('change', function() {
+                            if (this.checked) {
+                                document.getElementById(`${id}-range-fields`).style.display = 'none';
+                                document.getElementById(`${id}-file-field`).style.display = '';
+                            }
+                        });
                     }
                 }
             });

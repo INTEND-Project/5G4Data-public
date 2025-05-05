@@ -5,6 +5,7 @@ import threading
 from typing import List, Dict
 import requests
 from dataclasses import dataclass
+import os
 
 @dataclass
 class TaskParams:
@@ -12,15 +13,19 @@ class TaskParams:
     frequency: int
     start_time: datetime
     stop_time: datetime
-    min_value: float
-    max_value: float
-    turtle_data: str
+    min_value: float = 10
+    max_value: float = 100
+    turtle_data: str = ""
+    value_file: str = None
+    value_file_index: int = 0
+    value_file_values: list = None
 
 class ObservationGenerator:
     def __init__(self, graphdb_url: str, repository: str = "intent-reports"):
         self.graphdb_url = graphdb_url
         self.repository = repository
         self.running_tasks = {}  # task_id: {'params': TaskParams, 'thread': Thread}
+        self.value_file_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploaded_value_files')
 
     def get_metric_type_from_condition(self, condition_id: str, intent_data: str) -> tuple[str, str]:
         """Determine the metric type and unit from the condition's Turtle data.
@@ -69,31 +74,15 @@ class ObservationGenerator:
         else:
             return "Unknown", "NA"  # Default if type not recognized
 
-    def generate_observation_turtle(self, condition_id: str, timestamp: datetime, min_value: float = 10, max_value: float = 100, turtle_data: str = "") -> str:
+    def generate_observation_turtle(self, condition_id: str, timestamp: datetime, min_value: float = 10, max_value: float = 100, turtle_data: str = "", metric_value: float = None) -> str:
         """Generate a single observation report in Turtle format."""
         observation_id = f"OB{uuid.uuid4().hex}"
-        
-        # Format the timestamp in ISO 8601 format with Z timezone
         timestamp_str = timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
-        
-        # Generate a random metric value between min_value and max_value
         import random
-        metric_value = random.uniform(min_value, max_value)
-        
-        # Determine the metric type and unit from the condition's Turtle data
+        if metric_value is None:
+            metric_value = random.uniform(min_value, max_value)
         metric_prefix, unit = self.get_metric_type_from_condition(condition_id, turtle_data)
-        
-        turtle = f"""@prefix met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .
-@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-@prefix data5g: <http://5g4data.eu/5g4data#> .
-
-data5g:{observation_id} a met:Observation ;
-    met:observedMetric data5g:{metric_prefix}-{condition_id} ;
-    met:observedValue [ rdf:value {metric_value:.1f} ; quan:unit "{unit}" ] ;
-    met:obtainedAt "{timestamp_str}"^^xsd:dateTime ."""
-        
+        turtle = f"""@prefix met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .\n@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n@prefix data5g: <http://5g4data.eu/5g4data#> .\n\ndata5g:{observation_id} a met:Observation ;\n    met:observedMetric data5g:{metric_prefix}-{condition_id} ;\n    met:observedValue [ rdf:value {metric_value:.1f} ; quan:unit \"{unit}\" ] ;\n    met:obtainedAt \"{timestamp_str}\"^^xsd:dateTime ."""
         return turtle
 
     def store_observation(self, turtle_data: str) -> bool:
@@ -110,43 +99,47 @@ data5g:{observation_id} a met:Observation ;
             return False
 
     def generate_observations(self, task_id: str):
-        """Generate observations for a condition at the specified frequency."""
         task_info = self.running_tasks.get(task_id)
         if not task_info:
             return
-            
         params = task_info['params']
         current_time = params.start_time
-        
+        # If value_file is provided, read values from file once
+        if getattr(params, 'value_file', None) and params.value_file_values is None:
+            value_file_path = os.path.join(self.value_file_dir, params.value_file)
+            if os.path.exists(value_file_path):
+                with open(value_file_path, 'r') as f:
+                    params.value_file_values = [float(line.strip()) for line in f if line.strip()]
+            else:
+                params.value_file_values = []
+            params.value_file_index = 0
         while current_time <= params.stop_time and task_id in self.running_tasks:
-            # Always read latest params
             params = self.running_tasks[task_id]['params']
-            # Generate and store the observation
+            metric_value = None
+            if getattr(params, 'value_file_values', None):
+                if params.value_file_index < len(params.value_file_values):
+                    metric_value = params.value_file_values[params.value_file_index]
+                    params.value_file_index += 1
+                else:
+                    # If out of values, just use the last value
+                    metric_value = params.value_file_values[-1] if params.value_file_values else None
             report_data = self.generate_observation_turtle(
-                params.condition_id, 
-                current_time, 
-                params.min_value, 
-                params.max_value, 
-                params.turtle_data
+                params.condition_id,
+                current_time,
+                params.min_value,
+                params.max_value,
+                params.turtle_data,
+                metric_value=metric_value
             )
             print(f"Report data: {report_data}")
             self.store_observation(report_data)
-            
-            # Wait for the next interval (frequency is now in seconds)
             time.sleep(params.frequency)
             current_time += timedelta(seconds=params.frequency)
-        
-        # Remove the task from running tasks when done
         if task_id in self.running_tasks:
             del self.running_tasks[task_id]
 
-    def start_observation_task(self, condition_id: str, frequency: int, 
-                             start_time: datetime, stop_time: datetime, min_value: float = 10, 
-                             max_value: float = 100, turtle_data: str = "") -> str:
-        """Start a new observation generation task."""
+    def start_observation_task(self, condition_id: str, frequency: int, start_time: datetime, stop_time: datetime, min_value: float = 10, max_value: float = 100, turtle_data: str = "", value_file: str = None) -> str:
         task_id = str(uuid.uuid4())
-        
-        # Create task parameters
         params = TaskParams(
             condition_id=condition_id,
             frequency=frequency,
@@ -154,26 +147,20 @@ data5g:{observation_id} a met:Observation ;
             stop_time=stop_time,
             min_value=min_value,
             max_value=max_value,
-            turtle_data=turtle_data
+            turtle_data=turtle_data,
+            value_file=value_file
         )
-        
-        # Store task info
         self.running_tasks[task_id] = {
             'params': params,
             'thread': None
         }
-        
-        # Start the observation generation in a separate thread
         thread = threading.Thread(
             target=self.generate_observations,
             args=(task_id,)
         )
         thread.daemon = True
         thread.start()
-        
-        # Store thread reference
         self.running_tasks[task_id]['thread'] = thread
-        
         return task_id
 
     def stop_observation_task(self, task_id: str):

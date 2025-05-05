@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 import calendar
 
-# --- FUNCTIONS ---
-
 def smooth_busy_factor(hour, busy_start, busy_end, ramp=1.5):
     """Smooth cosine transition into and out of busy periods."""
     if busy_start - ramp <= hour <= busy_start + ramp:
@@ -142,6 +140,5 @@ def main():
         plt.tight_layout()
         plt.show()
 
-# --- ENTRY POINT ---
 if __name__ == "__main__":
     main()

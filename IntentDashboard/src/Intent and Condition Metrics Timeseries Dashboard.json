@@ -96,7 +96,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "dark-red"
               },
               {
                 "color": "dark-red",
@@ -273,35 +273,35 @@
     }
   ],
   "preload": false,
-  "refresh": "10s",
+  "refresh": "5s",
   "schemaVersion": 41,
   "tags": [],
   "templating": {
     "list": [
       {
         "current": {
-          "text": "If1654d1299ba40e9a794386a9d708012",
-          "value": "If1654d1299ba40e9a794386a9d708012"
+          "text": "Ie510fa48cb914a4eb1c2f221abd63f32",
+          "value": "Ie510fa48cb914a4eb1c2f221abd63f32"
         },
         "label": "Intent ID",
         "name": "intent_id",
         "options": [
           {
             "selected": true,
-            "text": "If1654d1299ba40e9a794386a9d708012",
-            "value": "If1654d1299ba40e9a794386a9d708012"
+            "text": "Ie510fa48cb914a4eb1c2f221abd63f32",
+            "value": "Ie510fa48cb914a4eb1c2f221abd63f32"
           }
         ],
-        "query": "If1654d1299ba40e9a794386a9d708012",
+        "query": "Ie510fa48cb914a4eb1c2f221abd63f32",
         "type": "textbox"
       },
       {
         "current": {
           "text": [
-            "Bandwidth-CO92efbc8798894f7eb0b7d0b9f7ee1ec4,NetworkLatency-CO9f2868d2b42b41c18565dd3f0b9ed7d2"
+            "NetworkLatency-CO449863a525914544b90bce24892d4523,Bandwidth-CO9ef64cb502bc477186cdd64f76d39b27"
           ],
           "value": [
-            "Bandwidth-CO92efbc8798894f7eb0b7d0b9f7ee1ec4,NetworkLatency-CO9f2868d2b42b41c18565dd3f0b9ed7d2"
+            "NetworkLatency-CO449863a525914544b90bce24892d4523,Bandwidth-CO9ef64cb502bc477186cdd64f76d39b27"
           ]
         },
         "hide": 2,
@@ -327,13 +327,13 @@
         "options": [
           {
             "selected": false,
-            "text": "Bandwidth-CO92efbc8798894f7eb0b7d0b9f7ee1ec4",
-            "value": "Bandwidth-CO92efbc8798894f7eb0b7d0b9f7ee1ec4"
+            "text": "NetworkLatency-CO449863a525914544b90bce24892d4523",
+            "value": "NetworkLatency-CO449863a525914544b90bce24892d4523"
           },
           {
             "selected": false,
-            "text": "NetworkLatency-CO9f2868d2b42b41c18565dd3f0b9ed7d2",
-            "value": "NetworkLatency-CO9f2868d2b42b41c18565dd3f0b9ed7d2"
+            "text": "Bandwidth-CO9ef64cb502bc477186cdd64f76d39b27",
+            "value": "Bandwidth-CO9ef64cb502bc477186cdd64f76d39b27"
           }
         ],
         "query": "$condition_metrics",
@@ -342,12 +342,12 @@
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-5h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Intent and Condition Metrics Timeseries Dashboard",
   "uid": "fekk4b61d38qof",
-  "version": 44
+  "version": 48
 }

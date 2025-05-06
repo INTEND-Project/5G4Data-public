@@ -32,4 +32,10 @@ We have provided a couple of example Dashboards:
   <dd>This Dashboard shows detailed observation metrics in timeseries graphs for each condition in the selected intent. Dotted threshold lines are also displayed in the graphs based on the quan:function used in the condition.</dd>
 </dl>
 
+The json representation of the dashboards can be imported to a Grafana server.
 
+## TMForum Intent Dashboard
+![TMForum Intent Dashboard](./TMForum-Intent-Dashboard.png)
+
+## Intent and Condition Metrics Timeseries Dashboard
+![Intent and Condition Metrics Timeseries Dashboard](./Intent-and-Condition-Metrics-Timeseries-Dashboard.png)

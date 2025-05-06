@@ -1,3 +1,4 @@
+uploaded_value_files/*.csv
 # Python
 __pycache__/
 *.py[cod]

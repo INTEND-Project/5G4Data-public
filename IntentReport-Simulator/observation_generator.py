@@ -17,6 +17,7 @@ class TaskParams:
     max_value: float = 100
     turtle_data: str = ""
     value_file: str = None
+    original_value_file: str = None
     value_file_index: int = 0
     value_file_values: list = None
 
@@ -138,7 +139,7 @@ class ObservationGenerator:
         if task_id in self.running_tasks:
             del self.running_tasks[task_id]
 
-    def start_observation_task(self, condition_id: str, frequency: int, start_time: datetime, stop_time: datetime, min_value: float = 10, max_value: float = 100, turtle_data: str = "", value_file: str = None) -> str:
+    def start_observation_task(self, condition_id: str, frequency: int, start_time: datetime, stop_time: datetime, min_value: float = 10, max_value: float = 100, turtle_data: str = "", value_file: str = None, original_value_file: str = None) -> str:
         task_id = str(uuid.uuid4())
         params = TaskParams(
             condition_id=condition_id,
@@ -148,7 +149,8 @@ class ObservationGenerator:
             min_value=min_value,
             max_value=max_value,
             turtle_data=turtle_data,
-            value_file=value_file
+            value_file=value_file,
+            original_value_file=original_value_file
         )
         self.running_tasks[task_id] = {
             'params': params,
@@ -267,13 +269,9 @@ class ObservationGenerator:
         tasks = []
         for task_id, task_info in self.running_tasks.items():
             params = task_info['params']
-            # Get metric type and unit from the condition
             metric_type, unit = self.get_metric_type_from_condition(params.condition_id, params.turtle_data)
-            # Get the full condition description
             condition_description = self.get_condition_description(params.condition_id, params.turtle_data)
-            # Extract intent_id from the Turtle data
             intent_id = self.extract_intent_id(params.turtle_data)
-            # Use task-specific parameters
             task_data = {
                 'task_id': task_id,
                 'intent_id': intent_id,
@@ -281,11 +279,13 @@ class ObservationGenerator:
                 'metric_type': metric_type,
                 'unit': unit,
                 'condition_description': condition_description,
-                'frequency': params.frequency,  # Use task frequency
-                'min_value': float(params.min_value),  # Use task min value
-                'max_value': float(params.max_value),  # Use task max value
+                'frequency': params.frequency,
+                'min_value': float(params.min_value),
+                'max_value': float(params.max_value),
                 'start_time': params.start_time.isoformat(),
-                'stop_time': params.stop_time.isoformat()  # Use task stop time
+                'stop_time': params.stop_time.isoformat(),
+                'value_file': params.value_file,
+                'original_value_file': params.original_value_file
             }
             tasks.append(task_data)
         return tasks

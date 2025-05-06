@@ -138,6 +138,7 @@ def generate_intent_report():
                 min_value = observation.get('min_value', 10)
                 max_value = observation.get('max_value', 100)
                 value_file = observation.get('value_file')
+                original_value_file = observation.get('original_value_file')
                 task_id = observation_generator.start_observation_task(
                     condition_id=observation['condition_id'],
                     frequency=observation['frequency'],
@@ -146,7 +147,8 @@ def generate_intent_report():
                     min_value=min_value,
                     max_value=max_value,
                     turtle_data=turtle_data,
-                    value_file=value_file
+                    value_file=value_file,
+                    original_value_file=original_value_file
                 )
                 print(f"Started observation task {task_id} for condition {observation['condition_id']}")
                 print("=====================================\n")
@@ -286,12 +288,13 @@ def upload_value_file():
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
-    # Save the file with a unique name
+    # Save the file with a unique prefix but keep the original name
+    original_filename = file.filename
     ext = os.path.splitext(file.filename)[1]
-    filename = f"valuefile_{uuid.uuid4().hex}{ext}"
+    filename = f"valuefile_{uuid.uuid4().hex}_{original_filename}"
     filepath = os.path.join(UPLOAD_FOLDER, filename)
     file.save(filepath)
-    return jsonify({'filename': filename})
+    return jsonify({'filename': filename, 'original_filename': original_filename})
 
 def generate_turtle(report_data):
     """Generate Turtle format for an intent report"""

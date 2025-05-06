@@ -97,9 +97,9 @@
     </div>
 
     <div class="container mt-4">
-        <h3>Active Expectation Condition Reporting Tasks</h3>
+        <h3>Active Expectation Condition Reporting Tasks (Min/Max Range)</h3>
         <div class="table-responsive">
-            <table class="table table-striped" id="activeTasksTable">
+            <table class="table table-striped" id="activeTasksTableRange">
                 <thead>
                     <tr>
                         <th>Report</th>
@@ -112,9 +112,26 @@
                         <th>Last report</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <!-- Rows will be populated by JavaScript -->
-                </tbody>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="container mt-4">
+        <h3>Active Expectation Condition Reporting Tasks (File-based)</h3>
+        <div class="table-responsive">
+            <table class="table table-striped" id="activeTasksTableFile">
+                <thead>
+                    <tr>
+                        <th>Report</th>
+                        <th>Frequency (s)</th>
+                        <th>File</th>
+                        <th>Start Time</th>
+                        <th>Stop Time</th>
+                        <th>Actions</th>
+                        <th>Last report</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
             </table>
         </div>
     </div>
@@ -308,10 +325,13 @@
             try {
                 const response = await fetch('/api/active-tasks');
                 const tasks = await response.json();
-                const tbody = document.querySelector('#activeTasksTable tbody');
-                tbody.innerHTML = '';
-                
-                tasks.forEach(task => {
+                const tbodyRange = document.querySelector('#activeTasksTableRange tbody');
+                const tbodyFile = document.querySelector('#activeTasksTableFile tbody');
+                tbodyRange.innerHTML = '';
+                tbodyFile.innerHTML = '';
+                const rangeTasks = tasks.filter(task => !task.value_file);
+                const fileTasks = tasks.filter(task => !!task.value_file);
+                rangeTasks.forEach(task => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td style="white-space: pre-line; font-size: 0.95em;">
@@ -327,7 +347,24 @@
                         </td>
                         <td><button class="btn btn-info btn-sm" onclick="showLastObservationReport('${task.intent_id}', '${task.metric_type}-${task.condition_id}')">Last report</button></td>
                     `;
-                    tbody.appendChild(row);
+                    tbodyRange.appendChild(row);
+                });
+                fileTasks.forEach(task => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td style="white-space: pre-line; font-size: 0.95em;">
+                            ${(task.intent_id ? '<strong>' + task.intent_id + '</strong>' : '') + (task.condition_description ? '\n  ' + task.condition_description.replace(/^([^-]+-[^ ]+) (.+)$/, (m, metric, desc) => `${metric}\n    ${desc}`) : '')}
+                        </td>
+                        <td><input type="number" class="form-control" value="${task.frequency}" id="freq-${task.task_id}" onfocus="pauseRefresh()" onblur="resumeRefresh()"></td>
+                        <td><span>${task.original_value_file || task.value_file}</span></td>
+                        <td>${new Date(task.start_time).toLocaleString()}</td>
+                        <td><input type="datetime-local" class="form-control" value="${task.stop_time.slice(0,16)}" id="stop-${task.task_id}" onfocus="pauseRefresh()" onblur="resumeRefresh()"></td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" onclick="updateTask('${task.task_id}')">Update</button>
+                        </td>
+                        <td><button class="btn btn-info btn-sm" onclick="showLastObservationReport('${task.intent_id}', '${task.metric_type}-${task.condition_id}')">Last report</button></td>
+                    `;
+                    tbodyFile.appendChild(row);
                 });
             } catch (error) {
                 console.error('Error loading active tasks:', error);

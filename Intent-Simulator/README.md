@@ -1,14 +1,16 @@
 # Intent Simulator
 
 A simulator for generating [TM Forum formatted](https://www.tmforum.org/intent) intents for the [5G4DATA use case](http://start5g-1.cs.uit.no:5003). This tool allows you to generate and store network configuration and workload deployment intents in GraphDB.
+![Intent Simulator](./Intent-Simulator.png)
 
 ## Features
 
 - Generate network slice configuration intents with QoS guarantees
 - Generate workload deployment intents for cloud-native applications
-- Configure intent generation parameters through a modern web interface
+- Configure intent generation parameters through a web interface
 - Generate single intents or sequences with configurable timing
-- Store generated intents in GraphDB
+- Stores generated intents in GraphDB
+- View the Intent in turtle format (by clicking the intent link in the "Generated Intents" list)
 
 ## Setup
 

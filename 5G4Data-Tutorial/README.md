@@ -1,5 +1,7 @@
 # 5G4Data use case tutorial
-We have created a tutorial that explains some of the decisions that the tools need to make for the 5G4DATA use-case. A running version of the tutorial can be viewed [here](http://start5g-1.cs.uit.no:5003/):
+We have created a tutorial that explains some of the decisions that the [INTEND project](https://intendproject.eu/) tools need to make for the 5G4DATA use-case. 
+![INTEND project 5G4Data Use-case tutorial](./5G4Data-Tutorial.png)
+A running version of the tutorial can be viewed [here](http://start5g-1.cs.uit.no:5003/):
 
 It is also possible to clone this repository (or copy the content to a local folder on your computer) and do this:
 ```
@@ -53,8 +55,6 @@ Network latency is the total time it takes for data to travel from the user equi
     - Server Processing Speed: Time taken by the server to process the request and send a response. Defined by complexity of application and compute capacity.
 5. Return Path
     - The same components contribute to latency on the return path from the server back to the UE.
-
-**[Add an illustration showing the different components in a map]**
 
 The pseudo code below outlines a step-by-step decision-making process to determine the best course of action to meet an AR application's latency requirements. By measuring current latency, estimating potential reductions, and evaluating the impact of each action, an informed decision on whether to configure a network slice, place the application in a local data center, or both, can be made. Note that for the MVS we will estimate, rather than measure the current latency based on common knowledge, network latency and server characteristic information provided in the 5G4Data synthetic data repository.
 ```python 

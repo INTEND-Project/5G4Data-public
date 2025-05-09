@@ -18,11 +18,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 5003
 # Run with Gunicorn and SSL
-CMD [
-  "gunicorn",
-  "--certfile=/etc/ssl/certs/cert.pem",
-  "--keyfile=/etc/ssl/certs/key.pem"
-  "-w", "4", 
-  "-b", "0.0.0.0:5003",
-  "5G4Data:app"
-]
+# Run with Gunicorn and SSL
+CMD gunicorn \
+    -w 4 \
+    -b 0.0.0.0:5003 \
+    --certfile=/etc/ssl/certs/cert.pem \
+    --keyfile=/etc/ssl/certs/key.pem \
+    5G4Data:app
+

@@ -9,6 +9,8 @@ docker build -t 5g4data-tutorial .
 docker run -p 5000:5000 5g4data-tutorial -d 5g4data-tutorial
 # Or with a bit more security: docker run --cap-drop ALL --security-opt no-new-privileges -p 5003:5000 --name 5g4data-tutorial -d 5g4data-tutorial
 # If port 5000 is in use on your computer, change the first 5000 to an unused port (e.g. 5001:5000)
+# If you add certificates and want to run on https (add paths to cert files in 5G4Data.py)
+docker run -d --name 5g4data-tutorial-gurnicorn -p 5004:5003 -v "$(pwd)/certs/fullchain.pem":/etc/ssl/certs/fullchain.pem:ro -v "$(pwd)/certs/privkey.pem":/etc/ssl/certs/privkey.pem:ro 5g4data-tutorial-gurnicorn
 ```
 
 The tutorial is now running, you can access it in your browser like this (http://localhost:5000). 

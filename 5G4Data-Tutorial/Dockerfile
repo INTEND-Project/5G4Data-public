@@ -1,21 +1,28 @@
 # Use an official Python image as a base
 FROM python:3.12
 
-# Set the working directory inside the container
 WORKDIR /app
 
-# Copy the application files into the container
-COPY decide_and_act.py requirements.txt . 
-
-# Copy templates and static folders explicitly
+# Copy application code
+COPY 5G4Data.py requirements.txt . 
 COPY templates/ templates/
 COPY static/ static/
+
+# Copy SSL certificates into the image
+# (Assumes you have cert.pem and key.pem in a local certs/ directory)
+COPY cert.pem /etc/ssl/certs/cert.pem
+COPY key.pem  /etc/ssl/certs/key.pem
 
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose the port that the app will run on
-EXPOSE 5000
-
-# Set the command to run the application
-CMD ["python", "decide_and_act.py"]
+EXPOSE 5003
+# Run with Gunicorn and SSL
+CMD [
+  "gunicorn",
+  "--certfile=/etc/ssl/certs/cert.pem",
+  "--keyfile=/etc/ssl/certs/key.pem"
+  "-w", "4", 
+  "-b", "0.0.0.0:5003",
+  "5G4Data:app"
+]

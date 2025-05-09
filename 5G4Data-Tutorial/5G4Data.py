@@ -25,7 +25,7 @@ def estimate_latency_reduction_local_dc(latencies):
     """ Return latency reduction from local data center. """
     return latencies["D"]
 
-def decide_and_act(latencies, required_latency):
+def run_5g4Data(latencies, required_latency):
     """
     Assess latency and determine necessary actions.
     Returns the result text and whether to show the 'Next Step' button.
@@ -95,7 +95,7 @@ def intent_specification():
         latencies = {key: request.form[key] for key in latencies}
         latencies_float = {k: float(v) for k, v in latencies.items() if k != "L"}
         required_latency = float(latencies["L"])
-        result, show_next_step = decide_and_act(latencies_float, required_latency)
+        result, show_next_step = run_5g4Data(latencies_float, required_latency)
 
     return render_template("intent-specification.html", result=result, latencies=latencies, show_next_step=show_next_step)
 
@@ -131,4 +131,12 @@ if __name__ == "__main__":
         except ValueError:
             print("⚠️ Invalid port number! Using default port 5000.")
 
-    app.run(host='0.0.0.0', port=port, debug=True)
+    #app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        ssl_context=(
+            "/etc/ssl/certs/cert.pem",
+            "/etc/ssl/certs/key.pem"
+        )
+    )

@@ -1,28 +1,18 @@
-# Use an official Python image as a base
 FROM python:3.12
-
 WORKDIR /app
 
 # Copy application code
-COPY 5G4Data.py requirements.txt . 
+COPY 5G4Data.py requirements.txt .
 COPY templates/ templates/
 COPY static/ static/
 
 # Copy SSL certificates into the image
-# (Assumes you have cert.pem and key.pem in a local certs/ directory)
 COPY cert.pem /etc/ssl/certs/cert.pem
 COPY key.pem  /etc/ssl/certs/key.pem
 
-# Install dependencies
+# Install dependencies (make sure requirements.txt includes gunicorn)
 RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 5003
-# Run with Gunicorn and SSL
-# Run with Gunicorn and SSL
-CMD gunicorn \
-    -w 4 \
-    -b 0.0.0.0:5003 \
-    --certfile=/etc/ssl/certs/cert.pem \
-    --keyfile=/etc/ssl/certs/key.pem \
-    5G4Data:app
 
+CMD [ "gunicorn", "--bind", "0.0.0.0:5003", "app:run_5G4Data()" ]

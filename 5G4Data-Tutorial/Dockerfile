@@ -7,8 +7,8 @@ COPY templates/ templates/
 COPY static/ static/
 
 # Copy SSL certificates into the image
-COPY cert.pem /etc/ssl/certs/cert.pem
-COPY key.pem  /etc/ssl/certs/key.pem
+#COPY cert.pem /etc/ssl/certs/cert.pem
+#COPY key.pem  /etc/ssl/certs/key.pem
 
 # Install dependencies (make sure requirements.txt includes gunicorn)
 RUN pip install --no-cache-dir -r requirements.txt

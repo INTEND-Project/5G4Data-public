@@ -15,4 +15,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 5003
 
-CMD [ "gunicorn", "--bind", "0.0.0.0:5003", "app:run_5G4Data()" ]
+CMD [ "gunicorn", "--bind", "0.0.0.0:5003", "5G4Data:app" ]
+

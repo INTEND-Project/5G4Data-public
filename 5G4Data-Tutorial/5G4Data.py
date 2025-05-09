@@ -135,8 +135,8 @@ if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
         port=port,
-        ssl_context=(
-            "/etc/ssl/certs/cert.pem",
-            "/etc/ssl/certs/key.pem"
-        )
+        # ssl_context=(
+        #     "/etc/ssl/certs/cert.pem",
+        #     "/etc/ssl/certs/key.pem"
+        # )
     )

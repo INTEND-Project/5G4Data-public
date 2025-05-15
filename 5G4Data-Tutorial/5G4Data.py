@@ -119,6 +119,10 @@ def beyond_mvs():
 def simulators():
     return render_template("simulators.html")
 
+@app.route("/dashboards")
+def dashboards():
+    return render_template("dashboards.html")
+
 @app.route("/use-case")
 def use_case():
     return render_template("use-case.html")

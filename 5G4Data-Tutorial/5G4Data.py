@@ -115,6 +115,10 @@ def summary():
 def beyond_mvs():
     return render_template('beyond-mvs.html')
 
+@app.route("/simulators")
+def simulators():
+    return render_template("simulators.html")
+
 @app.route("/use-case")
 def use_case():
     return render_template("use-case.html")
@@ -131,12 +135,12 @@ if __name__ == "__main__":
         except ValueError:
             print("⚠️ Invalid port number! Using default port 5000.")
 
-    #app.run(host='0.0.0.0', port=port, debug=True)
-    app.run(
-        host="0.0.0.0",
-        port=port,
-        ssl_context=(
-             "/etc/ssl/certs/cert.pem",
-             "/etc/ssl/certs/key.pem"
-         )
-    )
+    app.run(host='0.0.0.0', port=port, debug=True)
+    # app.run(
+    #     host="0.0.0.0",
+    #     port=port,
+    #     ssl_context=(
+    #          "/etc/ssl/certs/cert.pem",
+    #          "/etc/ssl/certs/key.pem"
+    #      )
+    # )

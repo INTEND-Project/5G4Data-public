@@ -52,6 +52,7 @@
                 <li><a href="{{ url_for('send_intent_step') }}" {% if request.endpoint == 'send_intent_step' %}class="active"{% endif %}>Intent communication</a></li>
                 <li><a href="{{ url_for('summary') }}" {% if request.endpoint == 'summary' %}class="active"{% endif %}>Summary</a></li>
                 <li><a href="{{ url_for('beyond_mvs') }}" {% if request.endpoint == 'beyond_mvs' %}class="active"{% endif %}>Beyond MVS</a></li>
+                <li><a href="{{ url_for('simulators') }}" {% if request.endpoint == 'simulators' %}class="active"{% endif %}>Simulators</a></li>
             </ul>
         </div>
 

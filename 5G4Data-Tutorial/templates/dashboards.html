@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Dashboards{% endblock %}
+{% block content %}
+    <h1 style="text-align: left;">Dashboards</h1>
+    <p>Since both the intent simulator stores intents and intent reports in a knowledge graph we can use the knowledge graph to create dashboards that can be used to visualize the intents and intent reports. The dashboards are created using Grafana and the knowledge graph is queried using the Sparql data source plugin for Grafana. The dashboards are created to visualize the intents and intent reports in a user friendly way. The code for the dashboards is available <a href="https://github.com/INTEND-Project/5G4Data-public/tree/main/IntentDashboard">here</a>. This figure shows a Grafana dashboards that gives an overview of intents and some aspects about the intents:</p>
+    <img src="{{ url_for('static', filename='images/TMForum-Intent-Dashboard.png') }}" alt="Intent overview dashboard" class="img-fluid">
+    <p>
+    This figure shows a dashboard that was created to visualize detailed observations related to one intents conditions:</p>
+    <img src="{{ url_for('static', filename='images/Intent-and-Condition-Metrics-Timeseries-Dashboard.png') }}" alt="Grafana Observation dashboard" class="img-fluid">
+    
+{% endblock %} 

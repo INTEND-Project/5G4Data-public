@@ -27,8 +27,8 @@ services:
 
   webapp:
     build:
-      context: .
-      dockerfile: ../Workload-Catalog/Dockerfile
+      context: ../Workload-Catalog
+      dockerfile: Dockerfile
     ports:
       - 3004:3000
     depends_on:

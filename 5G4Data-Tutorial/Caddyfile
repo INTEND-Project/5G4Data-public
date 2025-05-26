@@ -1,7 +1,4 @@
 start5g-1.cs.uit.no:443 {
-    tls /etc/ssl/certs/fullchain.pem /etc/ssl/certs/privkey.pem {
-        # Disable automatic certificate management
-        auto_https off
-    }
+    tls /etc/ssl/certs/fullchain.pem /etc/ssl/certs/privkey.pem
     reverse_proxy flask-app:5003
 }

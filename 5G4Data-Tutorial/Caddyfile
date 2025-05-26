@@ -1,4 +1,4 @@
 your.domain.com {
     reverse_proxy flask-app:5004
-    tls /etc/ssl/certs/cert.pem /etc/ssl/certs/key.pem
+    tls /etc/ssl/certs/fullchain.pem /etc/ssl/certs/privkey.pem
 }

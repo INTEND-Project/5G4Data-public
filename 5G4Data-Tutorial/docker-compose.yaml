@@ -13,25 +13,25 @@ services:
       - ./certs:/etc/ssl/certs
     depends_on:
       - flask-app
-  # chartmuseum:
-  #   image: chartmuseum/chartmuseum:latest
-  #   ports:
-  #     - 8080:8080
-  #   volumes:
-  #     - ./charts:/charts
-  #   environment:
-  #     PORT: 8080
-  #     DEBUG: 1
-  #     STORAGE: local
-  #     STORAGE_LOCAL_ROOTDIR: /charts
+  chartmuseum:
+    image: chartmuseum/chartmuseum:latest
+    ports:
+      - 8080:8080
+    volumes:
+      - ./charts:/charts
+    environment:
+      PORT: 8080
+      DEBUG: 1
+      STORAGE: local
+      STORAGE_LOCAL_ROOTDIR: /charts
 
-  # webapp:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - 3000:3000
-  #   depends_on:
-  #     - chartmuseum
-  #   environment:
-  #     CHARTMUSEUM_URL: http://chartmuseum:8080
+  webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 3000:3000
+    depends_on:
+      - chartmuseum
+    environment:
+      CHARTMUSEUM_URL: http://chartmuseum:8080

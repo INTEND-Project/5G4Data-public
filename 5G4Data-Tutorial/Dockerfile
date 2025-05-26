@@ -10,6 +10,6 @@ COPY static/ static/
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 5004
+EXPOSE 5003
 
 CMD ["gunicorn", "--bind", "0.0.0.0:5003", "5G4Data:app"]

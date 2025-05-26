@@ -1,4 +1,4 @@
-your.domain.com {
+cs.uit.no {
     reverse_proxy flask-app:5004
     tls /etc/ssl/certs/fullchain.pem /etc/ssl/certs/privkey.pem
 }

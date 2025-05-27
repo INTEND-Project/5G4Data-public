@@ -1,21 +1,38 @@
 # 5G4Data use case tutorial
 We have created a tutorial that explains some of the decisions that the [INTEND project](https://intendproject.eu/) tools need to make for the 5G4DATA use-case. 
 ![INTEND project 5G4Data Use-case tutorial](./5G4Data-Tutorial.png)
-A running version of the tutorial can be viewed [here](http://start5g-1.cs.uit.no:5003/):
+A running version of the tutorial can be viewed [here](https://start5g-1.cs.uit.no).
 
-It is also possible to clone this repository (or copy the content to a local folder on your computer) and do this:
+## Run with certificates over https
+This is the production setup where we use certificats to serve the tutorial using gunicorn and Caddy as security proxy. Certificates can be generated using certbot:
+```
+# Requires that a proper DNS entry exists for the server
+# and that port 80 is open so that certbot can upload a
+# small server to answer the challenge.
+# ⚠️ NOTE: Change the email and domain name to match your setup.
+
+sudo certbot certonly --standalone --preferred-challenges http --agree-tos --no-eff-email --email arne.munch-ellingsen@telenor.com -d start5g-1.cs.uit.no
+```
+To start the tutorial together with the workload catalog (with its chartmuseum backend), do this:
+```
+docker compose up -d --build
+```
+The tutorial is now running using https://start5g-1.cs.uit.no (or under the changed domain name).
+
+## Run locally
+It is also possible to clone this repository and do this to start it on your local machine:
 ```
 docker build -t 5g4data-tutorial .
-docker run -p 5000:5000 5g4data-tutorial -d 5g4data-tutorial
-# Or with a bit more security: docker run --cap-drop ALL --security-opt no-new-privileges -p 5003:5000 --name 5g4data-tutorial -d 5g4data-tutorial
-# If port 5000 is in use on your computer, change the first 5000 to an unused port (e.g. 5001:5000)
+docker run -p 5003:5003 --name 5g4data-tutorial -d 5g4data-tutorial
+# Or with a bit more security: docker run --cap-drop ALL --security-opt no-new-privileges -p 5003:5003 --name 5g4data-tutorial -d 5g4data-tutorial
+# If port 5003 is in use on your computer, change the first 5003 to an unused port (e.g. 5005:5003)
 # If you add certificates and want to run on https (add paths to cert files in 5G4Data.py)
 docker run -d -p 443:443 --name 5g4data-tutorial-https 5g4data-tutorial-https
 ```
 
-The tutorial is now running, you can access it in your browser like this (http://localhost:5000). 
+The tutorial is now running, you can access it in your browser like this (http://localhost:5003). 
 
-⚠️ Note that you need to change the port number to the port you are using if you changed it from the default port 5000
+⚠️ Note that you need to change the port number to the port you are using if you changed it from the default port 5003
 
 ⚠️ Note that the tutorial will try to display the (Workload Catalog)[https://github.com/INTEND-Project/5G4Data-public/tree/main/Workload-Catalog]. If this service is not running, the view will be empty.
 

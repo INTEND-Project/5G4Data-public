@@ -7,6 +7,7 @@ import (
     "net/http"
 	"os"
     "github.com/gofiber/fiber/v2"
+    "log"
 )
 
 var chartMuseumBaseURL = getChartMuseumBaseURL()
@@ -18,20 +19,23 @@ func getChartMuseumBaseURL() string {
     return "http://localhost:8080" // fallback for local dev
 }
 
-func RegisterChartMuseumRoutes(app *fiber.App) {
-    api := app.Group("/api")
+func RegisterChartMuseumRoutes(router fiber.Router) {
+    api := router.Group("/api")
 
-    // GET /api/charts
+    // GET /webapp/api/charts
     api.Get("/charts", getChartsFromChartMuseum)
 
-    // Future routes:
-	api.Post("/charts", uploadChartToChartMuseum)
+    // POST /webapp/api/charts
+    api.Post("/charts", uploadChartToChartMuseum)
+
+    // Other endpoints
     api.Post("/prov", notImplemented("POST /api/prov"))
-	api.Delete("/charts/:name/:version", deleteChartVersion)
-	api.Get("/charts/:name", getChartVersions)
+    api.Delete("/charts/:name/:version", deleteChartVersion)
+    api.Get("/charts/:name", getChartVersions)
     api.Head("/charts/:name", notImplemented("HEAD /api/charts/:name"))
     api.Head("/charts/:name/:version", notImplemented("HEAD /api/charts/:name/:version"))
 }
+
 
 func uploadChartToChartMuseum(c *fiber.Ctx) error {
     // Get the uploaded file from the form
@@ -41,6 +45,8 @@ func uploadChartToChartMuseum(c *fiber.Ctx) error {
             "error": "Missing or invalid chart file",
         })
     }
+
+    log.Println("File header: " + fileHeader.Filename)
 
     file, err := fileHeader.Open()
     if err != nil {
@@ -66,6 +72,7 @@ func uploadChartToChartMuseum(c *fiber.Ctx) error {
     writer.Close()
 
     // Send POST to ChartMuseum
+    log.Println("POST to:", chartMuseumBaseURL+"/api/charts")
     req, err := http.NewRequest("POST", chartMuseumBaseURL+"/api/charts", &b)
     if err != nil {
         return err
@@ -96,6 +103,8 @@ func notImplemented(endpoint string) fiber.Handler {
 func getChartsFromChartMuseum(c *fiber.Ctx) error {
     // Preserve query parameters
     fullURL := chartMuseumBaseURL + "/api/charts" + "?" + c.Context().QueryArgs().String()
+    log.Println("Request from client:", c.OriginalURL())
+    log.Println("Forwarding to ChartMuseum:", fullURL)
 
     // Make GET request to ChartMuseum
     resp, err := http.Get(fullURL)

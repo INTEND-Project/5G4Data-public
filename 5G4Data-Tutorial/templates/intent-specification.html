@@ -35,6 +35,47 @@
     .button-text:hover {
         background-color: #218838;
     }
+    /* Simple Tooltip styles */
+    .form-group {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        cursor: help;
+    }
+    .form-group .tooltiptext {
+        display: none;
+        position: absolute;
+        left: 0;
+        top: -40px;
+        background: #333;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 14px;
+        z-index: 1000;
+        width: 200px;
+    }
+    .form-group:hover .tooltiptext {
+        display: block;
+    }
+    .form-group .tooltiptext:after {
+        content: '';
+        position: absolute;
+        bottom: -5px;
+        left: 10px;
+        border-width: 5px 5px 0;
+        border-style: solid;
+        border-color: #333 transparent transparent;
+    }
+    .form-container input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
 </style>
 <div class="container">
     <div class="content-wrapper">
@@ -58,47 +99,47 @@
         <h2>Latency estimation model</h2>
 
         <form method="POST">
-            <div class="tooltip">
-                <label for="L" data-number="1">Required Latency (ms):</label>
+            <div class="form-group">
+                <label for="L" data-number="1"><span class="number-circle number-1">1</span>Required Latency (ms):</label>
                 <span class="tooltiptext">The maximum acceptable total latency for your application, including all latency elements.</span>
+                <input type="text" name="L" id="L" value="{{ latencies.L }}" class="required-latency" required>
             </div>
-            <input type="text" name="L" id="L" value="{{ latencies.L }}" class="required-latency" required>
 
-            <div class="tooltip">
-                <label for="g" data-number="2">UE to gNodeB (ms):</label>
+            <div class="form-group">
+                <label for="g" data-number="2"><span class="number-circle number-2">2</span>UE to gNodeB (ms):</label>
                 <span class="tooltiptext">Latency from User Equipment (UE) to the gNodeB (base station). This is usually low since the closest gNodeB is probably close.</span>
+                <input type="text" name="g" id="g" value="{{ latencies.g }}" required>
             </div>
-            <input type="text" name="g" id="g" value="{{ latencies.g }}" required>
 
-            <div class="tooltip">
-                <label for="b" data-number="3">gNodeB to Breakout Point (ms):</label>
+            <div class="form-group">
+                <label for="b" data-number="3"><span class="number-circle number-3">3</span>gNodeB to Breakout Point (ms):</label>
                 <span class="tooltiptext">Latency from the base station (gNodeB) to the breakout point.</span>
+                <input type="text" name="b" id="b" value="{{ latencies.b }}" required>
             </div>
-            <input type="text" name="b" id="b" value="{{ latencies.b }}" required>
 
-            <div class="tooltip">
-                <label for="s" data-number="4">Breakout Point to Server (ms):</label>
+            <div class="form-group">
+                <label for="s" data-number="4"><span class="number-circle number-4">4</span>Breakout Point to Server (ms):</label>
                 <span class="tooltiptext">Latency from the breakout point to the application server.</span>
+                <input type="text" name="s" id="s" value="{{ latencies.s }}" required>
             </div>
-            <input type="text" name="s" id="s" value="{{ latencies.s }}" required>
 
-            <div class="tooltip">
-                <label for="c" data-number="5">Compute Latency (ms):</label>
+            <div class="form-group">
+                <label for="c" data-number="5"><span class="number-circle number-5">5</span>Compute Latency (ms):</label>
                 <span class="tooltiptext">Time taken by the application server to process data and send results back to the client application.</span>
+                <input type="text" name="c" id="c" value="{{ latencies.c }}" required>
             </div>
-            <input type="text" name="c" id="c" value="{{ latencies.c }}" required>
 
-            <div class="tooltip">
-                <label for="S">Latency Reduction (Slicing) (ms):</label>
+            <div class="form-group">
+                <label for="S"><span class="number-circle number-1">S</span>Latency Reduction (Slicing) (ms):</label>
                 <span class="tooltiptext">Expected reduction in latency from using network slicing.</span>
+                <input type="text" name="S" id="S" value="{{ latencies.S }}" required>
             </div>
-            <input type="text" name="S" id="S" value="{{ latencies.S }}" required>
 
-            <div class="tooltip">
-                <label for="D">Latency Reduction (Local DC) (ms):</label>
+            <div class="form-group">
+                <label for="D"><span class="number-circle number-2">D</span>Latency Reduction (Local DC) (ms):</label>
                 <span class="tooltiptext">Expected reduction in latency by using a local data center.</span>
+                <input type="text" name="D" id="D" value="{{ latencies.D }}" required>
             </div>
-            <input type="text" name="D" id="D" value="{{ latencies.D }}" required>
 
             <input type="submit" value="Decide intent(s) needed">
         </form>

@@ -79,7 +79,7 @@ graph TB
    - Internal port: 5003
 
 3. **Workload Catalog WebApp** (webapp)
-   - React/Node.js application for workload management
+   - Go/Fiber application for workload management
    - Communicates with ChartMuseum for Helm charts
    - Internal port: 3000
 

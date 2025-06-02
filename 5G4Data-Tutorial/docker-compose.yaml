@@ -1,11 +1,13 @@
 services:
   flask-app:
     build: .
+    restart: unless-stopped
     networks:
       - app-network
 
   reverse-proxy:
     image: caddy:latest
+    restart: unless-stopped
     ports:
       - "443:443"
     volumes:
@@ -18,6 +20,7 @@ services:
 
   chartmuseum:
     image: chartmuseum/chartmuseum:latest
+    restart: unless-stopped
     volumes:
       - ../Workload-Catalog/charts:/charts
     environment:
@@ -30,6 +33,7 @@ services:
 
   webapp:
     image: 5g4data-tutorial-workload-catalog
+    restart: unless-stopped
     depends_on:
       - chartmuseum
     environment:

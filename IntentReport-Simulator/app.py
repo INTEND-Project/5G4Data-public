@@ -148,7 +148,8 @@ def generate_intent_report():
                     max_value=max_value,
                     turtle_data=turtle_data,
                     value_file=value_file,
-                    original_value_file=original_value_file
+                    original_value_file=original_value_file,
+                    storage_type=observation.get('storage_type', 'graphdb')
                 )
                 print(f"Started observation task {task_id} for condition {observation['condition_id']}")
                 print("=====================================\n")
@@ -238,6 +239,27 @@ def update_task(task_id):
     if success:
         return jsonify({'status': 'success'})
     return jsonify({'error': 'Task not found'}), 404
+
+@app.route('/api/test-prometheus-connection')
+def test_prometheus_connection():
+    """Test connection to Prometheus server."""
+    try:
+        success = observation_generator.prometheus_client.test_connection()
+        if success:
+            return jsonify({"status": "success", "message": "Prometheus connection successful"})
+        else:
+            return jsonify({"status": "error", "message": "Prometheus connection failed"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/local-prometheus-metrics')
+def get_local_prometheus_metrics():
+    """Get locally stored Prometheus metrics."""
+    try:
+        metrics = observation_generator.prometheus_client.get_local_metrics()
+        return jsonify({"status": "success", "metrics": metrics})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/last-observation-report/<intent_id>/<observed_metric>')
 def get_last_observation_report(intent_id, observed_metric):

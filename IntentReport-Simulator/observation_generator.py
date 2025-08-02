@@ -6,6 +6,14 @@ from typing import List, Dict
 import requests
 from dataclasses import dataclass
 import os
+import sys
+
+# Add parent directory to Python path to find shared module
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
+
+from shared.prometheus_client import PrometheusClient
 
 @dataclass
 class TaskParams:
@@ -20,6 +28,7 @@ class TaskParams:
     original_value_file: str = None
     value_file_index: int = 0
     value_file_values: list = None
+    storage_type: str = "graphdb"  # "graphdb" or "prometheus"
 
 class ObservationGenerator:
     def __init__(self, graphdb_url: str, repository: str = "intent-reports"):
@@ -27,6 +36,9 @@ class ObservationGenerator:
         self.repository = repository
         self.running_tasks = {}  # task_id: {'params': TaskParams, 'thread': Thread}
         self.value_file_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploaded_value_files')
+        
+        # Initialize Prometheus client
+        self.prometheus_client = PrometheusClient()
 
     def get_metric_type_from_condition(self, condition_id: str, intent_data: str) -> tuple[str, str]:
         """Determine the metric type and unit from the condition's Turtle data.
@@ -86,7 +98,25 @@ class ObservationGenerator:
         turtle = f"""@prefix met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .\n@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n@prefix data5g: <http://5g4data.eu/5g4data#> .\n\ndata5g:{observation_id} a met:Observation ;\n    met:observedMetric data5g:{metric_prefix}-{condition_id} ;\n    met:observedValue [ rdf:value {metric_value:.1f} ; quan:unit \"{unit}\" ] ;\n    met:obtainedAt \"{timestamp_str}\"^^xsd:dateTime ."""
         return turtle
 
-    def store_observation(self, turtle_data: str) -> bool:
+    def store_observation(self, turtle_data: str, storage_type: str = "graphdb", 
+                        metric_name: str = None, metric_value: float = None, 
+                        timestamp: datetime = None, labels: Dict[str, str] = None) -> bool:
+        """Store an observation report in GraphDB or Prometheus.
+        
+        Args:
+            turtle_data: Turtle format data for GraphDB storage
+            storage_type: "graphdb" or "prometheus"
+            metric_name: Metric name for Prometheus storage
+            metric_value: Metric value for Prometheus storage
+            timestamp: Timestamp for Prometheus storage
+            labels: Labels for Prometheus storage
+        """
+        if storage_type == "prometheus":
+            return self._store_in_prometheus(metric_name, metric_value, timestamp, labels)
+        else:
+            return self._store_in_graphdb(turtle_data)
+    
+    def _store_in_graphdb(self, turtle_data: str) -> bool:
         """Store an observation report in GraphDB."""
         try:
             response = requests.post(
@@ -96,7 +126,16 @@ class ObservationGenerator:
             )
             return response.status_code == 204
         except Exception as e:
-            print(f"Error storing observation: {str(e)}")
+            print(f"Error storing observation in GraphDB: {str(e)}")
+            return False
+    
+    def _store_in_prometheus(self, metric_name: str, metric_value: float, 
+                            timestamp: datetime, labels: Dict[str, str] = None) -> bool:
+        """Store an observation report in Prometheus."""
+        try:
+            return self.prometheus_client.store_observation(metric_name, metric_value, timestamp, labels)
+        except Exception as e:
+            print(f"Error storing observation in Prometheus: {str(e)}")
             return False
 
     def generate_observations(self, task_id: str):
@@ -124,22 +163,46 @@ class ObservationGenerator:
                 else:
                     # If out of values, just use the last value
                     metric_value = params.value_file_values[-1] if params.value_file_values else None
-            report_data = self.generate_observation_turtle(
-                params.condition_id,
-                current_time,
-                params.min_value,
-                params.max_value,
-                params.turtle_data,
-                metric_value=metric_value
-            )
-            print(f"Report data: {report_data}")
-            self.store_observation(report_data)
+            
+            # If no metric_value was set (no value file or empty file), generate a random value
+            if metric_value is None:
+                import random
+                metric_value = random.uniform(params.min_value, params.max_value)
+            if params.storage_type == "prometheus":
+                # Store in Prometheus
+                metric_type, unit = self.get_metric_type_from_condition(params.condition_id, params.turtle_data)
+                metric_name = f"{metric_type.lower()}_{params.condition_id.lower()}"
+                labels = {
+                    "condition_id": params.condition_id,
+                    "intent_id": self.extract_intent_id(params.turtle_data),
+                    "unit": unit
+                }
+                self.store_observation(
+                    turtle_data="",  # Not used for Prometheus
+                    storage_type="prometheus",
+                    metric_name=metric_name,
+                    metric_value=metric_value,
+                    timestamp=current_time,
+                    labels=labels
+                )
+            else:
+                # Store in GraphDB
+                report_data = self.generate_observation_turtle(
+                    params.condition_id,
+                    current_time,
+                    params.min_value,
+                    params.max_value,
+                    params.turtle_data,
+                    metric_value=metric_value
+                )
+                print(f"Report data: {report_data}")
+                self.store_observation(report_data, storage_type="graphdb")
             time.sleep(params.frequency)
             current_time += timedelta(seconds=params.frequency)
         if task_id in self.running_tasks:
             del self.running_tasks[task_id]
 
-    def start_observation_task(self, condition_id: str, frequency: int, start_time: datetime, stop_time: datetime, min_value: float = 10, max_value: float = 100, turtle_data: str = "", value_file: str = None, original_value_file: str = None) -> str:
+    def start_observation_task(self, condition_id: str, frequency: int, start_time: datetime, stop_time: datetime, min_value: float = 10, max_value: float = 100, turtle_data: str = "", value_file: str = None, original_value_file: str = None, storage_type: str = "graphdb") -> str:
         task_id = str(uuid.uuid4())
         params = TaskParams(
             condition_id=condition_id,
@@ -150,7 +213,8 @@ class ObservationGenerator:
             max_value=max_value,
             turtle_data=turtle_data,
             value_file=value_file,
-            original_value_file=original_value_file
+            original_value_file=original_value_file,
+            storage_type=storage_type
         )
         self.running_tasks[task_id] = {
             'params': params,
@@ -285,7 +349,8 @@ class ObservationGenerator:
                 'start_time': params.start_time.isoformat(),
                 'stop_time': params.stop_time.isoformat(),
                 'value_file': params.value_file,
-                'original_value_file': params.original_value_file
+                'original_value_file': params.original_value_file,
+                'storage_type': params.storage_type
             }
             tasks.append(task_data)
         return tasks

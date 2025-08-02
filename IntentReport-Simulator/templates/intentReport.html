@@ -197,6 +197,14 @@
                         <input type="hidden" id="intentId_expectation">
                     </div>
                     
+                    <div class="form-group">
+                        <button type="button" class="btn btn-info" onclick="testPrometheusConnection()">Test Prometheus Connection</button>
+                        <span id="prometheus-status" class="ms-2"></span>
+                        <div class="form-text text-muted">
+                            <small>Note: Prometheus storage stores metrics directly in Prometheus via Pushgateway. If Pushgateway is unavailable, metrics are stored locally.</small>
+                        </div>
+                    </div>
+                    
 <!--                     <div class="form-group">
                         <label for="reportNumber_expectation">Report Number:</label>
                         <input type="number" class="form-control" id="reportNumber_expectation" readonly>
@@ -434,6 +442,7 @@
                     const conditionId = checkbox.dataset.conditionId;
                     console.log('Extracted condition ID:', conditionId);
                     
+                    const storageType = document.getElementById(`${id}-storage-type`)?.value || 'graphdb';
                     const frequency = document.getElementById(`${id}-frequency`)?.value;
                     const startTime = document.getElementById(`${id}-start-time`)?.value;
                     const stopTime = document.getElementById(`${id}-stop-time`)?.value;
@@ -465,6 +474,7 @@
                     if (frequency && startTime && stopTime && ((valueSource === 'range' && minValue && maxValue) || (valueSource === 'file' && valueFileName))) {
                         const obs = {
                             condition_id: conditionId,
+                            storage_type: storageType,
                             frequency: parseInt(frequency),
                             start_time: startTime,
                             stop_time: stopTime
@@ -689,6 +699,13 @@
                     if (id.startsWith('condition-') && this.checked) {
                         additionalFields.innerHTML = `
                             <div class="form-group mt-3">
+                                <label for="${id}-storage-type">Storage Type:</label>
+                                <select class="form-control" id="${id}-storage-type">
+                                    <option value="graphdb">GraphDB</option>
+                                    <option value="prometheus">Prometheus</option>
+                                </select>
+                            </div>
+                            <div class="form-group mt-3">
                                 <label for="${id}-frequency">Frequency (in seconds):</label>
                                 <input type="number" class="form-control" id="${id}-frequency" min="1" value="5">
                             </div>
@@ -757,6 +774,29 @@
             });
             
             container.appendChild(div);
+        }
+        
+        function testPrometheusConnection() {
+            const statusSpan = document.getElementById('prometheus-status');
+            statusSpan.textContent = 'Testing...';
+            statusSpan.className = 'ms-2 text-info';
+            
+            fetch(`${API_BASE_URL}/api/test-prometheus-connection`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        statusSpan.textContent = '✓ Connected';
+                        statusSpan.className = 'ms-2 text-success';
+                    } else {
+                        statusSpan.textContent = '✗ Failed';
+                        statusSpan.className = 'ms-2 text-danger';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error testing Prometheus connection:', error);
+                    statusSpan.textContent = '✗ Error';
+                    statusSpan.className = 'ms-2 text-danger';
+                });
         }
     </script>
 </body>

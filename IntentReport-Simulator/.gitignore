@@ -38,4 +38,5 @@ Thumbs.db
 
 # Project specific
 intents/*.ttl
+prometheus_metrics/
 CREATE.md

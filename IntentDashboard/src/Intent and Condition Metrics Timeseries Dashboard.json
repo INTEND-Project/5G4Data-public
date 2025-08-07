@@ -365,7 +365,7 @@
       "repeatDirection": "h",
       "targets": [
         {
-          "expr": "${metric_name:lowercase:regex:/-/g:_}{job=\"intent_reports\"}",
+          "expr": "${metric_name:lowercase}{job=\"intent_reports\"}",
           "legendFormat": "${metric_name} (Prometheus)",
           "range": true,
           "step": 15

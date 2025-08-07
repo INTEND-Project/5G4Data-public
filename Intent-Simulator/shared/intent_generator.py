@@ -245,9 +245,9 @@ class IntentGenerator:
         intent_id = f"I{uuid.uuid4().hex}"
         de1_id = f"NE{uuid.uuid4().hex}"
         de2_id = f"DE{uuid.uuid4().hex}"
-        c1_id = f"CO{uuid.uuid4().hex}"
-        c2_id = f"CO{uuid.uuid4().hex}"
-        c3_id = f"CO{uuid.uuid4().hex}"
+        c1_id = f"co_{uuid.uuid4().hex}"
+        c2_id = f"co_{uuid.uuid4().hex}"
+        c3_id = f"co_{uuid.uuid4().hex}"
         cx1_id = f"CX{uuid.uuid4().hex}"
         cx2_id = f"CX{uuid.uuid4().hex}"
         region_id = f"RG{uuid.uuid4().hex}"
@@ -373,7 +373,7 @@ class IntentGenerator:
     def _create_latency_condition(self, g, latency, operator="smaller", latency_end=None, condition_id=None):
         bnode = BNode()
         # Create unique metric name by appending condition ID
-        metric_name = f"NetworkLatency-{condition_id}" if condition_id else "5GTelenorLatency"
+        metric_name = f"networklatency_{condition_id}" if condition_id else "5GTelenorLatency"
         g.add((bnode, self.icm.valuesOfTargetProperty, self.data[metric_name]))
         
         # Map the operator to the corresponding quan property
@@ -389,7 +389,7 @@ class IntentGenerator:
         
         if operator == "inRange" and latency_end is not None:
             # For inRange, we need three arguments:
-            # 1. The property to check (data5g:NetworkLatency-{condition_id})
+            # 1. The property to check (data5g:networklatency_co_{condition_id})
             # 2. The lower bound
             # 3. The upper bound
             lower_bnode = BNode()
@@ -428,7 +428,7 @@ class IntentGenerator:
     def _create_bandwidth_condition(self, g, bandwidth, operator="larger", bandwidth_end=None, condition_id=None):
         bnode = BNode()
         # Create unique metric name by appending condition ID
-        metric_name = f"Bandwidth-{condition_id}" if condition_id else "5GTelenorBandwidth"
+        metric_name = f"bandwidth_{condition_id}" if condition_id else "5GTelenorBandwidth"
         g.add((bnode, self.icm.valuesOfTargetProperty, self.data[metric_name]))
         
         # Map the operator to the corresponding quan property
@@ -444,7 +444,7 @@ class IntentGenerator:
         
         if operator == "inRange" and bandwidth_end is not None:
             # For inRange, we need three arguments:
-            # 1. The property to check (data5g:Bandwidth-{condition_id})
+            # 1. The property to check (data5g:bandwidth_co_{condition_id})
             # 2. The lower bound
             # 3. The upper bound
             lower_bnode = BNode()
@@ -483,7 +483,7 @@ class IntentGenerator:
     def _create_compute_latency_condition(self, g, latency, operator="smaller", latency_end=None, condition_id=None):
         bnode = BNode()
         # Create unique metric name by appending condition ID
-        metric_name = f"ComputeLatency-{condition_id}" if condition_id else "ComputeLatency"
+        metric_name = f"computelatency_{condition_id}" if condition_id else "ComputeLatency"
         g.add((bnode, self.icm.valuesOfTargetProperty, self.data[metric_name]))
         
         # Map the operator to the corresponding quan property
@@ -499,7 +499,7 @@ class IntentGenerator:
         
         if operator == "inRange" and latency_end is not None:
             # For inRange, we need three arguments:
-            # 1. The property to check (data5g:ComputeLatency-{condition_id})
+            # 1. The property to check (data5g:computelatency_co_{condition_id})
             # 2. The lower bound
             # 3. The upper bound
             lower_bnode = BNode()

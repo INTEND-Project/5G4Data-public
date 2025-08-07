@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 7,
+  "id": 4,
   "links": [],
   "panels": [
     {
@@ -99,12 +99,12 @@
                 "color": "dark-red"
               },
               {
-                "color": "dark-red",
-                "value": 20
+                "color": "#EAB839",
+                "value": 300
               },
               {
-                "color": "dark-red",
-                "value": 40
+                "color": "#6ED0E0",
+                "value": 310
               }
             ]
           },
@@ -138,18 +138,19 @@
       "targets": [
         {
           "format": "table",
-          "queryText": "PREFIX met:  <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\n\nSELECT ?unit ?value ?timestamp\nWHERE {\n  SERVICE <repository:intents> {\n    BIND(data5g:${intent_id} AS ?intent)\n\n    ?intent log:allOf ?netExpectation .\n    ?netExpectation log:allOf ?condition .\n\n    ?condition a icm:Condition ;\n               set:forAll [\n                 icm:valuesOfTargetProperty ?metricIRI\n               ] .\n  }\n\n  SERVICE <repository:intent-reports> {\n    BIND(IRI(CONCAT(\"http://5g4data.eu/5g4data#\", \"${metric_name}\")) AS ?metric)\n\n    ?observation a met:Observation ;\n                 met:observedMetric ?metric ;\n                 met:observedValue ?blankValue ;\n                 met:obtainedAt ?timestamp .\n\n    ?blankValue rdf:value ?rawValue ;\n                quan:unit ?unit .\n\n    BIND(xsd:decimal(?rawValue) AS ?value)\n  }\n}\nORDER BY ?timestamp\n",
+          "queryText": "PREFIX met:  <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\n\nSELECT ?unit ?value ?timestamp ?storage_type ?prometheus_query ?readable_query\nWHERE {\n  SERVICE <repository:intents> {\n    BIND(data5g:${intent_id} AS ?intent) .\n\n    ?intent log:allOf ?netExpectation .\n    ?netExpectation log:allOf ?condition .\n\n    ?condition a icm:Condition ;\n               set:forAll [\n                 icm:valuesOfTargetProperty ?metricIRI\n               ] .\n    \n    # Extract condition ID from the metric IRI\n    BIND(STRAFTER(STR(?metricIRI), \"5g4data#\") AS ?condition_id) .\n  }\n\n  # Check if Prometheus metadata exists for this condition\n  SERVICE <repository:intent-reports> {\n    OPTIONAL {\n      GRAPH <http://intent-reports-metadata> {\n        data5g:${metric_name} data5g:hasPrometheusQuery ?prometheus_query ;\n                               data5g:hasReadableQuery ?readable_query .\n      }\n    }\n    \n    # Determine storage type based on metadata\n    BIND(IF(BOUND(?prometheus_query), \"prometheus\", \"graphdb\") AS ?storage_type) .\n    \n    # If GraphDB storage, get the observation data\n    OPTIONAL {\n      FILTER(?storage_type = \"graphdb\") .\n      BIND(data5g:${metric_name} AS ?metric) .\n\n      ?observation a met:Observation ;\n                   met:observedMetric ?metric ;\n                   met:observedValue ?blankValue ;\n                   met:obtainedAt ?timestamp .\n\n      ?blankValue rdf:value ?rawValue ;\n                  quan:unit ?unit .\n\n      BIND(xsd:decimal(?rawValue) AS ?value) .\n    }\n    \n    # If Prometheus storage, create placeholder data for Grafana to handle\n    OPTIONAL {\n      FILTER(?storage_type = \"prometheus\") .\n      # Create a dummy observation to indicate Prometheus storage\n      BIND(\"prometheus\" AS ?unit) .\n      BIND(0 AS ?value) .\n      BIND(NOW() AS ?timestamp) .\n    }\n  }\n}\nORDER BY ?timestamp\n",
           "refId": "A"
         },
         {
           "datasource": {
-            "type": "flandersmake-sparql-datasource",
-            "uid": "aekcxv87xdpmof"
+            "type": "sparql",
+            "uid": "graphdb"
           },
           "hide": false,
-          "queryText": "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (COALESCE(?secondValue, ?singleValue) AS ?value1) (?thirdValue AS ?value2)\nWHERE {\n  SERVICE <repository:intents> {\n    BIND(data5g:${intent_id} AS ?intent_id)\n    BIND(data5g:${metric_name} AS ?metric)\n\n    # Traverse Intent → Expectation → Condition\n    ?intent_id log:allOf ?expectation .\n    ?expectation log:allOf ?condition .\n    ?condition set:forAll ?forallBlock .\n    ?forallBlock icm:valuesOfTargetProperty ?metric .\n\n    OPTIONAL {\n      ?forallBlock quan:inRange ?list .\n\n      # Skip the first node (which is NOT a value node)\n      ?list rdf:rest ?list1 .\n      ?list1 rdf:first ?node2 .\n      ?node2 rdf:value ?secondValue .\n\n      OPTIONAL {\n        ?list1 rdf:rest ?list2 .\n        ?list2 rdf:first ?node3 .\n        ?node3 rdf:value ?thirdValue .\n      }\n    }\n\n    OPTIONAL {\n      # If no inRange, fallback to atLeast\n      ?forallBlock quan:atLeast ?singleNodeAtLeast .\n      ?singleNodeAtLeast rdf:value ?singleValue .\n    }\n    OPTIONAL {\n      # or atMost\n      ?forallBlock quan:atMost ?singleNodeAtMost .\n      ?singleNodeAtMost rdf:value ?singleValue .\n    }\n  }\n}\nORDER BY DESC(?value1)\n",
+          "queryText": "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (COALESCE(?value1Computed, ?secondValue, ?singleValue) AS ?value1)\n       (COALESCE(?value2Computed, ?thirdValue, ?singleValue) AS ?value2)\nWHERE {\n  SERVICE <repository:intents> {\n    BIND(data5g:${intent_id} AS ?intent) .\n    BIND(data5g:${metric_name} AS ?metric) .\n\n    ?intent_id log:allOf ?expectation .\n    ?expectation log:allOf ?condition .\n    ?condition set:forAll ?forallBlock .\n    ?forallBlock icm:valuesOfTargetProperty ?metric .\n\n    OPTIONAL {\n      ?forallBlock quan:inRange ?list .\n      ?list rdf:rest ?list1 .\n      ?list1 rdf:first ?node2 .\n      ?node2 rdf:value ?secondValue .\n\n      OPTIONAL {\n        ?list1 rdf:rest ?list2 .\n        ?list2 rdf:first ?node3 .\n        ?node3 rdf:value ?thirdValue .\n      }\n    }\n\n    OPTIONAL {\n      ?forallBlock quan:atLeast ?singleNodeAtLeast .\n      ?singleNodeAtLeast rdf:value ?largerValue .\n      BIND(10000 AS ?value2Computed)\n      BIND(?largerValue AS ?value1Computed)\n    }\n\n    OPTIONAL {\n      ?forallBlock quan:atMost ?singleNodeAtMost .\n      ?singleNodeAtMost rdf:value ?smallerValue .\n      BIND(0 AS ?value1Computed)\n      BIND(?smallerValue AS ?value2Computed)\n    }\n\n    OPTIONAL {\n      ?forallBlock quan:smaller ?singleNodeSmaller .\n      ?singleNodeSmaller rdf:value ?smallerValue .\n      BIND(0 AS ?value1Computed)\n      BIND(?smallerValue AS ?value2Computed)\n    }\n        \n    OPTIONAL {\n      ?forallBlock quan:larger ?singleNodeLarger .\n      ?singleNodeLarger rdf:value ?largerValue .\n      BIND(10000 AS ?value2Computed)\n      BIND(?largerValue AS ?value1Computed)\n    }\n    \n    # Fallback singleValue for COALESCE\n    BIND(COALESCE(?atLeastValue, ?atMostValue, ?smallerValue) AS ?singleValue)\n  }\n}\nORDER BY DESC(?value1)\n",
           "refId": "B"
         }
+
       ],
       "title": "${metric_name}",
       "transformations": [
@@ -185,16 +186,18 @@
                     "color": "dark-green"
                   }
                 },
-                "handlerKey": "threshold1"
+                "handlerKey": "threshold1",
+                "reducerId": "last"
               },
               {
                 "fieldName": "value2",
                 "handlerArguments": {
                   "threshold": {
-                    "color": "dark-red"
+                    "color": "red"
                   }
                 },
-                "handlerKey": "threshold1"
+                "handlerKey": "threshold1",
+                "reducerId": "first"
               }
             ]
           }
@@ -204,8 +207,8 @@
     },
     {
       "datasource": {
-        "type": "flandersmake-sparql-datasource",
-        "uid": "aekcxv87xdpmof"
+        "type": "sparql",
+        "uid": "graphdb"
       },
       "fieldConfig": {
         "defaults": {
@@ -270,6 +273,124 @@
       ],
       "title": "Panel Title",
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Prometheus data for metrics stored in Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": true,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed+area"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red"
+              },
+              {
+                "color": "#EAB839",
+                "value": 300
+              },
+              {
+                "color": "#6ED0E0",
+                "value": 310
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "repeat": "metric_name",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "expr": "${metric_name:lowercase:regex:/-/g:_}{job=\"intent_reports\"}",
+          "legendFormat": "${metric_name} (Prometheus)",
+          "range": true,
+          "step": 15
+        }
+      ],
+      "title": "${metric_name} (Prometheus)",
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "number",
+                "targetField": "value"
+              },
+              {
+                "destinationType": "time",
+                "targetField": "timestamp"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "timeseries"
     }
   ],
   "preload": false,
@@ -280,28 +401,28 @@
     "list": [
       {
         "current": {
-          "text": "Ie510fa48cb914a4eb1c2f221abd63f32",
-          "value": "Ie510fa48cb914a4eb1c2f221abd63f32"
+          "text": "Idc6977a29679442288e663120cbcbf55",
+          "value": "Idc6977a29679442288e663120cbcbf55"
         },
         "label": "Intent ID",
         "name": "intent_id",
         "options": [
           {
             "selected": true,
-            "text": "Ie510fa48cb914a4eb1c2f221abd63f32",
-            "value": "Ie510fa48cb914a4eb1c2f221abd63f32"
+            "text": "Idc6977a29679442288e663120cbcbf55",
+            "value": "Idc6977a29679442288e663120cbcbf55"
           }
         ],
-        "query": "Ie510fa48cb914a4eb1c2f221abd63f32",
+        "query": "Idc6977a29679442288e663120cbcbf55",
         "type": "textbox"
       },
       {
         "current": {
           "text": [
-            "NetworkLatency-CO449863a525914544b90bce24892d4523,Bandwidth-CO9ef64cb502bc477186cdd64f76d39b27"
+            "NetworkLatency-CO203d22ad96f84af08c0b37be64f5e014,Bandwidth-CO7e2078173e9147ba9a3f779baa375b89"
           ],
           "value": [
-            "NetworkLatency-CO449863a525914544b90bce24892d4523,Bandwidth-CO9ef64cb502bc477186cdd64f76d39b27"
+            "NetworkLatency-CO203d22ad96f84af08c0b37be64f5e014,Bandwidth-CO7e2078173e9147ba9a3f779baa375b89"
           ]
         },
         "hide": 2,
@@ -327,13 +448,13 @@
         "options": [
           {
             "selected": false,
-            "text": "NetworkLatency-CO449863a525914544b90bce24892d4523",
-            "value": "NetworkLatency-CO449863a525914544b90bce24892d4523"
+            "text": "NetworkLatency-CO203d22ad96f84af08c0b37be64f5e014",
+            "value": "NetworkLatency-CO203d22ad96f84af08c0b37be64f5e014"
           },
           {
             "selected": false,
-            "text": "Bandwidth-CO9ef64cb502bc477186cdd64f76d39b27",
-            "value": "Bandwidth-CO9ef64cb502bc477186cdd64f76d39b27"
+            "text": "Bandwidth-CO7e2078173e9147ba9a3f779baa375b89",
+            "value": "Bandwidth-CO7e2078173e9147ba9a3f779baa375b89"
           }
         ],
         "query": "$condition_metrics",
@@ -349,5 +470,5 @@
   "timezone": "browser",
   "title": "Intent and Condition Metrics Timeseries Dashboard",
   "uid": "fekk4b61d38qof",
-  "version": 48
+  "version": 6
 }

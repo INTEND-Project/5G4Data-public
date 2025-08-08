@@ -68,7 +68,7 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
         modified_query = query
         if start_time and end_time:
             # Handle different query types
-            if 'prometheus' in query.lower() or 'api/v1/query_range' in query:
+            if 'job' in query.lower() or 'api/v1/query_range' in query:
                 # For Prometheus range queries, use query_range endpoint
                 if 'api/v1/query' in query and 'api/v1/query_range' not in query:
                     # Convert instant query to range query

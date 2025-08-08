@@ -67,10 +67,22 @@ def execute_observation_query(query, start_time=None, end_time=None):
         # Modify query URL to include time range parameters if provided
         modified_query = query
         if start_time and end_time:
-            # Add time range parameters to the URL
-            separator = '&' if '?' in query else '?'
-            modified_query = f"{query}{separator}start={start_time}&end={end_time}"
-            logger.info(f"Modified query with time range: {modified_query}")
+            # Handle different query types
+            if 'prometheus' in query.lower() or 'api/v1/query_range' in query:
+                # For Prometheus range queries, use query_range endpoint
+                if 'api/v1/query' in query and 'api/v1/query_range' not in query:
+                    # Convert instant query to range query
+                    modified_query = query.replace('api/v1/query', 'api/v1/query_range')
+                
+                # Add time range parameters to the URL
+                separator = '&' if '?' in modified_query else '?'
+                modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step=60s"
+                logger.info(f"Modified Prometheus query with time range: {modified_query}")
+            else:
+                # For other REST endpoints, add time range parameters
+                separator = '&' if '?' in query else '?'
+                modified_query = f"{query}{separator}start={start_time}&end={end_time}"
+                logger.info(f"Modified query with time range: {modified_query}")
         else:
             logger.info(f"Executing REST query: {query}")
         
@@ -92,6 +104,9 @@ def execute_observation_query(query, start_time=None, end_time=None):
             if 'application/sparql-results+json' in content_type or 'application/json' in content_type:
                 # JSON response
                 rest_data = response.json()
+                logger.info(f"Received JSON response with {len(str(rest_data))} characters")
+                if 'prometheus' in modified_query.lower():
+                    logger.info(f"Prometheus response structure: {list(rest_data.keys()) if isinstance(rest_data, dict) else 'Not a dict'}")
                 return parse_rest_response(rest_data)
             elif 'text/csv' in content_type or query.endswith('.csv'):
                 # CSV response
@@ -276,9 +291,15 @@ def format_for_grafana_infinity(sparql_results):
                 # Try to parse as timestamp if it looks like one
                 if 'time' in column.lower() or 'date' in column.lower():
                     try:
-                        # Convert to timestamp format that Grafana expects
-                        timestamp = datetime.fromisoformat(value.replace('Z', '+00:00'))
-                        row[column] = timestamp.isoformat()
+                        # Handle Unix timestamps (seconds since epoch)
+                        if value.isdigit() and len(value) >= 10:
+                            # Unix timestamp
+                            timestamp = datetime.fromtimestamp(float(value))
+                            row[column] = timestamp.isoformat()
+                        else:
+                            # ISO format timestamp
+                            timestamp = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                            row[column] = timestamp.isoformat()
                     except:
                         row[column] = value
                 else:
@@ -301,6 +322,15 @@ def get_metric_reports(metric_name):
         logger.info(f"Requesting metric reports for: {metric_name}")
         if start_time and end_time:
             logger.info(f"Time range: {start_time} to {end_time}")
+            # Convert timestamps if they're in ISO format
+            try:
+                if start_time and 'T' in start_time:
+                    start_time = str(int(datetime.fromisoformat(start_time.replace('Z', '+00:00')).timestamp()))
+                if end_time and 'T' in end_time:
+                    end_time = str(int(datetime.fromisoformat(end_time.replace('Z', '+00:00')).timestamp()))
+                logger.info(f"Converted timestamps - start: {start_time}, end: {end_time}")
+            except Exception as e:
+                logger.warning(f"Could not convert timestamps: {e}")
         
         # Get the metric query from GraphDB
         metric_query = get_metric_query(metric_name)

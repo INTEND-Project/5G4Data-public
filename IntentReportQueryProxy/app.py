@@ -68,7 +68,10 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
         modified_query = query
         if start_time and end_time:
             # Handle different query types
-            if 'job' in query.lower() or 'api/v1/query_range' in query:
+            # Check if this is a Prometheus query (contains :9090 or api/v1/query endpoints)
+            is_prometheus_query = (':9090' in query or 'api/v1/query' in query or 'api/v1/query_range' in query)
+            
+            if is_prometheus_query:
                 # For Prometheus range queries, use query_range endpoint
                 if 'api/v1/query' in query and 'api/v1/query_range' not in query:
                     # Convert instant query to range query
@@ -91,7 +94,7 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
                 # For other REST endpoints, add time range parameters
                 separator = '&' if '?' in query else '?'
                 modified_query = f"{query}{separator}start={start_time}&end={end_time}"
-                logger.info(f"Modified query with time range: {modified_query}")
+                logger.info(f"Modified non-Prometheus query with time range: {modified_query}")
         else:
             logger.info(f"Executing REST query: {query}")
         

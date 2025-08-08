@@ -101,15 +101,24 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
                     step_param = step
                 else:
                     # Calculate appropriate step based on time range
-                    time_range = int(end_time) - int(start_time)
-                    if time_range <= 3600:  # 1 hour or less
-                        step_param = '30s'
-                    elif time_range <= 86400:  # 1 day or less
-                        step_param = '60s'
-                    elif time_range <= 604800:  # 1 week or less
-                        step_param = '300s'  # 5 minutes
-                    else:  # More than 1 week
-                        step_param = '3600s'  # 1 hour
+                    try:
+                        # Parse ISO timestamps to calculate time range
+                        start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                        end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                        time_range = int((end_dt - start_dt).total_seconds())
+                        logger.info(f"Calculated time range: {time_range} seconds")
+                        
+                        if time_range <= 3600:  # 1 hour or less
+                            step_param = '30s'
+                        elif time_range <= 86400:  # 1 day or less
+                            step_param = '60s'
+                        elif time_range <= 604800:  # 1 week or less
+                            step_param = '300s'  # 5 minutes
+                        else:  # More than 1 week
+                            step_param = '3600s'  # 1 hour
+                    except Exception as e:
+                        logger.warning(f"Could not calculate time range from ISO timestamps: {e}")
+                        step_param = '60s'  # Default fallback
                 
                 # Ensure step parameter is never empty
                 if not step_param or step_param.strip() == '':
@@ -117,7 +126,7 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
                 
                 # Validate step parameter to avoid exceeding Prometheus limits
                 try:
-                    time_range = int(end_time) - int(start_time)
+                    # Use the already calculated time_range from above
                     step_seconds = int(step_param.replace('s', ''))
                     estimated_points = time_range / step_seconds
                     
@@ -412,12 +421,14 @@ def get_metric_reports(metric_name):
             # Convert timestamps if they're in ISO format
             try:
                 if start_time and 'T' in start_time:
-                    start_time = str(int(datetime.fromisoformat(start_time.replace('Z', '+00:00')).timestamp()))
+                    # Keep ISO format for Prometheus queries
+                    start_time = start_time.replace('Z', 'Z')  # Ensure Z format
                 if end_time and 'T' in end_time:
-                    end_time = str(int(datetime.fromisoformat(end_time.replace('Z', '+00:00')).timestamp()))
-                logger.info(f"Converted timestamps - start: {start_time}, end: {end_time}")
+                    # Keep ISO format for Prometheus queries  
+                    end_time = end_time.replace('Z', 'Z')  # Ensure Z format
+                logger.info(f"Timestamps for Prometheus - start: {start_time}, end: {end_time}")
             except Exception as e:
-                logger.warning(f"Could not convert timestamps: {e}")
+                logger.warning(f"Could not process timestamps: {e}")
         
         # Get the metric query from GraphDB
         metric_query = get_metric_query(metric_name)

@@ -57,7 +57,7 @@ def get_metric_query(metric_name):
         logger.error(f"Error querying GraphDB: {str(e)}")
         return None
 
-def execute_observation_query(query, start_time=None, end_time=None):
+def execute_observation_query(query, start_time=None, end_time=None, step=None):
     """
     Execute the observation query and return the results
     The query is a REST URL that should be executed directly
@@ -76,8 +76,10 @@ def execute_observation_query(query, start_time=None, end_time=None):
                 
                 # Add time range parameters to the URL
                 separator = '&' if '?' in modified_query else '?'
-                modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step=60s"
-                logger.info(f"Modified Prometheus query with time range: {modified_query}")
+                # Use provided step parameter or default to 60s
+                step_param = step if step else '60s'
+                modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step={step_param}"
+                logger.info(f"Modified Prometheus query with time range and step: {modified_query}")
             else:
                 # For other REST endpoints, add time range parameters
                 separator = '&' if '?' in query else '?'
@@ -318,10 +320,13 @@ def get_metric_reports(metric_name):
         # Get time range parameters from request
         start_time = request.args.get('start', None)
         end_time = request.args.get('end', None)
+        step = request.args.get('step', None)  # Get step parameter for Prometheus queries
         
         logger.info(f"Requesting metric reports for: {metric_name}")
         if start_time and end_time:
             logger.info(f"Time range: {start_time} to {end_time}")
+            if step:
+                logger.info(f"Step parameter: {step}")
             # Convert timestamps if they're in ISO format
             try:
                 if start_time and 'T' in start_time:
@@ -343,8 +348,8 @@ def get_metric_reports(metric_name):
         
         logger.info(f"Retrieved query for metric {metric_name}: {metric_query}")
         
-        # Execute the observation query with time range if provided
-        observation_results = execute_observation_query(metric_query, start_time, end_time)
+        # Execute the observation query with time range and step if provided
+        observation_results = execute_observation_query(metric_query, start_time, end_time, step)
         
         if not observation_results:
             return jsonify({
@@ -363,6 +368,7 @@ def get_metric_reports(metric_name):
                 'query': metric_query,
                 'start_time': start_time,
                 'end_time': end_time,
+                'step': step,
                 'timestamp': datetime.now().isoformat()
             }
         }

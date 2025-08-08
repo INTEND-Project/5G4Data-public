@@ -122,8 +122,10 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
                     estimated_points = time_range / step_seconds
                     
                     if estimated_points > 10000:  # Prometheus limit is ~11,000
-                        # Recalculate step to stay under limit
-                        new_step_seconds = max(1, time_range // 10000)
+                        # Recalculate step to stay under limit, but not too large
+                        new_step_seconds = max(60, time_range // 10000)  # Minimum 60s
+                        if new_step_seconds > 3600:  # If still too large, cap at 1 hour
+                            new_step_seconds = 3600
                         step_param = f"{new_step_seconds}s"
                         logger.info(f"Step parameter adjusted to avoid exceeding Prometheus limits: {step_param}")
                 except:
@@ -166,6 +168,7 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
                 logger.info(f"Received JSON response with {len(str(rest_data))} characters")
                 if 'prometheus' in modified_query.lower():
                     logger.info(f"Prometheus response structure: {list(rest_data.keys()) if isinstance(rest_data, dict) else 'Not a dict'}")
+                    logger.info(f"Full Prometheus response: {rest_data}")
                     if 'data' in rest_data and 'result' in rest_data['data']:
                         logger.info(f"Prometheus data result count: {len(rest_data['data']['result'])}")
                         if rest_data['data']['result']:

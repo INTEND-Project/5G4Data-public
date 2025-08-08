@@ -78,7 +78,14 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
                 separator = '&' if '?' in modified_query else '?'
                 # Use provided step parameter or default to 60s
                 step_param = step if step else '60s'
-                modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step={step_param}"
+                logger.info(f"Step parameter debug - provided: '{step}', using: '{step_param}'")
+                
+                # Ensure step parameter is not empty
+                if step_param and step_param.strip():
+                    modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step={step_param}"
+                else:
+                    modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step=60s"
+                
                 logger.info(f"Modified Prometheus query with time range and step: {modified_query}")
             else:
                 # For other REST endpoints, add time range parameters
@@ -322,11 +329,14 @@ def get_metric_reports(metric_name):
         end_time = request.args.get('end', None)
         step = request.args.get('step', None)  # Get step parameter for Prometheus queries
         
+        # Clean up step parameter - handle empty string case
+        if step == '':
+            step = None
+        
         logger.info(f"Requesting metric reports for: {metric_name}")
         if start_time and end_time:
             logger.info(f"Time range: {start_time} to {end_time}")
-            if step:
-                logger.info(f"Step parameter: {step}")
+            logger.info(f"Step parameter: {step}")
             # Convert timestamps if they're in ISO format
             try:
                 if start_time and 'T' in start_time:

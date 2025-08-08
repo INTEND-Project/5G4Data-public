@@ -429,6 +429,42 @@ def test_step_parameter_functionality(base_url):
         results['step_without_time_range'] = False
         print(f"       Step without time range error: {e}")
     
+    # Test 6: Empty step parameter (should use default)
+    print("\n     Test 6: Empty step parameter")
+    try:
+        current_time = int(time.time())
+        one_hour_ago = current_time - 3600
+        url = f'{base_url}/api/get-metric-reports/{bandwidth_metric}?start={one_hour_ago}&end={current_time}&step='
+        response = requests.get(url)
+        results['empty_step_parameter'] = response.status_code == 200
+        print(f"       Empty step parameter status: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            meta = data.get('meta', {})
+            step_value = meta.get('step', None)
+            print(f"       Step value with empty step: {step_value}")
+    except Exception as e:
+        results['empty_step_parameter'] = False
+        print(f"       Empty step parameter error: {e}")
+    
+    # Test 7: Missing step parameter (should use default)
+    print("\n     Test 7: Missing step parameter")
+    try:
+        current_time = int(time.time())
+        one_hour_ago = current_time - 3600
+        url = f'{base_url}/api/get-metric-reports/{bandwidth_metric}?start={one_hour_ago}&end={current_time}'
+        response = requests.get(url)
+        results['missing_step_parameter'] = response.status_code == 200
+        print(f"       Missing step parameter status: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            meta = data.get('meta', {})
+            step_value = meta.get('step', None)
+            print(f"       Step value with missing step: {step_value}")
+    except Exception as e:
+        results['missing_step_parameter'] = False
+        print(f"       Missing step parameter error: {e}")
+    
     return results
 
 def main():

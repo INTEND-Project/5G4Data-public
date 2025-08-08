@@ -166,6 +166,13 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
                 logger.info(f"Received JSON response with {len(str(rest_data))} characters")
                 if 'prometheus' in modified_query.lower():
                     logger.info(f"Prometheus response structure: {list(rest_data.keys()) if isinstance(rest_data, dict) else 'Not a dict'}")
+                    if 'data' in rest_data and 'result' in rest_data['data']:
+                        logger.info(f"Prometheus data result count: {len(rest_data['data']['result'])}")
+                        if rest_data['data']['result']:
+                            first_result = rest_data['data']['result'][0]
+                            logger.info(f"First result keys: {list(first_result.keys())}")
+                            if 'values' in first_result:
+                                logger.info(f"Values count: {len(first_result['values'])}")
                 return parse_rest_response(rest_data)
             elif 'text/csv' in content_type or query.endswith('.csv'):
                 # CSV response
@@ -206,9 +213,12 @@ def parse_rest_response(rest_data):
             if 'data' in rest_data and 'result' in rest_data['data']:
                 # Prometheus-like format
                 results = rest_data['data']['result']
-                for result in results:
+                logger.info(f"Parsing Prometheus response with {len(results)} results")
+                for i, result in enumerate(results):
+                    logger.info(f"Processing result {i+1}: {list(result.keys())}")
                     if 'values' in result:
                         # Matrix format
+                        logger.info(f"Processing matrix format with {len(result['values'])} values")
                         for value_pair in result['values']:
                             timestamp, value = value_pair
                             binding = {
@@ -217,8 +227,10 @@ def parse_rest_response(rest_data):
                                 'metric': {'value': result.get('metric', {}).get('__name__', 'unknown')}
                             }
                             sparql_format['results']['bindings'].append(binding)
+                        logger.info(f"Added {len(result['values'])} bindings from matrix")
                     elif 'value' in result:
                         # Vector format
+                        logger.info("Processing vector format")
                         timestamp, value = result['value']
                         binding = {
                             'timestamp': {'value': str(timestamp)},
@@ -226,6 +238,7 @@ def parse_rest_response(rest_data):
                             'metric': {'value': result.get('metric', {}).get('__name__', 'unknown')}
                         }
                         sparql_format['results']['bindings'].append(binding)
+                logger.info(f"Total bindings created: {len(sparql_format['results']['bindings'])}")
             elif 'results' in rest_data and 'bindings' in rest_data['results']:
                 # SPARQL JSON results format (GraphDB)
                 return rest_data  # Already in the correct format
@@ -331,18 +344,23 @@ def format_for_grafana_infinity(sparql_results):
     Format SPARQL results for Grafana Infinity data source
     Returns data in a format that Infinity can parse for timeseries graphs
     """
+    logger.info(f"Formatting for Grafana Infinity - input: {sparql_results is not None}")
     if not sparql_results or 'results' not in sparql_results:
+        logger.warning("No sparql_results or missing 'results' key")
         return []
     
     # Extract column names from the SPARQL results
     columns = []
     if sparql_results['results']['bindings']:
         columns = list(sparql_results['results']['bindings'][0].keys())
+        logger.info(f"Found columns: {columns}")
+    
+    logger.info(f"Processing {len(sparql_results['results']['bindings'])} bindings")
     
     # Format data for Infinity
     formatted_data = []
     
-    for binding in sparql_results['results']['bindings']:
+    for i, binding in enumerate(sparql_results['results']['bindings']):
         row = {}
         for column in columns:
             if column in binding:
@@ -365,6 +383,7 @@ def format_for_grafana_infinity(sparql_results):
                     row[column] = value
         formatted_data.append(row)
     
+    logger.info(f"Formatted {len(formatted_data)} data points for Grafana")
     return formatted_data
 
 @app.route('/api/get-metric-reports/<metric_name>', methods=['GET'])

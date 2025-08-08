@@ -3,21 +3,16 @@ version: '3.8'
 services:
   intent-report-proxy:
     build: .
-    ports:
-      - "3010:3010"
+    network_mode: host
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=3010
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:3010/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-    networks:
-      - intent-proxy-network
-
-networks:
-  intent-proxy-network:
-    driver: bridge 
+      start_period: 40s 

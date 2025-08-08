@@ -126,7 +126,13 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
                 
                 # Validate step parameter to avoid exceeding Prometheus limits
                 try:
-                    # Use the already calculated time_range from above
+                    # Calculate time range if not already calculated
+                    if 'time_range' not in locals():
+                        start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                        end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                        time_range = int((end_dt - start_dt).total_seconds())
+                        logger.info(f"Calculated time range for validation: {time_range} seconds")
+                    
                     step_seconds = int(step_param.replace('s', ''))
                     estimated_points = time_range / step_seconds
                     
@@ -418,14 +424,25 @@ def get_metric_reports(metric_name):
         if start_time and end_time:
             logger.info(f"Time range: {start_time} to {end_time}")
             logger.info(f"Step parameter: {step}")
-            # Convert timestamps if they're in ISO format
+            # Convert timestamps to ISO format for Prometheus queries
             try:
-                if start_time and 'T' in start_time:
-                    # Keep ISO format for Prometheus queries
-                    start_time = start_time.replace('Z', 'Z')  # Ensure Z format
-                if end_time and 'T' in end_time:
-                    # Keep ISO format for Prometheus queries  
-                    end_time = end_time.replace('Z', 'Z')  # Ensure Z format
+                # Check if timestamps are in Unix format (numeric) or ISO format
+                if start_time and start_time.isdigit():
+                    # Convert Unix timestamp to ISO format
+                    start_dt = datetime.fromtimestamp(int(start_time) / 1000)  # Convert milliseconds to seconds
+                    start_time = start_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+                elif start_time and 'T' in start_time:
+                    # Already in ISO format, ensure Z format
+                    start_time = start_time.replace('Z', 'Z')
+                
+                if end_time and end_time.isdigit():
+                    # Convert Unix timestamp to ISO format
+                    end_dt = datetime.fromtimestamp(int(end_time) / 1000)  # Convert milliseconds to seconds
+                    end_time = end_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+                elif end_time and 'T' in end_time:
+                    # Already in ISO format, ensure Z format
+                    end_time = end_time.replace('Z', 'Z')
+                
                 logger.info(f"Timestamps for Prometheus - start: {start_time}, end: {end_time}")
             except Exception as e:
                 logger.warning(f"Could not process timestamps: {e}")

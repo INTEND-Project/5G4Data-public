@@ -63,8 +63,8 @@ class IntentGenerator:
         # Generate unique IDs (Will the first 8 characters of the UUID be enough?)
         intent_id = f"I{uuid.uuid4().hex}"
         de_id = f"NE{uuid.uuid4().hex}"
-        c1_id = f"CO{uuid.uuid4().hex}"
-        c2_id = f"CO{uuid.uuid4().hex}"
+        c1_id = f"co_{uuid.uuid4().hex}"
+        c2_id = f"co_{uuid.uuid4().hex}"
         cx_id = f"CX{uuid.uuid4().hex}"
         region_id = f"RG{uuid.uuid4().hex}"
         re_id = f"RE{uuid.uuid4().hex}"
@@ -163,7 +163,7 @@ class IntentGenerator:
         # Generate unique IDs
         intent_id = f"I{uuid.uuid4().hex}"
         de_id = f"DE{uuid.uuid4().hex}"
-        c1_id = f"CO{uuid.uuid4().hex}"
+        c1_id = f"co_{uuid.uuid4().hex}"
         cx_id = f"CX{uuid.uuid4().hex}"
         re_id = f"RE{uuid.uuid4().hex}"
 

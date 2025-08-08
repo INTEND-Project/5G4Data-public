@@ -159,6 +159,134 @@ class IntentReportClient:
             print(f"Error storing intent report: {str(e)}")
             return False
 
+    def store_prometheus_metadata(self, metric_name: str, prometheus_url: str = "http://start5g-1.cs.uit.no:9090"):
+        """Store Prometheus query metadata for a metric in the metadata graph."""
+        try:
+            # Create the readable Prometheus query (unescaped)
+            readable_query = f'{metric_name}{{job="intent_reports"}}'
+            
+            # Create the URL-encoded version for actual use
+            import urllib.parse
+            encoded_query = urllib.parse.quote(readable_query)
+            prometheus_query_url = f"{prometheus_url}/api/v1/query?query={encoded_query}"
+            
+            # Escape quotes in the readable query for SPARQL
+            escaped_readable_query = readable_query.replace('"', '\\"')
+            
+            # Create the SPARQL INSERT query with both readable and encoded versions
+            insert_query = f"""
+            PREFIX data5g: <http://5g4data.eu/5g4data#>
+            
+            INSERT DATA {{
+              GRAPH <http://intent-reports-metadata> {{
+                data5g:{metric_name}
+                  data5g:hasQuery <{prometheus_query_url}> ;
+                  data5g:hasReadableQuery "{escaped_readable_query}" .
+              }}
+            }}
+            """
+            
+            headers = {
+                "Content-Type": "application/sparql-update"
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/repositories/{self.repository}/statements",
+                data=insert_query.encode("utf-8"),
+                headers=headers
+            )
+            response.raise_for_status()
+            
+            print(f"Successfully stored Prometheus metadata for metric {metric_name}")
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Error storing Prometheus metadata: {str(e)}")
+            return False
+
+    def store_graphdb_metadata(self, metric_name: str, graphdb_url: str = "http://start5g-1.cs.uit.no:7200"):
+        """Store GraphDB query metadata for a metric in the metadata graph."""
+        try:
+            # Create the SPARQL query pattern with the metric name substituted
+            sparql_query = f"""
+PREFIX met:  <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX data5g: <http://5g4data.eu/5g4data#>
+PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+PREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/>
+PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
+PREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>
+
+SELECT ?unit ?value ?timestamp
+WHERE {{
+  SERVICE <repository:intent-reports> {{
+    BIND(IRI(CONCAT("http://5g4data.eu/5g4data#", "{metric_name}")) AS ?metric)
+
+    ?observation a met:Observation ;
+            met:observedMetric ?metric ;
+            met:observedValue ?blankValue ;
+            met:obtainedAt ?timestamp .
+
+    ?blankValue rdf:value ?rawValue ;
+            quan:unit ?unit .
+
+    BIND(xsd:decimal(?rawValue) AS ?value)
+  }}
+}}
+ORDER BY ?timestamp
+"""
+            
+            # URL encode the SPARQL query
+            import urllib.parse
+            encoded_query = urllib.parse.quote(sparql_query)
+            graphdb_query_url = f"{graphdb_url}/repositories/intent-reports?query={encoded_query}"
+            
+            # Escape quotes in the readable query for SPARQL
+            escaped_readable_query = sparql_query.replace('"', '\\"')
+            
+            # Create the SPARQL INSERT query with both readable and encoded versions
+            # Use the metric name as a proper URI
+            metric_uri = f"data5g:{metric_name}"
+            print(f"Debug: graphdb_query_url: {graphdb_query_url}")
+            insert_query = f"""
+            PREFIX data5g: <http://5g4data.eu/5g4data#>
+            
+            INSERT DATA {{
+              GRAPH <http://intent-reports-metadata> {{
+                <http://5g4data.eu/5g4data#{metric_name}>
+                  data5g:hasQuery <{graphdb_query_url}> .
+              }}
+            }}
+            """
+            
+            headers = {
+                "Content-Type": "application/sparql-update"
+            }
+            
+            print(f"Debug: Sending GraphDB metadata insert query:")
+            print(f"Query: {insert_query}")
+            
+            response = requests.post(
+                f"{self.base_url}/repositories/{self.repository}/statements",
+                data=insert_query.encode("utf-8"),
+                headers=headers
+            )
+            
+            if response.status_code != 204:
+                print(f"Debug: GraphDB response status: {response.status_code}")
+                print(f"Debug: GraphDB response text: {response.text}")
+            
+            response.raise_for_status()
+            
+            print(f"Successfully stored GraphDB metadata for metric {metric_name}")
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Error storing GraphDB metadata: {str(e)}")
+            return False
+
     def get_last_intent_report(self, intent_id: str) -> Optional[str]:
         """Get the last intent report for a specific intent.
         
@@ -419,3 +547,46 @@ class IntentReportClient:
         except Exception as e:
             print(f"Error getting intent report by number: {str(e)}")
             raise 
+
+    def get_storage_metadata(self, condition_id: str) -> Optional[dict]:
+        """Retrieve Prometheus query metadata for a condition from the metadata graph."""
+        try:
+            query = f"""
+            PREFIX data5g: <http://5g4data.eu/5g4data#>
+            
+            SELECT ?query_url ?readable_query
+            WHERE {{
+              GRAPH <http://intent-reports-metadata> {{
+                data5g:{condition_id}
+                  data5g:hasQuery ?query_url ;
+                  data5g:hasReadableQuery ?readable_query .
+              }}
+            }}
+            """
+            
+            headers = {
+                "Accept": "application/sparql-results+json",
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/repositories/{self.repository}",
+                data={"query": query},
+                headers=headers
+            )
+            response.raise_for_status()
+            
+            results = response.json()
+            bindings = results.get('results', {}).get('bindings', [])
+            
+            if bindings:
+                return {
+                    'query_url': bindings[0]['query_url']['value'],
+                    'readable_query': bindings[0]['readable_query']['value']
+                }
+            else:
+                return None
+                
+        except requests.exceptions.RequestException as e:
+            print(f"Error retrieving Prometheus metadata: {str(e)}")
+            return None 

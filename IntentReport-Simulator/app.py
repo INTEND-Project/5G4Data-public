@@ -318,6 +318,52 @@ def upload_value_file():
     file.save(filepath)
     return jsonify({'filename': filename, 'original_filename': original_filename})
 
+@app.route('/api/prometheus-metadata/<condition_id>')
+def get_prometheus_metadata(condition_id):
+    """Get Prometheus query metadata for a condition."""
+    try:
+        metadata = reports_client.get_prometheus_metadata(condition_id)
+        if metadata:
+            return jsonify({
+                "status": "success",
+                "condition_id": condition_id,
+                "prometheus_query_url": metadata['query_url'],
+                "readable_query": metadata['readable_query']
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "message": f"No Prometheus metadata found for condition {condition_id}"
+            }), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/storage-metadata/<condition_id>')
+def get_storage_metadata(condition_id):
+    """Get storage metadata for a condition (GraphDB vs Prometheus)."""
+    try:
+        # First check if Prometheus metadata exists
+        prometheus_metadata = reports_client.get_prometheus_metadata(condition_id)
+        
+        if prometheus_metadata:
+            # Data is stored in Prometheus
+            return jsonify({
+                "status": "success",
+                "condition_id": condition_id,
+                "storage_type": "prometheus",
+                "prometheus_query_url": prometheus_metadata['query_url'],
+                "readable_query": prometheus_metadata['readable_query']
+            })
+        else:
+            # Data is stored in GraphDB (default)
+            return jsonify({
+                "status": "success", 
+                "condition_id": condition_id,
+                "storage_type": "graphdb"
+            })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 def generate_turtle(report_data):
     """Generate Turtle format for an intent report"""
     report_id = str(uuid.uuid4())

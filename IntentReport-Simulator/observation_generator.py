@@ -37,6 +37,10 @@ class ObservationGenerator:
         self.running_tasks = {}  # task_id: {'params': TaskParams, 'thread': Thread}
         self.value_file_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploaded_value_files')
         
+        # Initialize GraphDB client for metadata storage
+        from shared.graphdb_client import IntentReportClient
+        self.graphdb_client = IntentReportClient(graphdb_url, repository)
+        
         # Initialize Prometheus client
         self.prometheus_client = PrometheusClient()
 
@@ -76,13 +80,13 @@ class ObservationGenerator:
             return "Unknown", "NA"  # Default if property not found
         
         # Extract the metric type from the target property
-        # Example: data5g:NetworkLatency-CO304d2f9509b349108f300a805bb3887f
-        metric_match = target_property_line.split('data5g:')[1].split('-')[0]
+        # Example: data5g:networklatency_co_304d2f9509b349108f300a805bb3887f
+        metric_match = target_property_line.split('data5g:')[1].split('_co_')[0]
         
         # Determine the unit based on the metric type
-        if "Latency" in metric_match:
+        if "latency" in metric_match.lower():
             return metric_match, "ms"
-        elif "Bandwidth" in metric_match:
+        elif "bandwidth" in metric_match.lower():
             return metric_match, "Mbps"
         else:
             return "Unknown", "NA"  # Default if type not recognized
@@ -95,7 +99,7 @@ class ObservationGenerator:
         if metric_value is None:
             metric_value = random.uniform(min_value, max_value)
         metric_prefix, unit = self.get_metric_type_from_condition(condition_id, turtle_data)
-        turtle = f"""@prefix met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .\n@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n@prefix data5g: <http://5g4data.eu/5g4data#> .\n\ndata5g:{observation_id} a met:Observation ;\n    met:observedMetric data5g:{metric_prefix}-{condition_id} ;\n    met:observedValue [ rdf:value {metric_value:.1f} ; quan:unit \"{unit}\" ] ;\n    met:obtainedAt \"{timestamp_str}\"^^xsd:dateTime ."""
+        turtle = f"""@prefix met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .\n@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n@prefix data5g: <http://5g4data.eu/5g4data#> .\n\ndata5g:{observation_id} a met:Observation ;\n    met:observedMetric data5g:{metric_prefix}_{condition_id} ;\n    met:observedValue [ rdf:value {metric_value:.1f} ; quan:unit \"{unit}\" ] ;\n    met:obtainedAt \"{timestamp_str}\"^^xsd:dateTime ."""
         return turtle
 
     def store_observation(self, turtle_data: str, storage_type: str = "graphdb", 
@@ -185,6 +189,17 @@ class ObservationGenerator:
                     timestamp=current_time,
                     labels=labels
                 )
+                
+                # Store metadata in GraphDB for this condition (only once per condition)
+                if not hasattr(self, '_metadata_stored') or params.condition_id not in getattr(self, '_metadata_stored', set()):
+                    intent_id = self.extract_intent_id(params.turtle_data)
+                    self.graphdb_client.store_prometheus_metadata(
+                        metric_name=metric_name
+                    )
+                    # Track that we've stored metadata for this condition
+                    if not hasattr(self, '_metadata_stored'):
+                        self._metadata_stored = set()
+                    self._metadata_stored.add(params.condition_id)
             else:
                 # Store in GraphDB
                 report_data = self.generate_observation_turtle(
@@ -197,6 +212,16 @@ class ObservationGenerator:
                 )
                 print(f"Report data: {report_data}")
                 self.store_observation(report_data, storage_type="graphdb")
+                
+                # Store metadata in GraphDB for this condition (only once per condition)
+                if not hasattr(self, '_graphdb_metadata_stored') or params.condition_id not in getattr(self, '_graphdb_metadata_stored', set()):
+                    metric_type, unit = self.get_metric_type_from_condition(params.condition_id, params.turtle_data)
+                    metric_name = f"{metric_type.lower()}_{params.condition_id.lower()}"
+                    self.graphdb_client.store_graphdb_metadata(metric_name=metric_name)
+                    # Track that we've stored metadata for this condition
+                    if not hasattr(self, '_graphdb_metadata_stored'):
+                        self._graphdb_metadata_stored = set()
+                    self._graphdb_metadata_stored.add(params.condition_id)
             time.sleep(params.frequency)
             current_time += timedelta(seconds=params.frequency)
         if task_id in self.running_tasks:
@@ -266,7 +291,7 @@ class ObservationGenerator:
                 # Look for the inRange clause that belongs to this condition
                 for next_line in lines[i+1:]:
                     next_line = next_line.strip()
-                    if "quan:inRange" in next_line and f"data5g:{metric_type}-{condition_id}" in next_line:
+                    if "quan:inRange" in next_line and f"data5g:{metric_type}_co_{condition_id}" in next_line:
                         range_type = "inRange"
                         # Look for values in subsequent lines
                         values = []
@@ -284,7 +309,7 @@ class ObservationGenerator:
                             min_value = values[0]
                             max_value = values[1]
                         break
-                    elif "quan:atLeast" in next_line and f"data5g:{metric_type}-{condition_id}" in next_line:
+                    elif "quan:atLeast" in next_line and f"data5g:{metric_type}_co_{condition_id}" in next_line:
                         range_type = "atLeast"
                         # Look for value in subsequent lines
                         for value_line in lines[i+2:]:
@@ -292,7 +317,7 @@ class ObservationGenerator:
                             if "rdf:value" in value_line:
                                 min_value = value_line.split("rdf:value")[1].strip().rstrip("]").strip()
                                 break
-                    elif "quan:atMost" in next_line and f"data5g:{metric_type}-{condition_id}" in next_line:
+                    elif "quan:atMost" in next_line and f"data5g:{metric_type}_co_{condition_id}" in next_line:
                         range_type = "atMost"
                         # Look for value in subsequent lines
                         for value_line in lines[i+2:]:
@@ -306,7 +331,7 @@ class ObservationGenerator:
                         break
         
         # Construct the description
-        description = f"{metric_type}-{condition_id} "
+        description = f"{metric_type}_co_{condition_id} "
         
         if range_type == "inRange" and min_value and max_value:
             description += f"quan:inRange: {min_value} to {max_value}{unit}"

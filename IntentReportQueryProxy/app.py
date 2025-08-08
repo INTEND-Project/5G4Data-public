@@ -31,6 +31,9 @@ def get_metric_query(metric_name):
     }
     """ % metric_name
     
+    logger.info(f"Getting metric query for: {metric_name}")
+    logger.info(f"GraphDB URL: {GRAPHDB_URL}/repositories/{REPOSITORY}")
+    
     try:
         # Make request to GraphDB
         response = requests.post(
@@ -42,15 +45,22 @@ def get_metric_query(metric_name):
             data=sparql_query
         )
         
+        logger.info(f"GraphDB response status: {response.status_code}")
+        
         if response.status_code == 200:
             result = response.json()
+            logger.info(f"GraphDB response: {result}")
             if result.get('results', {}).get('bindings'):
-                return result['results']['bindings'][0]['object']['value']
+                query_value = result['results']['bindings'][0]['object']['value']
+                logger.info(f"Retrieved query value: {query_value}")
+                return query_value
             else:
                 logger.warning(f"No query found for metric: {metric_name}")
+                logger.warning(f"GraphDB response bindings: {result.get('results', {}).get('bindings')}")
                 return None
         else:
             logger.error(f"GraphDB request failed with status {response.status_code}")
+            logger.error(f"GraphDB response text: {response.text}")
             return None
             
     except Exception as e:
@@ -64,12 +74,19 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
     Supports time range filtering for Grafana integration
     """
     try:
+        logger.info(f"execute_observation_query called with query: {query}")
+        logger.info(f"execute_observation_query called with step: {step}")
         # Modify query URL to include time range parameters if provided
         modified_query = query
         if start_time and end_time:
             # Handle different query types
             # Check if this is a Prometheus query (contains :9090 or api/v1/query endpoints)
             is_prometheus_query = (':9090' in query or 'api/v1/query' in query or 'api/v1/query_range' in query)
+            logger.info(f"Query detection debug - query: {query}")
+            logger.info(f"Query detection debug - contains :9090: {':9090' in query}")
+            logger.info(f"Query detection debug - contains api/v1/query: {'api/v1/query' in query}")
+            logger.info(f"Query detection debug - contains api/v1/query_range: {'api/v1/query_range' in query}")
+            logger.info(f"Query detection debug - is_prometheus_query: {is_prometheus_query}")
             
             if is_prometheus_query:
                 # For Prometheus range queries, use query_range endpoint
@@ -81,13 +98,14 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
                 separator = '&' if '?' in modified_query else '?'
                 # Use provided step parameter or default to 60s
                 step_param = step if step else '60s'
+                # Ensure step parameter is never empty
+                if not step_param or step_param.strip() == '':
+                    step_param = '60s'
                 logger.info(f"Step parameter debug - provided: '{step}', using: '{step_param}'")
                 
-                # Ensure step parameter is not empty
-                if step_param and step_param.strip():
-                    modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step={step_param}"
-                else:
-                    modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step=60s"
+                # Always add step parameter for Prometheus range queries
+                modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step={step_param}"
+                logger.info(f"Step parameter debug - final step: {step_param}")
                 
                 logger.info(f"Modified Prometheus query with time range and step: {modified_query}")
             else:
@@ -354,14 +372,20 @@ def get_metric_reports(metric_name):
         metric_query = get_metric_query(metric_name)
         
         if not metric_query:
+            logger.error(f"No query found for metric: {metric_name}")
             return jsonify({
                 'error': f'No query found for metric: {metric_name}',
                 'data': []
             }), 404
         
         logger.info(f"Retrieved query for metric {metric_name}: {metric_query}")
+        logger.info(f"Query type check - contains :9090: {':9090' in metric_query}")
+        logger.info(f"Query type check - contains :7200: {':7200' in metric_query}")
+        logger.info(f"Query type check - contains api/v1/query: {'api/v1/query' in metric_query}")
+        logger.info(f"Query type check - contains repositories: {'repositories' in metric_query}")
         
         # Execute the observation query with time range and step if provided
+        logger.info(f"About to execute query: {metric_query}")
         observation_results = execute_observation_query(metric_query, start_time, end_time, step)
         
         if not observation_results:

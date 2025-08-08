@@ -96,12 +96,41 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
                 
                 # Add time range parameters to the URL
                 separator = '&' if '?' in modified_query else '?'
-                # Use provided step parameter or default to 60s
-                step_param = step if step else '60s'
+                # Use provided step parameter or calculate appropriate step based on time range
+                if step and step.strip():
+                    step_param = step
+                else:
+                    # Calculate appropriate step based on time range
+                    time_range = int(end_time) - int(start_time)
+                    if time_range <= 3600:  # 1 hour or less
+                        step_param = '30s'
+                    elif time_range <= 86400:  # 1 day or less
+                        step_param = '60s'
+                    elif time_range <= 604800:  # 1 week or less
+                        step_param = '300s'  # 5 minutes
+                    else:  # More than 1 week
+                        step_param = '3600s'  # 1 hour
+                
                 # Ensure step parameter is never empty
                 if not step_param or step_param.strip() == '':
                     step_param = '60s'
-                logger.info(f"Step parameter debug - provided: '{step}', using: '{step_param}'")
+                
+                # Validate step parameter to avoid exceeding Prometheus limits
+                try:
+                    time_range = int(end_time) - int(start_time)
+                    step_seconds = int(step_param.replace('s', ''))
+                    estimated_points = time_range / step_seconds
+                    
+                    if estimated_points > 10000:  # Prometheus limit is ~11,000
+                        # Recalculate step to stay under limit
+                        new_step_seconds = max(1, time_range // 10000)
+                        step_param = f"{new_step_seconds}s"
+                        logger.info(f"Step parameter adjusted to avoid exceeding Prometheus limits: {step_param}")
+                except:
+                    # If parsing fails, use default
+                    step_param = '60s'
+                
+                logger.info(f"Step parameter debug - provided: '{step}', calculated: '{step_param}'")
                 
                 # Always add step parameter for Prometheus range queries
                 modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step={step_param}"

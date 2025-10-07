@@ -28,21 +28,22 @@ CORS(app, resources={
     }
 })
 
-# Initialize two GraphDB clients - one for intents and one for reports
+# Initialize GraphDB configuration
 graphdb_url = os.getenv('GRAPHDB_URL', 'http://start5g-1:7200')
 if not graphdb_url.startswith('http://'):
     graphdb_url = f'http://{graphdb_url}'
 
+graphdb_repository = os.getenv('GRAPHDB_REPOSITORY', 'intent-reports')
+
 print(f"Connecting to GraphDB at {graphdb_url}")
-print(f"Using repository 'intents' for intents")
-print(f"Using repository 'intent-reports' for reports")
+print(f"Using repository '{graphdb_repository}' for intents and intent-reports")
 
-# Initialize clients with explicit repository names
-intents_client = IntentReportClient(graphdb_url, repository='intents')
-reports_client = IntentReportClient(graphdb_url, repository='intent-reports')
+# Initialize clients using the unified repository
+intents_client = IntentReportClient(graphdb_url, repository=graphdb_repository)
+reports_client = IntentReportClient(graphdb_url, repository=graphdb_repository)
 
-# Initialize the observation generator
-observation_generator = ObservationGenerator(graphdb_url)
+# Initialize the observation generator with the unified repository
+observation_generator = ObservationGenerator(graphdb_url, repository=graphdb_repository)
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploaded_value_files')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -149,7 +150,8 @@ def generate_intent_report():
                     turtle_data=turtle_data,
                     value_file=value_file,
                     original_value_file=original_value_file,
-                    storage_type=observation.get('storage_type', 'graphdb')
+                    storage_type=observation.get('storage_type', 'graphdb'),
+                    honor_valuefile_timestamps=observation.get('honor_valuefile_timestamps', False)
                 )
                 print(f"Started observation task {task_id} for condition {observation['condition_id']}")
                 print("=====================================\n")

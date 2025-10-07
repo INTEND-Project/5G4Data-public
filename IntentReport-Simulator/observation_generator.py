@@ -28,21 +28,83 @@ class TaskParams:
     original_value_file: str = None
     value_file_index: int = 0
     value_file_values: list = None
+    value_file_timestamps: list = None
     storage_type: str = "graphdb"  # "graphdb" or "prometheus"
 
 class ObservationGenerator:
-    def __init__(self, graphdb_url: str, repository: str = "intent-reports"):
+    def __init__(self, graphdb_url: str, repository: str = None):
         self.graphdb_url = graphdb_url
-        self.repository = repository
+        # Use env var default if not provided
+        self.repository = repository or os.environ.get('GRAPHDB_REPOSITORY', 'intent-reports')
         self.running_tasks = {}  # task_id: {'params': TaskParams, 'thread': Thread}
         self.value_file_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploaded_value_files')
         
         # Initialize GraphDB client for metadata storage
         from shared.graphdb_client import IntentReportClient
-        self.graphdb_client = IntentReportClient(graphdb_url, repository)
+        self.graphdb_client = IntentReportClient(graphdb_url, self.repository)
         
         # Initialize Prometheus client
         self.prometheus_client = PrometheusClient()
+
+    def _parse_value_file(self, file_path: str) -> tuple[list, list]:
+        """Parse a value file supporting two formats:
+        1) One value per line (as-is current behavior)
+        2) CSV with ISO8601 timestamp first, then value; optional header row
+        Returns two aligned lists: timestamps (or None) and values (floats)
+        """
+        timestamps: list = []
+        values: list = []
+        def parse_iso8601(ts: str) -> datetime | None:
+            ts = ts.strip()
+            if not ts:
+                return None
+            try:
+                # Support trailing Z as UTC
+                if ts.endswith('Z'):
+                    ts = ts.replace('Z', '+00:00')
+                return datetime.fromisoformat(ts)
+            except Exception:
+                return None
+        with open(file_path, 'r') as f:
+            lines = [line.strip() for line in f if line.strip()]
+        if not lines:
+            return timestamps, values
+        # Try detect CSV with header
+        first = lines[0]
+        # If first line contains letters and a comma, likely a header -> skip
+        start_idx = 0
+        if ',' in first:
+            parts = [p.strip() for p in first.split(',', 1)]
+            has_alpha = any(c.isalpha() for c in first)
+            # Header if any alpha in either side and not parseable as timestamp,value
+            if has_alpha:
+                start_idx = 1
+        for line in lines[start_idx:]:
+            if ',' in line:
+                left, right = [p.strip() for p in line.split(',', 1)]
+                ts = parse_iso8601(left)
+                try:
+                    val = float(right)
+                except Exception:
+                    # Swap if reversed or malformed; fall back to single value parse
+                    try:
+                        ts_alt = parse_iso8601(right)
+                        val = float(left)
+                        ts = ts or ts_alt
+                    except Exception:
+                        # Skip unparseable line
+                        continue
+                timestamps.append(ts)
+                values.append(val)
+            else:
+                # Single value per line
+                try:
+                    val = float(line)
+                except Exception:
+                    continue
+                timestamps.append(None)
+                values.append(val)
+        return timestamps, values
 
     def get_metric_type_from_condition(self, condition_id: str, intent_data: str) -> tuple[str, str]:
         """Determine the metric type and unit from the condition's Turtle data.
@@ -152,17 +214,23 @@ class ObservationGenerator:
         if getattr(params, 'value_file', None) and params.value_file_values is None:
             value_file_path = os.path.join(self.value_file_dir, params.value_file)
             if os.path.exists(value_file_path):
-                with open(value_file_path, 'r') as f:
-                    params.value_file_values = [float(line.strip()) for line in f if line.strip()]
+                params.value_file_timestamps, params.value_file_values = self._parse_value_file(value_file_path)
             else:
                 params.value_file_values = []
+                params.value_file_timestamps = [] # Ensure timestamps are also empty if file not found
             params.value_file_index = 0
         while current_time <= params.stop_time and task_id in self.running_tasks:
             params = self.running_tasks[task_id]['params']
+            honor_ts = self.running_tasks[task_id].get('honor_valuefile_timestamps', False)
             metric_value = None
             if getattr(params, 'value_file_values', None):
                 if params.value_file_index < len(params.value_file_values):
                     metric_value = params.value_file_values[params.value_file_index]
+                    # If honoring timestamps and a timestamp exists for this index, use it
+                    if honor_ts and params.value_file_timestamps and params.value_file_index < len(params.value_file_timestamps):
+                        ts = params.value_file_timestamps[params.value_file_index]
+                        if ts is not None:
+                            current_time = ts
                     params.value_file_index += 1
                 else:
                     # If out of values, just use the last value
@@ -227,7 +295,7 @@ class ObservationGenerator:
         if task_id in self.running_tasks:
             del self.running_tasks[task_id]
 
-    def start_observation_task(self, condition_id: str, frequency: int, start_time: datetime, stop_time: datetime, min_value: float = 10, max_value: float = 100, turtle_data: str = "", value_file: str = None, original_value_file: str = None, storage_type: str = "graphdb") -> str:
+    def start_observation_task(self, condition_id: str, frequency: int, start_time: datetime, stop_time: datetime, min_value: float = 10, max_value: float = 100, turtle_data: str = "", value_file: str = None, original_value_file: str = None, storage_type: str = "graphdb", honor_valuefile_timestamps: bool = False) -> str:
         task_id = str(uuid.uuid4())
         params = TaskParams(
             condition_id=condition_id,
@@ -243,7 +311,8 @@ class ObservationGenerator:
         )
         self.running_tasks[task_id] = {
             'params': params,
-            'thread': None
+            'thread': None,
+            'honor_valuefile_timestamps': honor_valuefile_timestamps
         }
         thread = threading.Thread(
             target=self.generate_observations,

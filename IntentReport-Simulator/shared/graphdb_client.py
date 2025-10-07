@@ -7,12 +7,14 @@ from datetime import datetime
 from typing import Optional
 
 class IntentReportClient:
-    def __init__(self, base_url="http://start5g-1.cs.uit.no:7200", repository="intent-reports"):
+    def __init__(self, base_url="http://start5g-1.cs.uit.no:7200", repository: Optional[str] = None):
         self.base_url = base_url
-        self.repository = repository
-        self.sparql_endpoint = f"{base_url}/repositories/{repository}/statements"
-        self.query_endpoint = f"{base_url}/repositories/{repository}/sparql"
-        self.intents_repository = "intents"  # Repository where intents are stored
+        # Use env var default if not provided
+        self.repository = repository or os.environ.get("GRAPHDB_REPOSITORY", "intent-reports")
+        self.sparql_endpoint = f"{base_url}/repositories/{self.repository}/statements"
+        self.query_endpoint = f"{base_url}/repositories/{self.repository}/sparql"
+        # Use the same repository for intents and reports (unified)
+        self.intents_repository = self.repository
         self.auth = None  # No authentication by default
 
     def get_intent(self, intent_id: str) -> str:
@@ -62,7 +64,7 @@ class IntentReportClient:
             }
             
             response = requests.post(
-                f"{self.base_url}/repositories/{self.intents_repository}",
+                f"{self.base_url}/repositories/{self.repository}",
                 data=construct_query.encode("utf-8"),
                 headers=headers
             )
@@ -91,8 +93,8 @@ class IntentReportClient:
 
 
     def get_intents(self):
-        """Get a list of all intents from the intents repository"""
-        print(f"Fetching intents from repository: {self.intents_repository}")  # Debug log
+        """Get a list of all intents from the repository"""
+        print(f"Fetching intents from repository: {self.repository}")  # Debug log
         query = """
         PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
         PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
@@ -116,12 +118,11 @@ class IntentReportClient:
         }
         try:
             response = requests.post(
-                f"{self.base_url}/repositories/{self.intents_repository}",
+                f"{self.base_url}/repositories/{self.repository}",
                 data=query.encode('utf-8'),
                 headers=headers
             )
             print(f"GraphDB response status: {response.status_code}")  # Debug log
-            #print(f"GraphDB response: {response.text}")  # Debug log
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -132,8 +133,8 @@ class IntentReportClient:
         """Store an intent report in GraphDB"""
         try:
             # First, check if the repository exists
-            if not self.repository_exists("intent-reports"):
-                self.create_repository("intent-reports")
+            if not self.repository_exists(self.repository):
+                self.create_repository(self.repository)
             
             # Add the imo prefix to the turtle data if it's not already there
             if "@prefix imo:" not in turtle_data:
@@ -141,7 +142,7 @@ class IntentReportClient:
             
             # Store the turtle data
             response = requests.post(
-                f"{self.base_url}/repositories/intent-reports/statements",
+                f"{self.base_url}/repositories/{self.repository}/statements",
                 headers={"Content-Type": "application/x-turtle"},
                 data=turtle_data,
                 auth=self.auth
@@ -221,7 +222,7 @@ PREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>
 
 SELECT ?unit ?value ?timestamp
 WHERE {{
-  SERVICE <repository:intent-reports> {{
+  SERVICE <repository:{self.repository}> {{
     BIND(IRI(CONCAT("http://5g4data.eu/5g4data#", "{metric_name}")) AS ?metric)
 
     ?observation a met:Observation ;
@@ -241,15 +242,9 @@ ORDER BY ?timestamp
             # URL encode the SPARQL query
             import urllib.parse
             encoded_query = urllib.parse.quote(sparql_query)
-            graphdb_query_url = f"{graphdb_url}/repositories/intent-reports?query={encoded_query}"
+            graphdb_query_url = f"{graphdb_url}/repositories/{self.repository}?query={encoded_query}"
             
-            # Escape quotes in the readable query for SPARQL
-            escaped_readable_query = sparql_query.replace('"', '\\"')
-            
-            # Create the SPARQL INSERT query with both readable and encoded versions
-            # Use the metric name as a proper URI
-            metric_uri = f"data5g:{metric_name}"
-            print(f"Debug: graphdb_query_url: {graphdb_query_url}")
+            # Create the SPARQL INSERT query (store only the URL)
             insert_query = f"""
             PREFIX data5g: <http://5g4data.eu/5g4data#>
             

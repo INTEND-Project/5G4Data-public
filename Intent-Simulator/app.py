@@ -14,7 +14,7 @@ CORS(app)
 
 # Initialize clients
 intent_generator = IntentGenerator()
-graphdb_client = GraphDBClient(os.getenv('GRAPHDB_URL'))
+graphdb_client = GraphDBClient(os.getenv('GRAPHDB_URL'), repository=os.getenv('GRAPHDB_REPOSITORY'))
 
 @app.route('/')
 def index():

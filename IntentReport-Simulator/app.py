@@ -7,6 +7,10 @@ import uuid
 import json
 from dotenv import load_dotenv
 import requests
+import subprocess
+import re
+import time
+import logging
 from observation_generator import ObservationGenerator
 
 # Add parent directory to Python path to find shared module
@@ -45,6 +49,157 @@ reports_client = IntentReportClient(graphdb_url, repository=graphdb_repository)
 # Initialize the observation generator with the unified repository
 observation_generator = ObservationGenerator(graphdb_url, repository=graphdb_repository)
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class IntentGenerator:
+    """Intent generation utility for the app"""
+    
+    def __init__(self, config_file: str = "intent-generation.json"):
+        """Initialize with configuration file"""
+        try:
+            with open(config_file, 'r') as f:
+                self.config = json.load(f)
+        except FileNotFoundError:
+            # Default configuration if file not found
+            self.config = {
+                "api_settings": {
+                    "base_url": "http://localhost:3004",
+                    "timeout": 30,
+                    "retry_attempts": 3
+                },
+                "generation_settings": {
+                    "interval_between_intents": 1.0,
+                    "continue_on_error": True
+                }
+            }
+        
+        self.api_url = f"{self.config['api_settings']['base_url']}/api/generate-intent"
+        self.timeout = self.config['api_settings']['timeout']
+        self.retry_attempts = self.config['api_settings']['retry_attempts']
+        
+    def generate_intent(self, intent_type: str, parameters: dict) -> dict:
+        """Generate a single intent with retry logic"""
+        data = {
+            "intent_type": intent_type,
+            "parameters": parameters,
+            "count": 1,
+            "interval": 0
+        }
+        
+        for attempt in range(self.retry_attempts):
+            try:
+                response = requests.post(
+                    self.api_url, 
+                    json=data, 
+                    timeout=self.timeout
+                )
+                response.raise_for_status()
+                return response.json()
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Attempt {attempt + 1} failed: {e}")
+                if attempt < self.retry_attempts - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    raise
+    
+    def generate_all_intents_from_config(self) -> list:
+        """Generate intents using the full configuration from intent-generation.json"""
+        generated_ids = []
+        
+        logger.info("Generating intents from configuration file...")
+        
+        # Generate network intents
+        if 'intent_generation' in self.config and 'network_intents' in self.config['intent_generation']:
+            network_intents = self.config['intent_generation']['network_intents']
+            logger.info(f"Generating {len(network_intents)} network intents...")
+            
+            for i, intent_config in enumerate(network_intents):
+                try:
+                    logger.info(f"Generating network intent {i+1}/{len(network_intents)}: {intent_config.get('description', 'No description')}")
+                    
+                    result = self.generate_intent('network', intent_config)
+                    intent_id = result['intent_ids'][0]
+                    generated_ids.append(intent_id)
+                    logger.info(f"✅ Generated network intent: {intent_id}")
+                    
+                    # Add interval between intents if configured
+                    interval = self.config['generation_settings'].get('interval_between_intents', 0)
+                    if interval > 0 and i < len(network_intents) - 1:
+                        time.sleep(interval)
+                        
+                except Exception as e:
+                    logger.error(f"❌ Failed to generate network intent {i+1}: {e}")
+                    if not self.config['generation_settings'].get('continue_on_error', True):
+                        raise
+        
+        # Generate workload intents
+        if 'intent_generation' in self.config and 'workload_intents' in self.config['intent_generation']:
+            workload_intents = self.config['intent_generation']['workload_intents']
+            logger.info(f"Generating {len(workload_intents)} workload intents...")
+            
+            # Add interval between batches
+            interval = self.config['generation_settings'].get('interval_between_batches', 0)
+            if interval > 0:
+                logger.info(f"Waiting {interval} seconds before workload batch...")
+                time.sleep(interval)
+            
+            for i, intent_config in enumerate(workload_intents):
+                try:
+                    logger.info(f"Generating workload intent {i+1}/{len(workload_intents)}: {intent_config.get('description', 'No description')}")
+                    
+                    result = self.generate_intent('workload', intent_config)
+                    intent_id = result['intent_ids'][0]
+                    generated_ids.append(intent_id)
+                    logger.info(f"✅ Generated workload intent: {intent_id}")
+                    
+                    # Add interval between intents if configured
+                    interval = self.config['generation_settings'].get('interval_between_intents', 0)
+                    if interval > 0 and i < len(workload_intents) - 1:
+                        time.sleep(interval)
+                        
+                except Exception as e:
+                    logger.error(f"❌ Failed to generate workload intent {i+1}: {e}")
+                    if not self.config['generation_settings'].get('continue_on_error', True):
+                        raise
+        
+        # Generate combined intents
+        if 'intent_generation' in self.config and 'combined_intents' in self.config['intent_generation']:
+            combined_intents = self.config['intent_generation']['combined_intents']
+            logger.info(f"Generating {len(combined_intents)} combined intents...")
+            
+            # Add interval between batches
+            interval = self.config['generation_settings'].get('interval_between_batches', 0)
+            if interval > 0:
+                logger.info(f"Waiting {interval} seconds before combined batch...")
+                time.sleep(interval)
+            
+            for i, intent_config in enumerate(combined_intents):
+                try:
+                    logger.info(f"Generating combined intent {i+1}/{len(combined_intents)}: {intent_config.get('description', 'No description')}")
+                    
+                    result = self.generate_intent('combined', intent_config)
+                    intent_id = result['intent_ids'][0]
+                    generated_ids.append(intent_id)
+                    logger.info(f"✅ Generated combined intent: {intent_id}")
+                    
+                    # Add interval between intents if configured
+                    interval = self.config['generation_settings'].get('interval_between_intents', 0)
+                    if interval > 0 and i < len(combined_intents) - 1:
+                        time.sleep(interval)
+                        
+                except Exception as e:
+                    logger.error(f"❌ Failed to generate combined intent {i+1}: {e}")
+                    if not self.config['generation_settings'].get('continue_on_error', True):
+                        raise
+        
+        logger.info(f"Generated {len(generated_ids)} total intents from configuration")
+        return generated_ids
+
+# Initialize intent generator
+intent_generator = IntentGenerator()
+
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploaded_value_files')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -53,12 +208,386 @@ def test():
     return render_template('test.html')
 
 @app.route('/')
+def landing():
+    return render_template('landing.html')
+
+@app.route('/live')
 def index():
     return render_template('index.html')
 
 @app.route('/intentReport')
 def intent_report():
     return render_template('intentReport.html')
+
+@app.route('/populate')
+def populate():
+    return render_template('populate.html')
+
+@app.route('/populate/configure', methods=['POST'])
+def populate_configure():
+    selected_intents = request.form.getlist('intent_ids')
+    if not selected_intents:
+        # No selection, redirect back to populate page
+        return render_template('populate.html', error_message='Please select at least one intent.')
+    return render_template('populate_configure.html', selected_intents=selected_intents)
+
+def process_csv_to_graphdb(csv_path: str, intent_id: str, condition_id: str, turtle_data: str, debug_turtle_dir: str):
+    """Process CSV file and insert observations into GraphDB."""
+    import csv
+    turtle_statements = []
+    
+    try:
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            # Skip comment lines
+            rows = [row for row in reader if not (row and row[0].startswith('#'))]
+            
+            if len(rows) < 2:  # Need header + at least one data row
+                return False, "No data rows found"
+            
+            # Skip header row
+            data_rows = rows[1:]
+            
+            for row in data_rows:
+                if len(row) >= 2:
+                    timestamp_str, value_str = row[0], row[1]
+                    try:
+                        # Parse timestamp and value
+                        timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                        value = float(value_str)
+                        
+                        # Generate Turtle observation
+                        turtle_obs = observation_generator.generate_observation_turtle(
+                            condition_id=condition_id,
+                            timestamp=timestamp,
+                            min_value=0,  # Not used since we have actual value
+                            max_value=0,  # Not used since we have actual value
+                            turtle_data=turtle_data,
+                            metric_value=value
+                        )
+                        turtle_statements.append(turtle_obs)
+                        
+                    except (ValueError, IndexError) as e:
+                        print(f"Error parsing row {row}: {e}")
+                        continue
+            
+            # Store all observations in GraphDB
+            if turtle_statements:
+                combined_turtle = '\n\n'.join(turtle_statements)
+                
+                # Store in GraphDB
+                success = observation_generator.store_observation(combined_turtle, storage_type="graphdb")
+                
+                # Save debug Turtle file
+                debug_file = os.path.join(debug_turtle_dir, f"{intent_id}__{condition_id}.ttl")
+                with open(debug_file, 'w', encoding='utf-8') as f:
+                    f.write(combined_turtle)
+                
+                return success, f"Stored {len(turtle_statements)} observations"
+            else:
+                return False, "No valid observations to store"
+                
+    except Exception as e:
+        return False, f"Error processing CSV: {str(e)}"
+
+@app.route('/populate/generate', methods=['POST'])
+def populate_generate():
+    try:
+        # Directory where generated files will be stored
+        output_dir = "/Users/arneme/CodeExplorations/INTEND-Project/5G4Data-public/IntentReport-Simulator/generated_observation_files"
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Path to the generator script
+        script_path = os.path.join(current_dir, 'generate_observation_file.py')
+
+        # Group form fields by intent and condition
+        grouped = {}
+        for key, value in request.form.items():
+            # Expect keys like: <intent>__<condition>__<field>
+            parts = key.split('__')
+            if len(parts) != 3:
+                continue
+            intent_id, condition_id, field = parts
+            grouped.setdefault(intent_id, {}).setdefault(condition_id, {})[field] = value.strip()
+
+        results = []
+        # Cache intent turtle and parsed condition descriptions per intent
+        intent_to_condition_desc = {}
+        
+        # Directory for debug Turtle files
+        debug_turtle_dir = "/Users/arneme/CodeExplorations/INTEND-Project/5G4Data-public/IntentReport-Simulator/generated_observations"
+        os.makedirs(debug_turtle_dir, exist_ok=True)
+
+        def parse_condition_descriptions(turtle_text: str):
+            """Return mapping condition_id -> description (if found) from turtle text."""
+            condition_desc = {}
+            current = None
+            for line in turtle_text.split('\n'):
+                if 'a icm:Condition' in line:
+                    m = re.search(r'data5g:([^\s]+)\s+a\s+icm:Condition', line)
+                    if m:
+                        current = m.group(1)
+                        if current not in condition_desc:
+                            condition_desc[current] = None
+                elif current and 'dct:description' in line:
+                    m = re.search(r'dct:description\s+"([^"]+)"', line)
+                    if m:
+                        condition_desc[current] = m.group(1)
+                        current = None
+            return condition_desc
+
+        for intent_id, conditions in grouped.items():
+            # Ensure we have descriptions for this intent's conditions
+            if intent_id not in intent_to_condition_desc:
+                try:
+                    turtle = intents_client.get_intent(intent_id) or ''
+                    intent_to_condition_desc[intent_id] = parse_condition_descriptions(turtle)
+                except Exception:
+                    intent_to_condition_desc[intent_id] = {}
+            for condition_id, fields in conditions.items():
+                # Build CLI arguments based on available fields
+                args = [
+                    sys.executable,
+                    script_path,
+                ]
+
+                def add_arg(flag, field_name, transform=None):
+                    v = fields.get(field_name)
+                    if v is None or v == '':
+                        return
+                    args.extend([flag, transform(v) if transform else v])
+
+                add_arg('--start-time', 'start_time')
+                add_arg('--end-time', 'end_time')
+                add_arg('--frequency', 'frequency')
+                add_arg('--min', 'min')
+                add_arg('--max', 'max')
+                add_arg('--mode', 'mode')
+                add_arg('--decimal-places', 'decimal_places')
+
+                # Anomaly options
+                anomaly = fields.get('anomaly')
+                if anomaly:
+                    args.extend(['--anomaly', anomaly])
+                    if anomaly in ('random', 'peak'):
+                        add_arg('--anomaly-rate', 'anomaly_rate')
+                    if anomaly == 'fixed':
+                        add_arg('--anomaly-interval', 'anomaly_interval')
+                    add_arg('--anomaly-duration-samples', 'anomaly_duration_samples')
+                    add_arg('--anomaly-amplitude-frac', 'anomaly_amplitude_frac')
+                    add_arg('--anomaly-direction', 'anomaly_direction')
+                    add_arg('--peak-start-hour', 'peak_start_hour')
+                    add_arg('--peak-end-hour', 'peak_end_hour')
+                add_arg('--seed', 'seed')
+
+                # Output file name: include intent and condition identifiers
+                safe_intent = intent_id.replace(':', '_')
+                safe_condition = condition_id.replace(':', '_')
+                output_path = os.path.join(output_dir, f"{safe_intent}__{safe_condition}.csv")
+                args.extend(['--output', output_path])
+
+                # Run the generator script
+                proc = subprocess.run(args, capture_output=True, text=True)
+                if proc.returncode == 0:
+                    # Prepend condition description comment if available
+                    cond_desc = intent_to_condition_desc.get(intent_id, {}).get(condition_id)
+                    if cond_desc:
+                        try:
+                            with open(output_path, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                            header = f"# condition_description={cond_desc}\n"
+                            with open(output_path, 'w', encoding='utf-8') as f:
+                                f.write(header + content)
+                        except Exception:
+                            pass
+                    
+                    # Process CSV and insert into GraphDB
+                    turtle_data = intents_client.get_intent(intent_id) or ''
+                    graphdb_success, graphdb_message = process_csv_to_graphdb(output_path, intent_id, condition_id, turtle_data, debug_turtle_dir)
+                    
+                    # Script prints the output path; prefer our known path
+                    results.append({
+                        'intent_id': intent_id,
+                        'condition_id': condition_id,
+                        'status': 'success',
+                        'file': output_path,
+                        'graphdb_status': 'success' if graphdb_success else 'error',
+                        'graphdb_message': graphdb_message
+                    })
+                else:
+                    results.append({
+                        'intent_id': intent_id,
+                        'condition_id': condition_id,
+                        'status': 'error',
+                        'error': proc.stderr.strip() or 'Unknown error'
+                    })
+
+        return render_template('populate_generate_result.html', results=results, output_dir=output_dir)
+    except Exception as e:
+        return render_template('populate_generate_result.html', results=[{'status': 'error', 'error': str(e)}], output_dir='')
+
+@app.route('/populate/quick-generate', methods=['POST'])
+def quick_populate_generate():
+    try:
+        data = request.json
+        conditions = data.get('conditions', [])
+        
+        if not conditions:
+            return jsonify({'error': 'No conditions provided'}), 400
+        
+        # Check if intents exist, generate sample intents if none found
+        try:
+            results = intents_client.get_intents()
+            intents = []
+            for binding in results['results']['bindings']:
+                intent = {
+                    'id': binding['id']['value'],
+                    'type': binding['type']['value']
+                }
+                intents.append(intent)
+            
+            if not intents:
+                logger.info("No intents found during quick generation. Generating intents from configuration...")
+                generated_ids = intent_generator.generate_all_intents_from_config()
+                logger.info(f"Generated {len(generated_ids)} intents from configuration for quick generation")
+                
+        except Exception as intent_error:
+            logger.warning(f"Could not check/generate intents: {intent_error}")
+            # Continue with generation even if intent check fails
+        
+        # Directory where generated files will be stored
+        output_dir = "/Users/arneme/CodeExplorations/INTEND-Project/5G4Data-public/IntentReport-Simulator/generated_observation_files"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Directory for debug Turtle files
+        debug_turtle_dir = "/Users/arneme/CodeExplorations/INTEND-Project/5G4Data-public/IntentReport-Simulator/generated_observations"
+        os.makedirs(debug_turtle_dir, exist_ok=True)
+        
+        # Path to the generator script
+        script_path = os.path.join(current_dir, 'generate_observation_file.py')
+        
+        results = []
+        
+        for condition in conditions:
+            intent_id = condition['intent_id']
+            condition_id = condition['condition_id']
+            condition_description = condition['condition_description']
+            
+            # Randomly select generation mode and anomaly settings
+            import random
+            modes = ['random', 'diurnal', 'walk', 'trend']
+            selected_mode = random.choice(modes)
+            
+            anomaly_strategies = ['none', 'random', 'fixed', 'peak']
+            selected_anomaly = random.choice(anomaly_strategies) if condition.get('generate_anomalies', False) else 'none'
+            
+            # Build CLI arguments
+            args = [
+                sys.executable,
+                script_path,
+                '--start-time', condition['start_time'],
+                '--end-time', condition['end_time'],
+                '--frequency', condition['frequency'],
+                '--min', str(condition['min_value']),
+                '--max', str(condition['max_value']),
+                '--mode', selected_mode,
+                '--decimal-places', str(condition['decimal_places']),
+                '--anomaly', selected_anomaly
+            ]
+            
+            # Debug: Print the min/max values being used
+            print(f"DEBUG: Using min={condition['min_value']}, max={condition['max_value']} for condition {condition_id}")
+            
+            # Add anomaly-specific parameters
+            if selected_anomaly in ('random', 'peak'):
+                args.extend(['--anomaly-rate', str(random.uniform(0.01, 0.05))])
+            if selected_anomaly == 'fixed':
+                intervals = ['1h', '2h', '4h', '6h', '12h']
+                args.extend(['--anomaly-interval', random.choice(intervals)])
+            
+            args.extend([
+                '--anomaly-duration-samples', str(random.randint(2, 5)),
+                '--anomaly-amplitude-frac', str(random.uniform(0.2, 0.5)),
+                '--anomaly-direction', random.choice(['spike', 'dip', 'both'])
+            ])
+            
+            if selected_anomaly == 'peak':
+                args.extend([
+                    '--peak-start-hour', str(random.randint(14, 18)),
+                    '--peak-end-hour', str(random.randint(19, 22))
+                ])
+            
+            # Add random seed for reproducibility
+            args.extend(['--seed', str(random.randint(1, 10000))])
+            
+            # Output file name
+            safe_intent = intent_id.replace(':', '_')
+            safe_condition = condition_id.replace(':', '_')
+            output_path = os.path.join(output_dir, f"{safe_intent}__{safe_condition}.csv")
+            args.extend(['--output', output_path])
+            
+            # Run the generator script
+            proc = subprocess.run(args, capture_output=True, text=True)
+            
+            if proc.returncode == 0:
+                # Prepend condition description comment
+                try:
+                    with open(output_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    header = f"# condition_description={condition_description}\n"
+                    with open(output_path, 'w', encoding='utf-8') as f:
+                        f.write(header + content)
+                except Exception:
+                    pass
+                
+                # Process CSV and insert into GraphDB (unless files_only is selected)
+                files_only = condition.get('files_only', False)
+                if files_only:
+                    graphdb_success, graphdb_message = False, "Skipped (files only)"
+                else:
+                    turtle_data = intents_client.get_intent(intent_id) or ''
+                    graphdb_success, graphdb_message = process_csv_to_graphdb(output_path, intent_id, condition_id, turtle_data, debug_turtle_dir)
+                
+                results.append({
+                    'intent_id': intent_id,
+                    'condition_id': condition_id,
+                    'condition_description': condition_description,
+                    'status': 'success',
+                    'file': output_path,
+                    'mode': selected_mode,
+                    'anomaly': selected_anomaly,
+                    'files_only': files_only,
+                    'graphdb_status': 'skipped' if files_only else ('success' if graphdb_success else 'error'),
+                    'graphdb_message': graphdb_message
+                })
+            else:
+                results.append({
+                    'intent_id': intent_id,
+                    'condition_id': condition_id,
+                    'condition_description': condition_description,
+                    'status': 'error',
+                    'error': proc.stderr.strip() or 'Unknown error'
+                })
+        
+        return jsonify({'results': results, 'output_dir': output_dir})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/populate/quick-result')
+def quick_populate_result():
+    results_json = request.args.get('results')
+    if not results_json:
+        return render_template('populate_generate_result.html', results=[], output_dir='')
+    
+    try:
+        data = json.loads(results_json)
+        # Expecting a JSON object like: { "results": [...], "output_dir": ":path" }
+        results = data.get('results', []) if isinstance(data, dict) else []
+        output_dir = data.get('output_dir', '') if isinstance(data, dict) else ''
+        return render_template('populate_generate_result.html', results=results, output_dir=output_dir)
+    except Exception as e:
+        return render_template('populate_generate_result.html', results=[{'status': 'error', 'error': str(e)}], output_dir='')
 
 @app.route('/api/query-intents')
 def query_intents():
@@ -73,6 +602,25 @@ def query_intents():
                 'type': binding['type']['value']
             }
             intents.append(intent)
+        
+        # If no intents exist, generate intents from configuration
+        if not intents:
+            logger.info("No intents found in GraphDB. Generating intents from configuration...")
+            try:
+                generated_ids = intent_generator.generate_all_intents_from_config()
+                logger.info(f"Generated {len(generated_ids)} intents from configuration")
+                
+                # Return a special response indicating intents were generated
+                return jsonify({
+                    'intents': [],
+                    'message': f'Generated {len(generated_ids)} intents from configuration',
+                    'generated_ids': generated_ids,
+                    'generating': True
+                })
+                    
+            except Exception as gen_error:
+                logger.error(f"Failed to generate intents from config: {gen_error}")
+                return jsonify({'error': f'No intents found and failed to generate intents from configuration: {str(gen_error)}'}), 500
         
         return jsonify({'intents': intents})
         
@@ -339,6 +887,20 @@ def get_prometheus_metadata(condition_id):
             }), 404
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/generate-intents-from-config', methods=['POST'])
+def generate_intents_from_config():
+    """Manually generate all intents from intent-generation.json configuration"""
+    try:
+        generated_ids = intent_generator.generate_all_intents_from_config()
+        return jsonify({
+            'status': 'success',
+            'message': f'Generated {len(generated_ids)} intents from configuration',
+            'intent_ids': generated_ids
+        })
+    except Exception as e:
+        logger.error(f"Failed to generate intents from config: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/storage-metadata/<condition_id>')
 def get_storage_metadata(condition_id):

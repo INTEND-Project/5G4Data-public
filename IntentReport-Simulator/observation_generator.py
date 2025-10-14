@@ -141,9 +141,25 @@ class ObservationGenerator:
         if not target_property_line:
             return "Unknown", "NA"  # Default if property not found
         
-        # Extract the metric type from the target property
-        # Example: data5g:networklatency_co_304d2f9509b349108f300a805bb3887f
-        metric_match = target_property_line.split('data5g:')[1].split('_co_')[0]
+        # Extract the metric type from the target property in a robust, case-insensitive way
+        # Example line fragment after 'data5g:': "networklatency_CO0e4003... ;"
+        # We want only the metric prefix part (e.g., "networklatency"), without the trailing
+        # "_CO..." condition identifier or any punctuation.
+        try:
+            after_prefix = target_property_line.split('data5g:', 1)[1]
+        except Exception:
+            return "Unknown", "NA"
+
+        # Take the first token up to whitespace, then strip trailing punctuation
+        token = after_prefix.split()[0].rstrip(';,')
+
+        # If the token ends with _{condition_id} (case-insensitive), drop that suffix
+        suffix = f"_{condition_id}"
+        if token.lower().endswith(suffix.lower()):
+            metric_match = token[: -len(suffix)]
+        else:
+            # Fallback: split at first underscore to keep just the leading metric name
+            metric_match = token.split('_')[0]
         
         # Determine the unit based on the metric type
         if "latency" in metric_match.lower():

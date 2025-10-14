@@ -63,8 +63,8 @@ class IntentGenerator:
         # Generate unique IDs (Will the first 8 characters of the UUID be enough?)
         intent_id = f"I{uuid.uuid4().hex}"
         de_id = f"NE{uuid.uuid4().hex}"
-        c1_id = f"co_{uuid.uuid4().hex}"
-        c2_id = f"co_{uuid.uuid4().hex}"
+        c1_id = f"CO{uuid.uuid4().hex}"
+        c2_id = f"CO{uuid.uuid4().hex}"
         cx_id = f"CX{uuid.uuid4().hex}"
         region_id = f"RG{uuid.uuid4().hex}"
         re_id = f"RE{uuid.uuid4().hex}"
@@ -131,7 +131,11 @@ class IntentGenerator:
         cx_uri = self.data[cx_id]
         g.add((cx_uri, RDF.type, self.icm.Context))
         g.add((cx_uri, self.data.appliesToRegion, self.data[region_id]))
-        g.add((cx_uri, self.data.appliesToCustomer, Literal(params.get("customer", "+47 90914547"))))
+        customer = params.get("customer", "+47 90914547")
+        g.add((cx_uri, self.data.appliesToCustomer, Literal(customer)))
+        # Add description with region and customer
+        location = params.get("location", "Tromsø region")
+        g.add((cx_uri, self.dct.description, Literal(f"Context for region: {location}, customer: {customer}")))
 
         # Create region
         region_uri = self.data[region_id]
@@ -163,7 +167,7 @@ class IntentGenerator:
         # Generate unique IDs
         intent_id = f"I{uuid.uuid4().hex}"
         de_id = f"DE{uuid.uuid4().hex}"
-        c1_id = f"co_{uuid.uuid4().hex}"
+        c1_id = f"CO{uuid.uuid4().hex}"
         cx_id = f"CX{uuid.uuid4().hex}"
         re_id = f"RE{uuid.uuid4().hex}"
 
@@ -209,9 +213,13 @@ class IntentGenerator:
         # Create context
         cx_uri = self.data[cx_id]
         g.add((cx_uri, RDF.type, self.icm.Context))
-        g.add((cx_uri, self.data.DataCenter, Literal(params.get("datacenter", "EC1"))))
-        g.add((cx_uri, self.data.Application, Literal(params.get("application", "AR-retail-app"))))
+        datacenter = params.get("datacenter", "EC1")
+        g.add((cx_uri, self.data.DataCenter, Literal(datacenter)))
+        application = params.get("application", "AR-retail-app")
+        g.add((cx_uri, self.data.Application, Literal(application)))
         g.add((cx_uri, self.data.DeploymentDescriptor, Literal(params.get("descriptor", "http://intend.eu/5G4DataWorkloadCatalogue/appx-deployment.yaml"))))
+        # Add description with datacenter and application info
+        g.add((cx_uri, self.dct.description, Literal(f"Context for datacenter: {datacenter}, application: {application}")))
 
         # Create reporting expectation
         re_uri = self.data[re_id]
@@ -245,9 +253,9 @@ class IntentGenerator:
         intent_id = f"I{uuid.uuid4().hex}"
         de1_id = f"NE{uuid.uuid4().hex}"
         de2_id = f"DE{uuid.uuid4().hex}"
-        c1_id = f"co_{uuid.uuid4().hex}"
-        c2_id = f"co_{uuid.uuid4().hex}"
-        c3_id = f"co_{uuid.uuid4().hex}"
+        c1_id = f"CO{uuid.uuid4().hex}"
+        c2_id = f"CO{uuid.uuid4().hex}"
+        c3_id = f"CO{uuid.uuid4().hex}"
         cx1_id = f"CX{uuid.uuid4().hex}"
         cx2_id = f"CX{uuid.uuid4().hex}"
         region_id = f"RG{uuid.uuid4().hex}"
@@ -344,13 +352,21 @@ class IntentGenerator:
         cx1_uri = self.data[cx1_id]
         g.add((cx1_uri, RDF.type, self.icm.Context))
         g.add((cx1_uri, self.data.appliesToRegion, self.data[region_id]))
-        g.add((cx1_uri, self.data.appliesToCustomer, Literal(params.get("customer", "+47 90914547"))))
+        customer = params.get("customer", "+47 90914547")
+        g.add((cx1_uri, self.data.appliesToCustomer, Literal(customer)))
+        # Add description with region and customer
+        location = params.get("location", "Tromsø region")
+        g.add((cx1_uri, self.dct.description, Literal(f"Context for region: {location}, customer: {customer}")))
 
         cx2_uri = self.data[cx2_id]
         g.add((cx2_uri, RDF.type, self.icm.Context))
-        g.add((cx2_uri, self.data.DataCenter, Literal(params.get("datacenter", "EC1"))))
-        g.add((cx2_uri, self.data.Application, Literal(params.get("application", "AR-retail-app"))))
+        datacenter = params.get("datacenter", "EC1")
+        g.add((cx2_uri, self.data.DataCenter, Literal(datacenter)))
+        application = params.get("application", "AR-retail-app")
+        g.add((cx2_uri, self.data.Application, Literal(application)))
         g.add((cx2_uri, self.data.DeploymentDescriptor, Literal(params.get("descriptor", "http://intend.eu/5G4DataWorkloadCatalogue/appx-deployment.yaml"))))
+        # Add description with datacenter and application info
+        g.add((cx2_uri, self.dct.description, Literal(f"Context for datacenter: {datacenter}, application: {application}")))
 
         # Create region
         region_uri = self.data[region_id]
@@ -389,7 +405,7 @@ class IntentGenerator:
         
         if operator == "inRange" and latency_end is not None:
             # For inRange, we need three arguments:
-            # 1. The property to check (data5g:networklatency_co_{condition_id})
+            # 1. The property to check (data5g:networklatency_COcondition_id})
             # 2. The lower bound
             # 3. The upper bound
             lower_bnode = BNode()
@@ -444,7 +460,7 @@ class IntentGenerator:
         
         if operator == "inRange" and bandwidth_end is not None:
             # For inRange, we need three arguments:
-            # 1. The property to check (data5g:bandwidth_co_{condition_id})
+            # 1. The property to check (data5g:bandwidth_CO{condition_id})
             # 2. The lower bound
             # 3. The upper bound
             lower_bnode = BNode()
@@ -499,7 +515,7 @@ class IntentGenerator:
         
         if operator == "inRange" and latency_end is not None:
             # For inRange, we need three arguments:
-            # 1. The property to check (data5g:computelatency_co_{condition_id})
+            # 1. The property to check (data5g:computelatency_CO{condition_id})
             # 2. The lower bound
             # 3. The upper bound
             lower_bnode = BNode()

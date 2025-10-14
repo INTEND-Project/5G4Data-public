@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configure Generation - Intent Report Simulator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #f4f4f4; }
+        .main-header { background-color: #1885f1; height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: white; padding: 10px; position: relative; margin-bottom: 30px; }
+        .logo { height: 60px; margin-bottom: 10px; }
+        .title { margin: 0; font-size: 28px; color: white; }
+        .container { max-width: 1100px; margin-top: 2em; }
+        .form-section { background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 16px; margin-bottom: 24px; }
+        .hint { color: #6c757d; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <a href="https://intendproject.eu/" target="_blank" rel="noopener noreferrer">
+            <img src="{{ url_for('static', filename='img/intend_logo.gif') }}" alt="INTEND Logo" class="logo" />
+        </a>
+        <h1 class="title">Configure Report Generation</h1>
+    </header>
+
+    <div class="container">
+        <div class="mb-3">
+            <a class="btn btn-secondary" href="/populate">Back to intent selection</a>
+        </div>
+
+        <form id="generationForm" method="post" action="/populate/generate">
+            <input type="hidden" id="selectedIntents" value='{{ selected_intents | tojson }}'>
+            <div id="intentsContainer"></div>
+
+            <div class="d-flex justify-content-between mt-3">
+                <a class="btn btn-secondary" href="/populate">Back</a>
+                <button type="submit" class="btn btn-primary">Generate files (coming soon)</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_BASE_URL = `http://${window.location.host}`;
+
+        function parseTurtleRepresentation(turtle) {
+            const conditions = [];
+            const lines = turtle.split('\n');
+            let currentCondition = null;
+            for (const line of lines) {
+                if (line.includes('a icm:Condition')) {
+                    const conditionMatch = line.match(/data5g:([^\s]+)\s+a\s+icm:Condition/);
+                    if (conditionMatch) {
+                        currentCondition = conditionMatch[1];
+                        conditions.push({ id: currentCondition, description: null });
+                    }
+                }
+                if (currentCondition && line.includes('dct:description')) {
+                    const match = line.match(/dct:description\s+"([^"]+)"/);
+                    if (match) {
+                        const idx = conditions.findIndex(c => c.id === currentCondition);
+                        if (idx !== -1) conditions[idx].description = match[1];
+                        currentCondition = null;
+                    }
+                }
+            }
+            return conditions;
+        }
+
+        function createConditionSection(intentId, condition) {
+            const section = document.createElement('div');
+            section.className = 'form-section';
+            const subheading = condition.description ? `${condition.id}: ${condition.description}` : condition.id;
+            section.innerHTML = `
+                <h5 class="mb-2">${subheading}</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Start time (ISO8601 UTC or -Nh/-Nd/-Nm)</label>
+                        <input type="text" class="form-control" name="${intentId}__${condition.id}__start_time" placeholder="2025-10-07T00:00:00Z">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">End time (ISO8601 UTC or +Nh/+Nd/+Nm)</label>
+                        <input type="text" class="form-control" name="${intentId}__${condition.id}__end_time" placeholder="2025-10-07T02:00:00Z">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Frequency</label>
+                        <input type="text" class="form-control" name="${intentId}__${condition.id}__frequency" placeholder="60 or 15s/5m/1h">
+                        <div class="hint">Same format as --frequency</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Min value</label>
+                        <input type="number" class="form-control" name="${intentId}__${condition.id}__min" step="0.001" placeholder="10">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Max value</label>
+                        <input type="number" class="form-control" name="${intentId}__${condition.id}__max" step="0.001" placeholder="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Mode</label>
+                        <select class="form-select" name="${intentId}__${condition.id}__mode">
+                            <option value="random" selected>random</option>
+                            <option value="diurnal">diurnal</option>
+                            <option value="walk">walk</option>
+                            <option value="trend">trend</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Decimal places</label>
+                        <input type="number" class="form-control" name="${intentId}__${condition.id}__decimal_places" min="0" value="3">
+                    </div>
+                </div>
+                <hr class="my-4">
+                <h6>Anomalies</h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Anomaly strategy</label>
+                        <select class="form-select" name="${intentId}__${condition.id}__anomaly">
+                            <option value="none" selected>none</option>
+                            <option value="random">random</option>
+                            <option value="fixed">fixed</option>
+                            <option value="peak">peak</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Anomaly rate</label>
+                        <input type="number" class="form-control" name="${intentId}__${condition.id}__anomaly_rate" step="0.001" value="0.01">
+                        <div class="hint">Used for random/peak (0..1)</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Anomaly interval</label>
+                        <input type="text" class="form-control" name="${intentId}__${condition.id}__anomaly_interval" placeholder="1h">
+                        <div class="hint">Required for fixed (e.g., 1h)</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Anomaly duration (samples)</label>
+                        <input type="number" class="form-control" name="${intentId}__${condition.id}__anomaly_duration_samples" value="3">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Anomaly amplitude (fraction)</label>
+                        <input type="number" class="form-control" step="0.01" name="${intentId}__${condition.id}__anomaly_amplitude_frac" value="0.3">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Anomaly direction</label>
+                        <select class="form-select" name="${intentId}__${condition.id}__anomaly_direction">
+                            <option value="both" selected>both</option>
+                            <option value="spike">spike</option>
+                            <option value="dip">dip</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Peak start hour (UTC)</label>
+                        <input type="number" class="form-control" name="${intentId}__${condition.id}__peak_start_hour" value="16">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Peak end hour (UTC)</label>
+                        <input type="number" class="form-control" name="${intentId}__${condition.id}__peak_end_hour" value="20">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Random seed</label>
+                        <input type="number" class="form-control" name="${intentId}__${condition.id}__seed" placeholder="optional">
+                    </div>
+                </div>
+            `;
+            return section;
+        }
+
+        function toIsoUtc(date) {
+            return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().replace(/\+00:00$/, 'Z');
+        }
+
+        function parseRelative(input, baseDate) {
+            // Supports -Nh, -Nd, -Nm for start and +Nh, +Nd, +Nm for end
+            const m = input.trim().match(/^([+-])(\d+)([hdm])$/i);
+            if (!m) return null;
+            const sign = m[1] === '-' ? -1 : 1;
+            const value = parseInt(m[2], 10);
+            const unit = m[3].toLowerCase();
+            const d = new Date(baseDate.getTime());
+            if (unit === 'h') d.setHours(d.getHours() + sign * value);
+            else if (unit === 'd') d.setDate(d.getDate() + sign * value);
+            else if (unit === 'm') d.setMonth(d.getMonth() + sign * value);
+            return d;
+        }
+
+        async function renderIntents() {
+            const container = document.getElementById('intentsContainer');
+            const selected = JSON.parse(document.getElementById('selectedIntents').value || '[]');
+            for (const intentId of selected) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'form-section';
+                wrapper.innerHTML = `<h4 class=\"mb-3\">Intent ${intentId}</h4><div class=\"mt-3\" id=\"intent-${intentId}-conditions\"></div>`;
+                container.appendChild(wrapper);
+
+                try {
+                    const resp = await fetch(`${API_BASE_URL}/api/get-intent/${intentId}`);
+                    const data = await resp.json();
+                    const turtle = data.data || '';
+                    const conditions = parseTurtleRepresentation(turtle);
+                    const condContainer = wrapper.querySelector(`#intent-${intentId}-conditions`);
+                    if (!conditions.length) {
+                        const p = document.createElement('p');
+                        p.className = 'text-muted';
+                        p.textContent = 'No expectation conditions found in this intent.';
+                        condContainer.appendChild(p);
+                    } else {
+                        conditions.forEach(cond => {
+                            const node = createConditionSection(intentId, cond);
+                            condContainer.appendChild(node);
+                            // Prefill relative defaults: start = now - 3d, end = start + 1d
+                            const now = new Date();
+                            const start = new Date(now.getTime());
+                            start.setDate(start.getDate() - 3);
+                            const end = new Date(start.getTime());
+                            end.setDate(end.getDate() + 1);
+                            const startInput = node.querySelector(`input[name="${intentId}__${cond.id}__start_time"]`);
+                            const endInput = node.querySelector(`input[name="${intentId}__${cond.id}__end_time"]`);
+                            if (startInput) startInput.value = toIsoUtc(start);
+                            if (endInput) endInput.value = toIsoUtc(end);
+                        });
+                    }
+                } catch (e) {
+                    const err = document.createElement('div');
+                    err.className = 'alert alert-danger';
+                    err.textContent = `Failed to load intent ${intentId}`;
+                    wrapper.appendChild(err);
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderIntents();
+            const form = document.getElementById('generationForm');
+            form.addEventListener('submit', (e) => {
+                // Convert any relative inputs to ISO8601 UTC strings
+                const now = new Date();
+                const inputs = form.querySelectorAll('input[name$="__start_time"], input[name$="__end_time"]');
+                inputs.forEach(input => {
+                    const v = (input.value || '').trim();
+                    if (!v) return;
+                    const isStart = input.name.endsWith('__start_time');
+                    const rel = parseRelative(v, now);
+                    if (rel) {
+                        // For end time with positive relative, base off now; for start with negative, base off now
+                        input.value = toIsoUtc(rel);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+
+

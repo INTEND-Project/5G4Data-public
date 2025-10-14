@@ -1,0 +1,133 @@
+{
+  "api_settings": {
+    "base_url": "http://localhost:3004",
+    "timeout": 30,
+    "retry_attempts": 3
+  },
+  "intent_generation": {
+    "network_intents": [
+      {
+        "description": "Ultra-low latency network slice for autonomous vehicles",
+        "latency": 10,
+        "latency_operator": "smaller",
+        "bandwidth": 600,
+        "bandwidth_operator": "larger",
+        "location": "Oslo, Norway",
+        "customer": "+47 12345678",
+        "handler": "inNet",
+        "owner": "inSwitch"
+      },
+      {
+        "description": "High-bandwidth network slice for 4K video streaming",
+        "latency": 20,
+        "latency_operator": "smaller",
+        "bandwidth": 400,
+        "bandwidth_operator": "larger",
+        "location": "Bergen, Norway",
+        "customer": "+47 23456789",
+        "handler": "inNet",
+        "owner": "inSwitch"
+      },
+      {
+        "description": "Reliable network slice for industrial IoT sensors",
+        "latency": 50,
+        "latency_operator": "smaller",
+        "bandwidth": 100,
+        "bandwidth_operator": "larger",
+        "location": "Trondheim, Norway",
+        "customer": "+47 34567890",
+        "handler": "inNet",
+        "owner": "inSwitch"
+      }
+    ],
+    "workload_intents": [
+      {
+        "description": "Deploy AI inference service to edge datacenter",
+        "compute_latency": 1000,
+        "compute_latency_operator": "smaller",
+        "datacenter": "EC21",
+        "application": "ai-inference-service",
+        "descriptor": "http://intend.eu/5G4DataWorkloadCatalogue/ai-inference-deployment.yaml",
+        "handler": "inOrch",
+        "owner": "inSwitch"
+      },
+      {
+        "description": "Deploy AR retail application to edge datacenter",
+        "compute_latency": 40,
+        "compute_latency_operator": "smaller",
+        "datacenter": "EC2",
+        "application": "ar-retail-app",
+        "descriptor": "http://intend.eu/5G4DataWorkloadCatalogue/ar-retail-deployment.yaml",
+        "handler": "inOrch",
+        "owner": "inSwitch"
+      },
+      {
+        "description": "Deploy real-time analytics platform to edge datacenter",
+        "compute_latency": 55,
+        "compute_latency_operator": "smaller",
+        "datacenter": "EC3",
+        "application": "realtime-analytics",
+        "descriptor": "http://intend.eu/5G4DataWorkloadCatalogue/analytics-deployment.yaml",
+        "handler": "inOrch",
+        "owner": "inSwitch"
+      }
+    ],
+    "combined_intents": [
+      {
+        "description": "Combined network and workload deployment for smart city traffic management",
+        "latency": 20,
+        "latency_operator": "smaller",
+        "bandwidth": 400,
+        "bandwidth_operator": "larger",
+        "compute_latency": 100,
+        "compute_latency_operator": "smaller",
+        "location": "Stavanger, Norway",
+        "customer": "+47 45678901",
+        "datacenter": "EC26",
+        "application": "traffic-management-system",
+        "descriptor": "http://intend.eu/5G4DataWorkloadCatalogue/traffic-management-deployment.yaml",
+        "handler": "smartcity-combined-handler",
+        "owner": "city-council"
+      },
+      {
+        "description": "Combined network and workload deployment for remote surgery",
+        "latency": 5,
+        "latency_operator": "smaller",
+        "bandwidth": 800,
+        "bandwidth_operator": "larger",
+        "compute_latency": 25,
+        "compute_latency_operator": "smaller",
+        "location": "Tromsø, Norway",
+        "customer": "+47 56789012",
+        "datacenter": "EC21",
+        "application": "remote-surgery-platform",
+        "descriptor": "http://intend.eu/5G4DataWorkloadCatalogue/surgery-deployment.yaml",
+        "handler": "inOrch",
+        "owner": "inSwitch"
+      },
+      {
+        "description": "Combined network and workload deployment for drone object detection",
+        "latency": 30,
+        "latency_operator": "smaller",
+        "bandwidth": 650,
+        "bandwidth_operator": "larger",
+        "compute_latency": 120,
+        "compute_latency_operator": "smaller",
+        "location": "Kristiansand, Norway",
+        "customer": "+47 67890123",
+        "datacenter": "EC30",
+        "application": "drone-object-detection-system",
+        "descriptor": "http://intend.eu/5G4DataWorkloadCatalogue/drone-object-detection-deployment.yaml",
+        "handler": "inOrch",
+        "owner": "inSwitch"
+      }
+    ]
+  },
+  "generation_settings": {
+    "batch_size": 1,
+    "interval_between_intents": 0,
+    "interval_between_batches": 0,
+    "continue_on_error": true,
+    "log_level": "INFO"
+  }
+}

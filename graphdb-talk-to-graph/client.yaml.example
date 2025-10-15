@@ -1,0 +1,36 @@
+openai:
+  # Set this to your OpenAI API key
+  api_key: your-openai-api-key-here
+
+# System prompt is now loaded from system_prompt.txt file
+
+graphdb:
+  # The base URL of the GraphDB instance
+  url: http://your-graphdb-instance:7200
+  
+  # GraphDB repository ID
+  repository_id: your-repository-id
+
+  # GraphDB username to associate with created threads and use for HTTP basic auth
+  username: your-username
+
+  # Set this to use HTTP basic auth (with the above username)
+  password: your-password
+
+  # Set this to use a custom HTTP authorization header (for example, GraphDB or OpenID token)
+  auth_header:
+
+# Model configuration
+model_name: gpt-4o
+
+# TTYG REST API configuration, only used if --mcp or --direct is not set. The dialogue agent will then use the GraphDB Lab TTYG agent. You will have to create the agent in GraphDB GUI first. 
+ttyg:
+  # The base URL of the GraphDB instance
+  base_url: http://your-graphdb-instance:7200
+  
+  # TTYG agent ID
+  agent_id: your-ttyg-agent-id
+  
+  # Authentication (optional)
+  username: your-username
+  password: your-password

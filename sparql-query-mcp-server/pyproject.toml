@@ -1,0 +1,22 @@
+[project]
+name = "sparql-query-mcp-server"
+version = "1.0.0"
+description = "SPARQL Query MCP Server - HTTP-based MCP server for executing SPARQL queries against GraphDB"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.12.3",
+    "pydantic>=2.6.0",
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+sparql-query-mcp = "sparql_query_mcp.server:get_mcp"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["sparql_query_mcp*"]

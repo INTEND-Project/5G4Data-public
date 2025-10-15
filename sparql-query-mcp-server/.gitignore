@@ -1,0 +1,3 @@
+.venv/
+sparql-query-mcp-server.log
+src/sparql_query_mcp_server.egg-info

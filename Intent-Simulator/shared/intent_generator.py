@@ -84,6 +84,8 @@ class IntentGenerator:
         # Create delivery expectation
         de_uri = self.data[de_id]
         g.add((de_uri, RDF.type, self.data.NetworkExpectation))
+        g.add((de_uri, RDF.type, self.icm.IntentElement))
+        g.add((de_uri, RDF.type, self.icm.Expectation))
         g.add((de_uri, self.icm.target, self.data["network-slice"]))
         g.add((de_uri, self.dct.description, Literal(params.get("description", "Ensure QoS guarantees for network slice"))))
         g.add((de_uri, self.log.allOf, self.data[c1_id]))
@@ -186,6 +188,8 @@ class IntentGenerator:
         # Create deployment expectation
         de_uri = self.data[de_id]
         g.add((de_uri, RDF.type, self.data.DeploymentExpectation))
+        g.add((de_uri, RDF.type, self.icm.IntentElement))
+        g.add((de_uri, RDF.type, self.icm.Expectation))
         g.add((de_uri, self.icm.target, self.data["deployment"]))
         g.add((de_uri, self.dct.description, Literal(params.get("description", "Deploy application to Edge Data Center"))))
         g.add((de_uri, self.log.allOf, self.data[c1_id]))
@@ -279,6 +283,8 @@ class IntentGenerator:
         # Create network expectation
         de1_uri = self.data[de1_id]
         g.add((de1_uri, RDF.type, self.data.NetworkExpectation))
+        g.add((de1_uri, RDF.type, self.icm.IntentElement))
+        g.add((de1_uri, RDF.type, self.icm.Expectation))
         g.add((de1_uri, self.icm.target, self.data["network-slice"]))
         g.add((de1_uri, self.dct.description, Literal(params.get("description", "Ensure QoS guarantees for network slice"))))
         g.add((de1_uri, self.log.allOf, self.data[c1_id]))
@@ -288,6 +294,8 @@ class IntentGenerator:
         # Create deployment expectation
         de2_uri = self.data[de2_id]
         g.add((de2_uri, RDF.type, self.data.DeploymentExpectation))
+        g.add((de2_uri, RDF.type, self.icm.IntentElement))
+        g.add((de2_uri, RDF.type, self.icm.Expectation))
         g.add((de2_uri, self.icm.target, self.data["deployment"]))
         g.add((de2_uri, self.dct.description, Literal(params.get("description", "Deploy application to Edge Data Center"))))
         g.add((de2_uri, self.log.allOf, self.data[c3_id]))

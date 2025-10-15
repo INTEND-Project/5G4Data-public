@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, render_template, send_file
 from flask_cors import CORS
 import os
 from dotenv import load_dotenv
-from shared.intent_generator import IntentGenerator
+from intent_generator import IntentGenerator
 from shared.graphdb_client import GraphDBClient
 import time
 

@@ -109,8 +109,8 @@ class IntentGenerator:
         # Generate unique IDs
         intent_id = f"I{uuid.uuid4().hex}"
         de_id = f"NE{uuid.uuid4().hex}"
-        c1_id = f"co_{uuid.uuid4().hex}"
-        c2_id = f"co_{uuid.uuid4().hex}"
+        c1_id = f"CO{uuid.uuid4().hex}"
+        c2_id = f"CO{uuid.uuid4().hex}"
         cx_id = f"CX{uuid.uuid4().hex}"
         region_id = f"RG{uuid.uuid4().hex}"
         re_id = f"RE{uuid.uuid4().hex}"
@@ -190,7 +190,7 @@ class IntentGenerator:
         # Generate unique IDs
         intent_id = f"I{uuid.uuid4().hex}"
         de_id = f"DE{uuid.uuid4().hex}"
-        c1_id = f"co_{uuid.uuid4().hex}"
+        c1_id = f"CO{uuid.uuid4().hex}"
         cx_id = f"CX{uuid.uuid4().hex}"
         re_id = f"RE{uuid.uuid4().hex}"
 
@@ -263,9 +263,9 @@ class IntentGenerator:
         intent_id = f"I{uuid.uuid4().hex}"
         de1_id = f"NE{uuid.uuid4().hex}"
         de2_id = f"DE{uuid.uuid4().hex}"
-        c1_id = f"co_{uuid.uuid4().hex}"
-        c2_id = f"co_{uuid.uuid4().hex}"
-        c3_id = f"co_{uuid.uuid4().hex}"
+        c1_id = f"CO{uuid.uuid4().hex}"
+        c2_id = f"CO{uuid.uuid4().hex}"
+        c3_id = f"CO{uuid.uuid4().hex}"
         cx1_id = f"CX{uuid.uuid4().hex}"
         cx2_id = f"CX{uuid.uuid4().hex}"
         region_id = f"RG{uuid.uuid4().hex}"

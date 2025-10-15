@@ -26,6 +26,8 @@ class TestIntentGenerator:
         assert "@prefix" in result
         assert "icm:Intent" in result
         assert "data5g:NetworkExpectation" in result
+        assert "icm:IntentElement" in result
+        assert "icm:Expectation" in result
         assert "testHandler" in result
         assert "testOwner" in result
     
@@ -43,6 +45,8 @@ class TestIntentGenerator:
         assert "@prefix" in result
         assert "icm:Intent" in result
         assert "data5g:DeploymentExpectation" in result
+        assert "icm:IntentElement" in result
+        assert "icm:Expectation" in result
         assert "EC1" in result
         assert "test-app" in result
     
@@ -62,6 +66,8 @@ class TestIntentGenerator:
         assert "icm:Intent" in result
         assert "data5g:NetworkExpectation" in result
         assert "data5g:DeploymentExpectation" in result
+        assert "icm:IntentElement" in result
+        assert "icm:Expectation" in result
     
     def test_generate_with_enum(self):
         """Test generate method with IntentType enum."""

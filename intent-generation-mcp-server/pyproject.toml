@@ -1,0 +1,22 @@
+[project]
+name = "intent-generation-mcp-server"
+version = "1.0.0"
+description = "Intent Generation MCP Server - Clean single-purpose server for TM Forum intent generation"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.12.3",
+    "intent-generator @ git+https://github.com/INTEND-Project/5G4Data-public.git#subdirectory=intent-generator-package",
+    "pydantic>=2.6.0",
+]
+
+[project.scripts]
+intent-generation-mcp = "intent_generation_mcp.server:get_mcp"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["intent_generation_mcp*"]

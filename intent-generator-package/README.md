@@ -1,6 +1,10 @@
 # Intent Generator Package
 
-A Python package for generating TM Forum formatted intents for 5G network and workload management scenarios. This package provides a clean, modular API for creating network slice configuration intents, workload deployment intents, and combined intents.
+A Python package for generating TM Forum formatted intents for 5G network and workload management scenarios.
+
+The package has been developed as part of the [INTEND EU financed project](https://intendproject.eu/) and supports creation of [TM Forum TIO](https://www.tmforum.org/resources/introductory-guide/tr292-tm-forum-intent-ontology-tio-v3-6-0/) formatted intents that are specific for the 5G4Data use-case in the INTEND project. For more information about the 5G4Data use-case, take a look [here](https://start5g-1.cs.uit.no/).
+
+This package provides a clean, modular API for creating network slice configuration intents, workload deployment intents, and combined intents.
 
 ## Features
 

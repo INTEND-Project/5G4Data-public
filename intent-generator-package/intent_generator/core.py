@@ -126,6 +126,8 @@ class IntentGenerator:
             g.add((intent_uri, self.imo.handler, Literal(params.handler, datatype=self.xsd.string)))
         if params.owner:
             g.add((intent_uri, self.imo.owner, Literal(params.owner, datatype=self.xsd.string)))
+        if params.intent_description:
+            g.add((intent_uri, self.dct.description, Literal(params.intent_description)))
 
         # Create delivery expectation
         de_uri = self.data[de_id]
@@ -205,6 +207,8 @@ class IntentGenerator:
             g.add((intent_uri, self.imo.handler, Literal(params.handler)))
         if params.owner:
             g.add((intent_uri, self.imo.owner, Literal(params.owner)))
+        if params.intent_description:
+            g.add((intent_uri, self.dct.description, Literal(params.intent_description)))
 
         # Create deployment expectation
         de_uri = self.data[de_id]
@@ -285,6 +289,8 @@ class IntentGenerator:
             g.add((intent_uri, self.imo.handler, Literal(params.handler)))
         if params.owner:
             g.add((intent_uri, self.imo.owner, Literal(params.owner)))
+        if params.intent_description:
+            g.add((intent_uri, self.dct.description, Literal(params.intent_description)))
 
         # Create network expectation
         de1_uri = self.data[de1_id]

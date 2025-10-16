@@ -7,7 +7,7 @@
   "intent_generation": {
     "network_intents": [
       {
-        "description": "Ultra-low latency network slice for autonomous vehicles",
+        "intent_description": "Ultra-low latency network slice for autonomous vehicles",
         "latency": 10,
         "latency_operator": "smaller",
         "bandwidth": 600,
@@ -18,7 +18,7 @@
         "owner": "inSwitch"
       },
       {
-        "description": "High-bandwidth network slice for 4K video streaming",
+        "intent_description": "High-bandwidth network slice for 4K video streaming",
         "latency": 20,
         "latency_operator": "smaller",
         "bandwidth": 400,
@@ -29,7 +29,7 @@
         "owner": "inSwitch"
       },
       {
-        "description": "Reliable network slice for industrial IoT sensors",
+        "intent_description": "Reliable network slice for industrial IoT sensors",
         "latency": 50,
         "latency_operator": "smaller",
         "bandwidth": 100,
@@ -42,7 +42,7 @@
     ],
     "workload_intents": [
       {
-        "description": "Deploy AI inference service to edge datacenter",
+        "intent_description": "Deploy AI inference service to edge datacenter",
         "compute_latency": 1000,
         "compute_latency_operator": "smaller",
         "datacenter": "EC21",
@@ -52,7 +52,7 @@
         "owner": "inSwitch"
       },
       {
-        "description": "Deploy AR retail application to edge datacenter",
+        "intent_description": "Deploy AR retail application to edge datacenter",
         "compute_latency": 40,
         "compute_latency_operator": "smaller",
         "datacenter": "EC2",
@@ -62,7 +62,7 @@
         "owner": "inSwitch"
       },
       {
-        "description": "Deploy real-time analytics platform to edge datacenter",
+        "intent_description": "Deploy real-time analytics platform to edge datacenter",
         "compute_latency": 55,
         "compute_latency_operator": "smaller",
         "datacenter": "EC3",
@@ -74,7 +74,7 @@
     ],
     "combined_intents": [
       {
-        "description": "Combined network and workload deployment for smart city traffic management",
+        "intent_description": "Combined network and workload deployment for smart city traffic management",
         "latency": 20,
         "latency_operator": "smaller",
         "bandwidth": 400,
@@ -90,7 +90,7 @@
         "owner": "city-council"
       },
       {
-        "description": "Combined network and workload deployment for remote surgery",
+        "intent_description": "Combined network and workload deployment for remote surgery",
         "latency": 5,
         "latency_operator": "smaller",
         "bandwidth": 800,
@@ -106,7 +106,7 @@
         "owner": "inSwitch"
       },
       {
-        "description": "Combined network and workload deployment for drone object detection",
+        "intent_description": "Combined network and workload deployment for drone object detection",
         "latency": 30,
         "latency_operator": "smaller",
         "bandwidth": 650,

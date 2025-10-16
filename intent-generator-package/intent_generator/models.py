@@ -16,6 +16,7 @@ class IntentType(Enum):
 class BaseIntentParams:
     """Base parameters for all intent types."""
     description: Optional[str] = None
+    intent_description: Optional[str] = None
     handler: Optional[str] = None
     owner: Optional[str] = None
     customer: str = "+47 90914547"

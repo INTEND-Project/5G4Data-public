@@ -91,6 +91,11 @@
                 </select>
             </div>
 
+            <div class="form-group">
+                <label for="intentDescription">Intent Description:</label>
+                <input type="text" class="form-control" id="intentDescription" placeholder="Enter a description for this intent">
+            </div>
+
             <div id="networkFields">
                 <div class="form-group">
                     <label for="latencyOperator">Latency Operator:</label>
@@ -311,6 +316,12 @@
             const interval = document.getElementById('interval').value;
             const handler = document.getElementById('handler').value.trim();
             const owner = document.getElementById('owner').value.trim();
+
+            // Get intent description
+            const intentDescription = document.getElementById('intentDescription').value.trim();
+            if (intentDescription) {
+                parameters.intent_description = intentDescription;
+            }
 
             // Get network-specific fields if needed
             if (intentType === 'network' || intentType === 'combined') {

@@ -121,6 +121,38 @@ class TestIntentGenerator:
         assert "30" in result
         assert "200" in result
         assert "500" in result
+    
+    def test_intent_description(self):
+        """Test intent_description parameter."""
+        params = NetworkIntentParams(
+            latency=20,
+            bandwidth=300,
+            intent_description="Test intent description"
+        )
+        
+        result = self.generator.generate_network_intent(params)
+        
+        assert isinstance(result, str)
+        assert "Test intent description" in result
+        assert "dct:description" in result
+        
+        # Check that the description is on the intent itself, not just expectations
+        lines = result.split('\n')
+        intent_lines = [line for line in lines if 'icm:Intent' in line]
+        assert len(intent_lines) > 0
+        
+        # Find lines with intent description (could be on same line or following line)
+        intent_with_desc = [line for line in lines if 'icm:Intent' in line and 'dct:description' in line]
+        if len(intent_with_desc) == 0:
+            # Check if description is on the line following the intent declaration
+            for i, line in enumerate(lines):
+                if 'icm:Intent' in line and i + 1 < len(lines):
+                    next_line = lines[i + 1]
+                    if 'dct:description' in next_line and 'Test intent description' in next_line:
+                        intent_with_desc = [next_line]
+                        break
+        
+        assert len(intent_with_desc) > 0
 
 
 class TestParameterClasses:

@@ -42,7 +42,7 @@ class TTYGAgentConfig:
     graphdb_repository_id: Optional[str] = None
     sparql_only: bool = False
     # MCP server settings
-    mcp_server_url: str = "http://localhost:8084/mcp"
+    mcp_server_url: str = "http://localhost:8085/mcp"
 
 
 class TTYGRestClient:
@@ -306,20 +306,78 @@ Always be helpful and provide context about what the data means."""
                 "type": "function",
                 "function": {
                     "name": "execute_sparql_query",
-                    "description": "Execute a SPARQL query to retrieve data from the GraphDB. Use this to answer questions about the data in the graph.",
+                    "description": "Execute a SPARQL query to retrieve data from the GraphDB. IMPORTANT: Always include complete PREFIX declarations for all namespaces used in the query. Use this to answer questions about the data in the graph.",
                     "parameters": {
                         "type": "object",
                         "required": ["query"],
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "The SPARQL query to execute"
+                                "description": "The SPARQL query to execute. Must include PREFIX declarations for all namespaces used."
                             }
                         }
                     }
                 }
             }
         ]
+    
+    def _validate_sparql_query(self, query: str) -> str:
+        """Validate and fix SPARQL query prefix declarations."""
+        import re
+        
+        # Extract used prefixes from the query
+        used_prefixes = set()
+        for line in query.split('\n'):
+            if ':' in line and not line.strip().startswith('#'):
+                # Find prefix usage patterns like icm:Intent, data5g:NetworkExpectation
+                matches = re.findall(r'(\w+):', line)
+                used_prefixes.update(matches)
+        
+        # Check if all used prefixes are declared
+        declared_prefixes = set()
+        for line in query.split('\n'):
+            if line.strip().startswith('PREFIX') or line.strip().startswith('@prefix'):
+                prefix_name = line.split()[1].rstrip(':')
+                declared_prefixes.add(prefix_name)
+        
+        missing_prefixes = used_prefixes - declared_prefixes
+        if missing_prefixes:
+            # Add missing prefix declarations
+            prefix_declarations = []
+            prefix_map = {
+                'icm': 'http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/',
+                'imo': 'http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/',
+                'met': 'http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/',
+                'log': 'http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/',
+                'data5g': 'http://5g4data.eu/5g4data#',
+                'quan': 'http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/',
+                'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+                'rdfs': 'http://www.w3.org/2000/01/rdf-schema#',
+                'xsd': 'http://www.w3.org/2001/XMLSchema#',
+                'dct': 'http://purl.org/dc/terms/',
+                'geo': 'http://www.opengis.net/ont/geosparql#',
+                'set': 'http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/'
+            }
+            
+            for prefix in missing_prefixes:
+                if prefix in prefix_map:
+                    prefix_declarations.append(f"PREFIX {prefix}: <{prefix_map[prefix]}>")
+            
+            if prefix_declarations:
+                # Insert prefix declarations at the beginning
+                lines = query.split('\n')
+                insert_pos = 0
+                for i, line in enumerate(lines):
+                    if line.strip().startswith('PREFIX') or line.strip().startswith('@prefix'):
+                        insert_pos = i + 1
+                    elif line.strip() and not line.strip().startswith('#'):
+                        break
+                
+                lines[insert_pos:insert_pos] = prefix_declarations + ['']
+                query = '\n'.join(lines)
+                print(f"🔧 Auto-fixed missing prefixes: {', '.join(missing_prefixes)}")
+        
+        return query
     
     def _execute_tool_call(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         """Execute a tool call."""
@@ -335,6 +393,10 @@ Always be helpful and provide context about what the data means."""
                 return datetime.now(timezone.utc).isoformat()
             elif tool_name == "execute_sparql_query":
                 query = arguments.get("query", "")
+                
+                # Validate and fix SPARQL query prefixes
+                query = self._validate_sparql_query(query)
+                
                 if self.sparql_only:
                     return f"[SPARQL ONLY]\n{query}"
                 
@@ -351,6 +413,9 @@ Always be helpful and provide context about what the data means."""
     def _execute_sparql_via_mcp(self, query: str) -> str:
         """Execute SPARQL query via MCP server."""
         try:
+            # Validate and fix SPARQL query prefixes before sending to MCP
+            query = self._validate_sparql_query(query)
+            
             # Run the async MCP call in a new event loop
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)

@@ -98,8 +98,25 @@ def main():
     range_intent = generator.generate_network_intent(range_params)
     print(f"Generated range intent (first 200 chars):\n{range_intent[:200]}...\n")
     
-    # Example 6: Sequence generation
-    print("6. Sequence Generation Example:")
+    # Example 6: Intent Description
+    print("6. Intent Description Example:")
+    print("-" * 30)
+    
+    intent_desc_params = NetworkIntentParams(
+        latency=20,
+        bandwidth=300,
+        location="Berlin, Germany",
+        handler="inSwitch",
+        owner="inNet",
+        description="High-performance network slice for AR application",
+        intent_description="This intent defines network requirements for AR retail application deployment in Berlin"
+    )
+    
+    intent_desc_result = generator.generate_network_intent(intent_desc_params)
+    print(f"Generated intent with description (first 300 chars):\n{intent_desc_result[:300]}...\n")
+    
+    # Example 7: Sequence generation
+    print("7. Sequence Generation Example:")
     print("-" * 30)
     
     sequence_params = NetworkIntentParams(

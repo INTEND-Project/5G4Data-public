@@ -1,5 +1,9 @@
-5g4data-mcp-server-old/
 intent-generation-agent/
-intent-generation-mcp-server/
-intent-generator-package/
-5g4data-mcp-server/
+intent-generator-package/build/
+intent-generator-package/intent_generator.egg-info/
+intent-generator-package/.openAI-KEY
+IntentReport-Simulator/generated_observations/
+IntentReport-Simulator/generated_observation_files/
+__pycache__/
+intent-generation-mcp-server/src/intent_generation_mcp_server.egg-info/
+intent-generation-mcp-server/intent-generation-mcp-server.log

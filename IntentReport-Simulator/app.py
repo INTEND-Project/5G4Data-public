@@ -468,10 +468,71 @@ def quick_populate_generate():
         
         results = []
         
+        # Generate state change events for each unique intent
+        processed_intents = set()
+        state_events_generated = []
+        
         for condition in conditions:
             intent_id = condition['intent_id']
             condition_id = condition['condition_id']
             condition_description = condition['condition_description']
+            storage_type = condition.get('storage_type', 'graphdb')
+            
+            # Generate state change events for this intent (only once per intent)
+            if intent_id not in processed_intents:
+                try:
+                    # Parse the start time to use as base for state events
+                    start_time = datetime.fromisoformat(condition['start_time'].replace('Z', '+00:00'))
+                    
+                    # Generate state change events
+                    state_events = generate_state_change_events(
+                        intent_id=intent_id,
+                        start_time=start_time,
+                        handler="inNet",  # Default handler
+                        owner="inSwitch"  # Default owner
+                    )
+                    
+                    # Store state events in GraphDB
+                    for event in state_events:
+                        try:
+                            success = reports_client.store_intent_report(event['turtle'])
+                            if success:
+                                state_events_generated.append({
+                                    'intent_id': intent_id,
+                                    'state': event['state'],
+                                    'timestamp': event['timestamp'].strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                    'status': 'success'
+                                })
+                                logger.info(f"Generated {event['state']} state event for intent {intent_id}")
+                            else:
+                                state_events_generated.append({
+                                    'intent_id': intent_id,
+                                    'state': event['state'],
+                                    'timestamp': event['timestamp'].strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                    'status': 'error',
+                                    'message': 'Failed to store in GraphDB'
+                                })
+                        except Exception as e:
+                            logger.error(f"Failed to store state event {event['state']} for intent {intent_id}: {e}")
+                            state_events_generated.append({
+                                'intent_id': intent_id,
+                                'state': event['state'],
+                                'timestamp': event['timestamp'].strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                'status': 'error',
+                                'message': str(e)
+                            })
+                    
+                    processed_intents.add(intent_id)
+                    
+                except Exception as e:
+                    logger.error(f"Failed to generate state events for intent {intent_id}: {e}")
+                    state_events_generated.append({
+                        'intent_id': intent_id,
+                        'state': 'all',
+                        'timestamp': condition['start_time'],
+                        'status': 'error',
+                        'message': f"Failed to generate state events: {str(e)}"
+                    })
             
             # Randomly select generation mode and anomaly settings
             import random
@@ -540,13 +601,54 @@ def quick_populate_generate():
                 except Exception:
                     pass
                 
-                # Process CSV and insert into GraphDB (unless files_only is selected)
+                # Process CSV and insert into storage based on storage_type
                 files_only = condition.get('files_only', False)
                 if files_only:
-                    graphdb_success, graphdb_message = False, "Skipped (files only)"
+                    storage_success, storage_message = False, "Skipped (files only)"
                 else:
                     turtle_data = intents_client.get_intent(intent_id) or ''
-                    graphdb_success, graphdb_message = process_csv_to_graphdb(output_path, intent_id, condition_id, turtle_data, debug_turtle_dir)
+                    
+                    if storage_type == 'prometheus':
+                        # Use observation generator for Prometheus storage
+                        try:
+                            # Start observation task for Prometheus storage
+                            task_id = observation_generator.start_observation_task(
+                                condition_id=condition_id,
+                                frequency=int(condition['frequency']),
+                                start_time=datetime.fromisoformat(condition['start_time'].replace('Z', '+00:00')),
+                                stop_time=datetime.fromisoformat(condition['end_time'].replace('Z', '+00:00')),
+                                min_value=condition['min_value'],
+                                max_value=condition['max_value'],
+                                turtle_data=turtle_data,
+                                value_file=output_path,
+                                original_value_file=output_path,
+                                storage_type='prometheus',
+                                honor_valuefile_timestamps=True
+                            )
+                            
+                            # Store Prometheus metadata immediately
+                            try:
+                                metric_type, unit = observation_generator.get_metric_type_from_condition(condition_id, turtle_data)
+                                metric_name = f"{metric_type.lower()}_{condition_id.lower()}"
+                                reports_client.store_prometheus_metadata(metric_name=metric_name)
+                            except Exception as meta_error:
+                                logger.warning(f"Failed to store Prometheus metadata for {condition_id}: {meta_error}")
+                            
+                            storage_success, storage_message = True, f"Prometheus task started: {task_id}"
+                        except Exception as e:
+                            storage_success, storage_message = False, f"Prometheus error: {str(e)}"
+                    else:
+                        # Use GraphDB storage (default)
+                        storage_success, storage_message = process_csv_to_graphdb(output_path, intent_id, condition_id, turtle_data, debug_turtle_dir)
+                        
+                        # Store GraphDB metadata immediately
+                        if storage_success:
+                            try:
+                                metric_type, unit = observation_generator.get_metric_type_from_condition(condition_id, turtle_data)
+                                metric_name = f"{metric_type.lower()}_{condition_id.lower()}"
+                                reports_client.store_graphdb_metadata(metric_name=metric_name)
+                            except Exception as meta_error:
+                                logger.warning(f"Failed to store GraphDB metadata for {condition_id}: {meta_error}")
                 
                 results.append({
                     'intent_id': intent_id,
@@ -557,8 +659,9 @@ def quick_populate_generate():
                     'mode': selected_mode,
                     'anomaly': selected_anomaly,
                     'files_only': files_only,
-                    'graphdb_status': 'skipped' if files_only else ('success' if graphdb_success else 'error'),
-                    'graphdb_message': graphdb_message
+                    'storage_type': storage_type,
+                    'storage_status': 'skipped' if files_only else ('success' if storage_success else 'error'),
+                    'storage_message': storage_message
                 })
             else:
                 results.append({
@@ -569,7 +672,11 @@ def quick_populate_generate():
                     'error': proc.stderr.strip() or 'Unknown error'
                 })
         
-        return jsonify({'results': results, 'output_dir': output_dir})
+        return jsonify({
+            'results': results, 
+            'output_dir': output_dir,
+            'state_events': state_events_generated
+        })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -582,12 +689,13 @@ def quick_populate_result():
     
     try:
         data = json.loads(results_json)
-        # Expecting a JSON object like: { "results": [...], "output_dir": ":path" }
+        # Expecting a JSON object like: { "results": [...], "output_dir": ":path", "state_events": [...] }
         results = data.get('results', []) if isinstance(data, dict) else []
         output_dir = data.get('output_dir', '') if isinstance(data, dict) else ''
-        return render_template('populate_generate_result.html', results=results, output_dir=output_dir)
+        state_events = data.get('state_events', []) if isinstance(data, dict) else []
+        return render_template('populate_generate_result.html', results=results, output_dir=output_dir, state_events=state_events)
     except Exception as e:
-        return render_template('populate_generate_result.html', results=[{'status': 'error', 'error': str(e)}], output_dir='')
+        return render_template('populate_generate_result.html', results=[{'status': 'error', 'error': str(e)}], output_dir='', state_events=[])
 
 @app.route('/api/query-intents')
 def query_intents():
@@ -927,6 +1035,77 @@ def get_storage_metadata(condition_id):
             })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+def generate_state_change_events(intent_id: str, start_time: datetime, handler: str = "inNet", owner: str = "inSwitch"):
+    """Generate a sequence of state change events for quick populate simulation"""
+    import random
+    import time
+    from datetime import timedelta
+    
+    events = []
+    current_time = start_time
+    
+    # Event 1: IntentReceived (immediately)
+    report_data = {
+        "intent_id": intent_id,
+        "report_type": "STATE_CHANGE",
+        "report_number": 1,
+        "report_generated": current_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "handler": handler,
+        "owner": owner,
+        "intent_handling_state": "StateIntentReceived",
+        "reason": "Intent received and being processed"
+    }
+    turtle_data = generate_turtle(report_data)
+    events.append({
+        "state": "IntentReceived",
+        "timestamp": current_time,
+        "turtle": turtle_data
+    })
+    
+    # Event 2: IntentAccepted (after random delay, max 5 minutes)
+    delay_minutes = random.uniform(1, 5)  # Random delay between 1-5 minutes
+    current_time += timedelta(minutes=delay_minutes)
+    
+    report_data = {
+        "intent_id": intent_id,
+        "report_type": "STATE_CHANGE", 
+        "report_number": 2,
+        "report_generated": current_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "handler": handler,
+        "owner": owner,
+        "intent_handling_state": "StateIntentAccepted",
+        "reason": "Intent accepted and implementation started"
+    }
+    turtle_data = generate_turtle(report_data)
+    events.append({
+        "state": "IntentAccepted",
+        "timestamp": current_time,
+        "turtle": turtle_data
+    })
+    
+    # Event 3: Complies (after random delay, max 5 minutes)
+    delay_minutes = random.uniform(1, 5)  # Random delay between 1-5 minutes
+    current_time += timedelta(minutes=delay_minutes)
+    
+    report_data = {
+        "intent_id": intent_id,
+        "report_type": "STATE_CHANGE",
+        "report_number": 3,
+        "report_generated": current_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "handler": handler,
+        "owner": owner,
+        "intent_handling_state": "StateCompliant",
+        "reason": "Intent is now compliant and operational"
+    }
+    turtle_data = generate_turtle(report_data)
+    events.append({
+        "state": "Complies",
+        "timestamp": current_time,
+        "turtle": turtle_data
+    })
+    
+    return events
 
 def generate_turtle(report_data):
     """Generate Turtle format for an intent report"""

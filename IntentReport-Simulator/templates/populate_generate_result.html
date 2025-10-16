@@ -37,7 +37,8 @@
                             <th>Intent</th>
                             <th>Condition</th>
                             <th>File Status</th>
-                            <th>GraphDB Status</th>
+                            <th>Storage Type</th>
+                            <th>Storage Status</th>
                             <th>Files Only</th>
                             <th>Details</th>
                         </tr>
@@ -55,11 +56,24 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if r.graphdb_status == 'success' %}
+                                {% if r.storage_type %}
+                                    {% if r.storage_type == 'graphdb' %}
+                                        <span class="badge bg-primary">GraphDB</span>
+                                    {% elif r.storage_type == 'prometheus' %}
+                                        <span class="badge bg-warning text-dark">Prometheus</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{{ r.storage_type }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-secondary">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if r.storage_status == 'success' %}
                                     <span class="badge bg-success">success</span>
-                                {% elif r.graphdb_status == 'error' %}
+                                {% elif r.storage_status == 'error' %}
                                     <span class="badge bg-danger">error</span>
-                                {% elif r.graphdb_status == 'skipped' %}
+                                {% elif r.storage_status == 'skipped' %}
                                     <span class="badge bg-warning text-dark">skipped</span>
                                 {% else %}
                                     <span class="badge bg-secondary">-</span>
@@ -81,8 +95,8 @@
                                     {% if r.anomaly %}
                                         <div class="text-muted small">Anomaly: {{ r.anomaly }}</div>
                                     {% endif %}
-                                    {% if r.graphdb_message %}
-                                        <div class="text-muted small">{{ r.graphdb_message }}</div>
+                                    {% if r.storage_message %}
+                                        <div class="text-muted small">{{ r.storage_message }}</div>
                                     {% endif %}
                                 {% else %}
                                     <span class="text-danger">{{ r.error }}</span>
@@ -93,6 +107,53 @@
                     </tbody>
                 </table>
             </div>
+            
+            {% if state_events %}
+            <div class="mt-4">
+                <h5>State Change Events Generated</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Intent</th>
+                                <th>State</th>
+                                <th>Timestamp</th>
+                                <th>Status</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for event in state_events %}
+                            <tr>
+                                <td>{{ event.intent_id or '-' }}</td>
+                                <td>
+                                    {% if event.state == 'IntentReceived' %}
+                                        <span class="badge bg-info">IntentReceived</span>
+                                    {% elif event.state == 'IntentAccepted' %}
+                                        <span class="badge bg-warning text-dark">IntentAccepted</span>
+                                    {% elif event.state == 'Complies' %}
+                                        <span class="badge bg-success">Complies</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ event.state }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ event.timestamp or '-' }}</td>
+                                <td>
+                                    {% if event.status == 'success' %}
+                                        <span class="badge bg-success">success</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">error</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ event.message or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+            
             <div class="mt-3 d-flex gap-2">
                 <a class="btn btn-secondary" href="/populate">Back to populate</a>
                 <a class="btn btn-outline-primary" href="/live">Go to live simulators</a>

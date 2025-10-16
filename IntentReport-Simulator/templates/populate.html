@@ -158,6 +158,15 @@
                             </div>
                         </div>
                         <div class="mb-3">
+                            <label for="storageType" class="form-label">Storage Type</label>
+                            <select class="form-select" id="storageType">
+                                <option value="graphdb">GraphDB (default)</option>
+                                <option value="prometheus">Prometheus</option>
+                                <option value="mixed">Mixture of GraphDB and Prometheus</option>
+                            </select>
+                            <div class="form-text">For mixed storage, conditions will be randomly assigned to either GraphDB or Prometheus</div>
+                        </div>
+                        <div class="mb-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="filesOnly">
                                 <label class="form-check-label" for="filesOnly">
@@ -462,6 +471,7 @@
             const decimalPlaces = document.getElementById('quickDecimalPlaces').value;
             const generateAnomalies = document.getElementById('quickAnomalies').checked;
             const filesOnly = document.getElementById('filesOnly').checked;
+            const storageType = document.getElementById('storageType').value;
             
             if (!startTime || !endTime || !frequency) {
                 alert('Please fill in all required fields.');
@@ -503,6 +513,13 @@
                             const quanInfo = parseQuanOperator(condition.description);
                             const { min, max } = deduceMinMax(quanInfo);
                             
+                            // Determine storage type for this condition
+                            let conditionStorageType = storageType;
+                            if (storageType === 'mixed') {
+                                // Randomly assign GraphDB or Prometheus for mixed storage
+                                conditionStorageType = Math.random() < 0.5 ? 'graphdb' : 'prometheus';
+                            }
+                            
                             conditions.push({
                                 intent_id: intentId,
                                 condition_id: condition.id,
@@ -514,7 +531,8 @@
                                 max_value: max,
                                 decimal_places: decimalPlaces,
                                 generate_anomalies: generateAnomalies,
-                                files_only: filesOnly
+                                files_only: filesOnly,
+                                storage_type: conditionStorageType
                             });
                         }
                     }

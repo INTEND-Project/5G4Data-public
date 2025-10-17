@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # GraphDB configuration
 GRAPHDB_URL = os.environ.get('GRAPHDB_URL', "http://start5g-1.cs.uit.no:7200")
-REPOSITORY = os.environ.get('GRAPHDB_REPOSITORY', "intent-reports")  # You may need to adjust this based on your GraphDB setup
+REPOSITORY = os.environ.get('GRAPHDB_REPOSITORY', "intents_and_intent_reports")  # You may need to adjust this based on your GraphDB setup
 
 def get_metric_query(metric_name):
     """

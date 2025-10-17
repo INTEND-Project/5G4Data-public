@@ -1,58 +1,75 @@
 # Intent Report Query Proxy
 
-A Flask application that functions as a query proxy for intent report observations. The application retrieves metric queries from GraphDB and executes them to provide formatted data for Grafana Infinity data source.
+A Dockerized Flask application that functions as a query proxy for intent report observations. The application retrieves metric queries from GraphDB and executes them to provide formatted data for Grafana Infinity data source.
 
-## Features
+## Overview
 
-- **GET Route**: `/api/get-metric-reports/<metric_name>` - Retrieves metric reports for a specific metric
-- **GraphDB Integration**: Queries GraphDB to retrieve SPARQL queries for metrics
-- **Grafana Infinity Support**: Formats data for use with Grafana Infinity data source
-- **Health Check**: `/health` endpoint for monitoring
-- **Error Handling**: Comprehensive error handling and logging
+The Intent Report Query Proxy acts as an intermediary between Grafana dashboards and GraphDB, enabling dynamic metric queries for intent-based network management. It:
 
-## Installation
+1. **Retrieves metadata** from GraphDB to find the appropriate query for each metric
+2. **Executes queries** against various data sources (GraphDB, Prometheus, etc.)
+3. **Formats responses** for Grafana Infinity data source compatibility
+4. **Supports time ranges** and step parameters for time-series visualization
 
-1. Clone or download this repository
-2. Install dependencies:
+## Architecture
+
+```
+Grafana Dashboard → Intent Report Query Proxy → GraphDB (metadata) → Data Sources
+                                                      ↓
+                                              Prometheus/GraphDB/etc.
+```
+Example Grafana dashboards can be found in ../IntentDashboard (e.g the Intent and Condition Metrics Timeseries Dashboard.json uses the proxy)
+
+# Quick Start
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+- Access to GraphDB instance at `http://start5g-1.cs.uit.no:7200`
+- GraphDB repository: `intents_and_intent_reports`
+
+### Build and Run
+
+1. **Clone the repository**
    ```bash
-   pip install -r requirements.txt
+   git clone <repository-url>
+   cd IntentReportQueryProxy
    ```
 
-## Configuration
+2. **Build and start the service**
+   ```bash
+   docker-compose up -d
+   ```
 
-The application is configured to connect to GraphDB at `http://start5g-1.cs.uit.no:7200`. You may need to adjust the following in `app.py`:
+3. **Verify the service is running**
+   ```bash
+   curl http://localhost:3010/health
+   ```
 
-- `GRAPHDB_URL`: The URL of your GraphDB instance
-- `REPOSITORY`: The name of your GraphDB repository (default: "intent-reports")
+The service will be available at `http://localhost:3010`
 
-## Usage
+## API Endpoints
 
-### Starting the Application
-
-```bash
-python app.py
+### Health Check
 ```
-
-The application will start on `http://localhost:3010`
-
-### API Endpoints
-
-#### Get Metric Reports
+GET /health
 ```
-GET /api/get-metric-reports/<metric_name>?start=<start_time>&end=<end_time>
+Returns service status and timestamp.
+
+### Get Metric Reports
+```
+GET /api/get-metric-reports/<metric_name>?start=<start_time>&end=<end_time>&step=<step>
 ```
 
 **Parameters:**
+- `metric_name`: The metric identifier (e.g., `computelatency_CO70ae24ceec1b473abab9cbffa94223a8`)
 - `start` (optional): Start time in Unix timestamp or ISO format
-- `end` (optional): End time in Unix timestamp or ISO format
+- `end` (optional): End time in Unix timestamp or ISO format  
+- `step` (optional): Step interval for time-series data (e.g., `15s`, `1m`, `1h`)
 
 **Example:**
 ```bash
-# Without time range
-curl http://localhost:3010/api/get-metric-reports/bandwidth_co_c974e3bf6bae4c54a428b3d15e2e5dc1
-
-# With time range
-curl "http://localhost:3010/api/get-metric-reports/bandwidth_co_c974e3bf6bae4c54a428b3d15e2e5dc1?start=1640995200&end=1641081600"
+curl "http://localhost:3010/api/get-metric-reports/computelatency_CO70ae24ceec1b473abab9cbffa94223a8?start=1760693216851&end=1760704016851&step=20s"
 ```
 
 **Response Format:**
@@ -60,118 +77,87 @@ curl "http://localhost:3010/api/get-metric-reports/bandwidth_co_c974e3bf6bae4c54
 {
   "data": [
     {
-      "timestamp": "2023-01-01T12:00:00",
-      "value": 100.5,
-      "unit": "Mbps"
+      "timestamp": "2025-10-17T09:26:51+00:00",
+      "value": "47.0",
+      "unit": "ms"
     }
   ],
   "meta": {
-    "metric_name": "bandwidth_co_c974e3bf6bae4c54a428b3d15e2e5dc1",
-    "query": "SELECT ?timestamp ?value WHERE {...}",
-    "timestamp": "2023-01-01T12:00:00"
+    "metric_name": "computelatency_CO70ae24ceec1b473abab9cbffa94223a8",
+    "query": "http://start5g-1.cs.uit.no:7200/repositories/...",
+    "start_time": "2025-10-17T09:26:56Z",
+    "end_time": "2025-10-17T12:26:56Z",
+    "step": "20s",
+    "timestamp": "2025-10-17T12:31:45.499644"
   }
 }
 ```
 
-#### Health Check
+## Docker Configuration
+
+### Environment Variables
+
+The application can be configured using environment variables:
+
+- `GRAPHDB_URL`: GraphDB instance URL (default: `http://start5g-1.cs.uit.no:7200`)
+- `GRAPHDB_REPOSITORY`: GraphDB repository name (default: `intents_and_intent_reports`)
+- `FLASK_HOST`: Flask host binding (default: `0.0.0.0`)
+- `FLASK_PORT`: Flask port (default: `3010`)
+
+### Docker Compose
+
+The `docker-compose.yml` file includes:
+- Service definition with health checks
+- Automatic restart policy
+- Host network mode for external access
+- Health check endpoint monitoring
+
+### Custom Configuration
+
+To use custom GraphDB settings:
+
+```bash
+# Create a .env file
+echo "GRAPHDB_URL=http://your-graphdb:7200" > .env
+echo "GRAPHDB_REPOSITORY=your-repository" >> .env
+
+# Start with custom configuration
+docker-compose up -d
 ```
-GET /health
-```
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2023-01-01T12:00:00"
-}
-```
-
-#### Root Endpoint
-```
-GET /
-```
-
-**Response:**
-```json
-{
-  "service": "Intent Report Query Proxy",
-  "version": "1.0.0",
-  "endpoints": {
-    "get_metric_reports": "/api/get-metric-reports/<metric_name>",
-    "health": "/health"
-  }
-}
-```
-
-## Grafana Infinity Integration
-
-The application formats data specifically for Grafana Infinity data source. To use this with Grafana:
-
-1. Install the Infinity data source plugin in Grafana
-2. Configure a new data source pointing to this Flask application
-3. Use the `/api/get-metric-reports/<metric_name>` endpoint as your data source URL
-4. Configure the panel to parse the JSON response
-
-### Example Grafana Configuration
-
-**Data Source URL:**
-```
-http://localhost:3010/api/get-metric-reports/your_metric_name?start=${__from:date:iso}&end=${__to:date:iso}
-```
-
-**Parser:**
-- Type: JSON
-- Root: `data`
-
-**Time Series Configuration:**
-- Time Field: `timestamp`
-- Value Field: `value`
-
-**Grafana Variables:**
-- `${__from:date:iso}`: Start time in ISO format
-- `${__to:date:iso}`: End time in ISO format
-
-## Error Handling
-
-The application includes comprehensive error handling:
-
-- **404**: When no query is found for the specified metric
-- **500**: When GraphDB queries fail or internal errors occur
-- **Logging**: All operations are logged for debugging
 
 ## Development
 
-### Running in Development Mode
+### Rebuilding the Container
+
+After code changes:
 
 ```bash
-python app.py
+# Rebuild without cache
+docker-compose build --no-cache
+
+# Restart the service
+docker-compose up -d
 ```
 
-The application runs with debug mode enabled by default.
+## Troubleshooting
 
-### Production Deployment
+### Common Issues
 
-For production deployment, consider using a WSGI server like Gunicorn:
+1. **404 "No query found for metric"**
+   - Verify the metric exists in GraphDB metadata
+   - Check GraphDB repository name configuration
 
+2. **Connection refused to GraphDB**
+   - Verify GraphDB URL and accessibility
+   - Check network connectivity
+
+3. **Empty data responses**
+   - Verify time range parameters
+   - Check if data exists for the specified time period
+
+### Logs
+
+View container logs:
 ```bash
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
+docker-compose logs -f intent-report-proxy
 ```
-
-## Architecture
-
-1. **Request Processing**: The application receives requests for specific metrics
-2. **Query Retrieval**: It queries GraphDB to get the REST URL for the metric
-3. **Data Execution**: Executes the retrieved REST URL to get observation data
-4. **Formatting**: Formats the results for Grafana Infinity compatibility
-5. **Response**: Returns formatted JSON data
-
-## Dependencies
-
-- **Flask**: Web framework
-- **requests**: HTTP client for GraphDB communication
-- **Werkzeug**: WSGI utilities
-
-## License
-
-This project is part of the INTEND-Project/5G4Data-public initiative. 

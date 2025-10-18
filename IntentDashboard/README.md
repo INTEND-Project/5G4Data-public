@@ -8,20 +8,16 @@ Make sure that the port is accessible from outside (i.e. configure your firewall
 # Use Grafana as Dashboard
 Let us try to use Grafana as a Dashboard to visualize what is going on with Intents (i.e. How many Intents are there in total, how many are in different states, etc.)
 
-## Add datasource
+## Add datasources
+The example Grafana dashboards that we have created uses two datasource plugins and we need to install both.
 First we need to add GraphDB as a datasource. There is a SPARQL plugin that we have to install that makes it possible to use any SPARQL endpoint as a data source. It will for example enable sending SPARQL queries to a GraphDB server and make the result of the query available to be visualized in Grafana.
 ![SPARQL plugin configuration](./SPARQL-plugin-config.png)
+Secondly we need to add the infiniti data source plugin. Detailed documentation on how to do that can be found [here](https://grafana.com/grafana/plugins/yesoreyeram-infinity-datasource/).
 
 ## Dashboards
-Panels in the Dashboard can use the graphdb datasource as shown in the figure by refering to it like this:
-```
-        "datasource": {
-          "type": "sparql",
-          "uid": "graphdb"
-        },
-```
+### Example dashboards
+⚠️ **Note!** To use the example dashboards you also have to run the ../IntentReportQueryProxy. See the information in the ../IntentReportQueryProxy/README.md file for a description of why and how to run it.
 
-# Example dashboards
 We have provided a couple of example Dashboards:
 
 <dl>

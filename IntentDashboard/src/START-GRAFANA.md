@@ -22,7 +22,7 @@ To access Grafana from a remote machine, add this to the firewall, but before yo
 sudo ufw allow from ipv4-address to any port 7200 comment "Access from 80.123.456.78 to GraphDB"
 ```
 
-You should now be able to access the Dashboard using this [url](http://start5g-1.cs.uit.no:3002/). Login using user *admin* and the *password* you used.
+You should now be able to access the Dashboard using this [url](http://start5g-1.cs.uit.no:3001/). Login using user *admin* and the *password* you used.
 
 ## Install Grafana data sources and start the data source proxy
 Before you load the INTEND project dashboards, you will have to install two data source plugins. Click on the Grafana icon in upper left corner and select *Data sources*. Click on *Add data source*, scroll all the way down on the page that appears and click on *Find more data source plugins*. In the search box, type *sparql* and click on the *SPARQL* plugin that appears. Click on *Install* in the upper left corner. When the installation is complete, click on *Add new datasource* and add *http://start5g-1.cs.uit.no:7200/repositories/intents_and_intent_reports* as the Source (do not add anything in *Username* and *Password*). Click *Save & test"*. The test should succeed if your GraphDB server is running. 
@@ -36,20 +36,20 @@ After you have logged in, click on the Grafana icon in upper left corner and sel
 
 ## Stop the container
 ```
-docker stop grafana-3002
+docker stop grafana
 ```
 If you want to restart the container later you can start it again like this:
 ```
-docker start grafana-3002
+docker start grafana
 ```
 All dashboards and other configurations you have done will still be there as you left it :-)
 
 ## Remove the docker container and the docker volume
 ```
 # Remove the container
-docker rm grafana-3002
+docker rm grafana
 
 # Remove the volume
-docker volume rm grafana-3002-data
+docker volume rm grafana-data
 ```
 This removes both the container and the image and thus all traces are gone (i.e. you cannot start it again)

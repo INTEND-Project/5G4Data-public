@@ -1,25 +1,7 @@
-# Install Grafana
-The easiest way to run the [Open Source version of Grafana](https://grafana.com/grafana/download?pg=oss-graf&plcmt=hero-btn-1&platform=docker) is to just run the docker image:
-```
-docker run -d --network=host --name=grafana -e GF_SERVER_HTTP_PORT=3001 grafana/grafana-enterprise
-```
-Make sure that the port is accessible from outside (i.e. configure your firewall to allow access. e.g. sudo ufw allow from 85.165.51.159 to any port 3001)
+# Dashboards
+For the 5G4Data use-case we have created som example Grafana dashboards. To use the dashboards, you will have to have a Grafana server up and running. See more details on how to do that in [src/START-GRAFANA.md](https://github.com/INTEND-Project/5G4Data-public/blob/main/IntentDashboard/src/START-GRAFANA.md) file.
 
-# Use Grafana as Dashboard
-Let us try to use Grafana as a Dashboard to visualize what is going on with Intents (i.e. How many Intents are there in total, how many are in different states, etc.)
-
-## Add datasources
-The example Grafana dashboards that we have created uses two datasource plugins and we need to install both.
-First we need to add GraphDB as a datasource. There is a SPARQL plugin that we have to install that makes it possible to use any SPARQL endpoint as a data source. It will for example enable sending SPARQL queries to a GraphDB server and make the result of the query available to be visualized in Grafana.
-![SPARQL plugin configuration](./SPARQL-plugin-config.png)
-Secondly we need to add the infiniti data source plugin. Detailed documentation on how to do that can be found [here](https://grafana.com/grafana/plugins/yesoreyeram-infinity-datasource/).
-
-## Dashboards
-### Example dashboards
-⚠️ **Note!** To use the example dashboards you also have to run the ../IntentReportQueryProxy. See the information in the ../IntentReportQueryProxy/README.md file for a description of why and how to run it.
-
-We have provided a couple of example Dashboards:
-
+## Example dashboards
 <dl>
   <dt><strong>TMForum Intent Dashboard</strong></dt>
   <dd>This Dashboard shows Intent statistics (how many intents in total, how many of each type, their targets and #deployments to each edge datacenter. It also contains a clickable list of intents showing the current TM Forum State and if clicked shows more details (see next Dashboard description).</dd>

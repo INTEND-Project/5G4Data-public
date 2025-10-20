@@ -45,4 +45,4 @@ if __name__ == "__main__":
     
     logger.info(f"Starting SPARQL Query MCP Server on port {args.port}")
     mcp = get_mcp()
-    mcp.run(transport="http", port=args.port)
+    mcp.run(transport="http", host="0.0.0.0", port=args.port)

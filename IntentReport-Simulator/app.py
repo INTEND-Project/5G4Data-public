@@ -629,7 +629,7 @@ def quick_populate_generate():
                             # Store Prometheus metadata immediately
                             try:
                                 metric_type, unit = observation_generator.get_metric_type_from_condition(condition_id, turtle_data)
-                                metric_name = f"{metric_type.lower()}_{condition_id.lower()}"
+                                metric_name = f"{metric_type.lower()}_{condition_id}"
                                 reports_client.store_prometheus_metadata(metric_name=metric_name)
                             except Exception as meta_error:
                                 logger.warning(f"Failed to store Prometheus metadata for {condition_id}: {meta_error}")
@@ -645,7 +645,7 @@ def quick_populate_generate():
                         if storage_success:
                             try:
                                 metric_type, unit = observation_generator.get_metric_type_from_condition(condition_id, turtle_data)
-                                metric_name = f"{metric_type.lower()}_{condition_id.lower()}"
+                                metric_name = f"{metric_type.lower()}_{condition_id}"
                                 reports_client.store_graphdb_metadata(metric_name=metric_name)
                             except Exception as meta_error:
                                 logger.warning(f"Failed to store GraphDB metadata for {condition_id}: {meta_error}")

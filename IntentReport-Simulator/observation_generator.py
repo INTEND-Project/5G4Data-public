@@ -259,7 +259,7 @@ class ObservationGenerator:
             if params.storage_type == "prometheus":
                 # Store in Prometheus
                 metric_type, unit = self.get_metric_type_from_condition(params.condition_id, params.turtle_data)
-                metric_name = f"{metric_type.lower()}_{params.condition_id.lower()}"
+                metric_name = f"{metric_type.lower()}_{params.condition_id}"
                 labels = {
                     "condition_id": params.condition_id,
                     "intent_id": self.extract_intent_id(params.turtle_data),
@@ -300,7 +300,7 @@ class ObservationGenerator:
                 # Store metadata in GraphDB for this condition (only once per condition)
                 if not hasattr(self, '_graphdb_metadata_stored') or params.condition_id not in getattr(self, '_graphdb_metadata_stored', set()):
                     metric_type, unit = self.get_metric_type_from_condition(params.condition_id, params.turtle_data)
-                    metric_name = f"{metric_type.lower()}_{params.condition_id.lower()}"
+                    metric_name = f"{metric_type.lower()}_{params.condition_id}"
                     self.graphdb_client.store_graphdb_metadata(metric_name=metric_name)
                     # Track that we've stored metadata for this condition
                     if not hasattr(self, '_graphdb_metadata_stored'):

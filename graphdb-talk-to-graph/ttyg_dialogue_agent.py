@@ -42,8 +42,7 @@ class TTYGAgentConfig:
     graphdb_repository_id: Optional[str] = None
     sparql_only: bool = False
     # MCP server settings
-    mcp_server_url: str = "http://localhost:8085/mcp"
-
+    mcp_server_url: str = "http://localhost:8084/mcp"
 
 class TTYGRestClient:
     """
@@ -451,8 +450,8 @@ Always be helpful and provide context about what the data means."""
                 {"role": "system", "content": self._get_system_prompt()}
             ]
             
-            # Add conversation history (only essential parts, max 5 messages)
-            max_history_messages = 5
+            # Add conversation history (only essential parts, max 4 messages)
+            max_history_messages = 4
             max_message_length = 2000  # Truncate long messages
             
             for entry in self.conversation_history[-max_history_messages:]:
@@ -654,12 +653,8 @@ Always be helpful and provide context about what the data means."""
                 # If we got here without tool calls or after successful tool calls, break the retry loop
                 break
             
-            # Always display the SPARQL queries used (if any) as part of the assistant output
-            if used_sparql_queries:
-                header = "SPARQL used:\n" + "\n\n".join(
-                    [f"{idx+1})\n{q}" for idx, q in enumerate(used_sparql_queries)]
-                )
-                response_text = f"{header}\n\n{response_text}"
+            # SPARQL queries are tracked but not displayed to reduce response length
+            # The queries are still executed and used for generating the response
 
             # Add to conversation history and cleanup if needed
             self.conversation_history.append({

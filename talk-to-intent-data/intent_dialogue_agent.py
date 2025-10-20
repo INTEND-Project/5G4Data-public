@@ -37,7 +37,7 @@ class IntentAgentConfig:
     model_name: str = "gpt-4o"
     max_conversation_turns: int = 50
     # MCP server settings
-    mcp_server_url: str = "http://localhost:8084/mcp"
+    mcp_server_url: str = "http://start5g-1.cs.uit.no:8084/mcp"
     # Grafana settings
     grafana_base_url: str = "http://start5g-1.cs.uit.no:3001"
     grafana_dashboard_uid: str = "fekk4b61d38qof"

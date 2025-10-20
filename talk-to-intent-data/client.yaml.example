@@ -8,4 +8,4 @@ openai:
 model_name: gpt-4o
 
 # MCP server configuration
-mcp_server_url: http://localhost:8084/mcp
+mcp_server_url: http://start5g-1.cs.uit.no:8084/mcp

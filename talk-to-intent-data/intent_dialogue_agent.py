@@ -13,7 +13,8 @@ import json
 import base64
 import asyncio
 import webbrowser
-from typing import Dict, Any, Optional, List
+import re
+from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -41,6 +42,12 @@ class IntentAgentConfig:
     grafana_base_url: str = "http://start5g-1.cs.uit.no:3001"
     grafana_dashboard_uid: str = "fekk4b61d38qof"
     grafana_dashboard_id: str = "5d08eee"
+    # Context management settings
+    max_conversation_history: int = 8  # Reduced from 20 to 8
+    max_message_length: int = 1000  # Reduced from 2000 to 1000
+    enable_response_compression: bool = True
+    enable_context_summary: bool = True
+    max_context_tokens: int = 100000  # Target max tokens (leave room for system prompt)
 
 
 
@@ -59,7 +66,7 @@ class IntentDialogueAgent:
         self.mcp_client = None
         self.openai_client = None
         self.conversation_history = []
-        self.max_conversation_history = 20  # Keep max 20 entries in memory
+        self.context_summary = ""  # Summary buffer for older context
         
         # Initialize MCP client
         self._setup_mcp_client()
@@ -70,10 +77,172 @@ class IntentDialogueAgent:
     
     
     def _cleanup_conversation_history(self):
-        """Clean up conversation history to prevent it from growing too large."""
-        if len(self.conversation_history) > self.max_conversation_history:
+        """Clean up conversation history using sliding window and compression."""
+        if len(self.conversation_history) > self.config.max_conversation_history:
             # Keep only the most recent entries
-            self.conversation_history = self.conversation_history[-self.max_conversation_history:]
+            self.conversation_history = self.conversation_history[-self.config.max_conversation_history:]
+        
+        # If we still have too many messages, compress older ones
+        if len(self.conversation_history) > self.config.max_conversation_history // 2:
+            self._compress_older_messages()
+    
+    def _compress_older_messages(self):
+        """Compress older messages in conversation history."""
+        if not self.config.enable_response_compression:
+            return
+            
+        # Keep the last 4 messages uncompressed, compress the rest
+        keep_uncompressed = 4
+        if len(self.conversation_history) <= keep_uncompressed:
+            return
+            
+        # Compress older messages
+        older_messages = self.conversation_history[:-keep_uncompressed]
+        compressed_summary = self._create_context_summary(older_messages)
+        
+        # Replace older messages with summary
+        self.conversation_history = [{
+            "timestamp": datetime.now().isoformat(),
+            "role": "system",
+            "content": f"[Previous context summary: {compressed_summary}]"
+        }] + self.conversation_history[-keep_uncompressed:]
+    
+    def _create_context_summary(self, messages: List[Dict]) -> str:
+        """Create a compressed summary of older conversation context."""
+        entities = set()
+        intents = set()
+        expectations = set()
+        conditions = set()
+        
+        for msg in messages:
+            if msg["role"] in ["user", "assistant"]:
+                content = msg["content"]
+                
+                # Extract IRIs and IDs using regex
+                iri_pattern = r'http://5g4data\.eu/5g4data#([A-Za-z0-9]+)'
+                matches = re.findall(iri_pattern, content)
+                
+                for match in matches:
+                    if match.startswith('I') and len(match) > 10:  # Intent IDs
+                        intents.add(match)
+                    elif match.startswith('NE') and len(match) > 10:  # Expectation IDs
+                        expectations.add(match)
+                    elif match.startswith('CO') and len(match) > 10:  # Condition IDs
+                        conditions.add(match)
+                    else:
+                        entities.add(match)
+        
+        # Create compressed summary
+        summary_parts = []
+        if intents:
+            summary_parts.append(f"Intents: {', '.join(sorted(intents))}")
+        if expectations:
+            summary_parts.append(f"Expectations: {', '.join(sorted(expectations))}")
+        if conditions:
+            summary_parts.append(f"Conditions: {', '.join(sorted(conditions))}")
+        if entities:
+            summary_parts.append(f"Other entities: {', '.join(sorted(entities))}")
+        
+        return "; ".join(summary_parts) if summary_parts else "No significant entities found"
+    
+    def _compress_response(self, response: str) -> str:
+        """Compress a response by extracting only essential information."""
+        if not self.config.enable_response_compression:
+            return response
+        
+        # Extract key identifiers
+        iri_pattern = r'http://5g4data\.eu/5g4data#([A-Za-z0-9]+)'
+        matches = re.findall(iri_pattern, response)
+        
+        # Extract intent names (text before IRI)
+        intent_pattern = r'\*\*([^*]+)\*\*\s*-\s*IRI:\s*http://5g4data\.eu/5g4data#([A-Za-z0-9]+)'
+        intent_matches = re.findall(intent_pattern, response)
+        
+        # Extract condition descriptions
+        condition_pattern = r'Description:\s*"([^"]+)"'
+        condition_matches = re.findall(condition_pattern, response)
+        
+        # Create compressed version
+        compressed_parts = []
+        
+        if intent_matches:
+            compressed_parts.append("INTENTS:")
+            for name, intent_id in intent_matches:
+                compressed_parts.append(f"  {intent_id}: {name.strip()}")
+        
+        if condition_matches:
+            compressed_parts.append("CONDITIONS:")
+            for desc in condition_matches:
+                compressed_parts.append(f"  {desc}")
+        
+        if matches and not intent_matches and not condition_matches:
+            compressed_parts.append(f"ENTITIES: {', '.join(sorted(set(matches)))}")
+        
+        # If no structured data found, return truncated original
+        if not compressed_parts:
+            return response[:self.config.max_message_length] + "..." if len(response) > self.config.max_message_length else response
+        
+        return "\n".join(compressed_parts)
+    
+    def _estimate_tokens(self, text: str) -> int:
+        """Rough estimation of token count (4 chars per token average)."""
+        return len(text) // 4
+    
+    def _add_compressed_history(self, messages: List[Dict]):
+        """Add compressed conversation history to messages."""
+        # Add recent messages (last 4)
+        recent_messages = self.conversation_history[-4:] if len(self.conversation_history) > 4 else self.conversation_history
+        
+        for entry in recent_messages:
+            if entry["role"] in ["user", "assistant"]:
+                content = entry["content"]
+                
+                # Compress assistant responses
+                if entry["role"] == "assistant":
+                    content = self._compress_response(content)
+                
+                # Truncate if still too long
+                if len(content) > self.config.max_message_length:
+                    content = content[:self.config.max_message_length] + "...[truncated]"
+                
+                # Only add non-empty content
+                if content.strip():
+                    messages.append({
+                        "role": entry["role"],
+                        "content": content
+                    })
+    
+    def _should_compress_context(self, messages: List[Dict]) -> bool:
+        """Check if context should be compressed based on token count."""
+        total_tokens = sum(self._estimate_tokens(msg.get("content", "")) for msg in messages)
+        return total_tokens > self.config.max_context_tokens
+    
+    def _compress_context(self, messages: List[Dict]) -> List[Dict]:
+        """Compress context by summarizing older messages."""
+        if not self.config.enable_context_summary:
+            return messages
+        
+        # Keep system prompt and current user input
+        system_msg = messages[0]
+        user_msg = messages[-1]
+        
+        # Compress middle messages
+        middle_messages = messages[1:-1]
+        if not middle_messages:
+            return messages
+        
+        # Create summary of middle messages
+        summary_content = self._create_context_summary([
+            {"role": msg["role"], "content": msg["content"]} 
+            for msg in middle_messages
+        ])
+        
+        # Return compressed context
+        return [
+            system_msg,
+            {"role": "system", "content": f"[Context summary: {summary_content}]"},
+            user_msg
+        ]
     
     def _setup_mcp_client(self):
         """Set up the MCP client."""
@@ -174,6 +343,60 @@ class IntentDialogueAgent:
                         }
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "open_grafana_dashboard",
+                    "description": "Open a Grafana dashboard to visualize metrics for specific intent conditions. Use this when the user asks to open or view a Grafana dashboard for intent conditions. IMPORTANT: Use the INTENT ID (starts with 'I'), NOT the expectation ID (starts with 'NE' or 'RE').",
+                    "parameters": {
+                        "type": "object",
+                        "required": ["intent_id", "condition_ids"],
+                        "properties": {
+                            "intent_id": {
+                                "type": "string",
+                                "description": "The INTENT ID that starts with 'I' (e.g., 'I113c0e2863f942b4a6b304242f80465f'). DO NOT use expectation IDs that start with 'NE' or 'RE'."
+                            },
+                            "condition_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of condition IDs to visualize (e.g., ['CO570f0fe6779348e3b7904a71c673cda0', 'CO70045f15f805432f8554b50fa017da17'])"
+                            },
+                            "condition_descriptions": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of condition descriptions corresponding to condition_ids (optional, helps with metric mapping)"
+                            },
+                            "time_range_hours": {
+                                "type": "integer",
+                                "description": "Time range in hours for the dashboard (default: 168 = 1 week)",
+                                "default": 168
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "open_grafana_dashboard_for_intent",
+                    "description": "Open a Grafana dashboard for an intent by automatically finding all its conditions. Use this when the user asks to open a dashboard for an intent without specifying specific conditions. This tool automatically drills down to find all conditions associated with the intent.",
+                    "parameters": {
+                        "type": "object",
+                        "required": ["intent_id"],
+                        "properties": {
+                            "intent_id": {
+                                "type": "string",
+                                "description": "The INTENT ID that starts with 'I' (e.g., 'I113c0e2863f942b4a6b304242f80465f'). DO NOT use expectation IDs that start with 'NE' or 'RE'."
+                            },
+                            "time_range_hours": {
+                                "type": "integer",
+                                "description": "Time range in hours for the dashboard (default: 168 = 1 week)",
+                                "default": 168
+                            }
+                        }
+                    }
+                }
             }
         ]
     
@@ -202,6 +425,14 @@ class IntentDialogueAgent:
                     return "❌ Error: intent_id and condition_ids are required for Grafana dashboard"
                 
                 return self.open_grafana_dashboard(intent_id, condition_ids, condition_descriptions, time_range_hours)
+            elif tool_name == "open_grafana_dashboard_for_intent":
+                intent_id = arguments.get("intent_id", "")
+                time_range_hours = arguments.get("time_range_hours", 168)
+                
+                if not intent_id:
+                    return "❌ Error: intent_id is required for Grafana dashboard"
+                
+                return self._open_grafana_dashboard_with_auto_drilldown(intent_id, time_range_hours)
             else:
                 return f"Unknown tool: {tool_name}"
         except Exception as e:
@@ -290,6 +521,10 @@ class IntentDialogueAgent:
         Returns:
             Complete Grafana dashboard URL
         """
+        # Validate intent_id - it should start with 'I' not 'NE', 'RE', or 'CO'
+        if not intent_id.startswith('I'):
+            raise ValueError(f"Invalid intent_id '{intent_id}'. Intent IDs should start with 'I', not '{intent_id[:2]}'. Did you accidentally use an expectation ID instead?")
+        
         # Build condition metrics parameter
         condition_metrics = []
         for condition_id, description in zip(condition_ids, condition_descriptions):
@@ -297,13 +532,16 @@ class IntentDialogueAgent:
             metric_name = f"{metric_prefix}{condition_id}"
             condition_metrics.append(metric_name)
         
-        # Calculate time range
-        end_time = datetime.now()
-        start_time = end_time - timedelta(hours=time_range_hours)
+        # Use relative time ranges instead of absolute timestamps
+        if time_range_hours <= 24:
+            # For short ranges, use hours
+            from_time = f"now-{time_range_hours}h"
+        else:
+            # For longer ranges, use days
+            days = time_range_hours // 24
+            from_time = f"now-{days}d"
         
-        # Format timestamps for Grafana
-        from_time = start_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        to_time = end_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        to_time = "now"
         
         # Build URL parameters
         params = {
@@ -322,6 +560,59 @@ class IntentDialogueAgent:
         param_string = "&".join([f"{k}={v}" for k, v in params.items()])
         
         return f"{base_url}?{param_string}"
+    
+    def _open_grafana_dashboard_with_auto_drilldown(self, intent_id: str, time_range_hours: int = 168) -> str:
+        """Automatically drill down to get conditions and open Grafana dashboard.
+        
+        Args:
+            intent_id: The intent ID
+            time_range_hours: Time range in hours (default 168 = 1 week)
+            
+        Returns:
+            Success message with the URL or error message
+        """
+        try:
+            # Use MCP server to get conditions for the intent
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(self._async_get_intent_conditions_via_mcp(intent_id))
+                if not result:
+                    return f"❌ Failed to retrieve conditions for intent {intent_id}"
+            finally:
+                loop.close()
+            
+            # Parse the result
+            if not result.get("success", False):
+                error_msg = result.get("error", "Unknown error")
+                return f"❌ Error retrieving conditions for intent {intent_id}: {error_msg}"
+            
+            condition_ids = result.get("condition_ids", [])
+            condition_descriptions = result.get("condition_descriptions", [])
+            
+            if not condition_ids:
+                return f"❌ No conditions found for intent {intent_id}"
+            
+            # Open the dashboard with the retrieved conditions
+            return self.open_grafana_dashboard(intent_id, condition_ids, condition_descriptions, time_range_hours)
+            
+        except Exception as e:
+            return f"❌ Error opening dashboard for intent {intent_id}: {str(e)}"
+    
+    async def _async_get_intent_conditions_via_mcp(self, intent_id: str) -> Dict[str, Any]:
+        """Async helper to get intent conditions via MCP server."""
+        try:
+            async with self.mcp_client:
+                result = await self.mcp_client.call_tool("get_intent_conditions_for_dashboard", {
+                    "intent_id": intent_id
+                })
+                
+                if result.data.get("success"):
+                    return result.data
+                else:
+                    return {"success": False, "error": result.data.get("error", "Unknown error")}
+        except Exception as e:
+            return {"success": False, "error": f"MCP connection error: {str(e)}"}
     
     def open_grafana_dashboard(self, intent_id: str, condition_ids: List[str], 
                              condition_descriptions: List[str], 
@@ -352,34 +643,15 @@ class IntentDialogueAgent:
                 {"role": "system", "content": self._get_system_prompt()}
             ]
             
-            # Add conversation history (only essential parts, max 4 messages)
-            max_history_messages = 4
-            max_message_length = 2000  # Truncate long messages
-            
-            for entry in self.conversation_history[-max_history_messages:]:
-                if entry["role"] in ["user", "assistant"]:
-                    content = entry["content"]
-                    
-                    # Remove SPARQL query blocks from history to avoid duplication
-                    if entry["role"] == "assistant" and "SPARQL used:" in content:
-                        # Keep only the response part after SPARQL queries
-                        parts = content.split("\n\n", 1)
-                        if len(parts) > 1:
-                            content = parts[1]  # Keep only the response part
-                    
-                    # Truncate very long messages
-                    if len(content) > max_message_length:
-                        content = content[:max_message_length] + "...[truncated]"
-                    
-                    # Only add non-empty content
-                    if content.strip():
-                        messages.append({
-                            "role": entry["role"],
-                            "content": content
-                        })
+            # Add conversation history with compression
+            self._add_compressed_history(messages)
             
             # Add current user input
             messages.append({"role": "user", "content": user_input})
+            
+            # Check if we need to compress context further
+            if self._should_compress_context(messages):
+                messages = self._compress_context(messages)
             
             # Track SPARQL queries used during this turn
             used_sparql_queries: List[str] = []
@@ -564,10 +836,12 @@ class IntentDialogueAgent:
                 "role": "user",
                 "content": user_input
             })
+            # Compress the response before storing
+            compressed_response = self._compress_response(response_text)
             self.conversation_history.append({
                 "timestamp": datetime.now().isoformat(),
                 "role": "assistant",
-                "content": response_text
+                "content": compressed_response
             })
             self._cleanup_conversation_history()
             
@@ -580,10 +854,12 @@ class IntentDialogueAgent:
                 "role": "user",
                 "content": user_input
             })
+            # Compress error message before storing
+            compressed_error = self._compress_response(error_msg)
             self.conversation_history.append({
                 "timestamp": datetime.now().isoformat(),
                 "role": "assistant",
-                "content": error_msg
+                "content": compressed_error
             })
             self._cleanup_conversation_history()
             return error_msg

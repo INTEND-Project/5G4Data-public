@@ -1,0 +1,11 @@
+openai:
+  # Set this to your OpenAI API key
+  api_key: your-openai-api-key-here
+
+# System prompt is now loaded from system_prompt.txt file
+
+# Model configuration
+model_name: gpt-4o
+
+# MCP server configuration
+mcp_server_url: http://localhost:8084/mcp

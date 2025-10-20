@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import requests
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Annotated
 from urllib.parse import urljoin
 
@@ -261,7 +262,8 @@ def register_sparql_tools(mcp: FastMCP) -> None:
         
         This tool allows you to execute SPARQL queries against the GraphDB knowledge graph.
         The query will be executed against the configured repository and results will be
-        returned in the specified format.
+        returned in the specified format. Missing prefix declarations will be automatically
+        added before execution.
         
         Args:
             query: The SPARQL query to execute
@@ -274,6 +276,61 @@ def register_sparql_tools(mcp: FastMCP) -> None:
         try:
             logger.info(f"Executing SPARQL query with format: {format}")
             
+            # Validate and fix SPARQL query prefix declarations
+            import re
+            
+            # Extract used prefixes from the query
+            used_prefixes = set()
+            for line in query.split('\n'):
+                if ':' in line and not line.strip().startswith('#'):
+                    # Find prefix usage patterns like icm:Intent, data5g:NetworkExpectation
+                    matches = re.findall(r'(\w+):', line)
+                    used_prefixes.update(matches)
+            
+            # Check if all used prefixes are declared
+            declared_prefixes = set()
+            for line in query.split('\n'):
+                if line.strip().startswith('PREFIX') or line.strip().startswith('@prefix'):
+                    prefix_name = line.split()[1].rstrip(':')
+                    declared_prefixes.add(prefix_name)
+            
+            missing_prefixes = used_prefixes - declared_prefixes
+            if missing_prefixes:
+                # Add missing prefix declarations
+                prefix_declarations = []
+                prefix_map = {
+                    'icm': 'http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/',
+                    'imo': 'http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/',
+                    'met': 'http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/',
+                    'log': 'http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/',
+                    'data5g': 'http://5g4data.eu/5g4data#',
+                    'quan': 'http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/',
+                    'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+                    'rdfs': 'http://www.w3.org/2000/01/rdf-schema#',
+                    'xsd': 'http://www.w3.org/2001/XMLSchema#',
+                    'dct': 'http://purl.org/dc/terms/',
+                    'geo': 'http://www.opengis.net/ont/geosparql#',
+                    'set': 'http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/'
+                }
+                
+                for prefix in missing_prefixes:
+                    if prefix in prefix_map:
+                        prefix_declarations.append(f"PREFIX {prefix}: <{prefix_map[prefix]}>")
+                
+                if prefix_declarations:
+                    # Insert prefix declarations at the beginning
+                    lines = query.split('\n')
+                    insert_pos = 0
+                    for i, line in enumerate(lines):
+                        if line.strip().startswith('PREFIX') or line.strip().startswith('@prefix'):
+                            insert_pos = i + 1
+                        elif line.strip() and not line.strip().startswith('#'):
+                            break
+                    
+                    lines[insert_pos:insert_pos] = prefix_declarations + ['']
+                    query = '\n'.join(lines)
+                    logger.info(f"Auto-fixed missing prefixes: {', '.join(missing_prefixes)}")
+            
             response = client.execute_query(query, format, timeout)
             
             if response.success:
@@ -284,7 +341,8 @@ def register_sparql_tools(mcp: FastMCP) -> None:
                     "execution_time_ms": response.execution_time_ms,
                     "format": format,
                     "repository": config.repository_id,
-                    "endpoint": client.endpoint_url
+                    "endpoint": client.endpoint_url,
+                    "prefixes_added": list(missing_prefixes) if missing_prefixes else []
                 }
             else:
                 return {
@@ -293,7 +351,8 @@ def register_sparql_tools(mcp: FastMCP) -> None:
                     "query": response.query,
                     "execution_time_ms": response.execution_time_ms,
                     "repository": config.repository_id,
-                    "endpoint": client.endpoint_url
+                    "endpoint": client.endpoint_url,
+                    "prefixes_added": list(missing_prefixes) if missing_prefixes else []
                 }
                 
         except Exception as e:
@@ -340,146 +399,6 @@ def register_sparql_tools(mcp: FastMCP) -> None:
             }
     
     @mcp.tool
-    def validate_sparql_query(
-        query: Annotated[str, Field(description="SPARQL query to validate")]
-    ) -> Dict[str, Any]:
-        """Validate a SPARQL query syntax without executing it.
-        
-        This tool performs basic SPARQL syntax validation by attempting to parse
-        the query structure. Note that this is a basic validation and doesn't
-        check against the actual schema.
-        
-        Args:
-            query: The SPARQL query to validate
-            
-        Returns:
-            Dictionary containing validation results and suggestions
-        """
-        try:
-            query_lower = query.lower().strip()
-            
-            # Basic syntax checks
-            validation_results = {
-                "valid": True,
-                "warnings": [],
-                "suggestions": []
-            }
-            
-            # Check for basic SPARQL keywords
-            if not any(keyword in query_lower for keyword in ["select", "ask", "construct", "describe"]):
-                validation_results["valid"] = False
-                validation_results["warnings"].append("Query must contain a SPARQL verb (SELECT, ASK, CONSTRUCT, or DESCRIBE)")
-            
-            # Check for balanced braces
-            open_braces = query.count("{")
-            close_braces = query.count("}")
-            if open_braces != close_braces:
-                validation_results["valid"] = False
-                validation_results["warnings"].append(f"Unbalanced braces: {open_braces} open, {close_braces} close")
-            
-            # Check for common prefixes
-            if "prefix" not in query_lower and ":" in query:
-                validation_results["suggestions"].append("Consider adding PREFIX declarations for namespaced terms")
-            
-            # Check for common ontology prefixes
-            common_prefixes = ["icm:", "imo:", "met:", "data5g:", "rdf:", "rdfs:"]
-            used_prefixes = [prefix for prefix in common_prefixes if prefix in query]
-            if used_prefixes:
-                validation_results["suggestions"].append(f"Query uses prefixes: {', '.join(used_prefixes)}")
-            
-            # Check query length
-            if len(query) > 10000:
-                validation_results["warnings"].append("Query is very long - consider breaking it into smaller parts")
-            
-            return {
-                "query": query,
-                "validation": validation_results,
-                "query_length": len(query),
-                "estimated_complexity": "high" if len(query) > 1000 else "medium" if len(query) > 200 else "low"
-            }
-            
-        except Exception as e:
-            logger.exception(f"Error in validate_sparql_query tool: {e}")
-            return {
-                "query": query,
-                "validation": {
-                    "valid": False,
-                    "warnings": [f"Validation error: {str(e)}"],
-                    "suggestions": []
-                },
-                "error": str(e)
-            }
-    
-    @mcp.tool
-    def get_ontology_info() -> Dict[str, Any]:
-        """Get information about the ontology schema in the GraphDB repository.
-        
-        Returns:
-            Dictionary containing ontology prefixes, classes, and properties
-        """
-        try:
-            # Query for prefixes
-            prefixes_query = """
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            SELECT DISTINCT ?prefix ?namespace WHERE {
-                ?s ?p ?o .
-                FILTER(STRSTARTS(STR(?s), "http://"))
-                BIND(REPLACE(STR(?s), "^(https?://[^/]+/[^#]*)#?.*$", "$1") AS ?namespace)
-                BIND(REPLACE(?namespace, ".*/([^/]+)$", "$1") AS ?prefix)
-            }
-            ORDER BY ?namespace
-            LIMIT 20
-            """
-            
-            prefixes_response = client.execute_query(prefixes_query)
-            
-            # Query for classes
-            classes_query = """
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            SELECT DISTINCT ?class ?label WHERE {
-                ?class a rdfs:Class .
-                OPTIONAL { ?class rdfs:label ?label }
-            }
-            ORDER BY ?class
-            LIMIT 50
-            """
-            
-            classes_response = client.execute_query(classes_query)
-            
-            # Query for properties
-            properties_query = """
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            SELECT DISTINCT ?property ?label WHERE {
-                ?property a rdf:Property .
-                OPTIONAL { ?property rdfs:label ?label }
-            }
-            ORDER BY ?property
-            LIMIT 50
-            """
-            
-            properties_response = client.execute_query(properties_query)
-            
-            return {
-                "repository": config.repository_id,
-                "prefixes": prefixes_response.results if prefixes_response.success else "Error retrieving prefixes",
-                "classes": classes_response.results if classes_response.success else "Error retrieving classes",
-                "properties": properties_response.results if properties_response.success else "Error retrieving properties",
-                "queries_executed": 3,
-                "status": "success" if all(r.success for r in [prefixes_response, classes_response, properties_response]) else "partial"
-            }
-            
-        except Exception as e:
-            logger.exception(f"Error in get_ontology_info tool: {e}")
-            return {
-                "repository": config.repository_id,
-                "error": str(e),
-                "status": "error"
-            }
-    
-    @mcp.tool
     def health_check() -> Dict[str, Any]:
         """Health check endpoint for monitoring server status.
         
@@ -522,32 +441,202 @@ def register_sparql_tools(mcp: FastMCP) -> None:
     
     @mcp.prompt(name="sparql_system_prompt")
     def sparql_query_initial_prompt() -> List[Dict[str, str]]:
-        """System prompt for SPARQL query assistance."""
-        prompt = (
-            "You are a SPARQL query expert assistant for GraphDB knowledge graphs. "
-            "You help users write and execute SPARQL queries against the configured GraphDB repository.\n\n"
-            "Your capabilities:\n"
-            "1) Help users write SPARQL queries for data retrieval\n"
-            "2) Validate SPARQL query syntax\n"
-            "3) Execute queries and format results\n"
-            "4) Provide guidance on ontology structure and prefixes\n\n"
-            "Available tools:\n"
-            "- execute_sparql_query: Execute SPARQL queries against GraphDB\n"
-            "- validate_sparql_query: Validate SPARQL syntax\n"
-            "- get_graphdb_info: Get connection and repository information\n"
-            "- get_ontology_info: Get ontology schema information\n"
-            "- health_check: Check server and GraphDB status\n\n"
-            "Common SPARQL patterns:\n"
-            "- SELECT queries for data retrieval\n"
-            "- COUNT queries for counting resources\n"
-            "- FILTER for conditional queries\n"
-            "- OPTIONAL for optional patterns\n"
-            "- ORDER BY for sorting results\n"
-            "- LIMIT for result pagination\n\n"
-            "Always provide clear explanations of query results and suggest optimizations when appropriate."
-        )
-        return [{"role": "system", "content": prompt}]
+        """System prompt for IntentDialogue agent."""
+        # Read system prompt from file
+        prompt_file = Path(__file__).parent.parent.parent / "system_prompt.txt"
+        
+        try:
+            with open(prompt_file, 'r', encoding='utf-8') as f:
+                prompt_content = f.read().strip()
+            
+            logger.info(f"Loaded system prompt from {prompt_file}")
+            return [{"role": "system", "content": prompt_content}]
+            
+        except FileNotFoundError:
+            logger.error(f"System prompt file not found: {prompt_file}")
+            raise FileNotFoundError(f"System prompt file not found: {prompt_file}")
+        except Exception as e:
+            logger.error(f"Error reading system prompt file: {e}")
+            raise RuntimeError(f"Error reading system prompt file: {e}")
     
+    @mcp.tool
+    def get_intent_conditions_for_dashboard(intent_id: str) -> Dict[str, Any]:
+        """Get all conditions for an intent to use in Grafana dashboard.
+        
+        This tool automatically drills down from an intent ID to find all its conditions,
+        which is useful for opening Grafana dashboards that need condition metrics.
+        
+        Args:
+            intent_id: The intent ID (e.g., "I113c0e2863f942b4a6b304242f80465f")
+            
+        Returns:
+            Dictionary containing intent_id, condition_ids, and condition_descriptions
+        """
+        try:
+            # Validate intent_id format
+            if not intent_id.startswith('I'):
+                return {
+                    "success": False,
+                    "error": f"Invalid intent_id '{intent_id}'. Intent IDs should start with 'I', not '{intent_id[:2]}'. Did you accidentally use an expectation ID instead?",
+                    "intent_id": intent_id,
+                    "condition_ids": [],
+                    "condition_descriptions": []
+                }
+            
+            # Two-stage approach: First get expectations, then get conditions for each expectation
+            # Stage 1: Get only Network (NE) and Deployment (DE) expectations for the intent
+            expectations_query = f"""
+            PREFIX data5g: <http://5g4data.eu/5g4data#>
+            PREFIX dct: <http://purl.org/dc/terms/>
+            PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
+            PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+            
+            SELECT ?expectation ?expectation_id ?description WHERE {{
+                data5g:{intent_id} log:allOf ?expectation .
+                BIND(REPLACE(STR(?expectation), "http://5g4data.eu/5g4data#", "") AS ?expectation_id)
+                ?expectation a icm:Expectation ;
+                             dct:description ?description .
+                
+                # Filter to only include Network (NE) and Deployment (DE) expectations
+                FILTER(STRSTARTS(?expectation_id, "NE") || STRSTARTS(?expectation_id, "DE"))
+            }}
+            ORDER BY ?expectation_id
+            """
+            
+            logger.info(f"Executing Stage 1: Getting Network (NE) and Deployment (DE) expectations for intent: {intent_id}")
+            
+            # Execute query and get raw JSON response
+            try:
+                import requests
+                import time
+                
+                start_time = time.time()
+                response = requests.post(
+                    client.endpoint_url,
+                    data={"query": expectations_query},
+                    auth=client.auth,
+                    headers={'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/sparql-results+json'},
+                    timeout=30
+                )
+                response.raise_for_status()
+                execution_time = int((time.time() - start_time) * 1000)
+                
+                # Parse the raw JSON response
+                expectations_data = response.json()
+                expectation_bindings = expectations_data.get("results", {}).get("bindings", [])
+                
+                logger.info(f"Successfully parsed {len(expectation_bindings)} expectations")
+                
+            except Exception as e:
+                logger.error(f"Failed to execute Stage 1 query: {e}")
+                return {
+                    "success": False,
+                    "error": f"Stage 1 query failed: {str(e)}",
+                    "intent_id": intent_id,
+                    "condition_ids": [],
+                    "condition_descriptions": []
+                }
+            
+            if not expectation_bindings:
+                return {
+                    "success": True,
+                    "intent_id": intent_id,
+                    "condition_ids": [],
+                    "condition_descriptions": [],
+                    "expectation_count": 0,
+                    "condition_count": 0,
+                    "message": f"No Network (NE) or Deployment (DE) expectations found for intent {intent_id}"
+                }
+            
+            logger.info(f"Found {len(expectation_bindings)} Network/Deployment expectations for intent {intent_id}")
+            
+            # Stage 2: Get conditions for each expectation
+            all_condition_ids = []
+            all_condition_descriptions = []
+            
+            for expectation_binding in expectation_bindings:
+                expectation_id = expectation_binding.get("expectation_id", {}).get("value", "")
+                expectation_description = expectation_binding.get("description", {}).get("value", "")
+                
+                if not expectation_id:
+                    continue
+                
+                # Query conditions for this expectation using direct HTTP request
+                conditions_query = f"""
+                PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
+                PREFIX dct: <http://purl.org/dc/terms/>
+                PREFIX data5g: <http://5g4data.eu/5g4data#>
+                PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+                
+                SELECT ?condition ?condition_id ?description WHERE {{
+                    data5g:{expectation_id} log:allOf ?condition .
+                    BIND(REPLACE(STR(?condition), "http://5g4data.eu/5g4data#", "") AS ?condition_id)
+                    ?condition a icm:Condition ;
+                               dct:description ?description .
+                }}
+                ORDER BY ?condition_id
+                """
+                
+                logger.info(f"Executing Stage 2: Getting conditions for expectation: {expectation_id}")
+                
+                try:
+                    # Execute query directly to get raw JSON
+                    conditions_response = requests.post(
+                        client.endpoint_url,
+                        data={"query": conditions_query},
+                        auth=client.auth,
+                        headers={'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/sparql-results+json'},
+                        timeout=30
+                    )
+                    conditions_response.raise_for_status()
+                    
+                    # Parse the raw JSON response
+                    conditions_data = conditions_response.json()
+                    condition_bindings = conditions_data.get("results", {}).get("bindings", [])
+                    
+                    for condition_binding in condition_bindings:
+                        condition_id = condition_binding.get("condition_id", {}).get("value", "")
+                        condition_description = condition_binding.get("description", {}).get("value", "")
+                        
+                        if condition_id and condition_id not in all_condition_ids:
+                            all_condition_ids.append(condition_id)
+                            all_condition_descriptions.append(condition_description)
+                            
+                except Exception as e:
+                    logger.warning(f"Failed to get conditions for expectation {expectation_id}: {e}")
+            
+            logger.info(f"Found {len(all_condition_ids)} total conditions for intent {intent_id}")
+            
+            return {
+                "success": True,
+                "intent_id": intent_id,
+                "condition_ids": all_condition_ids,
+                "condition_descriptions": all_condition_descriptions,
+                "expectation_count": len(expectation_bindings),
+                "condition_count": len(all_condition_ids),
+                "query_execution_time_ms": execution_time
+            }
+                
+        except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse expectations results: {e}")
+                return {
+                    "success": False,
+                    "error": f"Failed to parse expectations results: {str(e)}",
+                    "intent_id": intent_id,
+                    "condition_ids": [],
+                    "condition_descriptions": []
+                }
+                
+        except Exception as e:
+            logger.exception(f"Error in get_intent_conditions_for_dashboard: {e}")
+            return {
+                "success": False,
+                "error": f"Unexpected error: {str(e)}",
+                "intent_id": intent_id,
+                "condition_ids": [],
+                "condition_descriptions": []
+            }
+
     @mcp.prompt(name="sparql_welcome")
     def sparql_welcome_prompt() -> List[Dict[str, str]]:
         """Welcome prompt for SPARQL query assistance."""
@@ -568,3 +657,4 @@ def register_sparql_tools(mcp: FastMCP) -> None:
             "I'll help you write the appropriate SPARQL query and execute it!"
         )
         return [{"role": "assistant", "content": content}]
+

@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 16,
+  "id": 20,
   "links": [],
   "panels": [
     {
@@ -77,8 +77,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 12,
+        "h": 4,
+        "w": 24,
         "x": 0,
         "y": 5
       },
@@ -148,9 +148,9 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 12,
-        "x": 12,
-        "y": 5
+        "w": 24,
+        "x": 0,
+        "y": 9
       },
       "id": 4,
       "options": {
@@ -254,7 +254,7 @@
         "h": 28,
         "w": 24,
         "x": 0,
-        "y": 10
+        "y": 14
       },
       "id": 1,
       "options": {
@@ -298,6 +298,16 @@
                 "symbol": {
                   "fixed": "img/icons/marker/circle.svg",
                   "mode": "fixed"
+                },
+                "text": {
+                  "field": "id",
+                  "fixed": "",
+                  "mode": "field"
+                },
+                "textConfig": {
+                  "offsetY": -10,
+                  "textAlign": "center",
+                  "textBaseline": "middle"
                 }
               }
             },
@@ -329,6 +339,20 @@
                 "fixed": "dark-blue"
               },
               "symbol": "circle"
+            },
+            "text": {
+              "config": {
+                "field": "name",
+                "offsetX": 0,
+                "offsetY": -20,
+                "show": true,
+                "source": "field",
+                "style": {
+                  "color": "dark-blue",
+                  "fontSize": 11,
+                  "fontWeight": "bold"
+                }
+              }
             },
             "tooltip": {
               "fields": [
@@ -439,8 +463,8 @@
       {
         "allowCustomValue": false,
         "current": {
-          "text": "EC_25",
-          "value": "EC_25"
+          "text": "Aarhus Edge Cluster (EC_2)",
+          "value": "Aarhus Edge Cluster (EC_2)"
         },
         "datasource": {
           "type": "flandersmake-sparql-datasource",
@@ -458,8 +482,8 @@
       },
       {
         "current": {
-          "text": "EC_28",
-          "value": "EC_28"
+          "text": "Bodø Edge Cluster (EC_35)",
+          "value": "Bodø Edge Cluster (EC_35)"
         },
         "datasource": {
           "type": "flandersmake-sparql-datasource",
@@ -485,5 +509,5 @@
   "timezone": "",
   "title": "Datacenters (intents_and_intent_reports) – Geomap",
   "uid": "df1pfey393klcb",
-  "version": 8
+  "version": 3
 }

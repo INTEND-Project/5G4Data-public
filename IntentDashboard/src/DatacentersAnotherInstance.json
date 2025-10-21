@@ -109,7 +109,7 @@
             "uid": "df1euvwbfhl34b"
           },
           "format": "table",
-          "queryText": "PREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT ?bandwidth ?latency ?distance ?packetErrorRate\nWHERE {\n  # Substitute the two dashboard variables as string literals\n  VALUES (?idA ?idB) { ( \"${datacenter1}\" \"${datacenter2}\" ) }\n\n  # Normalize order so EC_1-EC_2 and EC_2-EC_1 resolve to the same pair IRI\n  BIND(IF(STR(?idA) < STR(?idB), ?idA, ?idB) AS ?id1)\n  BIND(IF(STR(?idA) < STR(?idB), ?idB, ?idA) AS ?id2)\n  BIND(CONCAT(STR(?id1), \"-\", STR(?id2)) AS ?pairLocal)\n  BIND(IRI(CONCAT(\"https://intendproject.eu/telenor/\", ?pairLocal)) AS ?pair)\n\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    OPTIONAL { ?pair intend:bandwidth        ?bandwidth }\n    OPTIONAL { ?pair intend:latencies        ?latency }\n    OPTIONAL { ?pair intend:distance         ?distance }\n    OPTIONAL { ?pair intend:packetErrorRate  ?packetErrorRate }\n  }\n}\n",
+          "queryText": "PREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT ?bandwidth ?latency ?distance ?packetErrorRate\nWHERE {\n  # Extract ID between the last '(' and the next ')' if present; otherwise use the whole value\n  BIND(\n    IF(CONTAINS(\"${datacenter1}\", \"(\"),\n       REPLACE(\"${datacenter1}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter1}\"\n    ) AS ?idA\n  )\n  BIND(\n    IF(CONTAINS(\"${datacenter2}\", \"(\"),\n       REPLACE(\"${datacenter2}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter2}\"\n    ) AS ?idB\n  )\n\n  # Normalize order so EC_1-EC_2 and EC_2-EC_1 resolve to the same pair IRI\n  BIND(IF(STR(?idA) < STR(?idB), ?idA, ?idB) AS ?id1)\n  BIND(IF(STR(?idA) < STR(?idB), ?idB, ?idA) AS ?id2)\n  BIND(CONCAT(STR(?id1), \"-\", STR(?id2)) AS ?pairLocal)\n  BIND(IRI(CONCAT(\"https://intendproject.eu/telenor/\", ?pairLocal)) AS ?pair)\n\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    OPTIONAL { ?pair intend:bandwidth        ?bandwidth }\n    OPTIONAL { ?pair intend:latencies        ?latency }\n    OPTIONAL { ?pair intend:distance         ?distance }\n    OPTIONAL { ?pair intend:packetErrorRate  ?packetErrorRate }\n  }\n}\n",
           "refId": "A"
         }
       ],
@@ -179,7 +179,7 @@
             "uid": "df1euvwbfhl34b"
           },
           "format": "table",
-          "queryText": "PREFIX intend: <https://intendproject.eu/schema/>\nPREFIX schema: <https://schema.org/>\nPREFIX aeros: <https://aeros.eu/schema/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n\nSELECT ?datacenter ?name ?city ?cpu ?gpu ?memory ?electricity (xsd:double(?cost) AS ?costNum)\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?datacenter ;\n        schema:name ?name ;\n        intend:latitude ?lat ;\n        intend:longitude ?lon .\n    OPTIONAL { ?ec aeros:location ?city }\n    OPTIONAL { ?ec intend:gpuArchitecture ?gpu }\n    OPTIONAL { ?ec aeros:cpuArchitecture ?cpu }\n    OPTIONAL { ?ec intend:memory ?memory }\n    OPTIONAL { ?ec aeros:majorSourceOfElectricity ?electricity }\n    OPTIONAL { ?ec aeros:costOfCompute ?cost }\n    \n    FILTER(?datacenter IN (\"${datacenter1}\", \"${datacenter2}\"))\n  }\n}\nORDER BY ?datacenter",
+          "queryText": "PREFIX intend: <https://intendproject.eu/schema/>\nPREFIX schema: <https://schema.org/>\nPREFIX aeros: <https://aeros.eu/schema/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n\nSELECT ?datacenter ?name ?city ?cpu ?gpu ?memory ?electricity (xsd:double(?cost) AS ?costNum)\nWHERE {\n  # --- Extract EC_* from variables if they include \"(EC_*)\" labels; else use whole value ---\n  BIND(\n    IF(CONTAINS(\"${datacenter1}\", \"(\"),\n       REPLACE(\"${datacenter1}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter1}\"\n    ) AS ?idA\n  )\n  BIND(\n    IF(CONTAINS(\"${datacenter2}\", \"(\"),\n       REPLACE(\"${datacenter2}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter2}\"\n    ) AS ?idB\n  )\n\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?datacenter ;\n        schema:name ?name ;\n        intend:latitude ?lat ;\n        intend:longitude ?lon .\n    OPTIONAL { ?ec aeros:location ?city }\n    OPTIONAL { ?ec intend:gpuArchitecture ?gpu }\n    OPTIONAL { ?ec aeros:cpuArchitecture ?cpu }\n    OPTIONAL { ?ec intend:memory ?memory }\n    OPTIONAL { ?ec aeros:majorSourceOfElectricity ?electricity }\n    OPTIONAL { ?ec aeros:costOfCompute ?cost }\n\n    FILTER( ?datacenter IN (?idA, ?idB) )\n  }\n}\nORDER BY ?datacenter\n",
           "refId": "A"
         }
       ],
@@ -446,12 +446,12 @@
           "type": "flandersmake-sparql-datasource",
           "uid": "df1euvwbfhl34b"
         },
-        "definition": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?value ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?value), \")\") AS ?text)\n  }\n}\nORDER BY ?text\n",
+        "definition": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?id), \")\") AS ?label)\n    BIND(?label AS ?value)   # value used by Grafana\n    BIND(STR(?name) AS ?text)  # text shown in dropdown\n  }\n}\nORDER BY LCASE(?text)\n",
         "includeAll": false,
         "label": "Datacenter 1",
         "name": "datacenter1",
         "options": [],
-        "query": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?value ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?value), \")\") AS ?text)\n  }\n}\nORDER BY ?text\n",
+        "query": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?id), \")\") AS ?label)\n    BIND(?label AS ?value)   # value used by Grafana\n    BIND(STR(?name) AS ?text)  # text shown in dropdown\n  }\n}\nORDER BY LCASE(?text)\n",
         "refresh": 1,
         "regex": "",
         "type": "query"
@@ -465,12 +465,12 @@
           "type": "flandersmake-sparql-datasource",
           "uid": "df1euvwbfhl34b"
         },
-        "definition": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?value ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?value), \")\") AS ?text)\n  }\n}\nORDER BY ?text\n",
+        "definition": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?id), \")\") AS ?label)\n    BIND(?label AS ?value)   # value used by Grafana\n    BIND(STR(?name) AS ?text)  # text shown in dropdown\n  }\n}\nORDER BY LCASE(?text)\n",
         "includeAll": false,
         "label": "Datacenter 2",
         "name": "datacenter2",
         "options": [],
-        "query": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?value ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?value), \")\") AS ?text)\n  }\n}\nORDER BY ?text\n",
+        "query": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?id), \")\") AS ?label)\n    BIND(?label AS ?value)   # value used by Grafana\n    BIND(STR(?name) AS ?text)  # text shown in dropdown\n  }\n}\nORDER BY LCASE(?text)\n",
         "refresh": 1,
         "regex": "",
         "type": "query"
@@ -485,5 +485,5 @@
   "timezone": "",
   "title": "Datacenters (intents_and_intent_reports) – Geomap",
   "uid": "df1pfey393klcb",
-  "version": 5
+  "version": 8
 }

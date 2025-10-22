@@ -56,6 +56,10 @@ def generate_intent():
 @app.route('/api/get-intent/<intent_id>', methods=['GET'])
 def get_intent(intent_id):
     try:
+        # If intent_id starts with 'I', remove it and use the rest
+        if intent_id.startswith('I'):
+            intent_id = intent_id[1:]
+        
         intent_data = graphdb_client.get_intent(intent_id)
         if not intent_data:
             return jsonify({"error": f"No intent found with ID {intent_id}"}), 404
@@ -166,4 +170,4 @@ def delete_intent(intent_id):
         return jsonify({"error": str(e)}), 400
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(host='0.0.0.0', port=5000, debug=True) 

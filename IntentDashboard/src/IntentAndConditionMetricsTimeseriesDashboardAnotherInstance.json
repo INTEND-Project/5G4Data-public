@@ -9,8 +9,8 @@
       "pluginName": "Infinity"
     },
     {
-      "name": "DS_GRAPHDB",
-      "label": "graphdb",
+      "name": "DS_FLANDERSMAKE-SPARQL-DATASOURCE",
+      "label": "flandersmake-sparql-datasource",
       "description": "",
       "type": "datasource",
       "pluginId": "flandersmake-sparql-datasource",
@@ -23,13 +23,19 @@
       "type": "datasource",
       "id": "flandersmake-sparql-datasource",
       "name": "SPARQL",
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
       "version": "11.6.0"
+    },
+    {
+      "type": "panel",
+      "id": "marcusolsson-dynamictext-panel",
+      "name": "Business Text",
+      "version": "6.0.0"
     },
     {
       "type": "panel",
@@ -53,7 +59,7 @@
       "type": "datasource",
       "id": "yesoreyeram-infinity-datasource",
       "name": "Infinity",
-      "version": "3.4.1"
+      "version": "3.6.0"
     }
   ],
   "annotations": {
@@ -170,7 +176,7 @@
         "x": 0,
         "y": 5
       },
-      "id": 1,
+      "id": 4,
       "options": {
         "legend": {
           "calcs": [],
@@ -228,7 +234,7 @@
         {
           "datasource": {
             "type": "flandersmake-sparql-datasource",
-            "uid": "${DS_GRAPHDB}"
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
           },
           "hide": false,
           "queryText": "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (COALESCE(?value1Computed, ?secondValue, ?singleValue) AS ?value1)\n       (COALESCE(?value2Computed, ?thirdValue, ?singleValue) AS ?value2)\nWHERE {\n  SERVICE <repository:intents_and_intent_reports> {\n    BIND(data5g:${intent_id} AS ?intent) .\n    BIND(data5g:${metric_name} AS ?metric) .\n\n    ?intent_id log:allOf ?expectation .\n    ?expectation log:allOf ?condition .\n    ?condition set:forAll ?forallBlock .\n    ?forallBlock icm:valuesOfTargetProperty ?metric .\n\n    OPTIONAL {\n      ?forallBlock quan:inRange ?list .\n      ?list rdf:rest ?list1 .\n      ?list1 rdf:first ?node2 .\n      ?node2 rdf:value ?secondValue .\n\n      OPTIONAL {\n        ?list1 rdf:rest ?list2 .\n        ?list2 rdf:first ?node3 .\n        ?node3 rdf:value ?thirdValue .\n      }\n    }\n\n    OPTIONAL {\n      ?forallBlock quan:atLeast ?singleNodeAtLeast .\n      ?singleNodeAtLeast rdf:value ?largerValue .\n      BIND(10000 AS ?value2Computed)\n      BIND(?largerValue AS ?value1Computed)\n    }\n\n    OPTIONAL {\n      ?forallBlock quan:atMost ?singleNodeAtMost .\n      ?singleNodeAtMost rdf:value ?smallerValue .\n      BIND(0 AS ?value1Computed)\n      BIND(?smallerValue AS ?value2Computed)\n    }\n\n    OPTIONAL {\n      ?forallBlock quan:smaller ?singleNodeSmaller .\n      ?singleNodeSmaller rdf:value ?smallerValue .\n      BIND(0 AS ?value1Computed)\n      BIND(?smallerValue AS ?value2Computed)\n    }\n        \n    OPTIONAL {\n      ?forallBlock quan:larger ?singleNodeLarger .\n      ?singleNodeLarger rdf:value ?largerValue .\n      BIND(10000 AS ?value2Computed)\n      BIND(?largerValue AS ?value1Computed)\n    }\n    \n    # Fallback singleValue for COALESCE\n    BIND(COALESCE(?atLeastValue, ?atMostValue, ?smallerValue) AS ?singleValue)\n  }\n}\nORDER BY DESC(?value1)\n",
@@ -286,7 +292,7 @@
     {
       "datasource": {
         "type": "flandersmake-sparql-datasource",
-        "uid": "${DS_GRAPHDB}"
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -345,16 +351,100 @@
       "pluginVersion": "11.6.0",
       "targets": [
         {
-          "queryText": "PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\n\nSELECT DISTINCT \n  (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n  (GROUP_CONCAT(DISTINCT ?description; separator=\"; \") AS ?intent_description)\n  (GROUP_CONCAT(DISTINCT ?condition_description; separator=\"; \") AS ?condition_descriptions)\nWHERE {\n  SERVICE <repository:intents_and_intent_reports> {\n    BIND(data5g:${intent_id} AS ?intent)\n    ?intent rdf:type ?intentType ;\n            log:allOf ?expectation .\n\n    ?expectation rdf:type ?expectationType ;\n                 dct:description ?description .\n\n    OPTIONAL {\n      ?expectation log:allOf ?condition .\n      ?condition rdf:type icm:Condition .\n\n      OPTIONAL {\n        ?condition set:forAll [\n          icm:valuesOfTargetProperty ?metric\n        ] .\n      }\n\n      OPTIONAL {\n        ?condition dct:description ?condition_description .\n      }\n    }\n\n    FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n  }\n}\nGROUP BY ?intent\nLIMIT 10",
-          "refId": "A",
           "datasource": {
             "type": "flandersmake-sparql-datasource",
-            "uid": "${DS_GRAPHDB}"
-          }
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "queryText": "PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\n\nSELECT DISTINCT \n  (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n  (GROUP_CONCAT(DISTINCT ?description; separator=\"; \") AS ?intent_description)\n  (GROUP_CONCAT(DISTINCT ?condition_description; separator=\"; \") AS ?condition_descriptions)\nWHERE {\n  SERVICE <repository:intents_and_intent_reports> {\n    BIND(data5g:${intent_id} AS ?intent)\n    ?intent rdf:type ?intentType ;\n            log:allOf ?expectation .\n\n    ?expectation rdf:type ?expectationType ;\n                 dct:description ?description .\n\n    OPTIONAL {\n      ?expectation log:allOf ?condition .\n      ?condition rdf:type icm:Condition .\n\n      OPTIONAL {\n        ?condition set:forAll [\n          icm:valuesOfTargetProperty ?metric\n        ] .\n      }\n\n      OPTIONAL {\n        ?condition dct:description ?condition_description .\n      }\n    }\n\n    FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n  }\n}\nGROUP BY ?intent\nLIMIT 10",
+          "refId": "A"
         }
       ],
       "title": "Panel Title",
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${DS_YESOREYERAM-INFINITY-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 1,
+      "options": {
+        "afterRender": "",
+        "content": "<pre style=\"margin:0\"><code class=\"language-turtle\">{{ data }}</code></pre>",
+        "contentPartials": [],
+        "defaultContent": "The query didn't return any results.",
+        "editor": {
+          "format": "auto",
+          "language": "markdown"
+        },
+        "editors": [],
+        "externalStyles": [],
+        "helpers": "",
+        "mode": "html",
+        "renderMode": "everyRow",
+        "styles": "",
+        "wrap": true
+      },
+      "pluginVersion": "6.0.0",
+      "targets": [
+        {
+          "columns": [
+            {
+              "selector": "data",
+              "text": "data",
+              "type": "string"
+            },
+            {
+              "selector": "intent_id",
+              "text": "intent_id",
+              "type": "string"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "${DS_YESOREYERAM-INFINITY-DATASOURCE}"
+          },
+          "filters": [],
+          "format": "table",
+          "global_query_id": "",
+          "method": "GET",
+          "parser": "backend",
+          "refId": "A",
+          "root_selector": "$",
+          "source": "url",
+          "type": "json",
+          "url": "http://start5g-1:3004/api/get-intent/${intent_id}",
+          "url_options": {
+            "data": "",
+            "method": "GET"
+          }
+        }
+      ],
+      "title": "Intent Turtle",
+      "type": "marcusolsson-dynamictext-panel"
     }
   ],
   "refresh": "30s",
@@ -364,28 +454,28 @@
     "list": [
       {
         "current": {
-          "text": "Id7987d90b5d14ea7a39d997619ddea61",
-          "value": "Id7987d90b5d14ea7a39d997619ddea61"
+          "text": "I40554800be0b4d9ab03a2f97e11186bf",
+          "value": "I40554800be0b4d9ab03a2f97e11186bf"
         },
         "label": "Intent ID",
         "name": "intent_id",
         "options": [
           {
             "selected": true,
-            "text": "Id7987d90b5d14ea7a39d997619ddea61",
-            "value": "Id7987d90b5d14ea7a39d997619ddea61"
+            "text": "I40554800be0b4d9ab03a2f97e11186bf",
+            "value": "I40554800be0b4d9ab03a2f97e11186bf"
           }
         ],
-        "query": "Id7987d90b5d14ea7a39d997619ddea61",
+        "query": "I40554800be0b4d9ab03a2f97e11186bf",
         "type": "textbox"
       },
       {
         "current": {
           "text": [
-            "computelatency_CO70ae24ceec1b473abab9cbffa94223a8,networklatency_CO68b99595ac5243aa9f16358a91a4b514,bandwidth_CO95dcc25321b448a3986bca620d0e36fc"
+            "computelatency_COc8bca9a5817e4e88b71e6c1ea66ff0dc,bandwidth_CO324b04a1d6ad47d2a814f349c46b8ec6,networklatency_CO9215779ad46040e680e79a7f5772622f"
           ],
           "value": [
-            "computelatency_CO70ae24ceec1b473abab9cbffa94223a8,networklatency_CO68b99595ac5243aa9f16358a91a4b514,bandwidth_CO95dcc25321b448a3986bca620d0e36fc"
+            "computelatency_COc8bca9a5817e4e88b71e6c1ea66ff0dc,bandwidth_CO324b04a1d6ad47d2a814f349c46b8ec6,networklatency_CO9215779ad46040e680e79a7f5772622f"
           ]
         },
         "hide": 2,
@@ -411,18 +501,18 @@
         "options": [
           {
             "selected": false,
-            "text": "computelatency_CO70ae24ceec1b473abab9cbffa94223a8",
-            "value": "computelatency_CO70ae24ceec1b473abab9cbffa94223a8"
+            "text": "computelatency_COc8bca9a5817e4e88b71e6c1ea66ff0dc",
+            "value": "computelatency_COc8bca9a5817e4e88b71e6c1ea66ff0dc"
           },
           {
             "selected": false,
-            "text": "networklatency_CO68b99595ac5243aa9f16358a91a4b514",
-            "value": "networklatency_CO68b99595ac5243aa9f16358a91a4b514"
+            "text": "bandwidth_CO324b04a1d6ad47d2a814f349c46b8ec6",
+            "value": "bandwidth_CO324b04a1d6ad47d2a814f349c46b8ec6"
           },
           {
             "selected": false,
-            "text": "bandwidth_CO95dcc25321b448a3986bca620d0e36fc",
-            "value": "bandwidth_CO95dcc25321b448a3986bca620d0e36fc"
+            "text": "networklatency_CO9215779ad46040e680e79a7f5772622f",
+            "value": "networklatency_CO9215779ad46040e680e79a7f5772622f"
           }
         ],
         "query": "$condition_metrics",
@@ -438,6 +528,6 @@
   "timezone": "browser",
   "title": "Intent and Condition Metrics Timeseries Dashboard (Infinity)",
   "uid": "fekk4b61d38qof",
-  "version": 1,
+  "version": 6,
   "weekStart": ""
 }

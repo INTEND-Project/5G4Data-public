@@ -1,0 +1,451 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_FLANDERSMAKE-SPARQL-DATASOURCE",
+      "label": "flandersmake-sparql-datasource",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "flandersmake-sparql-datasource",
+      "pluginName": "SPARQL"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "flandersmake-sparql-datasource",
+      "name": "SPARQL",
+      "version": "1.1.0"
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "11.6.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "text",
+      "name": "Text",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "New link",
+      "tooltip": "",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 9,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "<div style=\"background-color: #1885f1; padding: 20px; text-align: center; color: white;\">\n  <a href=\"https://intendproject.eu/\" target=\"_blank\" rel=\"noopener noreferrer\">\n    <img src=\"https://intendproject.eu/assets/INTEND_logo-97702745.gif\" alt=\"INTEND Logo\" style=\"height: 60px;\" />\n  </a>\n  <div style=\"margin-top: 10px; font-size: 24px;\">\n    INTEND 5G4Data Intent Dashboard — ${datacenter}\n  </div>\n</div>\n",
+        "mode": "html"
+      },
+      "pluginVersion": "11.6.0",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 5
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "/^totalIntents$/",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "hide": false,
+          "query": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (COUNT(DISTINCT ?intent) AS ?totalIntents)\nWHERE {\n  SERVICE <repository:intents_and_intent_reports> {\n    ?intent rdf:type icm:Intent ;\n            ?op1 ?expectation .\n    FILTER(STRSTARTS(STR(?op1), STR(log:)))\n\n    ?expectation ?op2 ?context .\n    FILTER(STRSTARTS(STR(?op2), STR(log:)))\n\n    ?context a icm:Context ;\n             data5g:DataCenter ?dc .\n    FILTER(STR(?dc) = \"${datacenter}\")\n  }\n}",
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (COUNT(DISTINCT ?intent) AS ?totalIntents)\nWHERE {\n  SERVICE <repository:intents_and_intent_reports> {\n    # Intent must reference a DeploymentExpectation via a logical operator\n    ?intent rdf:type icm:Intent ;\n            ?op1 ?de .\n    FILTER(STRSTARTS(STR(?op1), STR(log:)))\n\n    # That Expectation must be a DeploymentExpectation, and reference a Context via a log:* operator\n    ?de a data5g:DeploymentExpectation ;\n        ?op2 ?context .\n    FILTER(STRSTARTS(STR(?op2), STR(log:)))\n\n    # The Context must specify the target data center\n    ?context a icm:Context ;\n             data5g:DataCenter ?dc .\n\n    # Normalize incoming var to match stored value (EC21 vs EC_21)\n    BIND(REPLACE(\"${datacenter}\", \"_\", \"\") AS ?dcParam)\n\n    FILTER(STR(?dc) = ?dcParam)\n  }\n}\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Total intents (for ${datacenter})",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "green",
+            "mode": "fixed"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "applyToRow": true,
+              "mode": "gradient",
+              "type": "color-background",
+              "wrapText": true
+            },
+            "inspect": false,
+            "minWidth": 150
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 20,
+        "x": 4,
+        "y": 5
+      },
+      "id": 10,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": false
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "queryText": "PREFIX intend: <https://intendproject.eu/schema/>\nPREFIX schema: <https://schema.org/>\nPREFIX aeros: <https://aeros.eu/schema/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n\nSELECT ?datacenter ?name ?city ?cpu ?gpu ?memory ?electricity\nWHERE {\n  BIND(\n    IF(CONTAINS(\"${datacenter}\", \"(\"),\n       REPLACE(\"${datacenter}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter}\"\n    ) AS ?idA\n  )\n\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?datacenter ;\n        schema:name ?name ;\n        intend:latitude ?lat ;\n        intend:longitude ?lon .\n    OPTIONAL { ?ec aeros:location ?city }\n    OPTIONAL { ?ec intend:gpuArchitecture ?gpu }\n    OPTIONAL { ?ec aeros:cpuArchitecture ?cpu }\n    OPTIONAL { ?ec intend:memory ?memory }\n    OPTIONAL { ?ec aeros:majorSourceOfElectricity ?electricity }\n\n    FILTER( ?datacenter IN (?idA) )\n  }\n}\nORDER BY ?datacenter\n",
+          "refId": "A",
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          }
+        }
+      ],
+      "title": "Datacenter details",
+      "transparent": true,
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            },
+            "inspect": false,
+            "minWidth": 50
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intent_link"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "Open Intent Dashboard",
+                    "url": "${__value.text}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intent_id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Show details",
+                    "url": "${__data.fields.intent_link}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 300
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intent_state"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "StateCompliant": {
+                        "color": "dark-green",
+                        "index": 0
+                      },
+                      "StateDegraded": {
+                        "color": "dark-red",
+                        "index": 1
+                      },
+                      "StateFinalizing": {
+                        "color": "#ffffff",
+                        "index": 2
+                      },
+                      "StateReceived": {
+                        "color": "dark-orange",
+                        "index": 3
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "applyToRow": false,
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 21,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 3,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "enablePagination": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "intent_id"
+          }
+        ]
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "queryText": "PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\n\nSELECT DISTINCT\n  (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n  (GROUP_CONCAT(DISTINCT ?description; separator=\"; \") AS ?intent_description)\n  (CONCAT(\n     \"http://start5g-1.cs.uit.no:3001/d/fekk4b61d38qof/intent-and-condition-metrics-timeseries-dashboard?var-intent_id=\",\n     STRAFTER(STR(?intent), \"5g4data#\"),\n     \"&var-condition_metrics=\",\n     GROUP_CONCAT(DISTINCT REPLACE(REPLACE(STR(?metric), \".*#\", \"\"), \"-\", \"_\"); separator=\",\")\n   ) AS ?intent_link)\n  (GROUP_CONCAT(DISTINCT ?condition_description; separator=\"; \") AS ?condition_descriptions)\nWHERE {\n  SERVICE <repository:intents_and_intent_reports> {\n    # Use the same pattern as the working panel for descriptions\n    ?intent rdf:type ?intentType ;\n            log:allOf ?expectation .\n\n    ?expectation rdf:type ?expectationType ;\n                 dct:description ?description .\n\n    OPTIONAL {\n      ?expectation log:allOf ?condition .\n      ?condition rdf:type icm:Condition .\n      OPTIONAL { ?condition set:forAll [ icm:valuesOfTargetProperty ?metric ] . }\n      OPTIONAL { ?condition dct:description ?condition_description . }\n    }\n\n    FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n\n    # Restrict to intents that have a Context with the chosen datacenter\n    FILTER EXISTS {\n      ?intent ?op1 ?expOrCtx .\n      FILTER(STRSTARTS(STR(?op1), STR(log:)))              # any logical edge from the intent\n      ?expOrCtx ?op2 ?context .\n      FILTER(STRSTARTS(STR(?op2), STR(log:)))              # any logical edge to a context\n      ?context a icm:Context ;\n               data5g:DataCenter ?dc .\n\n      # Normalize dashboard var (EC_21 -> EC21) to match stored values\n      BIND(REPLACE(\"${datacenter}\", \"_\", \"\") AS ?dcParam)\n      FILTER(STR(?dc) = ?dcParam)\n    }\n  }\n}\nGROUP BY ?intent\nLIMIT 10\n",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n       (STRAFTER(STR(?state), \"IntentModelOntology/\") AS ?intent_state)\nWHERE {\n  SERVICE <repository:intents_and_intent_reports> {\n    {\n      SELECT ?intent (MAX(?generated) AS ?latestGenerated)\n      WHERE {\n        ?report a icm:IntentReport ;\n                icm:about ?intent ;\n                icm:reportGenerated ?generated .\n      }\n      GROUP BY ?intent\n    }\n\n    # Keep only intents that belong to the selected datacenter (same normalization)\n    FILTER EXISTS {\n      ?intent ?op1 ?expOrCtx .\n      FILTER(STRSTARTS(STR(?op1), STR(log:)))\n      ?expOrCtx ?op2 ?context .\n      FILTER(STRSTARTS(STR(?op2), STR(log:)))\n      ?context a icm:Context ;\n               data5g:DataCenter ?dc .\n      BIND(REPLACE(\"${datacenter}\", \"_\", \"\") AS ?dcParam)\n      FILTER(STR(?dc) = ?dcParam)\n    }\n\n    ?report a icm:IntentReport ;\n            icm:about ?intent ;\n            icm:reportGenerated ?latestGenerated ;\n            icm:intentHandlingState ?state .\n  }\n}\n",
+          "refId": "B"
+        }
+      ],
+      "title": "Intent Details for ${datacenter} (up to 10 latest, only if state reported, state based on state report)",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "intent_id",
+            "fields": {
+              "intent_id": {
+                "aggregations": []
+              }
+            },
+            "mode": "inner"
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "refresh": "30m",
+  "schemaVersion": 41,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "EC_21",
+          "value": "EC_21"
+        },
+        "description": "",
+        "hide": 2,
+        "label": "Datacenter",
+        "name": "datacenter",
+        "options": [
+          {
+            "selected": true,
+            "text": "EC_21",
+            "value": "EC_21"
+          }
+        ],
+        "query": "EC_21",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "TMForum Intent Dashboard (filtered by ${datacenter})",
+  "uid": "intent-overview-datacenter",
+  "version": 17,
+  "weekStart": ""
+}

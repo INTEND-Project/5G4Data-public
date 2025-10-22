@@ -1,4 +1,47 @@
 {
+  "__inputs": [
+    {
+      "name": "DS_FLANDERSMAKE-SPARQL-DATASOURCE",
+      "label": "flandersmake-sparql-datasource",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "flandersmake-sparql-datasource",
+      "pluginName": "SPARQL"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "flandersmake-sparql-datasource",
+      "name": "SPARQL",
+      "version": "1.1.0"
+    },
+    {
+      "type": "panel",
+      "id": "geomap",
+      "name": "Geomap",
+      "version": ""
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "11.6.0"
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "text",
+      "name": "Text",
+      "version": ""
+    }
+  ],
   "annotations": {
     "list": [
       {
@@ -18,16 +61,12 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 20,
+  "id": null,
   "links": [],
   "panels": [
     {
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "gridPos": {
-        "h": 5,
+        "h": 2,
         "w": 24,
         "x": 0,
         "y": 0
@@ -39,17 +78,16 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "<div style=\"background-color: #1885f1; padding: 20px; text-align: center; color: white;\">\n  <a href=\"https://intendproject.eu/\" target=\"_blank\" rel=\"noopener noreferrer\">\n    <img src=\"https://intendproject.eu/assets/INTEND_logo-97702745.gif\" alt=\"INTEND Logo\" style=\"height: 60px;\" />\n  </a>\n  <div style=\"margin-top: 10px; font-size: 24px;\">\n    INTEND 5G4Data Datacenter Dashboard\n  </div>\n</div>\n",
+        "content": "<div style=\"\n  background-color:#1885f1;\n  color:#fff;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  gap:10px;\n  padding:8px 12px;        /* smaller padding for minimal height */\n  line-height:1.1;         /* tight line height to reduce height */\n  text-align:center;\n\">\n  <a href=\"https://intendproject.eu/\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"display:inline-flex; align-items:center;\">\n    <img src=\"https://intendproject.eu/assets/INTEND_logo-97702745.gif\" alt=\"INTEND Logo\" style=\"height:28px; width:auto;\" />\n  </a>\n  <div style=\"font-size:18px; white-space:nowrap;\">\n    INTEND 5G4Data Datacenter Dashboard\n  </div>\n</div>\n",
         "mode": "html"
       },
       "pluginVersion": "11.6.0",
-      "title": "",
       "type": "text"
     },
     {
       "datasource": {
         "type": "flandersmake-sparql-datasource",
-        "uid": "df1euvwbfhl34b"
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -80,7 +118,7 @@
         "h": 4,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 2
       },
       "id": 3,
       "options": {
@@ -106,7 +144,7 @@
         {
           "datasource": {
             "type": "flandersmake-sparql-datasource",
-            "uid": "df1euvwbfhl34b"
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
           },
           "format": "table",
           "queryText": "PREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT ?bandwidth ?latency ?distance ?packetErrorRate\nWHERE {\n  # Extract ID between the last '(' and the next ')' if present; otherwise use the whole value\n  BIND(\n    IF(CONTAINS(\"${datacenter1}\", \"(\"),\n       REPLACE(\"${datacenter1}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter1}\"\n    ) AS ?idA\n  )\n  BIND(\n    IF(CONTAINS(\"${datacenter2}\", \"(\"),\n       REPLACE(\"${datacenter2}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter2}\"\n    ) AS ?idB\n  )\n\n  # Normalize order so EC_1-EC_2 and EC_2-EC_1 resolve to the same pair IRI\n  BIND(IF(STR(?idA) < STR(?idB), ?idA, ?idB) AS ?id1)\n  BIND(IF(STR(?idA) < STR(?idB), ?idB, ?idA) AS ?id2)\n  BIND(CONCAT(STR(?id1), \"-\", STR(?id2)) AS ?pairLocal)\n  BIND(IRI(CONCAT(\"https://intendproject.eu/telenor/\", ?pairLocal)) AS ?pair)\n\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    OPTIONAL { ?pair intend:bandwidth        ?bandwidth }\n    OPTIONAL { ?pair intend:latencies        ?latency }\n    OPTIONAL { ?pair intend:distance         ?distance }\n    OPTIONAL { ?pair intend:packetErrorRate  ?packetErrorRate }\n  }\n}\n",
@@ -119,7 +157,7 @@
     {
       "datasource": {
         "type": "flandersmake-sparql-datasource",
-        "uid": "df1euvwbfhl34b"
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -150,7 +188,7 @@
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 6
       },
       "id": 4,
       "options": {
@@ -176,7 +214,7 @@
         {
           "datasource": {
             "type": "flandersmake-sparql-datasource",
-            "uid": "df1euvwbfhl34b"
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
           },
           "format": "table",
           "queryText": "PREFIX intend: <https://intendproject.eu/schema/>\nPREFIX schema: <https://schema.org/>\nPREFIX aeros: <https://aeros.eu/schema/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n\nSELECT ?datacenter ?name ?city ?cpu ?gpu ?memory ?electricity (xsd:double(?cost) AS ?costNum)\nWHERE {\n  # --- Extract EC_* from variables if they include \"(EC_*)\" labels; else use whole value ---\n  BIND(\n    IF(CONTAINS(\"${datacenter1}\", \"(\"),\n       REPLACE(\"${datacenter1}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter1}\"\n    ) AS ?idA\n  )\n  BIND(\n    IF(CONTAINS(\"${datacenter2}\", \"(\"),\n       REPLACE(\"${datacenter2}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter2}\"\n    ) AS ?idB\n  )\n\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?datacenter ;\n        schema:name ?name ;\n        intend:latitude ?lat ;\n        intend:longitude ?lon .\n    OPTIONAL { ?ec aeros:location ?city }\n    OPTIONAL { ?ec intend:gpuArchitecture ?gpu }\n    OPTIONAL { ?ec aeros:cpuArchitecture ?cpu }\n    OPTIONAL { ?ec intend:memory ?memory }\n    OPTIONAL { ?ec aeros:majorSourceOfElectricity ?electricity }\n    OPTIONAL { ?ec aeros:costOfCompute ?cost }\n\n    FILTER( ?datacenter IN (?idA, ?idB) )\n  }\n}\nORDER BY ?datacenter\n",
@@ -189,7 +227,7 @@
     {
       "datasource": {
         "type": "flandersmake-sparql-datasource",
-        "uid": "df1euvwbfhl34b"
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
       },
       "description": "Markers = edge data centers.",
       "fieldConfig": {
@@ -247,6 +285,24 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "Open details for ${__value.raw}",
+                    "url": "/d/intent-overview-datacenter/edge-dc-details?var-datacenter=${__value.raw}"
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -254,7 +310,7 @@
         "h": 28,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 11
       },
       "id": 1,
       "options": {
@@ -377,9 +433,9 @@
         "view": {
           "allLayers": true,
           "id": "coords",
-          "lat": 60,
+          "lat": 63,
           "lon": 20,
-          "zoom": 4.5
+          "zoom": 5
         }
       },
       "pluginVersion": "11.6.0",
@@ -387,14 +443,13 @@
         {
           "datasource": {
             "type": "flandersmake-sparql-datasource",
-            "uid": "df1euvwbfhl34b"
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
           },
           "format": "table",
           "queryText": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\nPREFIX aeros: <https://aeros.eu/schema/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n\nSELECT ?id ?name ?city ?cpu ?gpu ?memory ?electricity (xsd:double(?cost) AS ?costNum) (xsd:double(?lat) AS ?latNum) (xsd:double(?lon) AS ?lonNum)\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name ;\n        intend:latitude ?lat ;\n        intend:longitude ?lon .\n    OPTIONAL { ?ec aeros:location ?city }\n    OPTIONAL { ?ec intend:gpuArchitecture ?gpu }\n    OPTIONAL { ?ec aeros:cpuArchitecture ?cpu }\n    OPTIONAL { ?ec intend:memory ?memory }\n    OPTIONAL { ?ec aeros:majorSourceOfElectricity ?electricity }\n    OPTIONAL { ?ec aeros:costOfCompute ?cost }\n  }\n}\nORDER BY ?id",
           "refId": "A"
         }
       ],
-      "title": "",
       "transformations": [
         {
           "id": "organize",
@@ -446,7 +501,6 @@
       "type": "geomap"
     }
   ],
-  "preload": false,
   "refresh": "30s",
   "schemaVersion": 41,
   "tags": [
@@ -462,13 +516,10 @@
     "list": [
       {
         "allowCustomValue": false,
-        "current": {
-          "text": "Aarhus Edge Cluster (EC_2)",
-          "value": "Aarhus Edge Cluster (EC_2)"
-        },
+        "current": {},
         "datasource": {
           "type": "flandersmake-sparql-datasource",
-          "uid": "df1euvwbfhl34b"
+          "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
         },
         "definition": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?id), \")\") AS ?label)\n    BIND(?label AS ?value)   # value used by Grafana\n    BIND(STR(?name) AS ?text)  # text shown in dropdown\n  }\n}\nORDER BY LCASE(?text)\n",
         "includeAll": false,
@@ -481,13 +532,10 @@
         "type": "query"
       },
       {
-        "current": {
-          "text": "Bodø Edge Cluster (EC_35)",
-          "value": "Bodø Edge Cluster (EC_35)"
-        },
+        "current": {},
         "datasource": {
           "type": "flandersmake-sparql-datasource",
-          "uid": "df1euvwbfhl34b"
+          "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
         },
         "definition": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?id), \")\") AS ?label)\n    BIND(?label AS ?value)   # value used by Grafana\n    BIND(STR(?name) AS ?text)  # text shown in dropdown\n  }\n}\nORDER BY LCASE(?text)\n",
         "includeAll": false,
@@ -509,5 +557,6 @@
   "timezone": "",
   "title": "Datacenters (intents_and_intent_reports) – Geomap",
   "uid": "df1pfey393klcb",
-  "version": 3
+  "version": 8,
+  "weekStart": ""
 }

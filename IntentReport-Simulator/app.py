@@ -58,14 +58,20 @@ class IntentGenerator:
     
     def __init__(self, config_file: str = "intent-generation.json"):
         """Initialize with configuration file"""
+        self.config_file = config_file
+        self.config = self._load_config()
+        self._update_api_settings()
+    
+    def _load_config(self) -> dict:
+        """Load configuration from file"""
         try:
-            with open(config_file, 'r') as f:
-                self.config = json.load(f)
+            with open(self.config_file, 'r') as f:
+                return json.load(f)
         except FileNotFoundError:
             # Default configuration if file not found
-            self.config = {
+            return {
                 "api_settings": {
-                    "base_url": "http://localhost:3004",
+                    "intent_simulator_url": "http://localhost:3004",
                     "timeout": 30,
                     "retry_attempts": 3
                 },
@@ -74,10 +80,18 @@ class IntentGenerator:
                     "continue_on_error": True
                 }
             }
-        
-        self.api_url = f"{self.config['api_settings']['base_url']}/api/generate-intent"
+    
+    def _update_api_settings(self):
+        """Update API settings from current config"""
+        self.api_url = f"{self.config['api_settings']['intent_simulator_url']}/api/generate-intent"
         self.timeout = self.config['api_settings']['timeout']
         self.retry_attempts = self.config['api_settings']['retry_attempts']
+    
+    def _reload_config(self):
+        """Reload configuration from file"""
+        self.config = self._load_config()
+        self._update_api_settings()
+        logger.info(f"Configuration reloaded from {self.config_file}")
         
     def generate_intent(self, intent_type: str, parameters: dict) -> dict:
         """Generate a single intent with retry logic"""
@@ -106,6 +120,9 @@ class IntentGenerator:
     
     def generate_all_intents_from_config(self) -> list:
         """Generate intents using the full configuration from intent-generation.json"""
+        # Reload configuration to get latest changes
+        self._reload_config()
+        
         generated_ids = []
         
         logger.info("Generating intents from configuration file...")

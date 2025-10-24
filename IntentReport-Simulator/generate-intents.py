@@ -19,7 +19,7 @@ class IntentGeneratorFromConfig:
         with open(config_file, 'r') as f:
             self.config = json.load(f)
         
-        self.api_url = f"{self.config['api_settings']['base_url']}/api/generate-intent"
+        self.api_url = f"{self.config['api_settings']['intent_simulator_url']}/api/generate-intent"
         self.timeout = self.config['api_settings']['timeout']
         self.retry_attempts = self.config['api_settings']['retry_attempts']
         

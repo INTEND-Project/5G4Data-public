@@ -1,7 +1,7 @@
 # INTEND project example dashboards for the 5G4Data use-case
-As part of the INTEND project, we have created a few example Grafana dashboards that can be used to view details related to intents and intent reports (both status and observations of condition metrics related to the intent). You will need a running Grafana server to use the example dashboards, and we will here give you instructions on how to install and configure Grafana and how you can load the example dashboards.
+As part of the INTEND project, we have created a few example Grafana dashboards that can be used to view details related to intents and intent reports (both status and observations of condition metrics related to the intent). You will need a running Grafana server to use the example dashboards, and we will here give you instructions on how to install and configure Grafana and how you can load the example dashboards. **Note that the DatacentersAnotherInstanceQueryGeojson.json dashboard requires a modified Grafana docker container. More about this at the end of this file.**
 
-# Start and configure Grafana
+# Start and configure Grafana (this is the standard version and DatacentersAnotherInstanceQueryGeojson.json will not work)
 The easiest way to run Grafana is to use the Grafana Docker container. The following instructions have been used with success with the Grafana v11.6.0 docker container.
 
 Before you execute the **docker run** command, edit the "set-password-here" to be the password you want to use. If you want to run Grafana on a different port, change 3001 to the port you want to use (note: edit two places in the docker run command)
@@ -53,3 +53,25 @@ docker rm grafana
 docker volume rm grafana-data
 ```
 This removes both the container and the image and thus all traces are gone (i.e. you cannot start it again)
+
+# Modified Grafana docker container
+We wanted to show the polygons that defines the regions that network slices are activated for in the map. Unfortunately the Grafana geomap plugin (which is an intrinsic part of Grafana, i.e. a built in plugin) does not support rendering of geojson poligons from queries. Since our slice polygons are part of network and combined network and deployment intents and stored in GraphDB, we needed to modify the built in geomap plugin. This is what you need to do to add this functionality to Grafana:
+```
+# Clone Grafana open source code
+git clone https://github.com/grafana/grafana.git
+# Add these files from this folder to the cloned Grafana sourcecode:
+cp geojsonQuery.ts grafana/public/app/plugins/panel/geomap/layers/data/geojsonQuery.ts
+cp index.ts grafana/public/app/plugins/panel/geomap/layers/data/index.ts
+docker build -t grafana/grafana:dev .
+```
+You should now have a docker image with the modified grafana geomap plugin. Run Grafana from this container. Here is an example command on how to do that:
+```
+# Create a volume for Grafana data
+docker volume create grafana-dev-data
+# Run grafana. If you want to run it on grafana standard port (3000),
+# just remove the -e GF_SERVER_HTTP_PORT=3002 argument
+# Change your-password-here with a password of your choice
+# Note that -e "GF_PANELS_ENABLE_ALPHA=true" must be set to use the add on we created
+docker run -d --network=host --name=grafana-dev -e GF_SERVER_HTTP_PORT=3002 -e GF_SERVER_HTTP_ADDR=0.0.0.0 -e "GF_PANELS_ENABLE_ALPHA=true" -e GF_SECURITY_ADMIN_PASSWORD='your-password-here' -e GF_SERVER_ROOT_URL=http://localhost:3002/ -v grafana-dev-data:/var/lib/grafana   grafana/grafana:dev
+```
+The *DatacentersAnotherInstanceQueryGeojson.json* will now work when you import it.

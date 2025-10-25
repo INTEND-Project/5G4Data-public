@@ -1,0 +1,613 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_FLANDERSMAKE-SPARQL-DATASOURCE",
+      "label": "flandersmake-sparql-datasource",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "flandersmake-sparql-datasource",
+      "pluginName": "SPARQL"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "flandersmake-sparql-datasource",
+      "name": "SPARQL",
+      "version": "1.1.0"
+    },
+    {
+      "type": "panel",
+      "id": "geomap",
+      "name": "Geomap",
+      "version": ""
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "12.3.0-pre"
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "text",
+      "name": "Text",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": false,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "<div style=\"\n  background-color:#1885f1;\n  color:#fff;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n  gap:10px;\n  padding:8px 12px;        /* smaller padding for minimal height */\n  line-height:1.1;         /* tight line height to reduce height */\n  text-align:center;\n\">\n  <a href=\"https://intendproject.eu/\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"display:inline-flex; align-items:center;\">\n    <img src=\"https://intendproject.eu/assets/INTEND_logo-97702745.gif\" alt=\"INTEND Logo\" style=\"height:28px; width:auto;\" />\n  </a>\n  <div style=\"font-size:18px; white-space:nowrap;\">\n    INTEND 5G4Data Datacenter Dashboard\n  </div>\n</div>\n",
+        "mode": "html"
+      },
+      "pluginVersion": "12.3.0-pre",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 2
+      },
+      "id": 3,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Metric"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0-pre",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "format": "table",
+          "queryText": "PREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT ?bandwidth ?latency ?distance ?packetErrorRate\nWHERE {\n  # Extract ID between the last '(' and the next ')' if present; otherwise use the whole value\n  BIND(\n    IF(CONTAINS(\"${datacenter1}\", \"(\"),\n       REPLACE(\"${datacenter1}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter1}\"\n    ) AS ?idA\n  )\n  BIND(\n    IF(CONTAINS(\"${datacenter2}\", \"(\"),\n       REPLACE(\"${datacenter2}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter2}\"\n    ) AS ?idB\n  )\n\n  # Normalize order so EC_1-EC_2 and EC_2-EC_1 resolve to the same pair IRI\n  BIND(IF(STR(?idA) < STR(?idB), ?idA, ?idB) AS ?id1)\n  BIND(IF(STR(?idA) < STR(?idB), ?idB, ?idA) AS ?id2)\n  BIND(CONCAT(STR(?id1), \"-\", STR(?id2)) AS ?pairLocal)\n  BIND(IRI(CONCAT(\"https://intendproject.eu/telenor/\", ?pairLocal)) AS ?pair)\n\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    OPTIONAL { ?pair intend:bandwidth        ?bandwidth }\n    OPTIONAL { ?pair intend:latencies        ?latency }\n    OPTIONAL { ?pair intend:distance         ?distance }\n    OPTIONAL { ?pair intend:packetErrorRate  ?packetErrorRate }\n  }\n}\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Connection Metrics: ${datacenter1} ↔ ${datacenter2}",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Datacenter"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0-pre",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "format": "table",
+          "queryText": "PREFIX intend: <https://intendproject.eu/schema/>\nPREFIX schema: <https://schema.org/>\nPREFIX aeros: <https://aeros.eu/schema/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n\nSELECT ?datacenter ?name ?city ?cpu ?gpu ?memory ?electricity (xsd:double(?cost) AS ?costNum)\nWHERE {\n  # --- Extract EC_* from variables if they include \"(EC_*)\" labels; else use whole value ---\n  BIND(\n    IF(CONTAINS(\"${datacenter1}\", \"(\"),\n       REPLACE(\"${datacenter1}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter1}\"\n    ) AS ?idA\n  )\n  BIND(\n    IF(CONTAINS(\"${datacenter2}\", \"(\"),\n       REPLACE(\"${datacenter2}\", \".*\\\\(([^)]*)\\\\).*\", \"$1\"),\n       \"${datacenter2}\"\n    ) AS ?idB\n  )\n\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?datacenter ;\n        schema:name ?name ;\n        intend:latitude ?lat ;\n        intend:longitude ?lon .\n    OPTIONAL { ?ec aeros:location ?city }\n    OPTIONAL { ?ec intend:gpuArchitecture ?gpu }\n    OPTIONAL { ?ec aeros:cpuArchitecture ?cpu }\n    OPTIONAL { ?ec intend:memory ?memory }\n    OPTIONAL { ?ec aeros:majorSourceOfElectricity ?electricity }\n    OPTIONAL { ?ec aeros:costOfCompute ?cost }\n\n    FILTER( ?datacenter IN (?idA, ?idB) )\n  }\n}\nORDER BY ?datacenter\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Selected Datacenters Details",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "description": "Markers = edge data centers.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "latNum"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": true,
+                  "viz": false
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lonNum"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": true,
+                  "viz": false
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "Open details for ${__value.raw}",
+                    "url": "/d/intent-overview-datacenter/edge-dc-details?var-datacenter=${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 28,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "id": 1,
+      "options": {
+        "basemap": {
+          "config": {
+            "server": "streets",
+            "showDebugInfo": false,
+            "showLabels": true,
+            "theme": "auto"
+          },
+          "name": "CartoDB Positron",
+          "noRepeat": false,
+          "type": "esri-xyz"
+        },
+        "controls": {
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showDebug": false,
+          "showMeasure": false,
+          "showScale": true,
+          "showZoom": true
+        },
+        "layers": [
+          {
+            "config": {
+              "fill": true,
+              "opacity": 0.95,
+              "shape": "circle",
+              "showLegend": true,
+              "size": 8,
+              "stroke": true,
+              "style": {
+                "color": {
+                  "fixed": "blue"
+                },
+                "opacity": 1,
+                "size": {
+                  "fixed": 4,
+                  "max": 15,
+                  "min": 2
+                },
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg",
+                  "mode": "fixed"
+                },
+                "text": {
+                  "field": "id",
+                  "fixed": "",
+                  "mode": "field"
+                },
+                "textConfig": {
+                  "offsetY": -10,
+                  "textAlign": "center",
+                  "textBaseline": "middle"
+                }
+              }
+            },
+            "data": {
+              "query": {
+                "refId": "A"
+              },
+              "transform": {
+                "id": "noop"
+              }
+            },
+            "filterData": {
+              "id": "byRefId",
+              "options": "A"
+            },
+            "location": {
+              "latitude": "latNum",
+              "latitudeField": "latNum",
+              "longitude": "lonNum",
+              "longitudeField": "lonNum",
+              "mode": "coords"
+            },
+            "name": "Edge Clusters",
+            "style": {
+              "color": {
+                "fixed": "dark-blue"
+              },
+              "fillColor": {
+                "fixed": "dark-blue"
+              },
+              "symbol": "circle"
+            },
+            "text": {
+              "config": {
+                "field": "name",
+                "offsetX": 0,
+                "offsetY": -20,
+                "show": true,
+                "source": "field",
+                "style": {
+                  "color": "dark-blue",
+                  "fontSize": 11,
+                  "fontWeight": "bold"
+                }
+              }
+            },
+            "tooltip": {
+              "fields": [
+                "id",
+                "name",
+                "city",
+                "cpu",
+                "gpu",
+                "memory",
+                "electricity",
+                "costNum"
+              ],
+              "mode": "details"
+            },
+            "type": "markers",
+            "visibility": "visible"
+          },
+          {
+            "config": {
+              "geojsonField": "featureCollection",
+              "rules": [],
+              "style": {
+                "color": {
+                  "fixed": "#37872D"
+                },
+                "opacity": 1,
+                "rotation": {
+                  "fixed": 0,
+                  "max": 360,
+                  "min": -360,
+                  "mode": "mod"
+                },
+                "size": {
+                  "fixed": 5,
+                  "max": 15,
+                  "min": 2
+                },
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg",
+                  "mode": "fixed"
+                },
+                "symbolAlign": {
+                  "horizontal": "center",
+                  "vertical": "center"
+                },
+                "textConfig": {
+                  "fontSize": 12,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "textAlign": "center",
+                  "textBaseline": "middle"
+                }
+              }
+            },
+            "filterData": {
+              "id": "byRefId",
+              "options": "B"
+            },
+            "name": "Layer 2",
+            "opacity": 0.4,
+            "tooltip": true,
+            "type": "geojson-query"
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        },
+        "view": {
+          "allLayers": true,
+          "id": "coords",
+          "lat": 63,
+          "lon": 20,
+          "noRepeat": false,
+          "zoom": 5
+        }
+      },
+      "pluginVersion": "12.3.0-pre",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "format": "table",
+          "queryText": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\nPREFIX aeros: <https://aeros.eu/schema/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n\nSELECT ?id ?name ?city ?cpu ?gpu ?memory ?electricity (xsd:double(?cost) AS ?costNum) (xsd:double(?lat) AS ?latNum) (xsd:double(?lon) AS ?lonNum)\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name ;\n        intend:latitude ?lat ;\n        intend:longitude ?lon .\n    OPTIONAL { ?ec aeros:location ?city }\n    OPTIONAL { ?ec intend:gpuArchitecture ?gpu }\n    OPTIONAL { ?ec aeros:cpuArchitecture ?cpu }\n    OPTIONAL { ?ec intend:memory ?memory }\n    OPTIONAL { ?ec aeros:majorSourceOfElectricity ?electricity }\n    OPTIONAL { ?ec aeros:costOfCompute ?cost }\n  }\n}\nORDER BY ?id",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "hide": false,
+          "queryText": "PREFIX dct:   <http://purl.org/dc/terms/>\nPREFIX geo:   <http://www.opengis.net/ont/geosparql#>\nPREFIX icm:   <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX log:   <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (CONCAT(\n  \"{\",\n  \"\\n\\t\\\"type\\\" : \\\"FeatureCollection\\\",\",\n  \"\\n\\t\\\"name\\\" : \\\"Slices\\\",\",\n  \"\\n\\t\\\"crs\\\" : {\",\n  \"\\n\\t\\t\\\"type\\\" : \\\"name\\\",\",\n  \"\\n\\t\\t\\\"properties\\\" : {\",\n  \"\\n\\t\\t\\t\\\"name\\\" : \\\"EPSG:4326\\\"\",\n  \"\\n\\t\\t}\",\n  \"\\n\\t},\",\n  \"\\n\\t\\\"features\\\" : [\",\n  \"\\n\", GROUP_CONCAT(?geojson; separator=\",\\n\"),\n  \"\\n\\t]\",\n  \"\\n}\",\n  \"\"\n) AS ?featureCollection)\nWHERE {\n  # Subselect builds each Feature JSON (same logic you had),\n  # then the outer SELECT concatenates them into one FeatureCollection.\n  SELECT ?intentId ?geojson\n  WHERE {\n    # OPTIONAL: wrap in your named graph\n    # GRAPH <http://5g4data.eu/intents> {\n\n      ?intent a icm:Intent .\n      OPTIONAL { ?intent dct:description ?description }\n\n      ?intent (log:allOf)+ ?el .\n      ?el data5g:appliesToRegion ?region .\n      ?region a geo:Feature ;\n              geo:hasGeometry/geo:asWKT ?wkt .\n\n      BIND(\n        IF(CONTAINS(STR(?intent), \"#\"),\n           STRAFTER(STR(?intent), \"#\"),\n           REPLACE(STR(?intent), \"^.*/\", \"\")\n        ) AS ?intentId\n      )\n\n      # Extract \"x y, x y, ...\" from POLYGON(( x y, ... ))\n      BIND(REPLACE(STR(?wkt), \"^POLYGON\\\\(\\\\((.*)\\\\)\\\\)$\", \"$1\") AS ?pairs)\n\n      # Convert \"x y\" -> \"[x,y]\"  (use $1/$2 backrefs)\n      BIND(REPLACE(?pairs, \"([0-9\\\\-\\\\.]+)\\\\s+([0-9\\\\-\\\\.]+)\", \"[$1,$2]\") AS ?coords)\n\n      # Build a Feature object string\n      BIND(CONCAT(\n        \"{\",\n          \"\\\"type\\\":\\\"Feature\\\",\",\n          \"\\\"geometry\\\":{\\\"type\\\":\\\"Polygon\\\",\\\"coordinates\\\":[[\", ?coords, \"]]},\",\n          \"\\\"properties\\\":{\",\n            \"\\\"intent_id\\\":\\\"\", ?intentId, \"\\\",\",\n            \"\\\"description\\\":\", IF(BOUND(?description), CONCAT(\"\\\"\", ?description, \"\\\"\"), \"null\"),\n          \"}\",\n        \"}\"\n      ) AS ?geojson)\n\n    # }\n  }\n  LIMIT 200\n}",
+          "refId": "B"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {
+              "city": 2,
+              "costNum": 7,
+              "cpu": 3,
+              "electricity": 6,
+              "gpu": 4,
+              "id": 0,
+              "latNum": 8,
+              "lonNum": 9,
+              "memory": 5,
+              "name": 1
+            },
+            "renameByName": {
+              "city": "city",
+              "costNum": "costNum",
+              "cpu": "cpu",
+              "electricity": "electricity",
+              "gpu": "gpu",
+              "id": "id",
+              "latNum": "latNum",
+              "lonNum": "lonNum",
+              "memory": "memory",
+              "name": "name"
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "number",
+                "targetField": "lonNum"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "latNum"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "geomap"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "tags": [
+    "geomap",
+    "graphdb",
+    "sparql",
+    "datacenter",
+    "intend",
+    "aeros",
+    "telenor"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allowCustomValue": false,
+        "current": {},
+        "datasource": {
+          "type": "flandersmake-sparql-datasource",
+          "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+        },
+        "definition": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?id), \")\") AS ?label)\n    BIND(?label AS ?value)   # value used by Grafana\n    BIND(STR(?name) AS ?text)  # text shown in dropdown\n  }\n}\nORDER BY LCASE(?text)\n",
+        "includeAll": false,
+        "label": "Datacenter 1",
+        "name": "datacenter1",
+        "options": [],
+        "query": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?id), \")\") AS ?label)\n    BIND(?label AS ?value)   # value used by Grafana\n    BIND(STR(?name) AS ?text)  # text shown in dropdown\n  }\n}\nORDER BY LCASE(?text)\n",
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "flandersmake-sparql-datasource",
+          "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+        },
+        "definition": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?id), \")\") AS ?label)\n    BIND(?label AS ?value)   # value used by Grafana\n    BIND(STR(?name) AS ?text)  # text shown in dropdown\n  }\n}\nORDER BY LCASE(?text)\n",
+        "includeAll": false,
+        "label": "Datacenter 2",
+        "name": "datacenter2",
+        "options": [],
+        "query": "PREFIX schema: <https://schema.org/>\nPREFIX intend: <https://intendproject.eu/schema/>\n\nSELECT DISTINCT ?value ?text\nWHERE {\n  GRAPH <http://intendproject.eu/telenor/infra> {\n    ?ec a intend:edgeCluster ;\n        intend:clusterId ?id ;\n        schema:name ?name .\n    BIND(CONCAT(STR(?name), \" (\", STR(?id), \")\") AS ?label)\n    BIND(?label AS ?value)   # value used by Grafana\n    BIND(STR(?name) AS ?text)  # text shown in dropdown\n  }\n}\nORDER BY LCASE(?text)\n",
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Datacenters (intents_and_intent_reports) – Geomap",
+  "uid": "df1pfey393klcb",
+  "version": 6,
+  "weekStart": ""
+}

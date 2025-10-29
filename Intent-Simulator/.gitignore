@@ -41,3 +41,5 @@ intents/*.ttl
 CREATE.md
 # Local copy of the intent-generator-package used for Docker build
 intent-generator-package/
+# includes OPEN AI API key
+.env.docker

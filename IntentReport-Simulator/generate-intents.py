@@ -7,6 +7,7 @@ import requests
 import json
 import time
 import logging
+import os
 from typing import Dict, List, Any
 
 # Configure logging
@@ -19,7 +20,9 @@ class IntentGeneratorFromConfig:
         with open(config_file, 'r') as f:
             self.config = json.load(f)
         
-        self.api_url = f"{self.config['api_settings']['intent_simulator_url']}/api/generate-intent"
+        # Allow override via environment variable INTENT_SIMULATOR_URL
+        intent_simulator_base = os.getenv('INTENT_SIMULATOR_URL', self.config['api_settings']['intent_simulator_url'])
+        self.api_url = f"{intent_simulator_base}/api/generate-intent"
         self.timeout = self.config['api_settings']['timeout']
         self.retry_attempts = self.config['api_settings']['retry_attempts']
         

@@ -39,3 +39,5 @@ Thumbs.db
 # Project specific
 intents/*.ttl
 CREATE.md
+# Local copy of the intent-generator-package used for Docker build
+intent-generator-package/

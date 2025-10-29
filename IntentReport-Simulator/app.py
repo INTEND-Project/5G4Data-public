@@ -83,7 +83,9 @@ class IntentGenerator:
     
     def _update_api_settings(self):
         """Update API settings from current config"""
-        self.api_url = f"{self.config['api_settings']['intent_simulator_url']}/api/generate-intent"
+        # Allow override via environment variable INTENT_SIMULATOR_URL
+        intent_simulator_base = os.getenv('INTENT_SIMULATOR_URL', self.config['api_settings']['intent_simulator_url'])
+        self.api_url = f"{intent_simulator_base}/api/generate-intent"
         self.timeout = self.config['api_settings']['timeout']
         self.retry_attempts = self.config['api_settings']['retry_attempts']
     
@@ -219,10 +221,6 @@ intent_generator = IntentGenerator()
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploaded_value_files')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-@app.route('/test')
-def test():
-    return render_template('test.html')
 
 @app.route('/')
 def landing():
@@ -1179,6 +1177,5 @@ def generate_turtle(report_data):
     return turtle
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5001))
-    app.run(debug=True, port=port, host='0.0.0.0') 
+     app.run(host='0.0.0.0', port=5000, debug=True)
 

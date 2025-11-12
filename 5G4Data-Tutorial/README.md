@@ -4,7 +4,7 @@ We have created a tutorial that explains some of the decisions that the [INTEND 
 A running version of the tutorial can be viewed [here](https://start5g-1.cs.uit.no).
 
 ## Run with certificates over https
-This is the production setup where we use certificats to serve the tutorial using gunicorn and Caddy as security proxy. Certificates can be generated using certbot:
+This is the production setup where we use certificats to serve the tutorial using gunicorn and Caddy as security proxy. Certificates can be generated or updated when they expire using certbot:
 ```
 # Requires that a proper DNS entry exists for the server
 # and that port 80 is open so that certbot can upload a
@@ -13,7 +13,7 @@ This is the production setup where we use certificats to serve the tutorial usin
 
 sudo certbot certonly --standalone --preferred-challenges http --agree-tos --no-eff-email --email arne.munch-ellingsen@telenor.com -d start5g-1.cs.uit.no
 ```
-To start the tutorial together with the workload catalog (with its chartmuseum backend), do this:
+Copy the generated certificates to ./certs folder. If the tutorial is already running, stop it first with *docer compose down*. To start/restart the tutorial together with the workload catalog (with its chartmuseum backend), do this:
 ```
 docker compose up -d --build
 ```

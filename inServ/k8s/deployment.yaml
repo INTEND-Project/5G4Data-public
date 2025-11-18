@@ -25,15 +25,15 @@ spec:
             - secretRef:
                 name: inserv-secrets
           ports:
-            - containerPort: 3010
+            - containerPort: 3020
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 3010
+              port: 3020
             initialDelaySeconds: 10
           readinessProbe:
             httpGet:
               path: /healthz
-              port: 3010
+              port: 3020
             initialDelaySeconds: 5
 

@@ -34,16 +34,16 @@ python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r src/requirements.txt
-export INSERV_PORT=3010
+export INSERV_PORT=3020
 python -m inserv
 ```
 
-Swagger UI will be available at `http://localhost:3010/ui/`.
+Swagger UI will be available at `http://localhost:3020/ui/`.
 
 ### Container Image
 ```bash
 docker build -t inserv:local .
-docker run -p 3010:3010 --env LOG_LEVEL=DEBUG inserv:local
+docker run -p 3020:3020 --env LOG_LEVEL=DEBUG inserv:local
 ```
 
 ### Kubernetes Deployment with Helm

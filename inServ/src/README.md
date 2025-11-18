@@ -21,13 +21,13 @@ python3 -m inserv
 and open your browser to here:
 
 ```
-http://localhost:3010/intentManagement/ui/
+http://localhost:3020/intentManagement/ui/
 ```
 
 Your OpenAPI definition lives here:
 
 ```
-http://localhost:3010/intentManagement/openapi.json
+http://localhost:3020/intentManagement/openapi.json
 ```
 
 To launch the integration tests, use tox:
@@ -45,5 +45,5 @@ To run the server on a Docker container, please execute the following from the r
 docker build -t inserv .
 
 # starting up a container
-docker run -p 3010:3010 inserv
+docker run -p 3020:3020 inserv
 ```

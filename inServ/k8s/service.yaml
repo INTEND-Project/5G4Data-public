@@ -7,7 +7,7 @@ spec:
     app: inserv
   ports:
     - port: 80
-      targetPort: 3010
+      targetPort: 3020
       protocol: TCP
       name: http
   type: ClusterIP

@@ -13,7 +13,7 @@ replicaCount: 1
 service:
   type: ClusterIP
   port: 80
-  targetPort: 3010
+  targetPort: 3020
 
 resources: {}
 

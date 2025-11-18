@@ -2,7 +2,7 @@ FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    INSERV_PORT=3010
+    INSERV_PORT=3020
 
 WORKDIR /opt/inserv
 
@@ -16,8 +16,8 @@ COPY src/ .
 
 USER inserv
 
-EXPOSE 3010
+EXPOSE 3020
 
-CMD ["gunicorn", "--bind", "0.0.0.0:3010", "inserv.wsgi:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:3020", "inserv.wsgi:app"]
 
 

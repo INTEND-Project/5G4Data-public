@@ -47,6 +47,15 @@ docker run -p 3010:3010 --env LOG_LEVEL=DEBUG inserv:local
 ```
 
 ### Kubernetes Deployment with Helm
+
+Push the image to GitHub Container Registry first (requires a PAT with `write:packages` scope):
+
+```bash
+docker build -t ghcr.io/arne-munch-ellingsen/inserv:latest .
+echo '<GITHUB_PAT>' | docker login ghcr.io -u <your-github-user> --password-stdin
+docker push ghcr.io/arne-munch-ellingsen/inserv:latest
+```
+
 ```bash
 helm install inserv charts/inServ \
   --namespace intend --create-namespace \

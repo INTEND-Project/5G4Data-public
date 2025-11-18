@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "inserv.fullname" . }}
+  namespace: {{ include "inserv.namespace" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "inserv.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ include "inserv.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+

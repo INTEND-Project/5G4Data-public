@@ -1,0 +1,713 @@
+openapi: 3.0.1
+info:
+  description: Swagger UI environment for the INTEND project 5G4DATA Intent Management
+    API specification
+  title: INTEND 5G4DATA use case; Intent Management API
+  version: 1.0.0
+servers:
+- url: "{apiRoot}/intentManagement/"
+  variables:
+    apiRoot:
+      default: https://5g4data
+      enum:
+      - https://5g4data
+tags:
+- description: Operations for Intent Resource
+  name: intent
+paths:
+  /intent:
+    get:
+      operationId: list_intent
+      parameters:
+      - description: Comma‐separated list of properties to be returned in response
+        explode: true
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: Index for the start of returned resources
+        explode: true
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+        style: form
+      - description: Number of resources to be returned
+        explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Intent"
+                type: array
+          description: Successful response - an array of Intent objects
+          headers:
+            X-Total-Count:
+              description: Total count of matching resources
+              explode: false
+              schema:
+                type: integer
+              style: simple
+            X-Result-Count:
+              description: Number of resources in this response
+              explode: false
+              schema:
+                type: integer
+              style: simple
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Found
+        "405":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Method Not Allowed
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Implemented
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Service Unavailable
+      summary: List or find Intent objects
+      tags:
+      - intent
+      x-openapi-router-controller: inserv.controllers.intent_controller
+    post:
+      operationId: create_intent
+      parameters:
+      - description: Comma‐separated list of properties to be returned in response
+        explode: true
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+        style: form
+      requestBody:
+        $ref: "#/components/requestBodies/Intent_FVO"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Intent"
+          description: Intent successfully created
+        "202":
+          description: Accepted
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Found
+        "405":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Method Not Allowed
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Implemented
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Service Unavailable
+      summary: Creates an Intent
+      tags:
+      - intent
+      x-openapi-router-controller: inserv.controllers.intent_controller
+  /intent/{id}:
+    delete:
+      operationId: delete_intent
+      parameters:
+      - description: Identifier of the resource
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "202":
+          description: Accepted
+        "204":
+          description: Deleted
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Found
+        "405":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Method Not Allowed
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Implemented
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Service Unavailable
+      summary: Deletes an Intent
+      tags:
+      - intent
+      x-openapi-router-controller: inserv.controllers.intent_controller
+    get:
+      operationId: retrieve_intent
+      parameters:
+      - description: Identifier of the resource
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Comma‐separated list of properties to be returned in response
+        explode: true
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Intent"
+          description: Successful response - a single Intent object
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Found
+        "405":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Method Not Allowed
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Implemented
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Service Unavailable
+      summary: Retrieves an Intent by ID
+      tags:
+      - intent
+      x-openapi-router-controller: inserv.controllers.intent_controller
+    patch:
+      operationId: patch_intent
+      parameters:
+      - description: Identifier of the resource
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Comma‐separated list of properties to be returned in response
+        explode: true
+        in: query
+        name: fields
+        required: false
+        schema:
+          type: string
+        style: form
+      requestBody:
+        $ref: "#/components/requestBodies/Intent_MVO"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Intent"
+          description: Successful response - the updated Intent object
+        "202":
+          description: Accepted
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Bad Request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Found
+        "405":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Method Not Allowed
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Implemented
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Service Unavailable
+      summary: Updates partially an Intent
+      tags:
+      - intent
+      x-openapi-router-controller: inserv.controllers.intent_controller
+components:
+  parameters:
+    Id:
+      description: Identifier of the resource
+      explode: false
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+      style: simple
+    Fields:
+      description: Comma‐separated list of properties to be returned in response
+      explode: true
+      in: query
+      name: fields
+      required: false
+      schema:
+        type: string
+      style: form
+    Offset:
+      description: Index for the start of returned resources
+      explode: true
+      in: query
+      name: offset
+      required: false
+      schema:
+        type: integer
+      style: form
+    Limit:
+      description: Number of resources to be returned
+      explode: true
+      in: query
+      name: limit
+      required: false
+      schema:
+        type: integer
+      style: form
+  requestBodies:
+    Intent_FVO:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Intent_FVO"
+      description: The Intent to be created
+      required: true
+    Intent_MVO:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Intent_MVO"
+      description: The Intent to be patched
+      required: true
+  responses:
+    "200IntentArray":
+      content:
+        application/json:
+          schema:
+            items:
+              $ref: "#/components/schemas/Intent"
+            type: array
+      description: Successful response - an array of Intent objects
+      headers:
+        X-Total-Count:
+          description: Total count of matching resources
+          explode: false
+          schema:
+            type: integer
+          style: simple
+        X-Result-Count:
+          description: Number of resources in this response
+          explode: false
+          schema:
+            type: integer
+          style: simple
+    "200Intent_Get":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Intent"
+      description: Successful response - a single Intent object
+    "200Intent_Patch":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Intent"
+      description: Successful response - the updated Intent object
+    "201Intent":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Intent"
+      description: Intent successfully created
+    "202":
+      description: Accepted
+    "204":
+      description: Deleted
+    "400":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+      description: Bad Request
+    "401":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+      description: Unauthorized
+    "403":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+      description: Forbidden
+    "404":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+      description: Not Found
+    "405":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+      description: Method Not Allowed
+    "409":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+      description: Conflict
+    "500":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+      description: Internal Server Error
+    "501":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+      description: Not Implemented
+    "503":
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+      description: Service Unavailable
+  schemas:
+    Intent:
+      description: An Intent instance
+      example:
+        isBundled: true
+        intentSpecification:
+          name: name
+          id: id
+          href: href
+        lifecycleStatus: lifecycleStatus
+        validFor:
+          startDateTime: 2000-01-23T04:56:07.000+00:00
+          endDateTime: 2000-01-23T04:56:07.000+00:00
+        description: description
+        priority: priority
+        creationDate: 2000-01-23T04:56:07.000+00:00
+        version: version
+        statusChangeDate: 2000-01-23T04:56:07.000+00:00
+        lastUpdate: 2000-01-23T04:56:07.000+00:00
+        name: name
+        context: context
+        id: id
+      properties:
+        id:
+          title: id
+          type: string
+        name:
+          title: name
+          type: string
+        description:
+          title: description
+          type: string
+        validFor:
+          $ref: "#/components/schemas/TimePeriod"
+        version:
+          title: version
+          type: string
+        priority:
+          title: priority
+          type: string
+        isBundled:
+          title: isBundled
+          type: boolean
+        context:
+          title: context
+          type: string
+        creationDate:
+          format: date-time
+          title: creationDate
+          type: string
+        lastUpdate:
+          format: date-time
+          title: lastUpdate
+          type: string
+        lifecycleStatus:
+          title: lifecycleStatus
+          type: string
+        statusChangeDate:
+          format: date-time
+          title: statusChangeDate
+          type: string
+        intentSpecification:
+          $ref: "#/components/schemas/EntityRef"
+      title: Intent
+      type: object
+    Intent_FVO:
+      allOf:
+      - $ref: "#/components/schemas/Intent"
+      description: Full view object for Intent creation
+      title: Intent_FVO
+    Intent_MVO:
+      allOf:
+      - $ref: "#/components/schemas/Intent"
+      description: Minimal view object for Intent patching
+      title: Intent_MVO
+    TimePeriod:
+      example:
+        startDateTime: 2000-01-23T04:56:07.000+00:00
+        endDateTime: 2000-01-23T04:56:07.000+00:00
+      properties:
+        startDateTime:
+          format: date-time
+          title: startDateTime
+          type: string
+        endDateTime:
+          format: date-time
+          title: endDateTime
+          type: string
+      title: TimePeriod
+      type: object
+    EntityRef:
+      description: A reference to an entity
+      example:
+        name: name
+        id: id
+        href: href
+      properties:
+        id:
+          title: id
+          type: string
+        href:
+          title: href
+          type: string
+        name:
+          title: name
+          type: string
+      title: EntityRef
+      type: object
+    Error:
+      description: Error response
+      example:
+        reason: reason
+        code: code
+      properties:
+        code:
+          title: code
+          type: string
+        reason:
+          title: reason
+          type: string
+      title: Error
+      type: object

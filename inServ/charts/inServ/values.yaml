@@ -1,0 +1,53 @@
+nameOverride: ""
+fullnameOverride: ""
+
+namespaceOverride: ""
+
+image:
+  repository: ghcr.io/arne-munch-ellingsen/inserv
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3010
+
+resources: {}
+
+livenessProbe:
+  path: /healthz
+  initialDelaySeconds: 10
+  periodSeconds: 15
+
+readinessProbe:
+  path: /healthz
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+rbac:
+  create: true
+
+env:
+  LOG_LEVEL: INFO
+  ENABLE_K8S: "true"
+  KUBE_NAMESPACE: ""
+  WORKLOAD_IMAGE: busybox:stable
+
+secretEnv:
+  WORKLOAD_API_TOKEN: ""
+
+ingress:
+  enabled: false
+  annotations: {}
+  className: ""
+  hosts: []
+  tls: []
+

@@ -1,0 +1,6 @@
+The inServ API is available via the {{ .Values.service.type }} service {{ include "inserv.fullname" . }}.
+
+To port-forward locally:
+  kubectl -n {{ include "inserv.namespace" . }} port-forward svc/{{ include "inserv.fullname" . }} 3010:{{ .Values.service.port }}
+  open http://localhost:3010/ui/
+

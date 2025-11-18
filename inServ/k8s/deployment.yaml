@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inserv
+  labels:
+    app: inserv
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inserv
+  template:
+    metadata:
+      labels:
+        app: inserv
+    spec:
+      serviceAccountName: inserv
+      containers:
+        - name: inserv
+          image: ghcr.io/arne-munch-ellingsen/inserv:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: inserv-config
+            - secretRef:
+                name: inserv-secrets
+          ports:
+            - containerPort: 3010
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3010
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3010
+            initialDelaySeconds: 5
+

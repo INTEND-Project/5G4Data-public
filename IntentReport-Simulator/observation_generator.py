@@ -8,12 +8,7 @@ from dataclasses import dataclass
 import os
 import sys
 
-# Add parent directory to Python path to find shared module
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.append(parent_dir)
-
-from shared.prometheus_client import PrometheusClient
+from intent_report_client import PrometheusClient
 
 @dataclass
 class TaskParams:
@@ -40,7 +35,7 @@ class ObservationGenerator:
         self.value_file_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploaded_value_files')
         
         # Initialize GraphDB client for metadata storage
-        from shared.graphdb_client import IntentReportClient
+        from intent_report_client import IntentReportClient
         self.graphdb_client = IntentReportClient(graphdb_url, self.repository)
         
         # Initialize Prometheus client

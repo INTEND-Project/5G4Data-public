@@ -13,12 +13,7 @@ import time
 import logging
 from observation_generator import ObservationGenerator
 
-# Add parent directory to Python path to find shared module
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.append(parent_dir)
-
-from shared.graphdb_client import IntentReportClient
+from intent_report_client import IntentReportClient
 
 # Load environment variables
 load_dotenv()

@@ -16,11 +16,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Copy requirements first for better layer caching
-COPY requirements.txt ./
+COPY IntentReport-Simulator/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy and install the intent-report-client package
+COPY intent-report-client /tmp/intent-report-client
+RUN pip install --no-cache-dir -e /tmp/intent-report-client
+
 # Copy the IntentReport-Simulator application
-COPY . .
+COPY IntentReport-Simulator/ .
 
 # Expose the Flask port
 EXPOSE 3005

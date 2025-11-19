@@ -26,15 +26,15 @@ pip install .
 
 ## Usage
 
-### IntentReportClient
+### GraphDbClient
 
-The `IntentReportClient` class provides methods for interacting with GraphDB to store and retrieve intent reports.
+The `GraphDbClient` class provides methods for interacting with GraphDB to store and retrieve intent reports.
 
 ```python
-from intent_report_client import IntentReportClient
+from intent_report_client import GraphDbClient
 
 # Initialize the client
-client = IntentReportClient(
+client = GraphDbClient(
     base_url="http://your-graphdb-server:7200",
     repository="intent-reports"
 )

@@ -32,7 +32,7 @@ pip install -e /path/to/5G4Data-public/intent-report-client
 After installation, you should be able to import the package:
 
 ```python
-from intent_report_client import IntentReportClient, PrometheusClient
+from intent_report_client import GraphDbClient, PrometheusClient
 ```
 
 If you get an import error, make sure the package is installed in your Python environment:

@@ -13,7 +13,7 @@ import time
 import logging
 from observation_generator import ObservationGenerator
 
-from intent_report_client import IntentReportClient, generate_turtle
+from intent_report_client import GraphDbClient, generate_turtle
 
 # Load environment variables
 load_dotenv()
@@ -38,8 +38,8 @@ print(f"Connecting to GraphDB at {graphdb_url}")
 print(f"Using repository '{graphdb_repository}' for intents and intent-reports")
 
 # Initialize clients using the unified repository
-intents_client = IntentReportClient(graphdb_url, repository=graphdb_repository)
-reports_client = IntentReportClient(graphdb_url, repository=graphdb_repository)
+intents_client = GraphDbClient(graphdb_url, repository=graphdb_repository)
+reports_client = GraphDbClient(graphdb_url, repository=graphdb_repository)
 
 # Initialize the observation generator with the unified repository
 observation_generator = ObservationGenerator(graphdb_url, repository=graphdb_repository)

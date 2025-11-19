@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
-class IntentReportClient:
+class GraphDbClient:
     def __init__(self, base_url="http://start5g-1.cs.uit.no:7200", repository: Optional[str] = None):
         self.base_url = base_url
         # Use env var default if not provided

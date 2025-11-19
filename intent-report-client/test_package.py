@@ -6,12 +6,12 @@ import os
 import json
 
 # Import the package (should be installed or in the same directory)
-from intent_report_client import IntentReportClient
+from intent_report_client import GraphDbClient
 
 def test_get_intents():
     """Test the get_intents() method"""
     print("=" * 60)
-    print("Testing IntentReportClient.get_intents()")
+    print("Testing GraphDbClient.get_intents()")
     print("=" * 60)
     
     # Use the same configuration as the app
@@ -24,7 +24,7 @@ def test_get_intents():
     
     try:
         # Create client
-        client = IntentReportClient(graphdb_url, repository=graphdb_repository)
+        client = GraphDbClient(graphdb_url, repository=graphdb_repository)
         print(f"Client created successfully")
         print(f"Base URL: {client.base_url}")
         print(f"Repository: {client.repository}")

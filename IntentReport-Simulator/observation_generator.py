@@ -35,8 +35,8 @@ class ObservationGenerator:
         self.value_file_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploaded_value_files')
         
         # Initialize GraphDB client for metadata storage
-        from intent_report_client import IntentReportClient
-        self.graphdb_client = IntentReportClient(graphdb_url, self.repository)
+        from intent_report_client import GraphDbClient
+        self.graphdb_client = GraphDbClient(graphdb_url, self.repository)
         
         # Initialize Prometheus client
         self.prometheus_client = PrometheusClient()

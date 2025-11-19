@@ -8,3 +8,7 @@ geojson/
 __pycache__/
 intent-generation-mcp-server/src/intent_generation_mcp_server.egg-info/
 intent-generation-mcp-server/intent-generation-mcp-server.log
+5G4Data-Tutorial/certs/fullchain.pem
+5G4Data-Tutorial/certs/privkey.pem
+5G4Data-Tutorial/certificate-updates.log
+.gitignore

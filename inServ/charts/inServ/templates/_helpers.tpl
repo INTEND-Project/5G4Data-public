@@ -20,14 +20,14 @@
 {{- end -}}
 
 {{- define "inserv.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- if .Values.serviceAccount.name }}
-{{ .Values.serviceAccount.name }}
-{{- else }}
-{{ include "inserv.fullname" . }}
-{{- end }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
+  {{- if .Values.serviceAccount.create -}}
+    {{- if .Values.serviceAccount.name -}}
+{{- .Values.serviceAccount.name -}}
+    {{- else -}}
+{{- include "inserv.fullname" . -}}
+    {{- end -}}
+  {{- else -}}
+{{- default "default" .Values.serviceAccount.name -}}
+  {{- end -}}
 {{- end -}}
 

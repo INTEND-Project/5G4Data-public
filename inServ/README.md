@@ -2,7 +2,29 @@
 
 Python/Flask microservice that implements TMF921 Intent Management APIs and can deploy auxiliary workloads to the same Kubernetes cluster.
 
-### Repository Layout
+## Intel IDO setup
+For inServ we will use minikube to set up a single node Kubernetes cluster that we can install IDO in. More about minikube can be found [here](https://minikube.sigs.k8s.io/docs/). To create a cluster for inServ/inOrch do this:
+```bash
+minikube start --driver=docker --cpus=16 --memory=24G
+```
+Intel IDO can be found [here](https://github.com/intel/intent-driven-orchestration/tree/main).
+Clone the repository and make it ready:
+```bash
+mkdir Intel-IDO
+cd Intel-IDO
+# Clone the IDO repo
+github repo clone intel/intent-driven-orchestration
+```
+See inServ-IDO-README.md for modifications done to the IDO source for inServ. When these changes are made, proceed with:
+```bash
+cd intent-driven-orchestration/
+# Install the IDO CRDs and the IDO planner
+kubectl apply -f artefacts/intents_crds_v1alpha1.yaml
+kubectl apply -f artefacts/deploy/manifest.yaml
+```
+The minikube cluster is ready and all IDO resources are deployed to it (except KPI profiles, more about that later.)
+
+### inServ repository Layout
 - `5g4dataAPI.yaml` – source OpenAPI specification
 - `src/` – generated Flask server scaffold plus custom logic
 - `Dockerfile` – production image definition
@@ -28,7 +50,7 @@ npx @openapitools/openapi-generator-cli generate \
 
 After regeneration, re-apply local customizations (health endpoints, services, etc.) if generators overwrote them.
 
-### Running Locally
+### Running Locally (for testing inServ only, see Kubernetes instructions further down for PoC integration with other Intend tools)
 ```bash
 python -m venv .venv
 source .venv/bin/activate
@@ -43,7 +65,7 @@ Swagger UI will be available at `http://localhost:3020/ui/`.
 ### Container Image
 ```bash
 docker build -t inserv:local .
-docker run -p 3020:3020 --env LOG_LEVEL=DEBUG inserv:local
+docker run --name inserv-local -p 3020:3020 --env LOG_LEVEL=DEBUG inserv:local
 ```
 
 ### Kubernetes Deployment with Helm
@@ -53,23 +75,69 @@ Push the image to GitHub Container Registry first (requires a PAT with `write:pa
 ```bash
 docker build -t ghcr.io/arne-munch-ellingsen/inserv:latest .
 echo '<GITHUB_PAT>' | docker login ghcr.io -u <your-github-user> --password-stdin
-docker push ghcr.io/arne-munch-ellingsen/inserv:latest
+docker push ghcr.io/<your-github-user>/inserv:latest
 ```
+
+If your kubeconfig is not stored at `~/.kube/config`, point `kubectl` and `helm` at the right file before deploying:
+
+```bash
+export KUBECONFIG=/path/to/cluster.conf
+kubectl config use-context intend-cluster
+```
+
+If your registry requires authentication (e.g., private GHCR repo), create a pull-secret in the target namespace and reference it via the new `imagePullSecrets` value:
+
+```bash
+kubectl create namespace inserv
+kubectl -n inserv create secret docker-registry ghcr-creds \
+  --docker-server=ghcr.io \
+  --docker-username=<your-github-user> \
+  --docker-password='<GITHUB_PAT>' \
+  --docker-email=you@example.com
+
+kubectl -n inserv describe secret ghcr-creds  # verify it exists
+
+helm install inserv charts/inServ \
+  --namespace inserv --create-namespace \
+  --set image.repository=ghcr.io/<your-github-user>/inserv \
+  --set image.tag=latest \
+  --set env.KUBE_NAMESPACE=inserv \
+  --set imagePullSecrets[0]=ghcr-creds
+```
+
+> The `ghcr-creds` secret lives only in the Kubernetes cluster. If you delete
+> the `inserv` namespace or deploy to another cluster, recreate the secret
+> before running Helm again. For public GHCR images you can skip this step and
+> omit `imagePullSecrets`.
 
 ```bash
 helm install inserv charts/inServ \
-  --namespace intend --create-namespace \
-  --set image.repository=ghcr.io/arne-munch-ellingsen/inserv \
+  --namespace inserv --create-namespace \
+  --set image.repository=ghcr.io/<your-github-user>/inserv \
   --set image.tag=latest \
-  --set env.KUBE_NAMESPACE=intend
+  --set env.KUBE_NAMESPACE=inserv
 ```
 
 Key Helm values:
 - `image.*` – container repository/tag/pull policy
+- `service.*` – service type/ports (defaults to ClusterIP; expose externally via port-forward below)
 - `env.*` – propagated as ConfigMap environment variables
 - `secretEnv.*` – stored in a Secret
 - `resources` – pod resource requests/limits
 - `livenessProbe` / `readinessProbe` – configurable probe paths and timings
+
+#### External access via persistent port-forward (systemd)
+
+Run a long-lived port-forward on the host using the provided `systemd-portforward-inserv.service` unit so the API stays reachable at `http://<host-ip>:3020/` (e.g., `http://start5g-1.cs.uit.no:3020/healthz`):
+
+```bash
+sudo cp systemd-portforward-inserv.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now systemd-portforward-inserv.service
+sudo systemctl status systemd-portforward-inserv.service
+```
+
+The unit runs `kubectl -n inserv port-forward svc/inserv-inserv 3020:3020 --address 0.0.0.0`. Adjust `User`, `Environment=KUBECONFIG=...`, or the listen port if your setup differs. View logs with `journalctl -u systemd-portforward-inserv.service`.
 
 Alternatively, apply the raw manifests:
 

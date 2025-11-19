@@ -1,0 +1,21 @@
+#
+# Systemd unit to keep a kubectl port-forward running so the inServ
+# service inside Minikube is reachable from remote machines.
+#
+[Unit]
+Description=inServ port-forward (expose svc/inserv-inserv on port 3020)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telco
+WorkingDirectory=/home/telco/arneme/INTEND-Project/5G4Data-public/inServ
+Environment=KUBECONFIG=/home/telco/.kube/config
+ExecStart=/usr/local/bin/kubectl -n inserv port-forward svc/inserv-inserv 3020:3020 --address 0.0.0.0
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

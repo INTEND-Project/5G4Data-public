@@ -8,12 +8,15 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+imagePullSecrets: []
+
 replicaCount: 1
 
 service:
-  type: ClusterIP
-  port: 80
+  type: NodePort
+  port: 3020
   targetPort: 3020
+  nodePort: 30020
 
 resources: {}
 

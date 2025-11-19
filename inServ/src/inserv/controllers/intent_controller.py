@@ -81,3 +81,24 @@ def retrieve_intent(id, fields=None):  # noqa: E501
 def _error_response(reason: str, status_code: int):
     body = {"code": str(status_code), "reason": reason}
     return jsonify(body), status_code
+
+
+# TMF921 operationId wrappers (camelCase)
+def listIntent(fields=None, offset=None, limit=None):
+    return list_intent(fields=fields, offset=offset, limit=limit)
+
+
+def createIntent(body, fields=None):
+    return create_intent(body=body, fields=fields)
+
+
+def retrieveIntent(id, fields=None):
+    return retrieve_intent(id=id, fields=fields)
+
+
+def patchIntent(id, body, fields=None):
+    return patch_intent(id=id, body=body, fields=fields)
+
+
+def deleteIntent(id):
+    return delete_intent(id=id)

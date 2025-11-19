@@ -60,7 +60,7 @@ paths:
       summary: Create a subscription (hub) to receive Events
       tags:
       - events subscription
-      x-openapi-router-controller: inserv.controllers.hub_controller
+      x-eov-operation-handler: controllers/EventsSubscriptionController
   /hub/{id}:
     delete:
       description: ""
@@ -95,7 +95,7 @@ paths:
       summary: Remove a subscription (hub) to receive Events
       tags:
       - events subscription
-      x-openapi-router-controller: inserv.controllers.hub_controller
+      x-eov-operation-handler: controllers/EventsSubscriptionController
     get:
       description: ""
       operationId: hubGet
@@ -139,7 +139,7 @@ paths:
       summary: Retrieve a subscription (hub)
       tags:
       - events subscription
-      x-openapi-router-controller: inserv.controllers.hub_controller
+      x-eov-operation-handler: controllers/EventsSubscriptionController
   /intent:
     get:
       description: List or find Intent objects
@@ -316,7 +316,7 @@ paths:
       summary: List or find Intent objects
       tags:
       - intent
-      x-openapi-router-controller: inserv.controllers.intent_controller
+      x-eov-operation-handler: controllers/IntentController
     post:
       description: This operation creates a Intent entity.
       operationId: createIntent
@@ -491,7 +491,7 @@ paths:
       summary: Creates a Intent
       tags:
       - intent
-      x-openapi-router-controller: inserv.controllers.intent_controller
+      x-eov-operation-handler: controllers/IntentController
   /intent/{id}:
     delete:
       description: This operation deletes a Intent entity.
@@ -656,7 +656,7 @@ paths:
       summary: Deletes a Intent
       tags:
       - intent
-      x-openapi-router-controller: inserv.controllers.intent_controller
+      x-eov-operation-handler: controllers/IntentController
     get:
       description: This operation retrieves a Intent entity. Attribute selection enabled
         for all first level attributes.
@@ -820,7 +820,7 @@ paths:
       summary: Retrieves a Intent by ID
       tags:
       - intent
-      x-openapi-router-controller: inserv.controllers.intent_controller
+      x-eov-operation-handler: controllers/IntentController
     patch:
       description: This operation updates partially a Intent entity.
       operationId: patchIntent
@@ -1003,7 +1003,7 @@ paths:
       summary: Updates partially a Intent
       tags:
       - intent
-      x-openapi-router-controller: inserv.controllers.intent_controller
+      x-eov-operation-handler: controllers/IntentController
   /intent/{intentId}/intentReport:
     get:
       description: List or find IntentReport objects
@@ -1189,7 +1189,7 @@ paths:
       tags:
       - intentReport
       - intent
-      x-openapi-router-controller: inserv.controllers.intent_report_controller
+      x-eov-operation-handler: controllers/IntentReportController
   /intent/{intentId}/intentReport/{id}:
     delete:
       description: This operation deletes a IntentReport entity.
@@ -1363,7 +1363,7 @@ paths:
       tags:
       - intentReport
       - intent
-      x-openapi-router-controller: inserv.controllers.intent_report_controller
+      x-eov-operation-handler: controllers/IntentReportController
     get:
       description: This operation retrieves a IntentReport entity. Attribute selection
         enabled for all first level attributes.
@@ -1534,7 +1534,7 @@ paths:
       tags:
       - intentReport
       - intent
-      x-openapi-router-controller: inserv.controllers.intent_report_controller
+      x-eov-operation-handler: controllers/IntentReportController
   /intentSpecification:
     get:
       description: List or find IntentSpecification objects
@@ -1711,7 +1711,7 @@ paths:
       summary: List or find IntentSpecification objects
       tags:
       - intentSpecification
-      x-openapi-router-controller: inserv.controllers.intent_specification_controller
+      x-eov-operation-handler: controllers/IntentSpecificationController
     post:
       description: This operation creates a IntentSpecification entity.
       operationId: createIntentSpecification
@@ -1884,7 +1884,7 @@ paths:
       summary: Creates a IntentSpecification
       tags:
       - intentSpecification
-      x-openapi-router-controller: inserv.controllers.intent_specification_controller
+      x-eov-operation-handler: controllers/IntentSpecificationController
   /intentSpecification/{id}:
     delete:
       description: This operation deletes a IntentSpecification entity.
@@ -2049,7 +2049,7 @@ paths:
       summary: Deletes a IntentSpecification
       tags:
       - intentSpecification
-      x-openapi-router-controller: inserv.controllers.intent_specification_controller
+      x-eov-operation-handler: controllers/IntentSpecificationController
     get:
       description: This operation retrieves a IntentSpecification entity. Attribute
         selection enabled for all first level attributes.
@@ -2211,7 +2211,7 @@ paths:
       summary: Retrieves a IntentSpecification by ID
       tags:
       - intentSpecification
-      x-openapi-router-controller: inserv.controllers.intent_specification_controller
+      x-eov-operation-handler: controllers/IntentSpecificationController
     patch:
       description: This operation updates partially a IntentSpecification entity.
       operationId: patchIntentSpecification
@@ -2392,7 +2392,7 @@ paths:
       summary: Updates partially a IntentSpecification
       tags:
       - intentSpecification
-      x-openapi-router-controller: inserv.controllers.intent_specification_controller
+      x-eov-operation-handler: controllers/IntentSpecificationController
   /listener/intentAttributeValueChangeEvent:
     post:
       description: Example of a client listener for receiving the notification IntentAttributeValueChangeEvent
@@ -2420,7 +2420,7 @@ paths:
       summary: Client listener for entity IntentAttributeValueChangeEvent
       tags:
       - notification listener
-      x-openapi-router-controller: inserv.controllers.notification_listener_controller
+      x-eov-operation-handler: controllers/NotificationListenerController
   /listener/intentCreateEvent:
     post:
       description: Example of a client listener for receiving the notification IntentCreateEvent
@@ -2448,7 +2448,7 @@ paths:
       summary: Client listener for entity IntentCreateEvent
       tags:
       - notification listener
-      x-openapi-router-controller: inserv.controllers.notification_listener_controller
+      x-eov-operation-handler: controllers/NotificationListenerController
   /listener/intentDeleteEvent:
     post:
       description: Example of a client listener for receiving the notification IntentDeleteEvent
@@ -2476,7 +2476,7 @@ paths:
       summary: Client listener for entity IntentDeleteEvent
       tags:
       - notification listener
-      x-openapi-router-controller: inserv.controllers.notification_listener_controller
+      x-eov-operation-handler: controllers/NotificationListenerController
   /listener/intentReportAttributeValueChangeEvent:
     post:
       description: Example of a client listener for receiving the notification IntentReportAttributeValueChangeEvent
@@ -2504,7 +2504,7 @@ paths:
       summary: Client listener for entity IntentReportAttributeValueChangeEvent
       tags:
       - notification listener
-      x-openapi-router-controller: inserv.controllers.notification_listener_controller
+      x-eov-operation-handler: controllers/NotificationListenerController
   /listener/intentReportCreateEvent:
     post:
       description: Example of a client listener for receiving the notification IntentReportCreateEvent
@@ -2532,7 +2532,7 @@ paths:
       summary: Client listener for entity IntentReportCreateEvent
       tags:
       - notification listener
-      x-openapi-router-controller: inserv.controllers.notification_listener_controller
+      x-eov-operation-handler: controllers/NotificationListenerController
   /listener/intentReportDeleteEvent:
     post:
       description: Example of a client listener for receiving the notification IntentReportDeleteEvent
@@ -2560,7 +2560,7 @@ paths:
       summary: Client listener for entity IntentReportDeleteEvent
       tags:
       - notification listener
-      x-openapi-router-controller: inserv.controllers.notification_listener_controller
+      x-eov-operation-handler: controllers/NotificationListenerController
   /listener/intentSpecificationAttributeValueChangeEvent:
     post:
       description: Example of a client listener for receiving the notification IntentSpecificationAttributeValueChangeEvent
@@ -2588,7 +2588,7 @@ paths:
       summary: Client listener for entity IntentSpecificationAttributeValueChangeEvent
       tags:
       - notification listener
-      x-openapi-router-controller: inserv.controllers.notification_listener_controller
+      x-eov-operation-handler: controllers/NotificationListenerController
   /listener/intentSpecificationCreateEvent:
     post:
       description: Example of a client listener for receiving the notification IntentSpecificationCreateEvent
@@ -2616,7 +2616,7 @@ paths:
       summary: Client listener for entity IntentSpecificationCreateEvent
       tags:
       - notification listener
-      x-openapi-router-controller: inserv.controllers.notification_listener_controller
+      x-eov-operation-handler: controllers/NotificationListenerController
   /listener/intentSpecificationDeleteEvent:
     post:
       description: Example of a client listener for receiving the notification IntentSpecificationDeleteEvent
@@ -2644,7 +2644,7 @@ paths:
       summary: Client listener for entity IntentSpecificationDeleteEvent
       tags:
       - notification listener
-      x-openapi-router-controller: inserv.controllers.notification_listener_controller
+      x-eov-operation-handler: controllers/NotificationListenerController
   /listener/intentSpecificationStatusChangeEvent:
     post:
       description: Example of a client listener for receiving the notification IntentSpecificationStatusChangeEvent
@@ -2672,7 +2672,7 @@ paths:
       summary: Client listener for entity IntentSpecificationStatusChangeEvent
       tags:
       - notification listener
-      x-openapi-router-controller: inserv.controllers.notification_listener_controller
+      x-eov-operation-handler: controllers/NotificationListenerController
   /listener/intentStatusChangeEvent:
     post:
       description: Example of a client listener for receiving the notification IntentStatusChangeEvent
@@ -2700,7 +2700,7 @@ paths:
       summary: Client listener for entity IntentStatusChangeEvent
       tags:
       - notification listener
-      x-openapi-router-controller: inserv.controllers.notification_listener_controller
+      x-eov-operation-handler: controllers/NotificationListenerController
 components:
   examples:
     Intent_list_example_response:

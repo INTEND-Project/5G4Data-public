@@ -22,6 +22,11 @@ class AppConfig:
     workload_pull_policy: str = "IfNotPresent"
     workload_service_account: str = "default"
     enable_k8s: bool = True
+    reporting_handler: str = "inServ"
+    reporting_owner: str | None = None
+    enable_observation_reports: bool = True
+    observation_interval_seconds: int = 300
+    observation_metric_name: str = "intent_latency_ms"
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -37,6 +42,17 @@ class AppConfig:
                 "WORKLOAD_SERVICE_ACCOUNT", "default"
             ),
             enable_k8s=_str_to_bool(os.getenv("ENABLE_K8S"), True),
+            reporting_handler=os.getenv("REPORTING_HANDLER", "inServ"),
+            reporting_owner=os.getenv("REPORTING_OWNER"),
+            enable_observation_reports=_str_to_bool(
+                os.getenv("ENABLE_OBSERVATION_REPORTS"), True
+            ),
+            observation_interval_seconds=int(
+                os.getenv("OBSERVATION_INTERVAL_SECONDS", "300")
+            ),
+            observation_metric_name=os.getenv(
+                "OBSERVATION_METRIC_NAME", "intent_latency_ms"
+            ),
         )
 
 

@@ -1,6 +1,5 @@
 import logging
 
-import connexion
 from flask_testing import TestCase
 
 from inserv.encoder import JSONEncoder
@@ -9,6 +8,8 @@ from inserv.encoder import JSONEncoder
 class BaseTestCase(TestCase):
 
     def create_app(self):
+        import connexion
+
         logging.getLogger('connexion.operation').setLevel('ERROR')
         app = connexion.App(__name__, specification_dir='../openapi/')
         app.app.json_encoder = JSONEncoder

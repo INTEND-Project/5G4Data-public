@@ -62,6 +62,8 @@ python -m inserv
 
 Swagger UI will be available at `http://localhost:3020/ui/`.
 
+The Connexion app now serves the full TM Forum TMF921 Intent Management specification. All intent/report/hub operations documented by TM Forum are exposed under `/tmf-api/intentManagement/v5`.
+
 ### Container Image
 ```bash
 docker build -t inserv:local .
@@ -126,6 +128,32 @@ Key Helm values:
 - `resources` – pod resource requests/limits
 - `livenessProbe` / `readinessProbe` – configurable probe paths and timings
 
+### TMF921 intent reports & event subscriptions
+
+- List reports for an intent:
+  ```bash
+  curl http://<host>:3020/tmf-api/intentManagement/v5/intent/<intentId>/intentReport
+  ```
+- Retrieve/delete a specific report:
+  ```bash
+  curl http://<host>:3020/tmf-api/intentManagement/v5/intent/<intentId>/intentReport/<reportId>
+  curl -X DELETE http://<host>:3020/tmf-api/intentManagement/v5/intent/<intentId>/intentReport/<reportId>
+  ```
+- Register a hub (event subscription) to receive TMF notifications:
+  ```bash
+  curl -X POST http://<host>:3020/tmf-api/intentManagement/v5/hub \
+    -H "Content-Type: application/json" \
+    -d '{
+      "callback": "https://intent-owner.example.com/notifications",
+      "eventTypes": ["IntentReportCreateEvent","IntentStatusChangeEvent"],
+      "query": "intentId=<intentId>"
+    }'
+  ```
+  Hubs can be retrieved or removed via `GET/DELETE /hub/{id}`. The service will POST TMF-compliant payloads to the callback URL whenever matching intent or report events occur (state changes, observation reports, etc.).
+- For testing, `/tmf-api/intentManagement/v5/listener/*` endpoints simply log and acknowledge events so you can point TMF simulators at inServ.
+
+Observation reports are generated automatically every `OBSERVATION_INTERVAL_SECONDS` seconds while an intent is active. Metrics are stored via the internal repository and surfaced through the API/hub.
+
 #### External access via persistent port-forward (systemd)
 
 Run a long-lived port-forward on the host using the provided `systemd-portforward-inserv.service` unit so the API stays reachable at `http://<host-ip>:3020/` (e.g., `http://start5g-1.cs.uit.no:3020/healthz`):
@@ -156,6 +184,10 @@ Environment variables (set via ConfigMap/Secret or Docker env):
 - `ENABLE_K8S` – toggle Kubernetes workload deployment
 - `KUBE_NAMESPACE` – namespace for spawned workloads
 - `WORKLOAD_IMAGE`, `WORKLOAD_PULL_POLICY`, `WORKLOAD_SERVICE_ACCOUNT` – workload defaults
+- `REPORTING_HANDLER` / `REPORTING_OWNER` – metadata embedded in emitted intent reports
+- `ENABLE_OBSERVATION_REPORTS` – enable/disable periodic observation metrics (default `true`)
+- `OBSERVATION_INTERVAL_SECONDS` – cadence for observation reports (default `300`)
+- `OBSERVATION_METRIC_NAME` – metric name used for generated observations
 
 Health probe: `GET /healthz`
 

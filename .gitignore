@@ -12,3 +12,4 @@ intent-generation-mcp-server/intent-generation-mcp-server.log
 5G4Data-Tutorial/certs/privkey.pem
 5G4Data-Tutorial/certificate-updates.log
 .gitignore
+inServ/.github-token

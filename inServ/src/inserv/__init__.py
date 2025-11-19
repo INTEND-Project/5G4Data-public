@@ -13,6 +13,11 @@ from inserv.services.reporting_service import IntentReportingService
 from inserv.services.notification_dispatcher import http_notification_sender
 from inserv.services.observation_scheduler import ObservationScheduler
 
+try:
+    from intent_report_client import GraphDbClient
+except ImportError:
+    GraphDbClient = None  # type: ignore
+
 if TYPE_CHECKING:  # pragma: no cover
     import connexion
 
@@ -58,6 +63,15 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
         else None
     )
 
+    graphdb_client = (
+        GraphDbClient(
+            base_url=config.graphdb_base_url,
+            repository=config.graphdb_repository,
+        )
+        if config.enable_graphdb and GraphDbClient is not None
+        else None
+    )
+
     flask_app.config["INTENT_REPORT_REPOSITORY"] = report_repository
     flask_app.config["HUB_REPOSITORY"] = hub_repository
     flask_app.config["REPORTING_SERVICE"] = reporting_service
@@ -67,6 +81,9 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
         deployer,
         reporting_service,
         observation_scheduler,
+        graphdb_client=graphdb_client,
+        handler_name=config.reporting_handler,
+        owner_name=config.reporting_owner,
     )
 
     register_health_blueprint(flask_app)

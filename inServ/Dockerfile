@@ -8,11 +8,15 @@ WORKDIR /opt/inserv
 
 RUN adduser --disabled-password --gecos "" inserv
 
-COPY src/requirements.txt .
+# Copy and install intent-report-client first (local dependency)
+COPY intent-report-client /tmp/intent-report-client
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir /tmp/intent-report-client
 
-COPY src/ .
+COPY inServ/src/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY inServ/src/ .
 
 USER inserv
 

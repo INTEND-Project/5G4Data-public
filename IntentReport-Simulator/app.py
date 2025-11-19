@@ -13,7 +13,7 @@ import time
 import logging
 from observation_generator import ObservationGenerator
 
-from intent_report_client import IntentReportClient
+from intent_report_client import IntentReportClient, generate_turtle
 
 # Load environment variables
 load_dotenv()
@@ -1117,59 +1117,6 @@ def generate_state_change_events(intent_id: str, start_time: datetime, handler: 
     
     return events
 
-def generate_turtle(report_data):
-    """Generate Turtle format for an intent report"""
-    report_id = str(uuid.uuid4())
-    
-    # Define the full namespaces
-    icm_ns = "http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/"
-    data5g_ns = "http://5g4data.eu/5g4data#"
-    xsd_ns = "http://www.w3.org/2001/XMLSchema#"
-    imo_ns = "http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/"
-    
-    # Start with the base statement
-    turtle = f'<{icm_ns}RP{report_id}> a <{icm_ns}IntentReport> ;'
-    turtle += f' <{icm_ns}about> <{data5g_ns}I{report_data["intent_id"]}> ;'
-    turtle += f' <{icm_ns}reportNumber> "{report_data["report_number"]}"^^<{xsd_ns}integer> ;'
-    
-    # Ensure timestamp is properly formatted
-    timestamp = report_data.get("report_generated", "")
-    if timestamp:
-        # If timestamp already has timezone, use it as is
-        if '+' in timestamp or 'Z' in timestamp:
-            turtle += f' <{icm_ns}reportGenerated> "{timestamp}"^^<{xsd_ns}dateTime>'
-        else:
-            # If no timezone, assume it's CET and add +01:00
-            turtle += f' <{icm_ns}reportGenerated> "{timestamp}+01:00"^^<{xsd_ns}dateTime>'
-    else:
-        # If no timestamp provided, use current time in CET
-        now = datetime.now()
-        # Add CET timezone offset (+01:00)
-        cet_time = now.strftime("%Y-%m-%dT%H:%M:%S+01:00")
-        turtle += f' <{icm_ns}reportGenerated> "{cet_time}"^^<{xsd_ns}dateTime>'
-
-    # Add handler if provided
-    if report_data.get('handler'):
-        turtle += f' ; <{imo_ns}handler> "{report_data["handler"]}"'
-
-    # Add owner if provided
-    if report_data.get('owner'):
-        turtle += f' ; <{imo_ns}owner> "{report_data["owner"]}"'
-
-    # Add state based on report type
-    if 'intent_handling_state' in report_data:
-        turtle += f' ; <{icm_ns}intentHandlingState> <{imo_ns}{report_data["intent_handling_state"]}>'
-    elif 'intent_update_state' in report_data:
-        turtle += f' ; <{icm_ns}intentUpdateState> <{imo_ns}{report_data["intent_update_state"]}>'
-
-    # Add reason if present
-    if report_data.get('reason'):
-        turtle += f' ; <{icm_ns}reason> "{report_data["reason"]}"'
-
-    # Close the turtle statement
-    turtle += ' .'
-    
-    return turtle
 
 if __name__ == '__main__':
      app.run(host='0.0.0.0', port=5000, debug=True)

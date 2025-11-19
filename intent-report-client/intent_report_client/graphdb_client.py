@@ -84,6 +84,7 @@ class GraphDbClient:
             g.bind("dct", Namespace("http://purl.org/dc/terms/"))
             g.bind("geo", Namespace("http://www.opengis.net/ont/geosparql#"))
             g.bind("rdf", Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
+            g.bind("imo", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/"))
             
             # Serialize with our preferred prefixes
             return g.serialize(format="turtle")
@@ -130,6 +131,115 @@ class GraphDbClient:
         except Exception as e:
             print(f"Error fetching intents: {str(e)}")  # Debug log
             raise
+
+    def store_intent(self, intent_data, file_path=None):
+        """Store an intent in GraphDB and return its ID"""
+        headers = {
+            'Content-Type': 'application/x-turtle'
+        }
+        response = requests.post(
+            self.sparql_endpoint,
+            data=intent_data,
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+        
+        # Extract intent ID from the response
+        # The intent ID is in the form "I<uuid>" in the turtle data
+        match = re.search(r'data5g:I([a-f0-9]{32})', intent_data)
+        if match:
+            intent_id = match.group(1)
+            
+            # Optionally save the Turtle data to a file if intents_dir is configured
+            if hasattr(self, 'intents_dir') and self.intents_dir:
+                # Generate a timestamp for the filename
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"{intent_id}.ttl"
+                file_path = os.path.join(self.intents_dir, filename)
+                
+                # Save the Turtle data to a file
+                with open(file_path, 'w') as f:
+                    f.write(intent_data)
+            
+            return intent_id
+        return None
+
+    def query_intents(self, query):
+        """Execute a SPARQL query on the stored intents"""
+        headers = {
+            'Accept': 'application/sparql-results+json',
+            'Content-Type': 'application/sparql-query'
+        }
+        response = requests.post(
+            f"{self.base_url}/repositories/{self.repository}",
+            data=query.encode("utf-8"),
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def delete_all_intents(self):
+        """Delete all intents from the repository"""
+        # SPARQL query to delete all triples
+        delete_query = """
+        DELETE {
+            ?s ?p ?o
+        }
+        WHERE {
+            ?s ?p ?o
+        }
+        """
+        headers = {
+            'Content-Type': 'application/sparql-update'
+        }
+        response = requests.post(
+            self.sparql_endpoint,
+            data=delete_query,
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.text
+
+    def delete_intent(self, intent_id: str):
+        """Delete a specific intent and its associated file"""
+        try:
+            # Delete the file if it exists and intents_dir is configured
+            if hasattr(self, 'intents_dir') and self.intents_dir:
+                file_path = os.path.join(self.intents_dir, f"{intent_id}.ttl")
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            
+            # Delete all triples related to the intent
+            delete_query = f"""
+            DELETE {{
+                ?s ?p ?o
+            }}
+            WHERE {{
+                ?s ?p ?o .
+                <http://5g4data.eu/5g4data#I{intent_id}> (^!rdf:type|!rdf:type)* ?s .
+            }}
+            """
+            
+            headers = {
+                'Content-Type': 'application/sparql-update'
+            }
+            
+            response = requests.post(
+                self.sparql_endpoint,
+                data=delete_query,
+                headers=headers,
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            return response.text
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Error deleting intent: {str(e)}")
+            raise Exception(f"Failed to delete intent: {str(e)}")
 
     def store_intent_report(self, turtle_data):
         """Store an intent report in GraphDB"""

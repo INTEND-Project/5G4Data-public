@@ -13,7 +13,37 @@ This is the production setup where we use certificats to serve the tutorial usin
 
 sudo certbot certonly --standalone --preferred-challenges http --agree-tos --no-eff-email --email arne.munch-ellingsen@telenor.com -d start5g-1.cs.uit.no
 ```
-Copy the generated certificates to ./certs folder. If the tutorial is already running, stop it first with *docer compose down*. To start/restart the tutorial together with the workload catalog (with its chartmuseum backend), do this:
+The output will look like this:
+```
+sudo certbot certonly --standalone --preferred-challenges http --agree-tos --no-eff-email --email arne.munch-ellingsen@telenor.com -d start5g-1.cs.uit.no
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+Certificate not yet due for renewal
+
+You have an existing certificate that has exactly the same domains or certificate name you requested and isn't close to expiry.
+(ref: /etc/letsencrypt/renewal/start5g-1.cs.uit.no.conf)
+
+What would you like to do?
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+1: Keep the existing certificate for now
+2: Renew & replace the certificate (may be subject to CA rate limits)
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Select the appropriate number [1-2] then [enter] (press 'c' to cancel): 2
+Renewing an existing certificate for start5g-1.cs.uit.no
+
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/start5g-1.cs.uit.no/fullchain.pem
+Key is saved at:         /etc/letsencrypt/live/start5g-1.cs.uit.no/privkey.pem
+This certificate expires on 2026-02-10.
+These files will be updated when the certificate renews.
+Certbot has set up a scheduled task to automatically renew this certificate in the background.
+```
+
+Copy the generated certificates to ./certs folder. You can add automatic restart of the tutorial when the certificates are updated by adding a deploy-hook to certbot like this:
+```
+sudo certbot renew --deploy-hook "/home/telco/arneme/INTEND-Project/5G4Data-public/5G4Data-Tutorial/certificate-deploy-hook.sh"
+```
+
+To start the tutorial together with the workload catalog (with its chartmuseum backend), do this:
 ```
 docker compose up -d --build
 ```

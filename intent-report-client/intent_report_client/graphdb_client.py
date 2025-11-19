@@ -66,7 +66,8 @@ class IntentReportClient:
             response = requests.post(
                 f"{self.base_url}/repositories/{self.repository}",
                 data=construct_query.encode("utf-8"),
-                headers=headers
+                headers=headers,
+                timeout=30
             )
             response.raise_for_status()
             
@@ -120,7 +121,8 @@ class IntentReportClient:
             response = requests.post(
                 f"{self.base_url}/repositories/{self.repository}",
                 data=query.encode('utf-8'),
-                headers=headers
+                headers=headers,
+                timeout=30
             )
             print(f"GraphDB response status: {response.status_code}")  # Debug log
             response.raise_for_status()
@@ -145,7 +147,8 @@ class IntentReportClient:
                 f"{self.base_url}/repositories/{self.repository}/statements",
                 headers={"Content-Type": "application/x-turtle"},
                 data=turtle_data,
-                auth=self.auth
+                auth=self.auth,
+                timeout=30
             )
             
             if response.status_code == 204:
@@ -194,7 +197,8 @@ class IntentReportClient:
             response = requests.post(
                 f"{self.base_url}/repositories/{self.repository}/statements",
                 data=insert_query.encode("utf-8"),
-                headers=headers
+                headers=headers,
+                timeout=30
             )
             response.raise_for_status()
             
@@ -266,7 +270,8 @@ ORDER BY ?timestamp
             response = requests.post(
                 f"{self.base_url}/repositories/{self.repository}/statements",
                 data=insert_query.encode("utf-8"),
-                headers=headers
+                headers=headers,
+                timeout=30
             )
             
             if response.status_code != 204:
@@ -352,7 +357,8 @@ ORDER BY ?timestamp
             response = requests.post(
                 f"{self.base_url}/repositories/{self.repository}",
                 data=query.encode('utf-8'),
-                headers=headers
+                headers=headers,
+                timeout=30
             )
             response.raise_for_status()
             
@@ -399,7 +405,8 @@ ORDER BY ?timestamp
         response = requests.post(
             f"{self.base_url}/repositories/{self.repository}",
             data=query.encode('utf-8'),
-            headers=headers
+            headers=headers,
+            timeout=30
         )
         response.raise_for_status()
         results = response.json()
@@ -412,7 +419,8 @@ ORDER BY ?timestamp
         try:
             response = requests.get(
                 f"{self.base_url}/rest/repositories",
-                headers={"Accept": "application/json"}
+                headers={"Accept": "application/json"},
+                timeout=10
             )
             response.raise_for_status()
             repositories = response.json()
@@ -437,7 +445,8 @@ ORDER BY ?timestamp
             response = requests.post(
                 f"{self.base_url}/rest/repositories",
                 headers={"Content-Type": "application/json"},
-                json=config
+                json=config,
+                timeout=30
             )
             
             if response.status_code == 201:
@@ -494,7 +503,8 @@ ORDER BY ?timestamp
             response = requests.post(
                 f"{self.base_url}/repositories/{self.repository}",
                 data=query.encode('utf-8'),
-                headers=headers
+                headers=headers,
+                timeout=30
             )
             response.raise_for_status()
             
@@ -567,7 +577,8 @@ ORDER BY ?timestamp
             response = requests.post(
                 f"{self.base_url}/repositories/{self.repository}",
                 data={"query": query},
-                headers=headers
+                headers=headers,
+                timeout=30
             )
             response.raise_for_status()
             

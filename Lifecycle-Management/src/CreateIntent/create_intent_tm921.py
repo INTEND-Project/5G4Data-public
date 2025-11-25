@@ -1,8 +1,9 @@
 import requests
 import json
+import re
 
 # Base URL of the API
-BASE_URL = "http://localhost:8080/intentManagement"
+BASE_URL = "http://start5g-1.cs.uit.no:3020/tmf-api/intentManagement/v5"
 
 def test_get_intents():
     url = f"{BASE_URL}/intent"
@@ -65,20 +66,56 @@ def test_create_intent():
                 "        icm:ReportingExpectation ;\n"
                 "    dct:description \"Report if expectation is met with reports including metrics related to expectations.\" ;\n"
                 "    icm:target data5g:deployment .\n"
-            )
+            )  # Python automatically concatenates adjacent string literals
         }
     }
     headers = {"Content-Type": "application/json"}
     params = {
         "fields": "id,name,expression"  # Adjust as needed.
     }
-    response = requests.post(url, headers=headers, params=params, data=json.dumps(payload))
-    print("Status Code:", response.status_code)
-    print("Response Body:", response.text)
-    if response.status_code in [200, 201]:
-        return json.loads(response.text)  # Assuming the created intent is returned as JSON
-    else:
+    try:
+        response = requests.post(url, headers=headers, params=params, json=payload, timeout=30)
+        print("Status Code:", response.status_code)
+        print("Response Body:", response.text)
+    except requests.exceptions.ConnectionError as e:
+        print(f"Connection Error: {e}")
+        print("The server closed the connection. This might indicate:")
+        print("  - The server crashed while processing the request")
+        print("  - The payload is too large or malformed")
+        print("  - Network connectivity issues")
         return None
+    except requests.exceptions.Timeout:
+        print("Request timed out after 30 seconds")
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"Request Error: {e}")
+        return None
+    if response.status_code in [200, 201]:
+        try:
+            return json.dumps(response.json())  # Return as JSON string for consistency
+        except json.JSONDecodeError:
+            return response.text
+    elif response.status_code == 500:
+        # Try to extract intent ID from error message if intent was created
+        try:
+            error_data = response.json()
+            if "detail" in error_data:
+                # Look for intent ID in the error detail
+                id_match = re.search(r"'id':\s*'([^']+)'", error_data["detail"])
+                if id_match:
+                    intent_id = id_match.group(1)
+                    print(f"\nNote: Intent may have been created with ID: {intent_id}")
+                    print("Attempting to retrieve the intent...")
+                    # Try to get the intent
+                    get_response = requests.get(f"{BASE_URL}/intent/{intent_id}")
+                    print(f"GET Status Code: {get_response.status_code}")
+                    if get_response.status_code == 200:
+                        return json.dumps(get_response.json())
+                    else:
+                        print(f"GET Response: {get_response.text}")
+        except (json.JSONDecodeError, KeyError, AttributeError):
+            pass
+    return None
 
 def test_get_intent_by_id(intent_id):
     url = f"{BASE_URL}/intent/{intent_id}"
@@ -112,12 +149,19 @@ def test_delete_intent(intent_id):
 def main():
    
     print("\nTesting POST /intent")
-    created_intent = json.loads(test_create_intent())
-    if created_intent and "id" in created_intent:
-        intent_id = created_intent["id"]
-        print(f"Created Intent with id: {intent_id}")
+    result = test_create_intent()
+    if result:
+        try:
+            created_intent = json.loads(result)
+            if created_intent and "id" in created_intent:
+                intent_id = created_intent["id"]
+                print(f"Created Intent with id: {intent_id}")
+            else:
+                print("Response received but no intent ID found")
+        except (json.JSONDecodeError, TypeError):
+            print("Failed to parse response as JSON")
     else:
-        print("Failed to create Intent")
+        print("Failed to create Intent - check the error message above")
         return
     
     # print("Testing GET /intent")

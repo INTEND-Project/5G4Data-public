@@ -28,7 +28,7 @@ class AppConfig:
     observation_interval_seconds: int = 300
     observation_metric_name: str = "intent_latency_ms"
     graphdb_base_url: str = "http://start5g-1.cs.uit.no:7200"
-    graphdb_repository: str = "intents-and-intentreports"
+    graphdb_repository: str = "intents_and_intent_reports"
     enable_graphdb: bool = True
 
     @classmethod
@@ -59,7 +59,7 @@ class AppConfig:
             graphdb_base_url=os.getenv(
                 "GRAPHDB_BASE_URL", "http://start5g-1.cs.uit.no:7200"
             ),
-            graphdb_repository=os.getenv("GRAPHDB_REPOSITORY", "intent-reports"),
+            graphdb_repository=os.getenv("GRAPHDB_REPOSITORY", "intents_and_intent_reports"),
             enable_graphdb=_str_to_bool(os.getenv("ENABLE_GRAPHDB"), True),
         )
 

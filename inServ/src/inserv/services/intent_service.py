@@ -44,9 +44,37 @@ class IntentService:
         self._owner_name = owner_name
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    def create_intent(self, payload: IntentFVO) -> Intent:
+    def create_intent(self, payload: IntentFVO, original_request_json: dict | None = None) -> Intent:
         intent_dict = payload.to_dict()
-        intent_id = intent_dict.get("id") or str(uuid4())
+        # Merge in fields from original request that might not be in IntentFVO model (like expression)
+        if original_request_json:
+            for key, value in original_request_json.items():
+                if key not in intent_dict or intent_dict[key] is None:
+                    intent_dict[key] = value
+        
+        # Try to extract intent ID from Turtle expression if present
+        intent_id = intent_dict.get("id")
+        if not intent_id:
+            # Extract from Turtle expression if available
+            expression = intent_dict.get("expression")
+            if expression and isinstance(expression, dict):
+                expr_type = expression.get("@type", "")
+                if expr_type == "TurtleExpression":
+                    turtle_data = expression.get("expressionValue", "")
+                    # Extract intent ID from Turtle: data5g:I<32-char-hex>
+                    import re
+                    match = re.search(r'data5g:I([a-f0-9]{32})', turtle_data)
+                    if match:
+                        intent_id = match.group(1)
+                        self._logger.info(
+                            "Extracted intent_id=%s from Turtle expression", intent_id
+                        )
+        
+        # Fall back to generating a new UUID if no ID found
+        if not intent_id:
+            intent_id = str(uuid4())
+            self._logger.debug("Generated new intent_id=%s", intent_id)
+        
         intent_dict["id"] = intent_id
         if self._repository.get(intent_id):
             raise IntentConflict(f"Intent {intent_id} already exists")
@@ -55,72 +83,79 @@ class IntentService:
         self._repository.save(intent)
         # Kubernetes deployment temporarily disabled
 
-        # Store intent in GraphDB if enabled
+        # Store intent in GraphDB if enabled (run in background to avoid blocking)
         if self._graphdb_client:
-            try:
-                # Extract turtle data from expression field
-                expression = intent_dict.get("expression")
-                stored_intent_id = None
-                if expression and isinstance(expression, dict):
-                    expr_type = expression.get("@type", "")
-                    if expr_type == "TurtleExpression":
-                        turtle_data = expression.get("expressionValue")
-                        if turtle_data:
-                            stored_intent_id = self._graphdb_client.store_intent(turtle_data)
-                            if stored_intent_id:
-                                self._logger.info(
-                                    "Stored intent_id=%s in GraphDB", stored_intent_id
-                                )
+            import threading
+            def store_in_graphdb():
+                try:
+                    # Extract turtle data from expression field
+                    expression = intent_dict.get("expression")
+                    stored_intent_id = None
+                    if expression and isinstance(expression, dict):
+                        expr_type = expression.get("@type", "")
+                        if expr_type == "TurtleExpression":
+                            turtle_data = expression.get("expressionValue")
+                            if turtle_data:
+                                stored_intent_id = self._graphdb_client.store_intent(turtle_data)
+                                if stored_intent_id:
+                                    self._logger.info(
+                                        "Stored intent_id=%s in GraphDB", stored_intent_id
+                                    )
+                                else:
+                                    self._logger.warning(
+                                        "Failed to extract intent_id from GraphDB storage"
+                                    )
                             else:
                                 self._logger.warning(
-                                    "Failed to extract intent_id from GraphDB storage"
+                                    "Intent expressionValue is missing for intent_id=%s",
+                                    intent_id,
                                 )
                         else:
                             self._logger.warning(
-                                "Intent expressionValue is missing for intent_id=%s",
+                                "Intent expression type is not TurtleExpression for intent_id=%s: %s",
                                 intent_id,
+                                expr_type,
                             )
                     else:
                         self._logger.warning(
-                            "Intent expression type is not TurtleExpression for intent_id=%s: %s",
+                            "Intent expression field is missing or invalid for intent_id=%s",
                             intent_id,
-                            expr_type,
                         )
-                else:
-                    self._logger.warning(
-                        "Intent expression field is missing or invalid for intent_id=%s",
-                        intent_id,
-                    )
 
-                # Store initial state report in GraphDB
-                # Use stored_intent_id if available, otherwise fall back to intent_id
-                report_intent_id = stored_intent_id or intent_id
-                if generate_turtle and stored_intent_id:
-                    current_time = datetime.now(timezone.utc)
-                    report_data = {
-                        "intent_id": report_intent_id,
-                        "report_type": "STATE_CHANGE",
-                        "report_number": 1,
-                        "report_generated": current_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        "handler": self._handler_name,
-                        "owner": self._owner_name,
-                        "intent_handling_state": "StateIntentReceived",
-                        "reason": "Intent received and being processed",
-                    }
-                    turtle_report = generate_turtle(report_data)
-                    self._graphdb_client.store_intent_report(turtle_report)
-                    self._logger.info(
-                        "Stored initial state report for intent_id=%s in GraphDB",
-                        report_intent_id,
+                    # Store initial state report in GraphDB
+                    # Use stored_intent_id if available, otherwise fall back to intent_id
+                    report_intent_id = stored_intent_id or intent_id
+                    if generate_turtle and stored_intent_id:
+                        current_time = datetime.now(timezone.utc)
+                        report_data = {
+                            "intent_id": report_intent_id,
+                            "report_type": "STATE_CHANGE",
+                            "report_number": 1,
+                            "report_generated": current_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                            "handler": self._handler_name,
+                            "owner": self._owner_name,
+                            "intent_handling_state": "StateIntentReceived",
+                            "reason": "Intent received and being processed",
+                        }
+                        turtle_report = generate_turtle(report_data)
+                        self._graphdb_client.store_intent_report(turtle_report)
+                        self._logger.info(
+                            "Stored initial state report for intent_id=%s in GraphDB",
+                            report_intent_id,
+                        )
+                except Exception as exc:
+                    # Log but don't fail intent creation if GraphDB storage fails
+                    self._logger.error(
+                        "Failed to store intent or report in GraphDB for intent_id=%s: %s",
+                        intent_id,
+                        exc,
+                        exc_info=True,
                     )
-            except Exception as exc:
-                # Log but don't fail intent creation if GraphDB storage fails
-                self._logger.error(
-                    "Failed to store intent or report in GraphDB for intent_id=%s: %s",
-                    intent_id,
-                    exc,
-                    exc_info=True,
-                )
+            
+            # Run GraphDB operations in background thread to avoid blocking
+            thread = threading.Thread(target=store_in_graphdb, daemon=True)
+            thread.start()
+            self._logger.debug("Started background thread for GraphDB storage of intent_id=%s", intent_id)
 
         if self._reporting:
             self._reporting.record_state_report(

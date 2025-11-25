@@ -22,6 +22,6 @@ USER inserv
 
 EXPOSE 3020
 
-CMD ["gunicorn", "--bind", "0.0.0.0:3020", "inserv.wsgi:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:3020", "--timeout", "120", "--workers", "1", "--worker-class", "sync", "--limit-request-line", "8190", "--limit-request-fields", "100", "--limit-request-field_size", "8190", "--max-requests", "1000", "--max-requests-jitter", "50", "inserv.wsgi:app"]
 
 

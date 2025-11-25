@@ -134,36 +134,44 @@ class GraphDbClient:
 
     def store_intent(self, intent_data, file_path=None):
         """Store an intent in GraphDB and return its ID"""
-        headers = {
-            'Content-Type': 'application/x-turtle'
-        }
-        response = requests.post(
-            self.sparql_endpoint,
-            data=intent_data,
-            headers=headers,
-            timeout=30
-        )
-        response.raise_for_status()
-        
-        # Extract intent ID from the response
-        # The intent ID is in the form "I<uuid>" in the turtle data
-        match = re.search(r'data5g:I([a-f0-9]{32})', intent_data)
-        if match:
-            intent_id = match.group(1)
+        try:
+            # First, check if the repository exists
+            if not self.repository_exists(self.repository):
+                self.create_repository(self.repository)
             
-            # Optionally save the Turtle data to a file if intents_dir is configured
-            if hasattr(self, 'intents_dir') and self.intents_dir:
-                # Generate a timestamp for the filename
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"{intent_id}.ttl"
-                file_path = os.path.join(self.intents_dir, filename)
+            headers = {
+                'Content-Type': 'application/x-turtle'
+            }
+            response = requests.post(
+                self.sparql_endpoint,
+                data=intent_data,
+                headers=headers,
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            # Extract intent ID from the response
+            # The intent ID is in the form "I<uuid>" in the turtle data
+            match = re.search(r'data5g:I([a-f0-9]{32})', intent_data)
+            if match:
+                intent_id = match.group(1)
                 
-                # Save the Turtle data to a file
-                with open(file_path, 'w') as f:
-                    f.write(intent_data)
-            
-            return intent_id
-        return None
+                # Optionally save the Turtle data to a file if intents_dir is configured
+                if hasattr(self, 'intents_dir') and self.intents_dir:
+                    # Generate a timestamp for the filename
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"{intent_id}.ttl"
+                    file_path = os.path.join(self.intents_dir, filename)
+                    
+                    # Save the Turtle data to a file
+                    with open(file_path, 'w') as f:
+                        f.write(intent_data)
+                
+                return intent_id
+            return None
+        except Exception as e:
+            print(f"Error storing intent: {str(e)}")
+            raise
 
     def query_intents(self, query):
         """Execute a SPARQL query on the stored intents"""

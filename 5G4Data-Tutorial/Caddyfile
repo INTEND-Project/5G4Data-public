@@ -16,9 +16,9 @@ start5g-1.cs.uit.no:443 {
         reverse_proxy http://webapp:3000
     }
 
-    # ChartMuseum at /chartmuseum
+    # ChartMuseum at /charts
     handle /charts/* {
-        uri strip_prefix /chartmuseum
+        uri strip_prefix /charts
         reverse_proxy http://chartmuseum:8080
     }
 }

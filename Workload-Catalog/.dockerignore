@@ -1,0 +1,29 @@
+# Exclude test files
+test/
+
+# Exclude workloads folder
+workloads/
+
+# Exclude build/deployment files
+Dockerfile
+docker-compose.yaml
+README.md
+
+# Exclude charts (mounted as volume, not needed in image)
+charts/
+
+# Exclude git files
+.git/
+.gitignore
+
+# Exclude IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Exclude temporary files
+*.tmp
+*.log
+

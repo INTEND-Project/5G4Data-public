@@ -16,9 +16,11 @@ cd Intel-IDO
 github repo clone intel/intent-driven-orchestration
 ```
 See inServ-IDO-README.md for modifications done to the IDO source for inServ. When these changes are made, proceed with:
+
 ```bash
 cd intent-driven-orchestration/
 # Install the IDO CRDs and the IDO planner
+kubectl create namespace ido
 kubectl apply -f artefacts/intents_crds_v1alpha1.yaml
 kubectl apply -f artefacts/deploy/manifest.yaml
 ```
@@ -71,8 +73,23 @@ docker run --name inserv-local -p 3020:3020 --env LOG_LEVEL=DEBUG inserv:local
 ```
 
 ### Kubernetes Deployment with Helm
+#### Setting up a cluster
+We have used minikube. Here is how we created a minikube cluster for testing:
+```bash
+# Create minikube profile
+minikube start --driver=docker --cpus=16 --memory=24G -p inOrch
+```
+We then cloned the [IDO repo](https://github.com/INTEND-Project/intent-driven-orchestration) and made the changes described in [inServ-IDO-README.md](./inServ-IDO-README.md). After that, we followed the instructions in IDO's [README.md](https://github.com/INTEND-Project/intent-driven-orchestration/blob/main/README.md) to install IDO in the minikube cluster.
 
-Push the image to GitHub Container Registry first (requires a PAT with `write:packages` scope):
+Note that when the minikube profile is up and running it can be stopped and restarted like this:
+```bash
+# Stop a running inOrch profile
+minikube stop --profile inOrch
+# Restart it (as it was when it was stopped, i.e. IDO and inServ is still in the cluster if they were deployed to it)
+nohup minikube start --profile inOrch > inOrch.log 2>&1 &
+```
+#### Build the inServ image, push it to ghrc and deploy it
+Build and push the image to GitHub Container Registry first (requires a PAT with `write:packages` scope):
 
 ```bash
 docker build -t ghcr.io/arne-munch-ellingsen/inserv:latest .
@@ -84,13 +101,15 @@ If your kubeconfig is not stored at `~/.kube/config`, point `kubectl` and `helm`
 
 ```bash
 export KUBECONFIG=/path/to/cluster.conf
-kubectl config use-context intend-cluster
+kubectl config use-context inOrch
 ```
 
 If your registry requires authentication (e.g., private GHCR repo), create a pull-secret in the target namespace and reference it via the new `imagePullSecrets` value:
 
 ```bash
+# Create a namespace for inServ (must be in lowercase)
 kubectl create namespace inserv
+# Add the secret so that the retrievel from ghrc works fine
 kubectl -n inserv create secret docker-registry ghcr-creds \
   --docker-server=ghcr.io \
   --docker-username=<your-github-user> \
@@ -98,6 +117,8 @@ kubectl -n inserv create secret docker-registry ghcr-creds \
   --docker-email=you@example.com
 
 kubectl -n inserv describe secret ghcr-creds  # verify it exists
+
+# Finally, deploy inServ to the cluster:
 
 helm install inserv charts/inServ \
   --namespace inserv --create-namespace \
@@ -113,6 +134,7 @@ helm install inserv charts/inServ \
 > omit `imagePullSecrets`.
 
 ```bash
+# Deploy without use of secret (if ghrc image is public)
 helm install inserv charts/inServ \
   --namespace inserv --create-namespace \
   --set image.repository=ghcr.io/<your-github-user>/inserv \

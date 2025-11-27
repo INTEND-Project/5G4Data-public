@@ -14,8 +14,10 @@ RUN apk add --no-cache git
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
-COPY . .
+# Copy only necessary source code
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY public/ ./public/
 
 # Build the binary
 RUN go build -o server ./cmd/server

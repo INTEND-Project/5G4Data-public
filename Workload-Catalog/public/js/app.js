@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
         title.textContent = name;
         tbody.innerHTML = "";
 
-        fetch(`/webapp/api/charts/${name}`)
+        fetch(`/api/charts/${name}`)
             .then(res => res.json())
             .then(data => {
                 data.forEach(chart => {
@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentPage = 1;
 
     function fetchTotalChartCount() {
-        return fetch("/webapp/api/charts")
+        return fetch("/api/charts")
             .then(res => res.json())
             .then(data => {
                 const chartNames = Object.keys(data);
@@ -57,7 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const offset = (page - 1) * chartsPerPage;
 
-        fetch(`/webapp/api/charts?offset=${offset}&limit=${chartsPerPage}`)
+        fetch(`/api/charts?offset=${offset}&limit=${chartsPerPage}`)
             .then(response => response.json())
             .then(data => {
                 const chartEntries = Object.entries(data);
@@ -130,7 +130,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         statusEl.textContent = "Uploading...";
 
-        fetch("/webapp/api/charts", {
+        fetch("/api/charts", {
             method: "POST",
             body: formData
         })
@@ -161,7 +161,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const version = button.dataset.version;
 
                 if (confirm(`Delete chart "${name}" version "${version}"?`)) {
-                    fetch(`/webapp/api/charts/${name}/${version}`, {
+                    fetch(`/api/charts/${name}/${version}`, {
                         method: "DELETE"
                     })
                         .then(res => {

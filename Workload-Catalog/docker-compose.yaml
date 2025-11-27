@@ -13,12 +13,12 @@ services:
       STORAGE: local
       STORAGE_LOCAL_ROOTDIR: /charts
 
-  webapp:
+  workloads:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - 3004:3000
+      - 3040:3000
     depends_on:
       - chartmuseum
     environment:

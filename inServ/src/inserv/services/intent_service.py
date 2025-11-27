@@ -11,6 +11,8 @@ from inserv.models.intent_fvo import IntentFVO
 from inserv.models.intent_mvo import IntentMVO
 from inserv.repositories.intent_repository import IntentRepository
 from inserv.services.k8s_deployer import KubernetesDeployer
+from inserv.services.helm_deployer import HelmDeployer
+from inserv.services.turtle_parser import TurtleParser
 from inserv.services.reporting_service import IntentReportingService
 from inserv.services.observation_scheduler import ObservationScheduler
 from inserv.models.report_enums import HandlingState
@@ -29,6 +31,7 @@ class IntentService:
         self,
         repository: IntentRepository,
         deployer: KubernetesDeployer,
+        helm_deployer: HelmDeployer | None = None,
         reporting_service: IntentReportingService | None = None,
         observation_scheduler: ObservationScheduler | None = None,
         graphdb_client: Optional["GraphDbClient"] = None,
@@ -37,6 +40,8 @@ class IntentService:
     ) -> None:
         self._repository = repository
         self._deployer = deployer
+        self._helm_deployer = helm_deployer
+        self._turtle_parser = TurtleParser()
         self._reporting = reporting_service
         self._scheduler = observation_scheduler
         self._graphdb_client = graphdb_client
@@ -82,6 +87,9 @@ class IntentService:
         intent = Intent.from_dict(intent_dict)
         self._repository.save(intent)
         # Kubernetes deployment temporarily disabled
+
+        # Handle Helm deployment if DeploymentExpectation is present
+        self._handle_helm_deployment(intent_dict, intent_id)
 
         # Store intent in GraphDB if enabled (run in background to avoid blocking)
         if self._graphdb_client:
@@ -213,5 +221,113 @@ class IntentService:
                 summary="Intent deleted",
             )
         self._logger.info("Deleted intent_id=%s", intent_id)
+
+    def _handle_helm_deployment(self, intent_dict: dict, intent_id: str) -> None:
+        """
+        Handle Helm chart deployment if DeploymentExpectation is found in the intent.
+
+        This method parses the Turtle expression to extract deployment information
+        and triggers Helm chart installation if applicable.
+        """
+        if not self._helm_deployer:
+            return
+
+        try:
+            # Extract turtle data from expression field
+            expression = intent_dict.get("expression")
+            if not expression or not isinstance(expression, dict):
+                return
+
+            expr_type = expression.get("@type", "")
+            if expr_type != "TurtleExpression":
+                return
+
+            turtle_data = expression.get("expressionValue", "")
+            if not turtle_data:
+                return
+
+            # Parse deployment information from Turtle RDF
+            deployment_info = self._turtle_parser.parse_deployment_info(turtle_data)
+            if not deployment_info or not deployment_info.get("has_deployment_expectation"):
+                return
+
+            deployment_descriptor = deployment_info.get("deployment_descriptor")
+            application = deployment_info.get("application")
+
+            if not deployment_descriptor or not application:
+                self._logger.warning(
+                    "DeploymentExpectation found but missing required fields for intent_id=%s",
+                    intent_id,
+                )
+                return
+
+            # Deploy Helm chart in background thread to avoid blocking the request
+            # (Helm deployments can take several minutes and would cause health probe timeouts)
+            self._logger.info(
+                "Scheduling Helm chart deployment for intent_id=%s: chart=%s, namespace=%s",
+                intent_id,
+                deployment_descriptor,
+                application,
+            )
+
+            import threading
+
+            def deploy_in_background():
+                try:
+                    success = self._helm_deployer.deploy_chart(
+                        chart_url=deployment_descriptor,
+                        namespace=application,
+                        release_name=application,
+                        intent_id=intent_id,
+                    )
+
+                    if success:
+                        self._logger.info(
+                            "Successfully deployed Helm chart for intent_id=%s",
+                            intent_id,
+                        )
+                        # Optionally record deployment success in reporting service
+                        if self._reporting:
+                            self._reporting.record_state_report(
+                                Intent.from_dict({"id": intent_id}),
+                                state=HandlingState.COMPLIANT,
+                                summary=f"Helm chart deployed to namespace {application}",
+                            )
+                    else:
+                        self._logger.warning(
+                            "Helm chart deployment failed for intent_id=%s",
+                            intent_id,
+                        )
+                        # Optionally record deployment failure
+                        if self._reporting:
+                            self._reporting.record_state_report(
+                                Intent.from_dict({"id": intent_id}),
+                                state=HandlingState.DEGRADED,
+                                summary=f"Helm chart deployment failed for namespace {application}",
+                                reason="Helm deployment failed",
+                            )
+                except Exception as exc:
+                    self._logger.error(
+                        "Exception during background Helm deployment for intent_id=%s: %s",
+                        intent_id,
+                        exc,
+                        exc_info=True,
+                    )
+
+            # Start deployment in background thread
+            thread = threading.Thread(target=deploy_in_background, daemon=True)
+            thread.start()
+            self._logger.debug(
+                "Started background thread for Helm deployment of intent_id=%s", intent_id
+            )
+
+        except Exception as exc:
+            # Log but don't fail intent creation if Helm deployment fails
+            self._logger.error(
+                "Failed to handle Helm deployment for intent_id=%s: %s",
+                intent_id,
+                exc,
+                exc_info=True,
+            )
 
 

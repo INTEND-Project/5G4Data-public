@@ -9,6 +9,7 @@ from inserv.repositories.intent_report_repository import IntentReportRepository
 from inserv.repositories.hub_subscription_repository import HubSubscriptionRepository
 from inserv.services.intent_service import IntentService
 from inserv.services.k8s_deployer import KubernetesDeployer
+from inserv.services.helm_deployer import HelmDeployer
 from inserv.services.reporting_service import IntentReportingService
 from inserv.services.notification_dispatcher import http_notification_sender
 from inserv.services.observation_scheduler import ObservationScheduler
@@ -74,6 +75,7 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
     report_repository = IntentReportRepository()
     hub_repository = HubSubscriptionRepository()
     deployer = KubernetesDeployer(config)
+    helm_deployer = HelmDeployer(config)
     reporting_service = IntentReportingService(
         report_repository=report_repository,
         hub_repository=hub_repository,
@@ -108,8 +110,9 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
     flask_app.config["INTENT_SERVICE"] = IntentService(
         intent_repository,
         deployer,
-        reporting_service,
-        observation_scheduler,
+        helm_deployer=helm_deployer,
+        reporting_service=reporting_service,
+        observation_scheduler=observation_scheduler,
         graphdb_client=graphdb_client,
         handler_name=config.reporting_handler,
         owner_name=config.reporting_owner,

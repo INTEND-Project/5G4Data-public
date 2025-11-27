@@ -1,85 +1,39 @@
-## inServ – INTEND 5G4DATA Intent Management Service
+# inServ – INTEND 5G4DATA Intent Management Service
 
 Python/Flask microservice that implements TMF921 Intent Management APIs and can deploy auxiliary workloads to the same Kubernetes cluster.
 
-## Intel IDO setup
-For inServ we will use minikube to set up a single node Kubernetes cluster that we can install IDO in. More about minikube can be found [here](https://minikube.sigs.k8s.io/docs/). To create a cluster for inServ/inOrch do this:
-```bash
-minikube start --driver=docker --cpus=16 --memory=24G
-```
-Intel IDO can be found [here](https://github.com/intel/intent-driven-orchestration/tree/main).
-Clone the repository and make it ready:
-```bash
-mkdir Intel-IDO
-cd Intel-IDO
-# Clone the IDO repo
-github repo clone intel/intent-driven-orchestration
-```
-See inServ-IDO-README.md for modifications done to the IDO source for inServ. When these changes are made, proceed with:
+## Kubernetes Deployment with Helm
+### Setting up a cluster
+We have used minikube. To create a minikube cluster with proper DNS configuration, use the provided setup script:
 
 ```bash
-cd intent-driven-orchestration/
-# Install the IDO CRDs and the IDO planner
+# Create and configure minikube cluster (recommended)
+./setup-cluster.sh
+```
+
+This script will:
+- Create the minikube cluster with the inOrch profile
+- Configure CoreDNS to use working DNS servers (fixes DNS resolution issues)
+- Verify the setup is working
+
+Alternatively, you can create the cluster manually:
+```bash
+# Create minikube profile
+minikube start --driver=docker --cpus=16 --memory=24G -p inOrch
+
+# Then manually fix CoreDNS DNS forwarding (required for external DNS resolution)
+kubectl get configmap coredns -n kube-system -o yaml | \
+  sed 's|forward . /etc/resolv.conf|forward . 129.242.9.253 158.38.0.1 129.242.4.254|' | \
+  kubectl apply -f -
+kubectl rollout restart deployment/coredns -n kube-system
+```
+
+We then cloned the [IDO repo](https://github.com/INTEND-Project/intent-driven-orchestration) and made the changes described in [inServ-IDO-README.md](./inServ-IDO-README.md). After that, we followed the instructions in IDO's [README.md](https://github.com/INTEND-Project/intent-driven-orchestration/blob/main/README.md) to install IDO in the minikube cluster:
+```bash
 kubectl create namespace ido
 kubectl apply -f artefacts/intents_crds_v1alpha1.yaml
 kubectl apply -f artefacts/deploy/manifest.yaml
 ```
-The minikube cluster is ready and all IDO resources are deployed to it (except KPI profiles, more about that later.)
-
-### inServ repository Layout
-- `5g4dataAPI.yaml` – source OpenAPI specification
-- `src/` – generated Flask server scaffold plus custom logic
-- `Dockerfile` – production image definition
-- `charts/inServ/` – Helm chart for Kubernetes deployments
-- `k8s/` – vanilla Kubernetes manifests (Deployment, Service, RBAC, ConfigMap, Secret)
-
-### Prerequisites
-- Python 3.11+
-- Node.js (for `npx @openapitools/openapi-generator-cli`)
-- Docker & Kubernetes/Helm (optional for deployment)
-
-### Regenerating the API Scaffold
-Whenever `5g4dataAPI.yaml` changes, regenerate the Flask scaffold:
-
-```bash
-cd /home/telco/arneme/INTEND-Project/5G4Data-public/inServ
-npx @openapitools/openapi-generator-cli generate \
-  -i 5g4dataAPI.yaml \
-  -g python-flask \
-  -o src \
-  --additional-properties=packageName=inserv,title=inServAPI
-```
-
-After regeneration, re-apply local customizations (health endpoints, services, etc.) if generators overwrote them.
-
-### Running Locally (for testing inServ only, see Kubernetes instructions further down for PoC integration with other Intend tools)
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r src/requirements.txt
-export INSERV_PORT=3020
-python -m inserv
-```
-
-Swagger UI will be available at `http://localhost:3020/ui/`.
-
-The Connexion app now serves the full TM Forum TMF921 Intent Management specification. All intent/report/hub operations documented by TM Forum are exposed under `/tmf-api/intentManagement/v5`.
-
-### Container Image
-```bash
-docker build -t inserv:local .
-docker run --name inserv-local -p 3020:3020 --env LOG_LEVEL=DEBUG inserv:local
-```
-
-### Kubernetes Deployment with Helm
-#### Setting up a cluster
-We have used minikube. Here is how we created a minikube cluster for testing:
-```bash
-# Create minikube profile
-minikube start --driver=docker --cpus=16 --memory=24G -p inOrch
-```
-We then cloned the [IDO repo](https://github.com/INTEND-Project/intent-driven-orchestration) and made the changes described in [inServ-IDO-README.md](./inServ-IDO-README.md). After that, we followed the instructions in IDO's [README.md](https://github.com/INTEND-Project/intent-driven-orchestration/blob/main/README.md) to install IDO in the minikube cluster.
 
 Note that when the minikube profile is up and running it can be stopped and restarted like this:
 ```bash
@@ -88,95 +42,32 @@ minikube stop --profile inOrch
 # Restart it (as it was when it was stopped, i.e. IDO and inServ is still in the cluster if they were deployed to it)
 nohup minikube start --profile inOrch > inOrch.log 2>&1 &
 ```
-#### Build the inServ image, push it to ghrc and deploy it
-Build and push the image to GitHub Container Registry first (requires a PAT with `write:packages` scope):
+
+**Important:** After restarting minikube, you may need to fix DNS in the minikube node if you encounter `ErrImagePull` errors when pulling images from external registries (like `ghcr.io`). Run:
 
 ```bash
-docker build -t ghcr.io/arne-munch-ellingsen/inserv:latest .
-echo '<GITHUB_PAT>' | docker login ghcr.io -u <your-github-user> --password-stdin
-docker push ghcr.io/<your-github-user>/inserv:latest
+./fix-minikube-dns.sh
 ```
 
-If your kubeconfig is not stored at `~/.kube/config`, point `kubectl` and `helm` at the right file before deploying:
+This updates the minikube node's DNS configuration to use working DNS servers. This fix is temporary and needs to be reapplied after each minikube restart.
+### Build the inServ image and deploy it  
 
+Use the provided script to build and deploy inServ:
 ```bash
-export KUBECONFIG=/path/to/cluster.conf
-kubectl config use-context inOrch
+./build-and-deploy.sh
 ```
-
-If your registry requires authentication (e.g., private GHCR repo), create a pull-secret in the target namespace and reference it via the new `imagePullSecrets` value:
+Add a ghrc secret so that inServ can pull workload images mentioned in helm charts. The intent will reference the helm chart, and the helm chart will reference the image stored in ghrc. For the PoC, this is how we will do it, and for that, inserv needs the credentials to pull images from ghrc.
 
 ```bash
-# Create a namespace for inServ (must be in lowercase)
-kubectl create namespace inserv
-# Add the secret so that the retrievel from ghrc works fine
 kubectl -n inserv create secret docker-registry ghcr-creds \
   --docker-server=ghcr.io \
   --docker-username=<your-github-user> \
   --docker-password='<GITHUB_PAT>' \
   --docker-email=you@example.com
-
-kubectl -n inserv describe secret ghcr-creds  # verify it exists
-
-# Finally, deploy inServ to the cluster:
-
-helm install inserv charts/inServ \
-  --namespace inserv --create-namespace \
-  --set image.repository=ghcr.io/<your-github-user>/inserv \
-  --set image.tag=latest \
-  --set env.KUBE_NAMESPACE=inserv \
-  --set imagePullSecrets[0]=ghcr-creds
 ```
 
-> The `ghcr-creds` secret lives only in the Kubernetes cluster. If you delete
-> the `inserv` namespace or deploy to another cluster, recreate the secret
-> before running Helm again. For public GHCR images you can skip this step and
-> omit `imagePullSecrets`.
 
-```bash
-# Deploy without use of secret (if ghrc image is public)
-helm install inserv charts/inServ \
-  --namespace inserv --create-namespace \
-  --set image.repository=ghcr.io/<your-github-user>/inserv \
-  --set image.tag=latest \
-  --set env.KUBE_NAMESPACE=inserv
-```
-
-Key Helm values:
-- `image.*` – container repository/tag/pull policy
-- `service.*` – service type/ports (defaults to ClusterIP; expose externally via port-forward below)
-- `env.*` – propagated as ConfigMap environment variables
-- `secretEnv.*` – stored in a Secret
-- `resources` – pod resource requests/limits
-- `livenessProbe` / `readinessProbe` – configurable probe paths and timings
-
-### TMF921 intent reports & event subscriptions
-
-- List reports for an intent:
-  ```bash
-  curl http://<host>:3020/tmf-api/intentManagement/v5/intent/<intentId>/intentReport
-  ```
-- Retrieve/delete a specific report:
-  ```bash
-  curl http://<host>:3020/tmf-api/intentManagement/v5/intent/<intentId>/intentReport/<reportId>
-  curl -X DELETE http://<host>:3020/tmf-api/intentManagement/v5/intent/<intentId>/intentReport/<reportId>
-  ```
-- Register a hub (event subscription) to receive TMF notifications:
-  ```bash
-  curl -X POST http://<host>:3020/tmf-api/intentManagement/v5/hub \
-    -H "Content-Type: application/json" \
-    -d '{
-      "callback": "https://intent-owner.example.com/notifications",
-      "eventTypes": ["IntentReportCreateEvent","IntentStatusChangeEvent"],
-      "query": "intentId=<intentId>"
-    }'
-  ```
-  Hubs can be retrieved or removed via `GET/DELETE /hub/{id}`. The service will POST TMF-compliant payloads to the callback URL whenever matching intent or report events occur (state changes, observation reports, etc.).
-- For testing, `/tmf-api/intentManagement/v5/listener/*` endpoints simply log and acknowledge events so you can point TMF simulators at inServ.
-
-Observation reports are generated automatically every `OBSERVATION_INTERVAL_SECONDS` seconds while an intent is active. Metrics are stored via the internal repository and surfaced through the API/hub.
-
-#### External access via persistent port-forward (systemd)
+### External access via persistent port-forward (systemd)
 
 Run a long-lived port-forward on the host using the provided `systemd-portforward-inserv.service` unit so the API stays reachable at `http://<host-ip>:3020/` (e.g., `http://start5g-1.cs.uit.no:3020/healthz`):
 
@@ -188,6 +79,24 @@ sudo systemctl status systemd-portforward-inserv.service
 ```
 
 The unit runs `kubectl -n inserv port-forward svc/inserv-inserv 3020:3020 --address 0.0.0.0`. Adjust `User`, `Environment=KUBECONFIG=...`, or the listen port if your setup differs. View logs with `journalctl -u systemd-portforward-inserv.service`.
+
+### External access to deployed services via Ingress
+
+inServ automatically creates Ingress resources for deployed services with NodePort services, enabling path-based routing through the ingress controller. However, in minikube, NodePort services are only accessible via the minikube node IP (e.g., `192.168.49.2`), not the host's external IP.
+
+To enable external access from remote clients, set up iptables forwarding:
+
+```bash
+# Run the setup script (configures iptables forwarding)
+./setup-ingress-forwarding.sh
+```
+
+This script:
+- Sets up iptables rules to forward traffic from the host's external IP port 30872 to the minikube node
+- Makes the rules persistent across reboots (if `netfilter-persistent` is installed)
+- Enables access to all services via: `http://<host-ip>:30872/<app-name>/`
+
+**Note:** After minikube restarts, you may need to re-run this script if the minikube node IP changes.
 
 Alternatively, apply the raw manifests:
 
@@ -212,5 +121,71 @@ Environment variables (set via ConfigMap/Secret or Docker env):
 - `OBSERVATION_METRIC_NAME` – metric name used for generated observations
 
 Health probe: `GET /healthz`
+
+## Checking Cluster Resources
+
+To verify that your Kubernetes cluster has sufficient resources for deploying workloads, use the following commands:
+
+### Check Node Capacity and Allocations
+
+```bash
+# Get node capacity (CPU, memory, pods)
+kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu,MEMORY:.status.capacity.memory
+
+# Get detailed node information including allocated resources
+kubectl describe node inorch | grep -A 10 "Allocated resources:"
+
+# Get node name and basic capacity
+kubectl describe node | grep -E "Name:|cpu:|memory:|pods:" | head -10
+```
+
+### Check Current Resource Usage
+
+```bash
+# Check resource requests and limits for all pods
+kubectl get pods --all-namespaces -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.containers[0].resources.requests.cpu}{"\t"}{.spec.containers[0].resources.requests.memory}{"\n"}{end}' | column -t
+
+# Count running vs total pods
+kubectl get pods --all-namespaces --field-selector=status.phase=Running -o wide | wc -l
+kubectl get pods --all-namespaces | wc -l
+```
+
+### Real-time Resource Monitoring (if metrics-server is installed)
+
+```bash
+# Watch node resource usage
+kubectl top node
+
+# Watch pod resource usage across all namespaces
+kubectl top pods --all-namespaces
+
+# Watch pods in a specific namespace
+kubectl top pods -n inserv
+```
+
+### Check Cluster Status
+
+```bash
+# Check minikube cluster status
+minikube status -p inOrch
+
+# List all minikube profiles
+minikube profile list
+
+# Check if cluster is running
+kubectl cluster-info
+```
+
+### Interpreting Resource Information
+
+- **CPU**: Shown in cores (e.g., `112` = 112 cores, `2250m` = 2.25 cores)
+- **Memory**: Shown in various units (Ki, Mi, Gi) - `263768160Ki` ≈ 263 GB
+- **Allocated resources**: Shows what's currently requested/limited by running pods
+- **Available capacity**: Total capacity minus allocated resources
+
+A healthy cluster typically has:
+- CPU usage < 80%
+- Memory usage < 80%
+- Sufficient pod capacity for new deployments
 
 

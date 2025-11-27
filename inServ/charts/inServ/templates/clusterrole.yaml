@@ -1,12 +1,11 @@
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: inserv
----
+{{- if .Values.rbac.create }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: inserv
+  name: {{ include "inserv.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "inserv.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
 rules:
   # Permissions for managing resources in the inServ namespace
   - apiGroups: [""]
@@ -33,20 +32,13 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Permissions for port-forwarding (if needed)
   - apiGroups: [""]
     resources: ["pods/portforward"]
     verbs: ["create"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: inserv
-subjects:
-  - kind: ServiceAccount
-    name: inserv
-    namespace: inserv
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: inserv
+  # Permissions for Helm/Tiller (if using Helm 2) or Helm 3 operations
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+{{- end }}
 

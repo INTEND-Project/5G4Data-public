@@ -8,15 +8,22 @@ WORKDIR /opt/inserv
 
 RUN adduser --disabled-password --gecos "" inserv
 
+# Install Helm binary
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy and install intent-report-client first (local dependency)
 COPY intent-report-client /tmp/intent-report-client
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir /tmp/intent-report-client
 
-COPY inServ/src/requirements.txt .
+COPY src/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY inServ/src/ .
+COPY src/ .
 
 USER inserv
 

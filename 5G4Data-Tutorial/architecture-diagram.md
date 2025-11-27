@@ -44,7 +44,7 @@ graph TB
 
     %% Internal routing
     Caddy -->|"/"| Flask
-    Caddy -->|"/webapp/*"| WebApp
+    Caddy -->|"/workloads/*"| WebApp
     Caddy -->|"/charts/*"| ChartMuseum
     
     %% Service dependencies
@@ -99,7 +99,7 @@ graph TB
 | Path | Target Service | Internal URL |
 |------|---------------|--------------|
 | `/` | Flask App | `flask-app:5003` |
-| `/webapp/*` | WebApp | `webapp:3000` |
+| `/workloads/*` | WebApp | `webapp:3000` |
 | `/charts/*` | ChartMuseum | `chartmuseum:8080` |
 
 ### Security

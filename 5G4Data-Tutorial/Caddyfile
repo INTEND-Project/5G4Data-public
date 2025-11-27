@@ -10,9 +10,14 @@ start5g-1.cs.uit.no:443 {
         reverse_proxy flask-app:5003
     }
 
-    # Webapp at /webapp
+    # Workload catalog legacy path
     handle /webapp/* {
-        #uri strip_prefix /webapp
+        reverse_proxy http://webapp:3000
+    }
+
+    # Workload catalog at /workloads
+    handle /workloads/* {
+        uri replace /workloads /webapp
         reverse_proxy http://webapp:3000
     }
 

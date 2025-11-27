@@ -93,7 +93,7 @@ docker pull ghcr.io/arne-munch-ellingsen/planner:0.4.0
 
 ## Deployment Steps
 
-### Step 1: Create the Namespace
+### Step 1: Create the Namespace (if it does not exist)
 
 ```bash
 kubectl create namespace ido

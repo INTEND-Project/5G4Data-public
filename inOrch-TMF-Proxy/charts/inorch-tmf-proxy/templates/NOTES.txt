@@ -1,0 +1,6 @@
+The inOrch-TMF-Proxy API is available via the {{ .Values.service.type }} service {{ include "inorch-tmf-proxy.fullname" . }}.
+
+To port-forward locally:
+  kubectl -n {{ include "inorch-tmf-proxy.namespace" . }} port-forward svc/{{ include "inorch-tmf-proxy.fullname" . }} 3020:{{ .Values.service.port }}
+  open http://localhost:3020/ui/
+

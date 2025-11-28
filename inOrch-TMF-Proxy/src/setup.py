@@ -1,0 +1,37 @@
+import sys
+from setuptools import setup, find_packages
+
+NAME = "inorch-tmf-proxy"
+VERSION = "1.0.0"
+
+# To install the library, run the following
+#
+# python setup.py install
+#
+# prerequisite: setuptools
+# http://pypi.python.org/pypi/setuptools
+
+REQUIRES = [
+    "connexion>=2.0.2",
+    "swagger-ui-bundle>=0.0.2",
+    "python_dateutil>=2.6.0"
+]
+
+setup(
+    name=NAME,
+    version=VERSION,
+    description="INTEND 5G4DATA use case; Intent Management API",
+    author_email="",
+    url="",
+    keywords=["OpenAPI", "INTEND 5G4DATA use case; Intent Management API"],
+    install_requires=REQUIRES,
+    packages=find_packages(),
+    package_data={'': ['openapi/openapi.yaml']},
+    include_package_data=True,
+    entry_points={
+        'console_scripts': ['inorch-tmf-proxy=inorch_tmf_proxy.__main__:main']},
+    long_description="""\
+    Swagger UI environment for the INTEND project 5G4DATA Intent Management API specification
+    """
+)
+

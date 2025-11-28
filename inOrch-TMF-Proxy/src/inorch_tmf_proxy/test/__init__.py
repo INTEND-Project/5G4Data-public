@@ -1,0 +1,17 @@
+import logging
+
+from flask_testing import TestCase
+
+from inorch_tmf_proxy.encoder import JSONEncoder
+
+
+class BaseTestCase(TestCase):
+
+    def create_app(self):
+        import connexion
+
+        logging.getLogger('connexion.operation').setLevel('ERROR')
+        app = connexion.App(__name__, specification_dir='../openapi/')
+        app.app.json_encoder = JSONEncoder
+        app.add_api('openapi.yaml', pythonic_params=True)
+        return app.app

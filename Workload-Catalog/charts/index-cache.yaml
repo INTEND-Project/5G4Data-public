@@ -1,17 +1,5 @@
 apiVersion: v1
 entries:
-  AR-Retail-app-chart:
-  - apiVersion: v2
-    appVersion: 1.16.1
-    created: "2025-03-21T13:27:33.811839216Z"
-    description: A Helm chart for Kubernetes
-    digest: 958209231c099900562e3785ecefc49e95f5ac063ddfd62e9fc37d68cc88579f
-    icon: https://raw.githubusercontent.com/arne-munch-ellingsen/Intent-Lifecycle-Managent/6662aa7c8d440b944afa9c59483868775b4ef9ee/src/5G4Data-tool-decision-logic/static/augmented-reality.png
-    name: AR-Retail-app-chart
-    type: application
-    urls:
-    - charts/AR-Retail-app-chart-0.1.1.tgz
-    version: 0.1.1
   airflow:
   - annotations:
       category: WorkFlow
@@ -133,6 +121,18 @@ entries:
     urls:
     - charts/grafana-11.6.0.tgz
     version: 11.6.0
+  hello:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2025-11-27T16:19:21.615885823Z"
+    description: A simple Flask hello application for INTEND 5G4DATA
+    digest: 683b22981b87c5270043f92c9667936c856dfac0e7de6379c23e17bf37b3dde6
+    icon: http://start5g-1.cs.uit.no:3040/images/hello-icon.svg
+    name: hello
+    type: application
+    urls:
+    - charts/hello-0.1.0.tgz
+    version: 0.1.0
   jupyterhub:
   - annotations:
       category: MachineLearning
@@ -175,44 +175,5 @@ entries:
     urls:
     - charts/jupyterhub-8.1.4.tgz
     version: 8.1.4
-  mysql:
-  - annotations:
-      category: Database
-      images: |
-        - name: mysql
-          image: docker.io/bitnami/mysql:8.4.4-debian-12-r4
-        - name: mysqld-exporter
-          image: docker.io/bitnami/mysqld-exporter:0.16.0-debian-12-r10
-        - name: os-shell
-          image: docker.io/bitnami/os-shell:12-debian-12-r38
-      licenses: Apache-2.0
-    apiVersion: v2
-    appVersion: 8.4.4
-    created: "2025-03-21T14:01:08.550087218Z"
-    dependencies:
-    - name: common
-      repository: oci://registry-1.docker.io/bitnamicharts
-      tags:
-      - bitnami-common
-      version: 2.x.x
-    description: MySQL is a fast, reliable, scalable, and easy to use open source relational database system. Designed to handle mission-critical, heavy-load production applications.
-    digest: c2e79b336322e914f9ce9b75ee2c7b3cd7d6f2cc634685c97f4bec2292d615c2
-    home: https://bitnami.com
-    icon: https://dyltqmyl993wv.cloudfront.net/assets/stacks/mysql/img/mysql-stack-220x234.png
-    keywords:
-    - mysql
-    - database
-    - sql
-    - cluster
-    - high availability
-    maintainers:
-    - name: Broadcom, Inc. All Rights Reserved.
-      url: https://github.com/bitnami/charts
-    name: mysql
-    sources:
-    - https://github.com/bitnami/charts/tree/main/bitnami/mysql
-    urls:
-    - charts/mysql-12.3.1.tgz
-    version: 12.3.1
-generated: "2025-03-21T14:01:36Z"
+generated: "2025-11-27T16:19:22Z"
 serverInfo: {}

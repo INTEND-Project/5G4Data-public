@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "inorch-tmf-proxy.fullname" . }}-config
+  namespace: {{ include "inorch-tmf-proxy.namespace" . }}
+data:
+{{- range $key, $value := .Values.env }}
+  {{ $key }}: "{{ $value }}"
+{{- end }}
+

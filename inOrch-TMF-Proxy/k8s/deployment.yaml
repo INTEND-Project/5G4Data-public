@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inorch-tmf-proxy
+  labels:
+    app: inorch-tmf-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inorch-tmf-proxy
+  template:
+    metadata:
+      labels:
+        app: inorch-tmf-proxy
+    spec:
+      serviceAccountName: inorch-tmf-proxy
+      containers:
+        - name: inorch-tmf-proxy
+          image: ghcr.io/arne-munch-ellingsen/inorch-tmf-proxy:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: inorch-tmf-proxy-config
+            - secretRef:
+                name: inorch-tmf-proxy-secrets
+          ports:
+            - containerPort: 3020
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3020
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3020
+            initialDelaySeconds: 5
+

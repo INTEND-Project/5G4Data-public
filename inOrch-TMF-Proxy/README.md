@@ -1,126 +1,87 @@
 # inOrch-TMF-Proxy – INTEND 5G4DATA Intent Management Service
 
-Python/Flask microservice that implements TMF921 Intent Management APIs and can deploy auxiliary workloads to the same Kubernetes cluster.
+Python/Flask microservice that implements TMF921 Intent Management APIs and can deploy auxiliary workloads to the same Kubernetes cluster, each deployment is created in its own namespace. IDO and planner is also installed in the same cluster.
 
-## Kubernetes Deployment with Helm
-### Setting up a cluster
-We have used minikube. To create a minikube cluster with proper DNS configuration, use the provided setup script:
+## Setting up a cluster and making it available over TMF 921.
+
+The `setup-cluster-from-scratch.sh` script automates the complete setup of a minikube cluster with all required components for inOrch-TMF-Proxy. It performs the following steps:
+
+### What the script does:
+
+1. **Prerequisites Check**: Verifies that required tools (minikube, kubectl, docker, helm) are installed.
+
+2. **Cluster Creation**: 
+   - Creates a new minikube cluster (or reuses existing one if found)
+   - Configures the cluster with appropriate resources (16 CPUs, 24GB memory)
+   - Labels the node for ingress controller scheduling
+
+3. **Ingress Configuration**:
+   - Enables the ingress addon
+   - Configures the ingress controller to use NodePort 30872
+   - Sets up external IP access and iptables forwarding for external connectivity
+
+4. **Chart Server Access**:
+   - Creates a Kubernetes service to expose the chart server running on the host
+   - Configures firewall rules to allow pods to access the chart server on port 3040
+
+5. **DNS Configuration**:
+   - Fixes DNS resolution in both CoreDNS and the minikube node
+   - Ensures pods can resolve external hostnames (e.g., ghcr.io for pulling images)
+
+6. **IDO Installation** (optional):
+   - Installs Intent Driven Orchestration components if `--ido-repo-path` is provided
+
+7. **GHCR Credentials**:
+   - Creates a Kubernetes secret with GitHub Container Registry credentials
+   - This allows pods to pull private images from GHCR
+
+8. **Proxy Deployment**:
+   - Builds the Docker image for inOrch-TMF-Proxy
+   - Loads the image into minikube
+   - Deploys the proxy using Helm
+
+9. **Port Forwarding** (optional):
+   - Sets up systemd service for persistent port forwarding to access the proxy locally
+
+10. **Ingress Forwarding** (optional):
+    - Configures iptables rules for external access to the ingress controller
+
+11. **Verification**:
+    - Checks cluster status, DNS resolution, ingress controller, and proxy deployment
+    - Verifies chart server reachability
+
+### Usage:
 
 ```bash
-# Create and configure minikube cluster (recommended)
-./setup-cluster.sh
+# Full setup with IDO
+./setup-cluster-from-scratch.sh --ido-repo-path /path/to/intent-driven-orchestration --ghcr-password ghp_your_token
+
+# Setup without IDO
+./setup-cluster-from-scratch.sh --skip-ido --ghcr-password ghp_your_token
+
+# See all options
+./setup-cluster-from-scratch.sh --help
 ```
 
-This script will:
-- Create the minikube cluster with the inOrch profile
-- Configure CoreDNS to use working DNS servers (fixes DNS resolution issues)
-- Verify the setup is working
+### Command-line Options:
 
-Alternatively, you can create the cluster manually:
-```bash
-# Create minikube profile
-minikube start --driver=docker --cpus=16 --memory=24G -p inOrch-TMF-Proxy
+- `--ido-repo-path PATH`: Path to IDO repository (optional)
+- `--ghcr-username USER`: GitHub username for GHCR (default: arne-munch-ellingsen)
+- `--ghcr-password TOKEN`: GitHub Personal Access Token for GHCR (required)
+- `--ghcr-email EMAIL`: Email for GHCR secret
+- `--profile PROFILE`: Minikube profile name (default: inOrch-TMF-Proxy)
+- `--skip-ido`: Skip IDO installation
+- `--skip-port-forward`: Skip systemd port-forwarding setup
+- `--skip-ingress-forward`: Skip ingress forwarding setup
+- `--force-recreate`: Force recreation of existing minikube profile
 
-# Then manually fix CoreDNS DNS forwarding (required for external DNS resolution)
-kubectl get configmap coredns -n kube-system -o yaml | \
-  sed 's|forward . /etc/resolv.conf|forward . 129.242.9.253 158.38.0.1 129.242.4.254|' | \
-  kubectl apply -f -
-kubectl rollout restart deployment/coredns -n kube-system
-```
+You should now have a complete minikube cluster with IDO+planner and the proxy. The proxy implements the TMF921 Intent Management API and will deploy the workloads mentioned in the received intent in a separate namespace in the cluster.
 
-We then cloned the [IDO repo](https://github.com/INTEND-Project/intent-driven-orchestration) and made the changes described in [inOrch-TMF-Proxy-IDO-README.md](./inOrch-TMF-Proxy-IDO-README.md). After that, we followed the instructions in IDO's [README.md](https://github.com/INTEND-Project/intent-driven-orchestration/blob/main/README.md) to install IDO in the minikube cluster:
-```bash
-kubectl create namespace ido
-kubectl apply -f artefacts/intents_crds_v1alpha1.yaml
-kubectl apply -f artefacts/deploy/manifest.yaml
-```
-
-Note that when the minikube profile is up and running it can be stopped and restarted like this:
-```bash
-# Stop a running inOrch profile
-minikube stop --profile inOrch
-# Restart it (as it was when it was stopped, i.e. IDO and inOrch-TMF-Proxy is still in the cluster if they were deployed to it)
-nohup minikube start --profile inOrch > inOrch.log 2>&1 &
-```
-
-**Important:** After restarting minikube, you may need to fix DNS in the minikube node if you encounter `ErrImagePull` errors when pulling images from external registries (like `ghcr.io`). Run:
-
-```bash
-./fix-minikube-dns.sh
-```
-
-This updates the minikube node's DNS configuration to use working DNS servers. This fix is temporary and needs to be reapplied after each minikube restart.
-### Build the inOrch-TMF-Proxy image and deploy it  
-
-Use the provided script to build and deploy inOrch-TMF-Proxy:
+## Build and deploy
+Use the provided script to build and (re)deploy inOrch-TMF-Proxy:
 ```bash
 ./build-and-deploy.sh
 ```
-Add a ghrc secret so that inOrch-TMF-Proxy can pull workload images mentioned in helm charts. The intent will reference the helm chart, and the helm chart will reference the image stored in ghrc. For the PoC, this is how we will do it, and for that, the `inorch-tmf-proxy` namespace needs the credentials to pull images from ghrc.
-
-```bash
-kubectl -n inorch-tmf-proxy create secret docker-registry ghcr-creds \
-  --docker-server=ghcr.io \
-  --docker-username=arne-munch-ellingsen \
-  --docker-password=xxxx \
-  --docker-email=you@example.com
-```
-
-
-### External access via persistent port-forward (systemd)
-
-Run a long-lived port-forward on the host using the provided `systemd-portforward-inorch-tmf-proxy.service` unit so the API stays reachable at `http://<host-ip>:3020/` (e.g., `http://start5g-1.cs.uit.no:3020/healthz`):
-
-```bash
-sudo cp systemd-portforward-inorch-tmf-proxy.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now systemd-portforward-inorch-tmf-proxy.service
-sudo systemctl status systemd-portforward-inorch-tmf-proxy.service
-```
-
-The unit runs `kubectl -n inorch-tmf-proxy port-forward svc/inorch-tmf-proxy 3020:3020 --address 0.0.0.0`. Adjust `User`, `Environment=KUBECONFIG=...`, or the listen port if your setup differs. View logs with `journalctl -u systemd-portforward-inorch-tmf-proxy.service`.
-
-### External access to deployed services via Ingress
-
-inOrch-TMF-Proxy automatically creates Ingress resources for deployed services with NodePort services, enabling path-based routing through the ingress controller. However, in minikube, NodePort services are only accessible via the minikube node IP (e.g., `192.168.49.2`), not the host's external IP.
-
-To enable external access from remote clients, set up iptables forwarding:
-
-```bash
-# Run the setup script (configures iptables forwarding)
-./setup-ingress-forwarding.sh
-```
-
-This script:
-- Sets up iptables rules to forward traffic from the host's external IP port 30872 to the minikube node
-- Makes the rules persistent across reboots (if `netfilter-persistent` is installed)
-- Enables access to all services via: `http://<host-ip>:30872/<app-name>/`
-
-**Note:** After minikube restarts, you may need to re-run this script if the minikube node IP changes.
-
-Alternatively, apply the raw manifests:
-
-```bash
-kubectl apply -f k8s/rbac.yaml
-kubectl apply -f k8s/configmap.yaml
-kubectl apply -f k8s/secret.yaml
-kubectl apply -f k8s/deployment.yaml
-kubectl apply -f k8s/service.yaml
-```
-
-### Configuration
-Environment variables (set via ConfigMap/Secret or Docker env):
-- `INSERV_HOST` / `INSERV_PORT` – bind address and port
-- `LOG_LEVEL` – logging verbosity
-- `ENABLE_K8S` – toggle Kubernetes workload deployment
-- `KUBE_NAMESPACE` – namespace for spawned workloads
-- `WORKLOAD_IMAGE`, `WORKLOAD_PULL_POLICY`, `WORKLOAD_SERVICE_ACCOUNT` – workload defaults
-- `REPORTING_HANDLER` / `REPORTING_OWNER` – metadata embedded in emitted intent reports
-- `ENABLE_OBSERVATION_REPORTS` – enable/disable periodic observation metrics (default `true`)
-- `OBSERVATION_INTERVAL_SECONDS` – cadence for observation reports (default `300`)
-- `OBSERVATION_METRIC_NAME` – metric name used for generated observations
-
-Health probe: `GET /healthz`
 
 ## Checking Cluster Resources
 

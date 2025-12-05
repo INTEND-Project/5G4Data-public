@@ -10,7 +10,19 @@ NAMESPACE="inorch-tmf-proxy"
 IDO_NAMESPACE="ido"
 DNS_SERVERS="129.242.9.253 158.38.0.1 129.242.4.254"
 GHCR_USERNAME="${GHCR_USERNAME:-arne-munch-ellingsen}"
-GHCR_PASSWORD="${GHCR_PASSWORD:-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}"
+
+# Get GHCR password from file or environment variable
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GHCR_PASSWORD_FILE="${GHCR_PASSWORD_FILE:-$SCRIPT_DIR/github-ghrc-pat}"
+
+if [ -z "$GHCR_PASSWORD" ]; then
+    if [ -f "$GHCR_PASSWORD_FILE" ]; then
+        GHCR_PASSWORD=$(cat "$GHCR_PASSWORD_FILE" | tr -d '\n\r ')
+    else
+        GHCR_PASSWORD=""
+    fi
+fi
+
 GHCR_EMAIL="${GHCR_EMAIL:-you@example.com}"
 
 # Flags
@@ -117,8 +129,14 @@ OPTIONS:
 ENVIRONMENT VARIABLES:
     MINIKUBE_PROFILE            Minikube profile name (overridden by --profile)
     GHCR_USERNAME               GitHub username (overridden by --ghcr-username)
-    GHCR_PASSWORD               GitHub PAT (overridden by --ghcr-password)
+    GHCR_PASSWORD               GitHub PAT (overridden by --ghcr-password or password file)
+    GHCR_PASSWORD_FILE          Path to file containing GitHub PAT (default: ./github-ghrc-pat)
     GHCR_EMAIL                  Email for GHCR secret (overridden by --ghcr-email)
+
+PASSWORD FILE:
+    The script will automatically read the GitHub PAT from a file named 'github-ghrc-pat'
+    in the same directory as the script. The file should contain only the token.
+    Alternatively, use --ghcr-password or GHCR_PASSWORD environment variable.
 
 EXAMPLES:
     # Full setup with IDO
@@ -154,7 +172,14 @@ check_prerequisites() {
     
     # Check if GHCR password is provided
     if [ -z "$GHCR_PASSWORD" ]; then
-        log_error "GHCR password is required. Provide it via --ghcr-password or GHCR_PASSWORD environment variable."
+        log_error "GHCR password is required."
+        echo ""
+        echo "Provide it via one of the following methods:"
+        echo "  1. Create a file: $GHCR_PASSWORD_FILE"
+        echo "  2. Use --ghcr-password TOKEN command-line option"
+        echo "  3. Set GHCR_PASSWORD environment variable"
+        echo ""
+        echo "The password file should contain only the GitHub Personal Access Token."
         exit 1
     fi
     
@@ -303,22 +328,40 @@ configure_ingress_externalip() {
     local minikube_ip
     minikube_ip=$(minikube ip -p $PROFILE 2>/dev/null || echo "192.168.49.2")
     
-    log_info "Setting up iptables forwarding from $host_ip:30872 to $minikube_ip:30872"
-    
-    # Add DNAT rule in PREROUTING
-    if ! sudo iptables -t nat -C PREROUTING -d "$host_ip" -p tcp --dport 30872 -j DNAT --to-destination "$minikube_ip:30872" 2>/dev/null; then
-        sudo iptables -t nat -I PREROUTING 1 -d "$host_ip" -p tcp --dport 30872 -j DNAT --to-destination "$minikube_ip:30872"
-        log_info "Added PREROUTING DNAT rule"
-    else
-        log_info "PREROUTING DNAT rule already exists"
+    # Check if socat is handling port forwarding (via systemd service or direct process)
+    local socat_handling_forwarding=false
+    if systemctl is-active --quiet ingress-forwarding-30872.service 2>/dev/null; then
+        socat_handling_forwarding=true
+        log_info "Detected socat-based port forwarding (ingress-forwarding-30872.service is active)"
+        log_info "Skipping DNAT rule setup to avoid conflicts with socat"
+    elif pgrep -f "socat.*TCP-LISTEN:30872" >/dev/null 2>&1 && \
+         (ss -tlnp 2>/dev/null | grep -q ":30872.*socat" || netstat -tlnp 2>/dev/null | grep -q ":30872.*socat"); then
+        socat_handling_forwarding=true
+        log_info "Detected socat process handling port forwarding on port 30872"
+        log_info "Skipping DNAT rule setup to avoid conflicts with socat"
     fi
     
-    # Add FORWARD rule
-    if ! sudo iptables -t filter -C FORWARD -d "$minikube_ip" -p tcp --dport 30872 -j ACCEPT 2>/dev/null; then
-        sudo iptables -t filter -I FORWARD 1 -d "$minikube_ip" -p tcp --dport 30872 -j ACCEPT
-        log_info "Added FORWARD rule"
+    # Only set up iptables DNAT rules if socat is NOT handling the forwarding
+    if [ "$socat_handling_forwarding" = "false" ]; then
+        log_info "Setting up iptables forwarding from $host_ip:30872 to $minikube_ip:30872"
+        
+        # Add DNAT rule in PREROUTING
+        if ! sudo iptables -t nat -C PREROUTING -d "$host_ip" -p tcp --dport 30872 -j DNAT --to-destination "$minikube_ip:30872" 2>/dev/null; then
+            sudo iptables -t nat -I PREROUTING 1 -d "$host_ip" -p tcp --dport 30872 -j DNAT --to-destination "$minikube_ip:30872"
+            log_info "Added PREROUTING DNAT rule"
+        else
+            log_info "PREROUTING DNAT rule already exists"
+        fi
+        
+        # Add FORWARD rule
+        if ! sudo iptables -t filter -C FORWARD -d "$minikube_ip" -p tcp --dport 30872 -j ACCEPT 2>/dev/null; then
+            sudo iptables -t filter -I FORWARD 1 -d "$minikube_ip" -p tcp --dport 30872 -j ACCEPT
+            log_info "Added FORWARD rule"
+        else
+            log_info "FORWARD rule already exists"
+        fi
     else
-        log_info "FORWARD rule already exists"
+        log_info "Using socat for port forwarding - iptables DNAT rules not needed"
     fi
     
     # Enable IP forwarding if not already enabled

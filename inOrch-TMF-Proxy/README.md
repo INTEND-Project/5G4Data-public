@@ -77,6 +77,74 @@ The `setup-cluster-from-scratch.sh` script automates the complete setup of a min
 
 You should now have a complete minikube cluster with IDO+planner and the proxy. The proxy implements the TMF921 Intent Management API and will deploy the workloads mentioned in the received intent in a separate namespace in the cluster.
 
+## Tearing Down the Cluster
+
+The `setup-cluster-from-scratch.sh` script makes several **system-wide changes** to your host machine that are not automatically cleaned up when you simply run `minikube delete`. These changes include:
+
+- **iptables rules**: DNAT rules for port forwarding, FORWARD rules for network access, INPUT rules for firewall access
+- **systemd services**: Port forwarding services (e.g., `ingress-forwarding-30872.service`, `systemd-portforward-inorch-tmf-proxy.service`)
+- **sysctl settings**: Network configuration changes (e.g., `route_localnet` for external interface)
+- **Running processes**: socat processes for TCP proxying
+
+If you only run `minikube delete`, these system-wide configurations will remain on your host, potentially causing:
+- Port conflicts if you recreate the cluster
+- Unnecessary firewall rules
+- Orphaned systemd services
+- Network configuration issues
+
+### Using the Cleanup Script
+
+The `delete_cluster_and_revert_system.sh` script properly tears down the cluster **and** reverts all system-wide changes, restoring your host to its pre-setup state.
+
+### What the cleanup script does:
+
+1. **Stops and removes systemd services**:
+   - Stops and disables `ingress-forwarding-30872.service`
+   - Stops and disables `systemd-portforward-inorch-tmf-proxy.service`
+   - Kills any remaining socat processes
+   - Removes systemd service files
+
+2. **Removes iptables rules**:
+   - DNAT rules for ingress forwarding
+   - FORWARD rules for minikube network access
+   - INPUT rules for chart server and ingress access
+   - UFW-specific rules (ufw-not-local, ufw-before-input)
+   - LOG rules and interface-specific rules
+
+3. **Reverts sysctl settings**:
+   - Removes `route_localnet` setting from `/etc/sysctl.conf`
+   - Reverts `route_localnet` to default value
+
+4. **Deletes the minikube cluster**:
+   - Removes the specified minikube profile
+
+5. **Verifies cleanup**:
+   - Checks that all services are stopped
+   - Verifies iptables rules are removed
+   - Confirms cluster deletion
+
+### Usage:
+
+```bash
+# Basic usage (uses default profile: inOrch-TMF-Proxy)
+./delete_cluster_and_revert_system.sh
+
+# With custom profile
+./delete_cluster_and_revert_system.sh --profile my-profile
+
+# Show help
+./delete_cluster_and_revert_system.sh --help
+```
+
+### Command-line Options:
+
+- `--profile PROFILE`: Minikube profile name to delete (default: inOrch-TMF-Proxy)
+- `--host-ip IP`: Host external IP address (default: 129.242.22.51)
+- `--minikube-ip IP`: Minikube node IP address (default: 192.168.49.2)
+- `-h, --help`: Show help message
+
+**Important**: Always use `delete_cluster_and_revert_system.sh` instead of just `minikube delete` to ensure a clean teardown and avoid leaving system-wide configurations that could interfere with future setups.
+
 ## Build and deploy
 Use the provided script to build and (re)deploy inOrch-TMF-Proxy:
 ```bash

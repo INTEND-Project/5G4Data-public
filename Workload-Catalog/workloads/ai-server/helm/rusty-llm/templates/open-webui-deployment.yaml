@@ -1,0 +1,63 @@
+{{- if .Values.openWebUI.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rusty-llm.fullname" . }}-open-webui
+  labels:
+    {{- include "rusty-llm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: open-webui
+spec:
+  replicas: {{ .Values.openWebUI.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "rusty-llm.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: open-webui
+  template:
+    metadata:
+      labels:
+        {{- include "rusty-llm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: open-webui
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: open-webui
+        image: "{{ .Values.openWebUI.image.repository }}:{{ .Values.openWebUI.image.tag }}"
+        imagePullPolicy: {{ .Values.openWebUI.image.pullPolicy }}
+        ports:
+        - containerPort: 8080
+        env:
+        {{- range $key, $value := .Values.openWebUI.env }}
+        {{- if ne $key "OPENAI_API_BASE_URL" }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.openWebUI.env.OPENAI_API_BASE_URL }}
+        - name: OPENAI_API_BASE_URL
+          value: {{ .Values.openWebUI.env.OPENAI_API_BASE_URL | quote }}
+        {{- else }}
+        - name: OPENAI_API_BASE_URL
+          value: "http://{{ include "rusty-llm.fullname" . }}.{{ .Release.Namespace }}:{{ .Values.service.port }}/v1"
+        {{- end }}
+        tty: true
+        volumeMounts:
+        {{- if .Values.openWebUI.volumes.webui.enabled }}
+        - name: webui-volume
+          mountPath: {{ .Values.openWebUI.volumes.webui.mountPath }}
+        {{- end }}
+      volumes:
+      {{- if .Values.openWebUI.volumes.webui.enabled }}
+      - name: webui-volume
+        {{- if eq .Values.openWebUI.volumes.webui.type "hostPath" }}
+        hostPath:
+          path: {{ .Values.openWebUI.volumes.webui.hostPath }}
+        {{- else if eq .Values.openWebUI.volumes.webui.type "persistentVolumeClaim" }}
+        persistentVolumeClaim:
+          claimName: {{ .Values.openWebUI.volumes.webui.claimName }}
+        {{- end }}
+      {{- end }}
+{{- end }}
+

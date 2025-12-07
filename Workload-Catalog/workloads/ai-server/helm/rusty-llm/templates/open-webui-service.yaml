@@ -1,0 +1,22 @@
+{{- if .Values.openWebUI.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rusty-llm.fullname" . }}-open-webui-ext
+  labels:
+    {{- include "rusty-llm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: open-webui
+spec:
+  selector:
+    {{- include "rusty-llm.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: open-webui
+  ports:
+    - protocol: TCP
+      port: {{ .Values.openWebUI.service.port }}
+      targetPort: {{ .Values.openWebUI.service.targetPort }}
+      {{- if and (eq .Values.openWebUI.service.type "NodePort") .Values.openWebUI.service.nodePort }}
+      nodePort: {{ .Values.openWebUI.service.nodePort }}
+      {{- end }}
+  type: {{ .Values.openWebUI.service.type }}
+{{- end }}
+

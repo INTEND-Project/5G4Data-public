@@ -1,0 +1,89 @@
+{{- if .Values.connectivityTest.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "rusty-llm.fullname" . }}-connectivity-test
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rusty-llm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: connectivity-test
+  annotations:
+    "helm.sh/hook": {{ .Values.connectivityTest.hook | default "test" }}
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": {{ .Values.connectivityTest.deletePolicy | default "before-hook-creation,hook-succeeded" }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.connectivityTest.ttlSecondsAfterFinished | default 300 }}
+  backoffLimit: {{ .Values.connectivityTest.backoffLimit | default 3 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rusty-llm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: connectivity-test
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: connectivity-test
+        image: {{ .Values.connectivityTest.image.repository }}:{{ .Values.connectivityTest.image.tag }}
+        imagePullPolicy: {{ .Values.connectivityTest.image.pullPolicy }}
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "=== Rusty-LLM Connectivity Test ==="
+          echo "Namespace: {{ .Release.Namespace }}"
+          echo "Service: {{ include "rusty-llm.fullname" . }}"
+          echo ""
+          
+          # Test 1: DNS Resolution
+          echo "Test 1: Testing DNS resolution for rusty-llm service..."
+          SERVICE_NAME="{{ include "rusty-llm.fullname" . }}"
+          NAMESPACE="{{ .Release.Namespace }}"
+          if nslookup "${SERVICE_NAME}.${NAMESPACE}.svc.cluster.local" > /dev/null 2>&1; then
+            echo "✓ DNS resolution successful"
+          else
+            echo "✗ DNS resolution failed"
+            exit 1
+          fi
+          echo ""
+          
+          # Test 2: Service endpoint reachability
+          echo "Test 2: Testing service endpoint reachability..."
+          SERVICE_URL="http://${SERVICE_NAME}.${NAMESPACE}:{{ .Values.service.port }}"
+          if curl -f -s --max-time 10 "${SERVICE_URL}/v1/models" > /dev/null 2>&1; then
+            echo "✓ Service endpoint is reachable"
+          else
+            echo "✗ Service endpoint is not reachable"
+            exit 1
+          fi
+          echo ""
+          
+          # Test 3: /v1/models endpoint
+          echo "Test 3: Testing /v1/models endpoint..."
+          MODELS_RESPONSE=$(curl -s --max-time 10 "http://${SERVICE_NAME}.${NAMESPACE}:{{ .Values.service.port }}/v1/models")
+          if echo "${MODELS_RESPONSE}" | grep -q "rusty_llm"; then
+            echo "✓ /v1/models endpoint working correctly"
+            echo "Response: ${MODELS_RESPONSE}"
+          else
+            echo "✗ /v1/models endpoint failed or returned unexpected response"
+            echo "Response: ${MODELS_RESPONSE}"
+            exit 1
+          fi
+          echo ""
+          
+          # Test 4: Test connection using Open WebUI URL format
+          echo "Test 4: Testing connection using Open WebUI URL format..."
+          OPENAI_URL="http://${SERVICE_NAME}.${NAMESPACE}:{{ .Values.service.port }}/v1"
+          if curl -f -s --max-time 10 "${OPENAI_URL}/models" > /dev/null 2>&1; then
+            echo "✓ Connection using Open WebUI URL format successful"
+            echo "URL: ${OPENAI_URL}"
+          else
+            echo "✗ Connection using Open WebUI URL format failed"
+            exit 1
+          fi
+          echo ""
+          
+          echo "=== All connectivity tests passed! ==="
+          echo "✓ rusty-llm service is accessible and responding correctly"
+{{- end }}
+

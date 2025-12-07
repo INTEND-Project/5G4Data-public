@@ -1,0 +1,145 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/arne-munch-ellingsen/rusty_llm
+  pullPolicy: Always  # Changed to Always to force pull of latest tag
+  tag: "latest"
+
+# Image pull secrets for private registries (e.g., GHCR)
+# Create the secret manually with:
+# kubectl create secret docker-registry ghcr-secret --docker-server=ghcr.io --docker-username=<username> --docker-password=<token> -n <namespace>
+imagePullSecrets:
+  - name: ghcr-secret
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: 'true'
+  prometheus.io/path: '/metrics'
+  prometheus.io/port: '8081'
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: LoadBalancer
+  port: 8080
+  targetPort: 8080
+
+# Environment variables for the rusty_llm application
+env:
+  MODEL_THREADS: "12"
+  HTTP_ADDRESS: "0.0.0.0:8080"
+  PROMETHEUS_HTTP_ADDRESS: "0.0.0.0:8081"
+  MODEL_MAX_TOKEN: "2048"
+  RUST_LOG: "debug"
+  MODEL_PROMPT_TEMPLATE: "<|system|> Using this information: {context} answer the following question. Use 3 paragraphs or less. <|end|><|user|> {query} <|end|><|assistant|>"
+  DATA_PATH: "/home/data"  # Data is now included in the Docker image at /home/data
+  # EMBEDDING_MODEL: "model/embed.gguf"
+  # HTTP_WORKERS: "1"
+  # INSTANCE_LABEL: "default"
+  # MAIN_GPU: "0"
+  # MODEL_GPU_LAYERS: "0"
+  # MODEL_PATH: "model/model.gguf"
+
+resources:
+  requests:
+    memory: 20Gi
+  limits:
+    memory: 20Gi
+
+# Volume configuration
+volumes:
+  model:
+    enabled: false  # Models are now included in the Docker image
+    type: hostPath
+    hostPath: /home/models
+    mountPath: /app/model
+  data:
+    enabled: false  # Data is now included in the Docker image
+    type: hostPath
+    hostPath: /home/data
+    mountPath: /app/data
+
+# Prometheus monitoring
+prometheus:
+  enabled: true
+  scrape: true
+  path: /metrics
+  port: 8081
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Open WebUI configuration
+openWebUI:
+  enabled: true
+  image:
+    repository: ghcr.io/arne-munch-ellingsen/open-webui
+    tag: rusty-llm-subpath  # Custom build with base path /rusty-llm configured in svelte.config.js
+    pullPolicy: Always  # Use Always to ensure we get the latest custom build
+  replicaCount: 1
+  service:
+    type: ClusterIP  # ClusterIP is sufficient since ingress handles routing
+    port: 3000
+    targetPort: 8080
+  ingress:
+    enabled: true
+    className: ""  # Leave empty for default ingress class, or specify e.g., "nginx"
+    annotations:
+      # Rewrite /rusty-llm to / for server-side routing
+      # Pattern /rusty-llm(/|$)(.*) captures:
+      #   $1 = (/|$) - the slash or end
+      #   $2 = (.*) - everything after /rusty-llm/
+      # We want $2, so /rusty-llm/chat becomes /chat, and /rusty-llm becomes /
+      # Note: No server-snippet needed since base path is correctly configured in svelte.config.js build
+      nginx.ingress.kubernetes.io/rewrite-target: /$2
+      nginx.ingress.kubernetes.io/use-regex: "true"
+    hosts:
+      - host: ""  # Empty host means it will match any hostname
+        paths:
+          # Serve from /rusty-llm subpath - use regex to capture path after /rusty-llm
+          # This matches the base path configured in svelte.config.js
+          - path: /rusty-llm(/|$)(.*)
+            pathType: ImplementationSpecific
+    tls: []
+    # Example TLS configuration:
+    # tls:
+    #   - secretName: open-webui-tls
+    #     hosts:
+    #       - open-webui.local
+  env:
+    WEBUI_AUTH: "false"
+    ENABLE_OLLAMA_API: "false"
+    OPENAI_API_BASE_URL: ""  # If empty, will use service name template: http://<service-name>.<namespace>:8080/v1
+    DEFAULT_MODELS: "rusty_llm"
+    WEBUI_BASE_URL: "/rusty-llm"  # Required when serving Open WebUI from a subpath (matches svelte.config.js base path)
+    WEBUI_URL: "http://start5g-1.cs.uit.no:30872/rusty-llm"  # Full URL for OAuth/SSO
+  volumes:
+    webui:
+      enabled: true
+      type: hostPath
+      hostPath: /home/open-webui/  # Update this to your desired host path
+      mountPath: /app/backend/data
+
+# Connectivity test configuration
+connectivityTest:
+  enabled: false  # Set to true to enable connectivity test as a Helm test hook
+  image:
+    repository: curlimages/curl
+    tag: latest
+    pullPolicy: IfNotPresent
+  hook: "test"  # Helm hook type: "test" runs with `helm test`, "post-install" runs after install
+  deletePolicy: "before-hook-creation,hook-succeeded"  # Clean up after success
+  ttlSecondsAfterFinished: 300  # Clean up job after 5 minutes
+  backoffLimit: 3  # Retry up to 3 times on failure
+

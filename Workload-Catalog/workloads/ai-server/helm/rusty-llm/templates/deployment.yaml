@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rusty-llm.fullname" . }}
+  labels:
+    {{- include "rusty-llm.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "rusty-llm.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "rusty-llm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ai-server
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "rusty-llm.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: ai-server
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: server-port
+              containerPort: 8080
+              protocol: TCP
+            - name: prometheus-port
+              containerPort: 8081
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          volumeMounts:
+            {{- if .Values.volumes.model.enabled }}
+            - name: model-vol
+              mountPath: {{ .Values.volumes.model.mountPath }}
+            {{- end }}
+            {{- if .Values.volumes.data.enabled }}
+            - name: data-vol
+              mountPath: {{ .Values.volumes.data.mountPath }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        {{- if .Values.volumes.model.enabled }}
+        - name: model-vol
+          {{- if eq .Values.volumes.model.type "hostPath" }}
+          hostPath:
+            path: {{ .Values.volumes.model.hostPath }}
+          {{- else if eq .Values.volumes.model.type "persistentVolumeClaim" }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.volumes.model.claimName }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.volumes.data.enabled }}
+        - name: data-vol
+          {{- if eq .Values.volumes.data.type "hostPath" }}
+          hostPath:
+            path: {{ .Values.volumes.data.hostPath }}
+          {{- else if eq .Values.volumes.data.type "persistentVolumeClaim" }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.volumes.data.claimName }}
+          {{- end }}
+        {{- end }}
+      restartPolicy: Always
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+

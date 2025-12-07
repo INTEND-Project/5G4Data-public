@@ -17,3 +17,8 @@ Workload-Catalog/intent_simulator.log
 Workload-Catalog/nohup.out
 Workload-Catalog/public/images/hello-icon.svg
 inOrch-TMF-Proxy/.github-token
+Workload-Catalog/workloads/ai-server/github-ghcr-pat
+.gitignore
+Workload-Catalog/workloads/ai-server/models/model.gguf
+Workload-Catalog/workloads/ai-server/models/Phi-3.5-mini-instruct-Q4_K_S.gguf
+Workload-Catalog/workloads/ai-server/models/embed.gguf

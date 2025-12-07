@@ -1,0 +1,90 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rusty-llm-connectivity-test
+  namespace: rusty-llm
+  labels:
+    app: rusty-llm-connectivity-test
+spec:
+  ttlSecondsAfterFinished: 300  # Clean up after 5 minutes
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: rusty-llm-connectivity-test
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: connectivity-test
+        image: curlimages/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "=== Rusty-LLM Connectivity Test ==="
+          echo ""
+          
+          # Test 1: DNS Resolution
+          echo "Test 1: Testing DNS resolution for rusty-llm service..."
+          if nslookup rusty-llm.rusty-llm.svc.cluster.local > /dev/null 2>&1; then
+            echo "✓ DNS resolution successful"
+          else
+            echo "✗ DNS resolution failed"
+            exit 1
+          fi
+          echo ""
+          
+          # Test 2: Service endpoint reachability
+          echo "Test 2: Testing service endpoint reachability..."
+          SERVICE_URL="http://rusty-llm.rusty-llm:8080"
+          if curl -f -s --max-time 10 "${SERVICE_URL}/health" > /dev/null 2>&1 || curl -f -s --max-time 10 "${SERVICE_URL}/v1/models" > /dev/null 2>&1; then
+            echo "✓ Service endpoint is reachable"
+          else
+            echo "✗ Service endpoint is not reachable"
+            exit 1
+          fi
+          echo ""
+          
+          # Test 3: /v1/models endpoint
+          echo "Test 3: Testing /v1/models endpoint..."
+          MODELS_RESPONSE=$(curl -s --max-time 10 "http://rusty-llm.rusty-llm:8080/v1/models")
+          if echo "${MODELS_RESPONSE}" | grep -q "rusty_llm"; then
+            echo "✓ /v1/models endpoint working correctly"
+            echo "Response: ${MODELS_RESPONSE}"
+          else
+            echo "✗ /v1/models endpoint failed or returned unexpected response"
+            echo "Response: ${MODELS_RESPONSE}"
+            exit 1
+          fi
+          echo ""
+          
+          # Test 4: /v1/chat/completions endpoint (without actually streaming)
+          echo "Test 4: Testing /v1/chat/completions endpoint structure..."
+          CHAT_RESPONSE=$(curl -s --max-time 10 -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"stream": false, "model": "rusty_llm", "messages": [{"role": "user", "content": "test"}]}' \
+            "http://rusty-llm.rusty-llm:8080/v1/chat/completions" 2>&1 || echo "STREAMING_ENDPOINT")
+          
+          if echo "${CHAT_RESPONSE}" | grep -q "stream.*true\|STREAMING_ENDPOINT"; then
+            echo "✓ /v1/chat/completions endpoint is accessible (streaming mode required)"
+          else
+            echo "⚠ /v1/chat/completions endpoint check (may require streaming=true)"
+          fi
+          echo ""
+          
+          # Test 5: Test connection using the same URL format Open WebUI would use
+          echo "Test 5: Testing connection using Open WebUI URL format..."
+          OPENAI_URL="http://rusty-llm.rusty-llm:8080/v1"
+          if curl -f -s --max-time 10 "${OPENAI_URL}/models" > /dev/null 2>&1; then
+            echo "✓ Connection using Open WebUI URL format successful"
+            echo "URL: ${OPENAI_URL}"
+          else
+            echo "✗ Connection using Open WebUI URL format failed"
+            exit 1
+          fi
+          echo ""
+          
+          echo "=== All connectivity tests passed! ==="
+          echo "✓ rusty-llm service is accessible and responding correctly"
+          

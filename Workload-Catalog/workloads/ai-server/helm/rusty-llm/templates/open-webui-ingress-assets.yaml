@@ -1,0 +1,69 @@
+{{- if and .Values.openWebUI.enabled .Values.openWebUI.ingress.enabled }}
+{{- $fullName := include "rusty-llm.fullname" . }}
+{{- $svcPort := .Values.openWebUI.service.port }}
+# Separate ingress for _app, static, api, auth paths that Open WebUI generates
+# The main ingress rewrites /rusty-llm/_app/... to /_app/..., and this ingress handles those rewritten paths
+# Note: With base path correctly configured in svelte.config.js, paths should be prefixed with /rusty-llm
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}-open-webui-assets
+  labels:
+    {{- include "rusty-llm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: open-webui-assets
+  annotations:
+    # These paths should pass through as-is (no rewrite needed)
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  {{- if .Values.openWebUI.ingress.className }}
+  ingressClassName: {{ .Values.openWebUI.ingress.className }}
+  {{- end }}
+  rules:
+    - http:
+        paths:
+          # Handle absolute paths that Open WebUI generates
+          # These should work from both root and /rusty-llm (after rewrite)
+          - path: /_app
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullName }}-open-webui-ext
+                port:
+                  number: {{ $svcPort }}
+          - path: /static
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullName }}-open-webui-ext
+                port:
+                  number: {{ $svcPort }}
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullName }}-open-webui-ext
+                port:
+                  number: {{ $svcPort }}
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullName }}-open-webui-ext
+                port:
+                  number: {{ $svcPort }}
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullName }}-open-webui-ext
+                port:
+                  number: {{ $svcPort }}
+          - path: /manifest.json
+            pathType: Exact
+            backend:
+              service:
+                name: {{ $fullName }}-open-webui-ext
+                port:
+                  number: {{ $svcPort }}
+{{- end }}
+

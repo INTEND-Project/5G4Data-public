@@ -22,3 +22,5 @@ Workload-Catalog/workloads/ai-server/github-ghcr-pat
 Workload-Catalog/workloads/ai-server/models/model.gguf
 Workload-Catalog/workloads/ai-server/models/Phi-3.5-mini-instruct-Q4_K_S.gguf
 Workload-Catalog/workloads/ai-server/models/embed.gguf
+Workload-Catalog/workloads/ai-server/rusty-llm-0.1.1.tgz
+inOrch-TMF-Proxy/llm-intent.yaml

@@ -40,5 +40,9 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Permissions for IDO (Intent Driven Orchestration) custom resources
+  - apiGroups: ["ido.intel.com"]
+    resources: ["kpiprofiles", "intents"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 {{- end }}
 

@@ -1,57 +1,84 @@
 #!/bin/bash
-# Build and push script for Rusty LLM application and modified Open WebUI to GHCR and ChartMuseum
+# Build and push script for Rusty LLM application to GHCR and ChartMuseum
+# OpenWebUI uses the standard image from ghcr.io/open-webui/open-webui:main
 
 set -e
 
 # Configuration
 GITHUB_USERNAME="${GITHUB_USERNAME:-arne-munch-ellingsen}"
 RUSTY_LLM_IMAGE_NAME="rusty_llm"
-OPEN_WEBUI_IMAGE_NAME="open-webui"
 RUSTY_LLM_VERSION="${1:-latest}"
-OPEN_WEBUI_VERSION="${OPEN_WEBUI_VERSION:-rusty-llm-subpath}"
 RUSTY_LLM_REPO="ghcr.io/${GITHUB_USERNAME}/${RUSTY_LLM_IMAGE_NAME}"
-OPEN_WEBUI_REPO="ghcr.io/${GITHUB_USERNAME}/${OPEN_WEBUI_IMAGE_NAME}"
 CHARTMUSEUM_URL="${CHARTMUSEUM_URL:-http://start5g-1.cs.uit.no:3040}"
 HELM_CHART_DIR="helm/rusty-llm"
 DOCKERFILE_DIR="rusty_llm"
-OPEN_WEBUI_DIR="open-webui"
 
-# Get GHCR password from file or environment variable
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GHCR_PASSWORD_FILE="${GHCR_PASSWORD_FILE:-$SCRIPT_DIR/github-ghcr-pat}"
+    # Get GHCR password from file or environment variable
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    GHCR_PASSWORD_FILE="${GHCR_PASSWORD_FILE:-$SCRIPT_DIR/github-ghcr-pat}"
 
-if [ -z "$GHCR_PASSWORD" ]; then
-    if [ -f "$GHCR_PASSWORD_FILE" ]; then
-        GHCR_PASSWORD=$(cat "$GHCR_PASSWORD_FILE" | tr -d '\n\r ')
-    else
-        GHCR_PASSWORD=""
+    if [ -z "$GHCR_PASSWORD" ]; then
+        if [ -f "$GHCR_PASSWORD_FILE" ]; then
+            GHCR_PASSWORD=$(cat "$GHCR_PASSWORD_FILE" | tr -d '\n\r ')
+        else
+            GHCR_PASSWORD=""
+        fi
     fi
-fi
 
-# Check if GHCR password is provided
-if [ -z "$GHCR_PASSWORD" ]; then
-    echo "Error: GHCR password is required." >&2
-    echo ""
-    echo "Provide it via one of the following methods:"
-    echo "  1. Create a file: $GHCR_PASSWORD_FILE"
+    # Check if GHCR password is provided
+    if [ -z "$GHCR_PASSWORD" ]; then
+        echo "Error: GHCR password is required." >&2
+        echo ""
+        echo "Provide it via one of the following methods:"
+        echo "  1. Create a file: $GHCR_PASSWORD_FILE"
     echo "  2. Set GHCR_PASSWORD environment variable"
-    echo ""
-    echo "The password file should contain only the GitHub Personal Access Token."
-    exit 1
-fi
+        echo ""
+        echo "The password file should contain only the GitHub Personal Access Token."
+        exit 1
+    fi
 
-# Ask user if they want to build and push Docker images
-read -p "Do you want to build and push the Docker images? (y/n): " BUILD_IMAGE
-BUILD_IMAGE=$(echo "$BUILD_IMAGE" | tr '[:upper:]' '[:lower:]')
+# Ask user which components to build
+echo "Which components do you want to build?"
+echo "  1) Only Rusty LLM (default - OpenWebUI uses standard image)"
+echo "  2) Skip Docker builds (only package Helm chart)"
+read -p "Enter choice [1-2] (default: 1): " BUILD_CHOICE
+BUILD_CHOICE=${BUILD_CHOICE:-1}
 
-if [ "$BUILD_IMAGE" = "y" ] || [ "$BUILD_IMAGE" = "yes" ]; then
+BUILD_RUSTY_LLM=false
+BUILD_OPEN_WEBUI=false
+
+case "$BUILD_CHOICE" in
+    1)
+        BUILD_RUSTY_LLM=true
+        ;;
+    2)
+        echo "Skipping Docker image builds."
+        ;;
+    *)
+        echo "Invalid choice. Building Rusty LLM only."
+        BUILD_RUSTY_LLM=true
+        ;;
+esac
+
+if [ "$BUILD_RUSTY_LLM" = true ] || [ "$BUILD_OPEN_WEBUI" = true ]; then
     echo "Logging in to GHCR..."
     echo "$GHCR_PASSWORD" | docker login ghcr.io -u "${GITHUB_USERNAME}" --password-stdin
+fi
 
+if [ "$BUILD_RUSTY_LLM" = true ]; then
+    # Delete old local Rusty LLM images
+    echo ""
+    echo "=== Cleaning up old Rusty LLM images ==="
+    docker rmi "${RUSTY_LLM_REPO}:${RUSTY_LLM_VERSION}" 2>/dev/null || true
+    if [ "$RUSTY_LLM_VERSION" != "latest" ]; then
+        docker rmi "${RUSTY_LLM_REPO}:latest" 2>/dev/null || true
+    fi
+    echo "Old Rusty LLM images removed (if they existed)."
+    
     # Build and push Rusty LLM image
     echo ""
     echo "=== Building Rusty LLM image ==="
-    docker build -t "${RUSTY_LLM_REPO}:${RUSTY_LLM_VERSION}" -f "${DOCKERFILE_DIR}/Dockerfile" "${SCRIPT_DIR}"
+    docker build --no-cache -t "${RUSTY_LLM_REPO}:${RUSTY_LLM_VERSION}" -f "${DOCKERFILE_DIR}/Dockerfile" "${SCRIPT_DIR}"
 
     echo "Tagging Rusty LLM as latest (if not already)..."
     if [ "$RUSTY_LLM_VERSION" != "latest" ]; then
@@ -63,40 +90,40 @@ if [ "$BUILD_IMAGE" = "y" ] || [ "$BUILD_IMAGE" = "yes" ]; then
     if [ "$RUSTY_LLM_VERSION" != "latest" ]; then
         docker push "${RUSTY_LLM_REPO}:latest"
     fi
-
-    # Build and push modified Open WebUI image
-    echo ""
-    echo "=== Building modified Open WebUI image ==="
-    echo "Building with base path configured in svelte.config.js..."
-    cd "${SCRIPT_DIR}/${OPEN_WEBUI_DIR}"
-    
-    # Get build hash from git if available
-    BUILD_HASH=$(git rev-parse HEAD 2>/dev/null || echo "custom-$(date +%s)")
-    
-    docker build \
-        --build-arg USE_CUDA=false \
-        --build-arg USE_OLLAMA=false \
-        --build-arg BUILD_HASH="${BUILD_HASH}" \
-        -t "${OPEN_WEBUI_REPO}:${OPEN_WEBUI_VERSION}" \
-        -t "${OPEN_WEBUI_REPO}:latest" \
-        .
-
-    echo "Pushing Open WebUI to GHCR..."
-    docker push "${OPEN_WEBUI_REPO}:${OPEN_WEBUI_VERSION}"
-    docker push "${OPEN_WEBUI_REPO}:latest"
-    
-    cd "${SCRIPT_DIR}"
-    echo ""
-else
-    echo "Skipping Docker image build and push."
     echo ""
 fi
 
+# OpenWebUI now uses standard image from ghcr.io/open-webui/open-webui
+# No custom build needed
+
 echo ""
 echo "Packaging Helm chart..."
-# Extract chart version from Chart.yaml
-CHART_VERSION=$(grep "^version:" "${HELM_CHART_DIR}/Chart.yaml" | awk '{print $2}')
+
+# Extract chart name and current version from Chart.yaml
 CHART_NAME=$(grep "^name:" "${HELM_CHART_DIR}/Chart.yaml" | awk '{print $2}')
+CURRENT_VERSION=$(grep "^version:" "${HELM_CHART_DIR}/Chart.yaml" | awk '{print $2}')
+
+# Increment patch version (e.g., 0.1.0 -> 0.1.1, 0.1.1 -> 0.1.2)
+IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+MAJOR=${VERSION_PARTS[0]}
+MINOR=${VERSION_PARTS[1]}
+PATCH=${VERSION_PARTS[2]}
+NEW_PATCH=$((PATCH + 1))
+NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+
+echo "Incrementing chart version: ${CURRENT_VERSION} -> ${NEW_VERSION}"
+
+# Update Chart.yaml with new version
+sed -i "s/^version: ${CURRENT_VERSION}/version: ${NEW_VERSION}/" "${HELM_CHART_DIR}/Chart.yaml"
+
+# Verify the version was updated
+UPDATED_VERSION=$(grep "^version:" "${HELM_CHART_DIR}/Chart.yaml" | awk '{print $2}')
+if [ "$UPDATED_VERSION" != "$NEW_VERSION" ]; then
+    echo "Error: Failed to update chart version"
+    exit 1
+fi
+
+CHART_VERSION=$NEW_VERSION
 CHART_PACKAGE="${CHART_NAME}-${CHART_VERSION}.tgz"
 
 # Package the Helm chart
@@ -122,18 +149,16 @@ rm -f "${CHART_PACKAGE}"
 
 echo ""
 echo "Done! Images available at:"
-echo "  Rusty LLM: ${RUSTY_LLM_REPO}:${RUSTY_LLM_VERSION}"
-echo "  Open WebUI: ${OPEN_WEBUI_REPO}:${OPEN_WEBUI_VERSION}"
-echo "Helm chart pushed to: ${CHARTMUSEUM_URL}"
+if [ "$BUILD_RUSTY_LLM" = true ]; then
+    echo "  Rusty LLM: ${RUSTY_LLM_REPO}:${RUSTY_LLM_VERSION}"
+fi
+echo "  Open WebUI: Using standard image from ghcr.io/open-webui/open-webui:main"
+echo "Helm chart (version ${CHART_VERSION}) pushed to: ${CHARTMUSEUM_URL}"
 echo ""
-echo "To use these images, update helm/rusty-llm/values.yaml:"
-echo "  image:"
-echo "    repository: ${RUSTY_LLM_REPO}"
-echo "    tag: \"${RUSTY_LLM_VERSION}\""
-echo ""
-echo "  openWebUI:"
-echo "    image:"
-echo "      repository: ${OPEN_WEBUI_REPO}"
-echo "      tag: \"${OPEN_WEBUI_VERSION}\""
-echo "      pullPolicy: Always"
+if [ "$BUILD_RUSTY_LLM" = true ]; then
+    echo "To use the Rusty LLM image, update helm/rusty-llm/values.yaml:"
+    echo "  image:"
+    echo "    repository: ${RUSTY_LLM_REPO}"
+    echo "    tag: \"${RUSTY_LLM_VERSION}\""
+fi
 

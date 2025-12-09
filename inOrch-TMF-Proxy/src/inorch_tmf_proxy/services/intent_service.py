@@ -261,13 +261,29 @@ class IntentService:
                 )
                 return
 
+            # Extract p99-token-target from Turtle expression
+            p99_token_target = None
+            try:
+                turtle_data = expression.get("expressionValue", "")
+                if turtle_data:
+                    p99_token_target = self._turtle_parser.parse_p99_token_target(turtle_data)
+                    if p99_token_target:
+                        self._logger.info(
+                            "Extracted p99-token-target %.3f seconds for intent_id=%s",
+                            p99_token_target,
+                            intent_id,
+                        )
+            except Exception as exc:
+                self._logger.debug("Could not extract p99-token-target: %s", exc)
+
             # Deploy Helm chart in background thread to avoid blocking the request
             # (Helm deployments can take several minutes and would cause health probe timeouts)
             self._logger.info(
-                "Scheduling Helm chart deployment for intent_id=%s: chart=%s, namespace=%s",
+                "Scheduling Helm chart deployment for intent_id=%s: chart=%s, namespace=%s, p99-token-target=%s",
                 intent_id,
                 deployment_descriptor,
                 application,
+                f"{p99_token_target:.3f}s" if p99_token_target else "not specified",
             )
 
             import threading
@@ -279,6 +295,7 @@ class IntentService:
                         namespace=application,
                         release_name=application,
                         intent_id=intent_id,
+                        p99_token_target=p99_token_target,
                     )
 
                     if success:

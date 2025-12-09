@@ -36,6 +36,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods/portforward"]
     verbs: ["create"]
+  # Permissions for IDO (Intent Driven Orchestration) custom resources
+  - apiGroups: ["ido.intel.com"]
+    resources: ["kpiprofiles", "intents"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

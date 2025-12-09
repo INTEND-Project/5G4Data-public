@@ -84,46 +84,22 @@ affinity: {}
 openWebUI:
   enabled: true
   image:
-    repository: ghcr.io/arne-munch-ellingsen/open-webui
-    tag: rusty-llm-subpath  # Custom build with base path /rusty-llm configured in svelte.config.js
-    pullPolicy: Always  # Use Always to ensure we get the latest custom build
+    repository: ghcr.io/open-webui/open-webui
+    tag: main  # Using standard OpenWebUI image
+    pullPolicy: Always
   replicaCount: 1
   service:
-    type: ClusterIP  # ClusterIP is sufficient since ingress handles routing
+    type: NodePort
     port: 3000
     targetPort: 8080
+    nodePort: 30873  # Direct NodePort access
   ingress:
-    enabled: true
-    className: ""  # Leave empty for default ingress class, or specify e.g., "nginx"
-    annotations:
-      # Rewrite /rusty-llm to / for server-side routing
-      # Pattern /rusty-llm(/|$)(.*) captures:
-      #   $1 = (/|$) - the slash or end
-      #   $2 = (.*) - everything after /rusty-llm/
-      # We want $2, so /rusty-llm/chat becomes /chat, and /rusty-llm becomes /
-      # Note: No server-snippet needed since base path is correctly configured in svelte.config.js build
-      nginx.ingress.kubernetes.io/rewrite-target: /$2
-      nginx.ingress.kubernetes.io/use-regex: "true"
-    hosts:
-      - host: ""  # Empty host means it will match any hostname
-        paths:
-          # Serve from /rusty-llm subpath - use regex to capture path after /rusty-llm
-          # This matches the base path configured in svelte.config.js
-          - path: /rusty-llm(/|$)(.*)
-            pathType: ImplementationSpecific
-    tls: []
-    # Example TLS configuration:
-    # tls:
-    #   - secretName: open-webui-tls
-    #     hosts:
-    #       - open-webui.local
+    enabled: false  # Disabled - using NodePort instead
   env:
     WEBUI_AUTH: "false"
     ENABLE_OLLAMA_API: "false"
     OPENAI_API_BASE_URL: ""  # If empty, will use service name template: http://<service-name>.<namespace>:8080/v1
     DEFAULT_MODELS: "rusty_llm"
-    WEBUI_BASE_URL: "/rusty-llm"  # Required when serving Open WebUI from a subpath (matches svelte.config.js base path)
-    WEBUI_URL: "http://start5g-1.cs.uit.no:30872/rusty-llm"  # Full URL for OAuth/SSO
   volumes:
     webui:
       enabled: true

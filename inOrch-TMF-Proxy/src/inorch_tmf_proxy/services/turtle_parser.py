@@ -129,3 +129,93 @@ class TurtleParser:
         
         return None
 
+    def parse_p99_token_target(self, turtle_data: str) -> Optional[float]:
+        """
+        Parse Turtle RDF data to extract p99-token-target value from Condition.
+        
+        Looks for conditions with data5g:p99-token-target as the target property
+        and extracts the value from quan:smaller constraint.
+        
+        Returns the value in seconds (converts from ms if needed), or None if not found.
+        """
+        try:
+            graph = Graph()
+            graph.parse(data=turtle_data, format="turtle")
+            graph.bind("data5g", self.DATA5G_NS, override=False)
+            graph.bind("icm", self.ICM_NS, override=False)
+            graph.bind("quan", "http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/", override=False)
+            graph.bind("set", "http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/", override=False)
+            
+            icm_condition = URIRef(f"{self.ICM_NS}Condition")
+            set_forall = URIRef("http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/forAll")
+            icm_values_of_target_prop = URIRef(f"{self.ICM_NS}valuesOfTargetProperty")
+            quan_smaller = URIRef("http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/smaller")
+            quan_unit = URIRef("http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/unit")
+            rdf_value = URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#value")
+            
+            # Find all Conditions
+            for condition in graph.subjects(RDF.type, icm_condition):
+                # Check if this condition has a forAll that references p99-token-target
+                forall_objects = list(graph.objects(condition, set_forall))
+                
+                for forall_obj in forall_objects:
+                    # Check if this forAll has valuesOfTargetProperty pointing to p99-token-target
+                    target_props = list(graph.objects(forall_obj, icm_values_of_target_prop))
+                    
+                    for target_prop in target_props:
+                        target_prop_str = str(target_prop)
+                        # Check if it contains p99-token-target
+                        if "p99-token-target" in target_prop_str:
+                            self._logger.debug(
+                                "Found p99-token-target condition: %s",
+                                target_prop_str
+                            )
+                            
+                            # Find the quan:smaller constraint
+                            smaller_objects = list(graph.objects(forall_obj, quan_smaller))
+                            
+                            for smaller_obj in smaller_objects:
+                                # Extract the value and unit
+                                value = None
+                                unit = None
+                                
+                                # Get the value
+                                for val_obj in graph.objects(smaller_obj, rdf_value):
+                                    if isinstance(val_obj, Literal):
+                                        try:
+                                            value = float(val_obj)
+                                        except (ValueError, TypeError):
+                                            continue
+                                
+                                # Get the unit
+                                for unit_obj in graph.objects(smaller_obj, quan_unit):
+                                    if isinstance(unit_obj, Literal):
+                                        unit = str(unit_obj).lower()
+                                
+                                if value is not None:
+                                    # Convert to seconds if unit is ms
+                                    if unit == "ms":
+                                        value_seconds = value / 1000.0
+                                    elif unit == "s" or unit == "sec" or unit == "seconds":
+                                        value_seconds = value
+                                    else:
+                                        # Default to seconds if unit is unknown
+                                        value_seconds = value
+                                        self._logger.warning(
+                                            "Unknown unit '%s' for p99-token-target, assuming seconds",
+                                            unit
+                                        )
+                                    
+                                    self._logger.info(
+                                        "Extracted p99-token-target: %.3f %s (%.3f seconds)",
+                                        value,
+                                        unit or "unknown",
+                                        value_seconds
+                                    )
+                                    return value_seconds
+            
+            return None
+        except Exception as exc:
+            self._logger.warning("Failed to extract p99-token-target from Turtle: %s", exc)
+            return None
+

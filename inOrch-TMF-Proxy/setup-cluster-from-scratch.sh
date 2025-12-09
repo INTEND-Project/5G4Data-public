@@ -10,6 +10,8 @@ NAMESPACE="inorch-tmf-proxy"
 IDO_NAMESPACE="ido"
 DNS_SERVERS="129.242.9.253 158.38.0.1 129.242.4.254"
 GHCR_USERNAME="${GHCR_USERNAME:-arne-munch-ellingsen}"
+MINIKUBE_CPUS="${MINIKUBE_CPUS:-16}"
+MINIKUBE_MEMORY="${MINIKUBE_MEMORY:-24G}"
 
 # Get GHCR password from file or environment variable
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -79,6 +81,14 @@ parse_args() {
                 PROFILE="$2"
                 shift 2
                 ;;
+            --cpus)
+                MINIKUBE_CPUS="$2"
+                shift 2
+                ;;
+            --memory)
+                MINIKUBE_MEMORY="$2"
+                shift 2
+                ;;
             --skip-ido)
                 SKIP_IDO=true
                 shift
@@ -120,6 +130,8 @@ OPTIONS:
     --ghcr-password TOKEN       GitHub Personal Access Token for GHCR
     --ghcr-email EMAIL          Email for GHCR secret (default: you@example.com)
     --profile PROFILE           Minikube profile name (default: inOrch-TMF-Proxy)
+    --cpus CPUS                 Number of CPUs to allocate to minikube (default: 16)
+    --memory MEMORY             Amount of memory to allocate to minikube (default: 24G)
     --skip-ido                  Skip IDO installation
     --skip-port-forward         Skip systemd port-forwarding setup
     --skip-ingress-forward      Skip ingress forwarding setup
@@ -132,6 +144,8 @@ ENVIRONMENT VARIABLES:
     GHCR_PASSWORD               GitHub PAT (overridden by --ghcr-password or password file)
     GHCR_PASSWORD_FILE          Path to file containing GitHub PAT (default: ./github-ghrc-pat)
     GHCR_EMAIL                  Email for GHCR secret (overridden by --ghcr-email)
+    MINIKUBE_CPUS               Number of CPUs for minikube (overridden by --cpus)
+    MINIKUBE_MEMORY             Memory allocation for minikube (overridden by --memory)
 
 PASSWORD FILE:
     The script will automatically read the GitHub PAT from a file named 'github-ghrc-pat'
@@ -147,6 +161,9 @@ EXAMPLES:
 
     # Setup with environment variables
     GHCR_PASSWORD=ghp_xxx $0 --ido-repo-path ../intent-driven-orchestration
+
+    # Setup with custom CPU and memory
+    $0 --cpus 8 --memory 16G --ghcr-password ghp_xxx
 EOF
 }
 
@@ -213,8 +230,8 @@ handle_existing_profile() {
 setup_cluster() {
     log_step "Creating minikube cluster"
     
-    log_info "Starting minikube with profile: $PROFILE"
-    minikube start --driver=docker --cpus=16 --memory=24G -p $PROFILE
+    log_info "Starting minikube with profile: $PROFILE (CPUs: $MINIKUBE_CPUS, Memory: $MINIKUBE_MEMORY)"
+    minikube start --driver=docker --cpus="$MINIKUBE_CPUS" --memory="$MINIKUBE_MEMORY" -p $PROFILE
     
     log_info "Waiting for cluster to be ready..."
     kubectl wait --for=condition=ready node --all --context $PROFILE --timeout=300s
@@ -234,6 +251,9 @@ setup_cluster() {
     log_info "Waiting for ingress controller to be ready..."
     kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=controller -n ingress-nginx --context $PROFILE --timeout=300s || true
     
+    # Configure ingress controller to allow snippet directives
+    configure_ingress_snippets
+    
     # Configure ingress controller NodePort to match iptables forwarding
     configure_ingress_nodeport
     
@@ -244,6 +264,30 @@ setup_cluster() {
     configure_chart_server_access
     
     log_info "Cluster created successfully"
+}
+
+# Configure ingress controller to allow snippet directives
+configure_ingress_snippets() {
+    log_step "Configuring ingress controller to allow snippet directives"
+    
+    log_info "Enabling snippet annotations in ingress controller ConfigMap..."
+    kubectl patch configmap ingress-nginx-controller -n ingress-nginx --context $PROFILE \
+        --type merge \
+        -p '{"data":{"allow-snippet-annotations":"true"}}' 2>/dev/null || \
+    kubectl create configmap ingress-nginx-controller -n ingress-nginx --context $PROFILE \
+        --from-literal=allow-snippet-annotations=true \
+        --dry-run=client -o yaml | kubectl apply --context $PROFILE -f -
+    
+    if [ $? -eq 0 ]; then
+        log_info "Successfully enabled snippet annotations in ingress controller"
+        
+        # Restart the controller to pick up the ConfigMap change
+        log_info "Restarting ingress controller to apply configuration..."
+        kubectl rollout restart deployment ingress-nginx-controller -n ingress-nginx --context $PROFILE
+        kubectl rollout status deployment ingress-nginx-controller -n ingress-nginx --context $PROFILE --timeout=120s || true
+    else
+        log_warn "Failed to configure snippet annotations, but continuing..."
+    fi
 }
 
 # Configure ingress controller NodePort
@@ -565,9 +609,9 @@ install_ido() {
     log_info "Applying IDO manifest..."
     kubectl apply -f "$manifest_file" --context $PROFILE
     
-    # Create ghcr-creds secret in IDO namespace if needed
-    log_info "Creating ghcr-creds secret in IDO namespace..."
-    kubectl create secret docker-registry ghcr-creds \
+    # Create ghcr-secret secret in IDO namespace if needed
+    log_info "Creating ghcr-secret secret in IDO namespace..."
+    kubectl create secret docker-registry ghcr-secret \
         --docker-server=ghcr.io \
         --docker-username="$GHCR_USERNAME" \
         --docker-password="$GHCR_PASSWORD" \
@@ -589,8 +633,8 @@ create_ghcr_secret() {
     # Ensure namespace exists
     kubectl create namespace $NAMESPACE --context $PROFILE --dry-run=client -o yaml | kubectl apply --context $PROFILE -f -
     
-    log_info "Creating ghcr-creds secret in $NAMESPACE namespace..."
-    kubectl create secret docker-registry ghcr-creds \
+    log_info "Creating ghcr-secret secret in $NAMESPACE namespace..."
+    kubectl create secret docker-registry ghcr-secret \
         --docker-server=ghcr.io \
         --docker-username="$GHCR_USERNAME" \
         --docker-password="$GHCR_PASSWORD" \
@@ -600,7 +644,7 @@ create_ghcr_secret() {
         --dry-run=client -o yaml | kubectl apply --context $PROFILE -f -
     
     # Verify the secret was created
-    if kubectl get secret ghcr-creds -n $NAMESPACE --context $PROFILE &> /dev/null; then
+    if kubectl get secret ghcr-secret -n $NAMESPACE --context $PROFILE &> /dev/null; then
         log_info "GHCR credentials secret created and verified"
     else
         log_error "Failed to create GHCR credentials secret"
@@ -648,6 +692,353 @@ deploy_proxy() {
     kubectl wait --for=condition=available deployment/inorch-tmf-proxy -n $NAMESPACE --context $PROFILE --timeout=300s || true
     
     log_info "Proxy deployment complete"
+}
+
+# Deploy Prometheus to the cluster
+deploy_prometheus() {
+    log_step "Deploying Prometheus to Kubernetes cluster"
+    
+    # Check if Prometheus already exists
+    if kubectl get deployment prometheus -n default --context $PROFILE &> /dev/null; then
+        log_info "Prometheus deployment already exists, skipping deployment"
+        return 0
+    fi
+    
+    log_info "Creating Prometheus ServiceAccount and RBAC..."
+    kubectl apply --context $PROFILE -f - <<EOF
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/proxy
+      - services
+      - endpoints
+      - pods
+      - pods/proxy
+    verbs: ["get", "list", "watch"]
+  - apiGroups:
+      - extensions
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: default
+EOF
+    
+    log_info "Creating Prometheus ConfigMap..."
+    # Get minikube IP for API server address
+    local minikube_ip
+    minikube_ip=$(minikube ip -p $PROFILE 2>/dev/null || echo "192.168.49.2")
+    
+    kubectl apply --context $PROFILE -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: default
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+
+    scrape_configs:
+      - job_name: 'kubernetes-pods'
+        fallback_scrape_protocol: PrometheusText0.0.4
+        kubernetes_sd_configs:
+          - role: pod
+            # Use in-cluster config (service account token will be used automatically)
+        # TLS config for Kubernetes API (using in-cluster CA)
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: false
+        # Bearer token for Kubernetes API authentication (required for API proxy scraping)
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          # Set the API server address (use in-cluster service)
+          - replacement: kubernetes.default.svc.cluster.local:443
+            target_label: __address__
+          # Build the metrics path using Kubernetes API proxy
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_pod_name, __meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            regex: (.+);(.+);(.+);(.+)
+            replacement: /api/v1/namespaces/\${1}/pods/\${2}:\${3}/proxy\${4}
+            target_label: __metrics_path__
+          # Add scheme for HTTPS API
+          - replacement: https
+            target_label: __scheme__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+EOF
+    
+    log_info "Creating Prometheus Deployment..."
+    kubectl apply --context $PROFILE -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: default
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      containers:
+      - name: prometheus
+        image: prom/prometheus:latest
+        imagePullPolicy: IfNotPresent
+        args:
+          - '--config.file=/etc/prometheus/prometheus.yml'
+          - '--storage.tsdb.path=/prometheus'
+          - '--storage.tsdb.retention.time=15d'
+          - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+          - '--web.console.templates=/usr/share/prometheus/consoles'
+          - '--web.enable-lifecycle'
+        ports:
+        - containerPort: 9090
+          name: http
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus
+        - name: storage
+          mountPath: /prometheus
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: config
+        configMap:
+          name: prometheus-config
+      - name: storage
+        emptyDir: {}
+EOF
+    
+    log_info "Creating Prometheus Service..."
+    kubectl apply --context $PROFILE -f - <<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: default
+  labels:
+    app: prometheus
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: http
+  selector:
+    app: prometheus
+EOF
+    
+    log_info "Waiting for Prometheus deployment to be ready..."
+    kubectl wait --for=condition=available --timeout=120s deployment/prometheus -n default --context $PROFILE || {
+        log_warn "Prometheus deployment may still be starting"
+    }
+    
+    # Expose Prometheus externally via Ingress
+    log_info "Creating Ingress for external Prometheus access..."
+    local host_ip
+    host_ip=$(ip -o addr show | grep -E "inet.*129\.242\." | awk '{print $4}' | cut -d'/' -f1 | head -1)
+    
+    if [ -n "$host_ip" ]; then
+        kubectl apply --context $PROFILE -f - <<EOF
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: start5g-1.cs.uit.no
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus
+            port:
+              number: 9090
+EOF
+        log_info "Prometheus Ingress created for external access"
+    else
+        log_warn "Could not detect host IP, skipping Ingress creation"
+    fi
+    
+    # Change service to NodePort and set up external access
+    log_info "Configuring Prometheus service for external access..."
+    local minikube_ip
+    minikube_ip=$(minikube ip -p $PROFILE 2>/dev/null || echo "192.168.49.2")
+    
+    # Change service to NodePort (will get a port in 30000-32767 range)
+    kubectl patch svc prometheus -n default --context $PROFILE --type='json' \
+        -p='[{"op": "replace", "path": "/spec/type", "value": "NodePort"}]' 2>/dev/null || true
+    
+    # Wait a moment for the service to update
+    sleep 2
+    
+    # Get the actual NodePort assigned (or try to set it to 30090)
+    local nodeport
+    nodeport=$(kubectl get svc prometheus -n default --context $PROFILE -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "")
+    
+    # Try to set NodePort to 30090 (in valid range)
+    if [ -z "$nodeport" ] || [ "$nodeport" != "30090" ]; then
+        log_info "Setting Prometheus NodePort to 30090..."
+        kubectl patch svc prometheus -n default --context $PROFILE --type='json' \
+            -p="[{\"op\": \"replace\", \"path\": \"/spec/ports/0/nodePort\", \"value\": 30090}]" 2>/dev/null || true
+        sleep 1
+        nodeport=$(kubectl get svc prometheus -n default --context $PROFILE -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "30090")
+    fi
+    
+    log_info "Setting up iptables forwarding for Prometheus from port 9090 to NodePort $nodeport..."
+    if [ -n "$host_ip" ] && [ -n "$nodeport" ]; then
+        # Add DNAT rule: forward from host:9090 to minikube:nodeport
+        if ! sudo iptables -t nat -C PREROUTING -d "$host_ip" -p tcp --dport 9090 -j DNAT --to-destination "$minikube_ip:$nodeport" 2>/dev/null; then
+            sudo iptables -t nat -I PREROUTING 1 -d "$host_ip" -p tcp --dport 9090 -j DNAT --to-destination "$minikube_ip:$nodeport"
+            log_info "Added PREROUTING DNAT rule for Prometheus (9090 -> $nodeport)"
+        else
+            log_info "PREROUTING DNAT rule for Prometheus already exists"
+        fi
+        
+        # Add FORWARD rule
+        if ! sudo iptables -t filter -C FORWARD -d "$minikube_ip" -p tcp --dport "$nodeport" -j ACCEPT 2>/dev/null; then
+            sudo iptables -t filter -I FORWARD 1 -d "$minikube_ip" -p tcp --dport "$nodeport" -j ACCEPT
+            log_info "Added FORWARD rule for Prometheus NodePort $nodeport"
+        else
+            log_info "FORWARD rule for Prometheus already exists"
+        fi
+        
+        # Add firewall rules if ufw is active
+        if command -v ufw >/dev/null 2>&1 && sudo ufw status | grep -q "Status: active"; then
+            if ! sudo iptables -t filter -C ufw-before-input -p tcp --dport 9090 -j ACCEPT 2>/dev/null; then
+                sudo iptables -t filter -I ufw-before-input 1 -p tcp --dport 9090 -j ACCEPT
+                log_info "Added ufw rule for Prometheus port 9090"
+            fi
+        fi
+        
+        # Enable IP forwarding if not already enabled
+        if [ "$(sysctl -n net.ipv4.ip_forward 2>/dev/null)" != "1" ]; then
+            sudo sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
+            log_info "Enabled IP forwarding"
+        fi
+        
+        log_info "Prometheus is accessible at:"
+        log_info "  - In-cluster: http://prometheus.default.svc.cluster.local:9090"
+        log_info "  - External: http://start5g-1.cs.uit.no:9090"
+        log_info "  - External (via Ingress): http://start5g-1.cs.uit.no:30872/ (if ingress forwarding is set up)"
+    else
+        log_warn "Could not detect host IP or NodePort, Prometheus will only be accessible in-cluster"
+        log_info "Prometheus is accessible at: http://prometheus.default.svc.cluster.local:9090"
+    fi
+    
+    log_info "Prometheus deployment complete"
+}
+
+# Update ClusterRole with IDO permissions
+update_rbac_for_ido() {
+    log_step "Updating RBAC permissions for IDO custom resources"
+    
+    # Get the ClusterRole name (it should be the same as the fullname from Helm)
+    local clusterrole_name="inorch-tmf-proxy"
+    
+    log_info "Checking if ClusterRole $clusterrole_name exists..."
+    if ! kubectl get clusterrole $clusterrole_name --context $PROFILE &> /dev/null; then
+        log_warn "ClusterRole $clusterrole_name not found, it may be created by Helm chart"
+        log_info "Checking for ClusterRole with inorch-tmf-proxy prefix..."
+        # Try to find the ClusterRole created by Helm
+        local helm_clusterrole=$(kubectl get clusterrole --context $PROFILE -o jsonpath='{.items[?(@.metadata.labels.app\.kubernetes\.io/name=="inorch-tmf-proxy")].metadata.name}' 2>/dev/null | head -1)
+        if [ -n "$helm_clusterrole" ]; then
+            clusterrole_name="$helm_clusterrole"
+            log_info "Found Helm ClusterRole: $clusterrole_name"
+        else
+            log_warn "Could not find ClusterRole, skipping RBAC update"
+            log_warn "IDO permissions may need to be added manually"
+            return 0
+        fi
+    fi
+    
+    log_info "Checking if IDO permissions already exist in ClusterRole $clusterrole_name..."
+    if kubectl get clusterrole $clusterrole_name --context $PROFILE -o yaml | grep -q "ido.intel.com"; then
+        log_info "IDO permissions already exist in ClusterRole"
+        return 0
+    fi
+    
+    log_info "Adding IDO permissions to ClusterRole $clusterrole_name..."
+    
+    # Patch the ClusterRole to add IDO permissions
+    kubectl patch clusterrole $clusterrole_name --context $PROFILE --type='json' -p='[
+        {
+            "op": "add",
+            "path": "/rules/-",
+            "value": {
+                "apiGroups": ["ido.intel.com"],
+                "resources": ["kpiprofiles", "intents"],
+                "verbs": ["get", "list", "watch", "create", "update", "patch", "delete"]
+            }
+        }
+    ]' || {
+        log_error "Failed to patch ClusterRole"
+        log_warn "You may need to manually add IDO permissions"
+        return 1
+    }
+    
+    log_info "IDO permissions added to ClusterRole successfully"
+    
+    # Verify the permissions were added
+    if kubectl get clusterrole $clusterrole_name --context $PROFILE -o yaml | grep -q "ido.intel.com"; then
+        log_info "Verified: IDO permissions are present in ClusterRole"
+    else
+        log_warn "Warning: Could not verify IDO permissions were added"
+    fi
 }
 
 # Setup port forwarding (optional)
@@ -772,6 +1163,20 @@ verify_setup() {
         fi
     fi
     
+    # Check Prometheus
+    log_info "Checking Prometheus..."
+    if kubectl get deployment prometheus -n default --context $PROFILE &> /dev/null; then
+        local prom_ready=$(kubectl get deployment prometheus -n default --context $PROFILE -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+        local prom_desired=$(kubectl get deployment prometheus -n default --context $PROFILE -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+        if [ "$prom_ready" = "$prom_desired" ] && [ "$prom_ready" != "0" ]; then
+            log_info "Prometheus is running ($prom_ready/$prom_desired replicas)"
+        else
+            log_warn "Prometheus may not be fully ready ($prom_ready/$prom_desired replicas)"
+        fi
+    else
+        log_warn "Prometheus deployment not found"
+    fi
+    
     log_info "Verification complete"
 }
 
@@ -821,8 +1226,11 @@ main() {
     install_ido
     create_ghcr_secret
     deploy_proxy
-    # Recreate ghcr-creds secret after deploy_proxy (which may have deleted/recreated the namespace)
+    # Recreate ghcr-secret secret after deploy_proxy (which may have deleted/recreated the namespace)
     create_ghcr_secret
+    # Update RBAC permissions for IDO custom resources
+    update_rbac_for_ido
+    deploy_prometheus
     setup_port_forward
     setup_ingress_forward
     verify_setup

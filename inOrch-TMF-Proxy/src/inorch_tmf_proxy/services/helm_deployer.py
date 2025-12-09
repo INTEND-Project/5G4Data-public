@@ -6,9 +6,16 @@ import tempfile
 import os
 import threading
 import time
+import re
+import json
 from typing import Optional
 from urllib.parse import urlparse
 import requests
+
+try:
+    import yaml
+except ImportError:
+    yaml = None  # type: ignore
 
 try:
     from kubernetes import client, config as kube_config
@@ -32,7 +39,7 @@ class HelmDeployer:
         self._enabled = config.enable_k8s
         self._core_client: Optional["client.CoreV1Api"] = None
         self._source_namespace = config.kube_namespace or "inorch-tmf-proxy"
-        self._image_pull_secret_name = "ghcr-creds"
+        self._image_pull_secret_name = "ghcr-secret"
 
         if not self._enabled:
             self._logger.warning("Helm deployment disabled (ENABLE_K8S set to false)")
@@ -79,6 +86,7 @@ class HelmDeployer:
         namespace: str,
         release_name: Optional[str] = None,
         intent_id: Optional[str] = None,
+        p99_token_target: Optional[float] = None,
     ) -> bool:
         """
         Deploy a Helm chart from a URL.
@@ -88,6 +96,7 @@ class HelmDeployer:
             namespace: Kubernetes namespace to deploy to
             release_name: Optional release name (defaults to namespace if not provided)
             intent_id: Optional intent ID for logging
+            p99_token_target: Optional p99-token-target value in seconds (for IDO Intent creation)
 
         Returns:
             True if deployment succeeded, False otherwise
@@ -108,6 +117,18 @@ class HelmDeployer:
 
             # Ensure namespace exists
             self._ensure_namespace(namespace)
+            
+            # Ensure secret exists as a safety net (in case _ensure_namespace had issues)
+            # This is idempotent - won't fail if secret already exists
+            try:
+                if self._core_client is not None:
+                    self._copy_image_pull_secret(namespace)
+                else:
+                    self._copy_image_pull_secret_kubectl(namespace)
+            except Exception as exc:
+                self._logger.warning(
+                    "Failed to ensure secret exists in namespace %s: %s", namespace, exc
+                )
 
             # Check if release already exists
             if self._release_exists(release_name, namespace):
@@ -116,11 +137,21 @@ class HelmDeployer:
                     release_name,
                     namespace,
                 )
-                return self._upgrade_release(release_name, chart_path, namespace, intent_id)
+                success = self._upgrade_release(release_name, chart_path, namespace, intent_id, p99_token_target)
             else:
-                return self._install_release(
-                    release_name, chart_path, namespace, intent_id
+                success = self._install_release(
+                    release_name, chart_path, namespace, intent_id, p99_token_target
                 )
+            
+            # Create IDO Intent and KPIProfile if p99_token_target is provided and deployment succeeded
+            if success and p99_token_target is not None:
+                self._create_ido_intent_and_kpi_profile(
+                    namespace=namespace,
+                    intent_id=intent_id,
+                    p99_token_target=p99_token_target,
+                )
+            
+            return success
 
         except Exception as exc:
             self._logger.error(
@@ -280,6 +311,11 @@ class HelmDeployer:
                         self._logger.info("Created namespace %s", namespace)
                         # Copy image pull secret to the new namespace
                         self._copy_image_pull_secret_kubectl(namespace)
+                else:
+                    # Namespace exists - ensure secret exists too
+                    self._logger.debug("Namespace %s already exists", namespace)
+                    # Copy image pull secret to the namespace (even if it already existed)
+                    self._copy_image_pull_secret_kubectl(namespace)
             except Exception as exc:
                 self._logger.warning(
                     "Failed to ensure namespace %s exists: %s", namespace, exc
@@ -290,8 +326,10 @@ class HelmDeployer:
         try:
             try:
                 self._core_client.read_namespace(name=namespace)
-                # Namespace exists
+                # Namespace exists - ensure secret exists too
                 self._logger.debug("Namespace %s already exists", namespace)
+                # Copy image pull secret to the namespace (even if it already existed)
+                self._copy_image_pull_secret(namespace)
             except ApiException as exc:
                 if exc.status == 404:
                     # Namespace doesn't exist, create it
@@ -346,6 +384,7 @@ class HelmDeployer:
         chart_path: str,
         namespace: str,
         intent_id: Optional[str] = None,
+        p99_token_target: Optional[float] = None,
     ) -> bool:
         """Install a new Helm release."""
         try:
@@ -408,9 +447,9 @@ class HelmDeployer:
                 namespace,
                 intent_id,
             )
-            # Create Ingress resources for NodePort services
-            self._create_ingress_for_nodeport_services(namespace)
-            # Check for NodePort services and log access information
+            # Create Ingress for LoadBalancer services
+            self._create_ingress_for_loadbalancer_services(namespace, intent_id)
+            # Log NodePort service access information (NodePort services are accessed directly, not via ingress)
             self._log_service_access_info(namespace, release_name, intent_id)
             return True
 
@@ -443,6 +482,7 @@ class HelmDeployer:
         chart_path: str,
         namespace: str,
         intent_id: Optional[str] = None,
+        p99_token_target: Optional[float] = None,
     ) -> bool:
         """Upgrade an existing Helm release."""
         try:
@@ -504,9 +544,9 @@ class HelmDeployer:
                 namespace,
                 intent_id,
             )
-            # Create Ingress resources for NodePort services
-            self._create_ingress_for_nodeport_services(namespace)
-            # Check for NodePort services and log access information
+            # Create Ingress for LoadBalancer services
+            self._create_ingress_for_loadbalancer_services(namespace, intent_id)
+            # Log NodePort service access information (NodePort services are accessed directly, not via ingress)
             self._log_service_access_info(namespace, release_name, intent_id)
             return True
 
@@ -1064,185 +1104,106 @@ class HelmDeployer:
             )
 
     def _create_ingress_for_nodeport_services(self, namespace: str) -> None:
-        """Create Ingress resources for NodePort services to enable path-based routing."""
-        if client is None:
-            # Fall back to kubectl
-            try:
-                # Get all services in the namespace
-                result = subprocess.run(
-                    [
-                        "kubectl",
-                        "get",
-                        "service",
-                        "-n",
-                        namespace,
-                        "-o",
-                        "jsonpath={.items[?(@.spec.type==\"NodePort\")].metadata.name}",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-                
-                if result.returncode != 0 or not result.stdout.strip():
-                    self._logger.debug(
-                        "No NodePort services found in namespace %s to create Ingress for",
-                        namespace,
-                    )
-                    return
-                
-                service_names = result.stdout.strip().split()
-                for svc_name in service_names:
-                    # Get service port
-                    port_result = subprocess.run(
-                        [
-                            "kubectl",
-                            "get",
-                            "service",
-                            svc_name,
-                            "-n",
-                            namespace,
-                            "-o",
-                            "jsonpath={.spec.ports[0].port}",
-                        ],
-                        capture_output=True,
-                        text=True,
-                        timeout=10,
-                    )
-                    
-                    if port_result.returncode != 0:
-                        self._logger.warning(
-                            "Could not determine port for service %s in namespace %s",
-                            svc_name,
-                            namespace,
-                        )
-                        continue
-                    
-                    service_port = port_result.stdout.strip() or "80"
-                    
-                    # Check if Ingress already exists
-                    check_result = subprocess.run(
-                        [
-                            "kubectl",
-                            "get",
-                            "ingress",
-                            svc_name,
-                            "-n",
-                            namespace,
-                        ],
-                        capture_output=True,
-                        text=True,
-                        timeout=10,
-                    )
-                    
-                    if check_result.returncode == 0:
-                        self._logger.debug(
-                            "Ingress %s already exists in namespace %s",
-                            svc_name,
-                            namespace,
-                        )
-                        continue
-                    
-                    # Create Ingress resource using kubectl
-                    ingress_yaml = f"""apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {svc_name}
-  namespace: {namespace}
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-spec:
-  ingressClassName: nginx
-  rules:
-  - http:
-      paths:
-      - path: /{svc_name}
-        pathType: Prefix
-        backend:
-          service:
-            name: {svc_name}
-            port:
-              number: {int(service_port)}
-"""
-                    
-                    apply_result = subprocess.run(
-                        [
-                            "kubectl",
-                            "apply",
-                            "-f",
-                            "-",
-                        ],
-                        input=ingress_yaml,
-                        capture_output=True,
-                        text=True,
-                        timeout=10,
-                    )
-                    
-                    if apply_result.returncode == 0:
-                        self._logger.info(
-                            "Created Ingress %s for NodePort service %s in namespace %s (path: /%s/)",
-                            svc_name,
-                            svc_name,
-                            namespace,
-                            svc_name,
-                        )
-                    else:
-                        self._logger.warning(
-                            "Failed to create Ingress for service %s in namespace %s: %s",
-                            svc_name,
-                            namespace,
-                            apply_result.stderr,
-                        )
-            except Exception as exc:
-                self._logger.warning(
-                    "Failed to create Ingress resources in namespace %s: %s",
-                    namespace,
-                    exc,
-                )
-            return
+        """Note: Ingress creation for NodePort services is disabled.
         
-        # Use Kubernetes Python client
+        NodePort services should be accessed directly via their NodePort.
+        Some applications (like open-webui) don't support subpath routing via ingress.
+        Access information is logged via _log_service_access_info instead.
+        """
+        self._logger.debug(
+            "Skipping ingress creation for NodePort services in namespace %s - "
+            "NodePort services should be accessed directly",
+            namespace,
+        )
+
+    def _create_ingress_for_loadbalancer_services(
+        self, namespace: str, intent_id: Optional[str] = None
+    ) -> None:
+        """Create Ingress resources for LoadBalancer services in the namespace.
+        
+        This method detects all LoadBalancer services and creates Ingress rules
+        that route traffic to them via the ingress controller.
+        
+        Args:
+            namespace: Kubernetes namespace to check for LoadBalancer services
+            intent_id: Optional intent ID for logging
+        """
+        if client is None:
+            self._logger.debug(
+                "Kubernetes client not available, skipping Ingress creation for LoadBalancer services"
+            )
+            return
+
         try:
-            v1 = client.CoreV1Api()
-            networking_v1 = client.NetworkingV1Api()
-            
             # Get all services in the namespace
+            v1 = client.CoreV1Api()
             services = v1.list_namespaced_service(namespace=namespace)
-            
+
+            loadbalancer_services = []
             for svc in services.items:
-                if svc.spec.type != "NodePort":
-                    continue
-                
-                svc_name = svc.metadata.name
+                if svc.spec.type == "LoadBalancer":
+                    # Get the first port (typically there's one main port)
+                    for port in svc.spec.ports:
+                        loadbalancer_services.append(
+                            {
+                                "name": svc.metadata.name,
+                                "port": port.port,
+                                "target_port": port.target_port,
+                            }
+                        )
+                        # Only take the first port for now
+                        break
+
+            if not loadbalancer_services:
+                self._logger.debug(
+                    "No LoadBalancer services found in namespace %s (intent_id=%s)",
+                    namespace,
+                    intent_id,
+                )
+                return
+
+            # Get networking API client for Ingress resources
+            networking_v1 = client.NetworkingV1Api()
+
+            for svc_info in loadbalancer_services:
+                service_name = svc_info["name"]
+                service_port = svc_info["port"]
                 
                 # Check if Ingress already exists
+                ingress_name = service_name
                 try:
-                    networking_v1.read_namespaced_ingress(
-                        name=svc_name,
-                        namespace=namespace,
+                    existing_ingress = networking_v1.read_namespaced_ingress(
+                        name=ingress_name, namespace=namespace
                     )
                     self._logger.debug(
-                        "Ingress %s already exists in namespace %s",
-                        svc_name,
+                        "Ingress %s already exists in namespace %s, skipping creation",
+                        ingress_name,
                         namespace,
                     )
                     continue
                 except ApiException as exc:
                     if exc.status != 404:
-                        raise
-                
-                # Get the service port (use first port if multiple)
-                service_port = 80
-                if svc.spec.ports and len(svc.spec.ports) > 0:
-                    service_port = svc.spec.ports[0].port
-                
+                        # Some other error occurred
+                        self._logger.warning(
+                            "Error checking for existing Ingress %s in namespace %s: %s",
+                            ingress_name,
+                            namespace,
+                            exc,
+                        )
+                        continue
+                    # 404 means it doesn't exist, which is what we want
+
                 # Create Ingress resource
-                ingress = client.V1Ingress(
+                # Path pattern: /service-name(/|$)(.*) with rewrite to /$2
+                path_pattern = f"/{service_name}(/|$)(.*)"
+                
+                ingress_body = client.V1Ingress(
                     metadata=client.V1ObjectMeta(
-                        name=svc_name,
+                        name=ingress_name,
                         namespace=namespace,
                         annotations={
-                            "nginx.ingress.kubernetes.io/rewrite-target": "/",
+                            "nginx.ingress.kubernetes.io/rewrite-target": "/$2",
+                            "nginx.ingress.kubernetes.io/use-regex": "true",
                         },
                     ),
                     spec=client.V1IngressSpec(
@@ -1252,11 +1213,11 @@ spec:
                                 http=client.V1HTTPIngressRuleValue(
                                     paths=[
                                         client.V1HTTPIngressPath(
-                                            path=f"/{svc_name}",
-                                            path_type="Prefix",
+                                            path=path_pattern,
+                                            path_type="ImplementationSpecific",
                                             backend=client.V1IngressBackend(
                                                 service=client.V1IngressServiceBackend(
-                                                    name=svc_name,
+                                                    name=service_name,
                                                     port=client.V1ServiceBackendPort(
                                                         number=service_port
                                                     ),
@@ -1269,37 +1230,337 @@ spec:
                         ],
                     ),
                 )
-                
+
                 try:
                     networking_v1.create_namespaced_ingress(
-                        namespace=namespace,
-                        body=ingress,
+                        namespace=namespace, body=ingress_body
                     )
                     self._logger.info(
-                        "Created Ingress %s for NodePort service %s in namespace %s (path: /%s/)",
-                        svc_name,
-                        svc_name,
+                        "Created Ingress %s for LoadBalancer service %s (port %s) in namespace %s (intent_id=%s)",
+                        ingress_name,
+                        service_name,
+                        service_port,
                         namespace,
-                        svc_name,
+                        intent_id,
                     )
-                except ApiException as exc:
-                    if exc.status == 409:  # Already exists
+                    
+                    # Log the access URL
+                    # Get ingress controller NodePort to construct the URL
+                    try:
+                        ingress_svc = v1.read_namespaced_service(
+                            name="ingress-nginx-controller", namespace="ingress-nginx"
+                        )
+                        ingress_nodeport = None
+                        for port in ingress_svc.spec.ports:
+                            if port.port == 80:
+                                ingress_nodeport = port.node_port
+                                break
+                        
+                        if ingress_nodeport:
+                            # Try to get external hostname/IP
+                            external_host = None
+                            try:
+                                result = subprocess.run(
+                                    ["hostname", "-f"],
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=5,
+                                )
+                                if result.returncode == 0:
+                                    hostname = result.stdout.strip()
+                                    if "." in hostname and hostname != "localhost":
+                                        external_host = hostname
+                            except Exception:
+                                pass
+                            
+                            if not external_host:
+                                try:
+                                    result = subprocess.run(
+                                        ["ip", "-o", "addr", "show"],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=5,
+                                    )
+                                    if result.returncode == 0:
+                                        matches = re.findall(
+                                            r"inet\s+(129\.242\.\d+\.\d+)", result.stdout
+                                        )
+                                        if matches:
+                                            external_host = matches[0]
+                                except Exception:
+                                    pass
+                            
+                            if external_host:
+                                ingress_url = f"http://{external_host}:{ingress_nodeport}/{service_name}"
+                            else:
+                                minikube_ip = "192.168.49.2"
+                                try:
+                                    result = subprocess.run(
+                                        ["minikube", "ip"],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=5,
+                                    )
+                                    if result.returncode == 0:
+                                        minikube_ip = result.stdout.strip()
+                                except Exception:
+                                    pass
+                                ingress_url = f"http://{minikube_ip}:{ingress_nodeport}/{service_name}"
+                            
+                            self._logger.info(
+                                "  Ingress URL for service %s: %s",
+                                service_name,
+                                ingress_url,
+                            )
+                    except Exception as exc:
                         self._logger.debug(
-                            "Ingress %s already exists in namespace %s",
-                            svc_name,
+                            "Could not determine ingress controller NodePort for URL logging: %s",
+                            exc,
+                        )
+
+                except ApiException as exc:
+                    if exc.status == 409:
+                        # Ingress already exists (race condition)
+                        self._logger.debug(
+                            "Ingress %s already exists in namespace %s (created concurrently)",
+                            ingress_name,
                             namespace,
                         )
                     else:
                         self._logger.warning(
-                            "Failed to create Ingress for service %s in namespace %s: %s",
-                            svc_name,
+                            "Failed to create Ingress %s for service %s in namespace %s: %s",
+                            ingress_name,
+                            service_name,
                             namespace,
                             exc,
                         )
+                except Exception as exc:
+                    self._logger.error(
+                        "Unexpected error creating Ingress %s for service %s in namespace %s: %s",
+                        ingress_name,
+                        service_name,
+                        namespace,
+                        exc,
+                        exc_info=True,
+                    )
+
         except Exception as exc:
             self._logger.warning(
-                "Failed to create Ingress resources in namespace %s: %s",
+                "Could not create Ingress for LoadBalancer services in namespace %s (intent_id=%s): %s",
                 namespace,
+                intent_id,
+                exc,
+            )
+
+    def _create_ido_intent_and_kpi_profile(
+        self,
+        namespace: str,
+        intent_id: Optional[str] = None,
+        p99_token_target: Optional[float] = None,
+        prometheus_endpoint: Optional[str] = None,
+    ) -> None:
+        """Create IDO Intent and KPIProfile resources for the deployed application.
+        
+        Args:
+            namespace: Kubernetes namespace where the application is deployed
+            intent_id: The TMF intent ID
+            p99_token_target: The p99-token-target value in seconds (from TMF intent)
+            prometheus_endpoint: Prometheus query endpoint URL. If None, will use PROMETHEUS_URL 
+                                 environment variable or default to http://start5g-1.cs.uit.no:9090/api/v1/query
+        """
+        # Get Prometheus endpoint from parameter, environment variable, or use default
+        if prometheus_endpoint is None:
+            # Check if running inside Kubernetes cluster (in-cluster config available)
+            # If so, prefer Kubernetes service DNS name for better connectivity
+            try:
+                if client is not None:
+                    try:
+                        kube_config.load_incluster_config()
+                        # Running inside cluster - use Kubernetes service
+                        prometheus_endpoint = os.getenv(
+                            "PROMETHEUS_URL",
+                            "http://prometheus.default.svc.cluster.local:9090"
+                        )
+                    except ConfigException:
+                        # Running outside cluster - use external URL
+                        prometheus_endpoint = os.getenv(
+                            "PROMETHEUS_URL",
+                            "http://start5g-1.cs.uit.no:9090"
+                        )
+                else:
+                    # Kubernetes client not available - use external URL
+                    prometheus_endpoint = os.getenv(
+                        "PROMETHEUS_URL",
+                        "http://start5g-1.cs.uit.no:9090"
+                    )
+            except Exception:
+                # Fallback to external URL if detection fails
+                prometheus_endpoint = os.getenv(
+                    "PROMETHEUS_URL",
+                    "http://start5g-1.cs.uit.no:9090"
+                )
+            # Ensure it ends with /api/v1/query
+            if not prometheus_endpoint.endswith("/api/v1/query"):
+                prometheus_endpoint = prometheus_endpoint.rstrip("/") + "/api/v1/query"
+        if client is None:
+            self._logger.debug("Kubernetes client not available, skipping IDO Intent creation")
+            return
+        
+        if p99_token_target is None:
+            self._logger.debug("No p99-token-target provided, skipping IDO Intent creation")
+            return
+        
+        try:
+            # Use CustomObjectsApi for IDO CRDs
+            custom_api = client.CustomObjectsApi()
+            
+            # Determine the deployment name (typically matches namespace or release name)
+            # Try to find the deployment in the namespace
+            apps_v1 = client.AppsV1Api()
+            deployments = apps_v1.list_namespaced_deployment(namespace=namespace)
+            
+            deployment_name = None
+            if deployments.items:
+                # Use the first deployment found (or you could filter by labels)
+                deployment_name = deployments.items[0].metadata.name
+            else:
+                # Fallback: use namespace as deployment name
+                deployment_name = namespace
+            
+            # Create KPIProfile first
+            kpi_profile_name = f"p99token-{namespace}"
+            kpi_profile_body = {
+                "apiVersion": "ido.intel.com/v1alpha1",
+                "kind": "KPIProfile",
+                "metadata": {
+                    "name": kpi_profile_name,
+                    "namespace": namespace,
+                },
+                "spec": {
+                    "type": "latency",
+                    "description": "token creation time (p99 percentile)",
+                    "query": "histogram_quantile(0.99, sum(rate(token_creation_duration_bucket[30s])) by (le))",
+                    "props": {
+                        "endpoint": prometheus_endpoint,
+                    },
+                },
+            }
+            
+            # Log the KPIProfile YAML
+            if yaml:
+                kpi_profile_yaml = yaml.dump(kpi_profile_body, default_flow_style=False, sort_keys=False)
+            else:
+                kpi_profile_yaml = json.dumps(kpi_profile_body, indent=2)
+            self._logger.info(
+                "Creating KPIProfile %s in namespace %s for intent_id=%s:\n%s",
+                kpi_profile_name,
+                namespace,
+                intent_id,
+                kpi_profile_yaml,
+            )
+            
+            try:
+                custom_api.create_namespaced_custom_object(
+                    group="ido.intel.com",
+                    version="v1alpha1",
+                    namespace=namespace,
+                    plural="kpiprofiles",
+                    body=kpi_profile_body,
+                )
+                self._logger.info(
+                    "Created KPIProfile %s in namespace %s for intent_id=%s",
+                    kpi_profile_name,
+                    namespace,
+                    intent_id,
+                )
+            except ApiException as exc:
+                if exc.status == 409:
+                    self._logger.debug(
+                        "KPIProfile %s already exists in namespace %s",
+                        kpi_profile_name,
+                        namespace,
+                    )
+                else:
+                    self._logger.warning(
+                        "Failed to create KPIProfile %s: %s",
+                        kpi_profile_name,
+                        exc,
+                    )
+                    return
+            
+            # Create IDO Intent
+            ido_intent_name = f"llm-intent-{namespace}"
+            ido_intent_body = {
+                "apiVersion": "ido.intel.com/v1alpha1",
+                "kind": "Intent",
+                "metadata": {
+                    "name": ido_intent_name,
+                    "namespace": namespace,
+                },
+                "spec": {
+                    "targetRef": {
+                        "kind": "Deployment",
+                        "name": f"{namespace}/{deployment_name}",
+                    },
+                    "priority": 1.0,
+                    "objectives": [
+                        {
+                            "name": "p99-token-target",
+                            "value": p99_token_target,  # Use p99-token-target from TMF intent
+                            "measuredBy": f"{namespace}/{kpi_profile_name}",
+                        }
+                    ],
+                },
+            }
+            
+            # Log the IDO Intent YAML
+            if yaml:
+                ido_intent_yaml = yaml.dump(ido_intent_body, default_flow_style=False, sort_keys=False)
+            else:
+                ido_intent_yaml = json.dumps(ido_intent_body, indent=2)
+            self._logger.info(
+                "Creating IDO Intent %s in namespace %s for intent_id=%s (p99-target=%.3f):\n%s",
+                ido_intent_name,
+                namespace,
+                intent_id,
+                p99_token_target,
+                ido_intent_yaml,
+            )
+            
+            try:
+                custom_api.create_namespaced_custom_object(
+                    group="ido.intel.com",
+                    version="v1alpha1",
+                    namespace=namespace,
+                    plural="intents",
+                    body=ido_intent_body,
+                )
+                self._logger.info(
+                    "Created IDO Intent %s in namespace %s for intent_id=%s (p99-target=%.3f)",
+                    ido_intent_name,
+                    namespace,
+                    intent_id,
+                    p99_token_target,
+                )
+            except ApiException as exc:
+                if exc.status == 409:
+                    self._logger.debug(
+                        "IDO Intent %s already exists in namespace %s",
+                        ido_intent_name,
+                        namespace,
+                    )
+                else:
+                    self._logger.warning(
+                        "Failed to create IDO Intent %s: %s",
+                        ido_intent_name,
+                        exc,
+                    )
+        
+        except Exception as exc:
+            self._logger.warning(
+                "Could not create IDO Intent and KPIProfile for namespace %s (intent_id=%s): %s",
+                namespace,
+                intent_id,
                 exc,
             )
 
@@ -1337,26 +1598,75 @@ spec:
                     intent_id,
                 )
                 for svc_info in nodeport_services:
-                    # Try to get minikube IP
-                    minikube_ip = "192.168.49.2"  # Default minikube IP
+                    # Try to get external hostname/IP (host that's accessible from outside)
+                    external_host = None
                     try:
+                        # Try to get hostname first (e.g., start5g-1.cs.uit.no)
                         result = subprocess.run(
-                            ["minikube", "ip", "-p", "inOrch"],
+                            ["hostname", "-f"],
                             capture_output=True,
                             text=True,
                             timeout=5,
                         )
                         if result.returncode == 0:
-                            minikube_ip = result.stdout.strip()
+                            hostname = result.stdout.strip()
+                            # Use hostname if it's a FQDN (contains dots)
+                            if "." in hostname and hostname != "localhost":
+                                external_host = hostname
                     except Exception:
-                        pass  # Use default
+                        pass
+                    
+                    # If no hostname, try to detect external IP
+                    if not external_host:
+                        try:
+                            # Try to detect host external IP (similar to setup script)
+                            result = subprocess.run(
+                                ["ip", "-o", "addr", "show"],
+                                capture_output=True,
+                                text=True,
+                                timeout=5,
+                            )
+                            if result.returncode == 0:
+                                # Look for IP in 129.242.x.x range (typical external IP pattern)
+                                matches = re.findall(r"inet\s+(129\.242\.\d+\.\d+)", result.stdout)
+                                if matches:
+                                    external_host = matches[0]
+                        except Exception:
+                            pass
+                    
+                    # Fall back to minikube IP if external host/IP not found
+                    if not external_host:
+                        minikube_ip = "192.168.49.2"  # Default minikube IP
+                        try:
+                            result = subprocess.run(
+                                ["minikube", "ip"],
+                                capture_output=True,
+                                text=True,
+                                timeout=5,
+                            )
+                            if result.returncode == 0:
+                                minikube_ip = result.stdout.strip()
+                        except Exception:
+                            pass  # Use default
+                        access_url = f"http://{minikube_ip}:{svc_info['node_port']}/"
+                    else:
+                        access_url = f"http://{external_host}:{svc_info['node_port']}/"
 
+                    # Log prominently
                     self._logger.info(
-                        "  Service: %s - NodePort: %s - Access via: http://%s:%s/",
+                        "=" * 70
+                    )
+                    self._logger.info(
+                        "  Service: %s - NodePort: %s",
                         svc_info["name"],
                         svc_info["node_port"],
-                        minikube_ip,
-                        svc_info["node_port"],
+                    )
+                    self._logger.info(
+                        "  Application URL: %s",
+                        access_url,
+                    )
+                    self._logger.info(
+                        "=" * 70
                     )
                     # Start port-forward in background to expose service externally
                     self._start_port_forward(

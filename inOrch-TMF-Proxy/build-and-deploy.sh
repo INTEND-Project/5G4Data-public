@@ -90,10 +90,31 @@ else
     CLEANUP_COPY=false
 fi
 
+# Step 0: Remove old images to force fresh build
+echo ""
+echo "Step 0: Removing old images to force fresh build..."
+# Unset minikube Docker environment if set
+unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD
+
+# Remove old image from host Docker
+echo "Removing old image from host Docker..."
+docker rmi ${IMAGE_NAME}:${IMAGE_TAG} 2>/dev/null || echo "  (Image not found on host, continuing...)"
+
+# Remove old image from minikube Docker
+echo "Removing old image from minikube Docker..."
+eval $(minikube -p $PROFILE docker-env) > /dev/null 2>&1
+docker rmi ${IMAGE_NAME}:${IMAGE_TAG} 2>/dev/null || echo "  (Image not found in minikube, continuing...)"
+unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD
+
+# Touch source files to update timestamps (forces Docker to rebuild COPY layers)
+echo "Updating source file timestamps to force Docker rebuild..."
+touch src/inorch_tmf_proxy/services/*.py
+touch src/requirements.txt 2>/dev/null || true
+
 # Step 1: Build the image on host Docker (has working DNS)
 echo ""
 echo "Step 1: Building Docker image on host..."
-# Unset minikube Docker environment if set
+# Unset minikube Docker environment if set (again, in case it was set)
 unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD
 
 # Clean Python cache to ensure fresh code is copied
@@ -105,9 +126,23 @@ find src -name "*.pyc" -delete 2>/dev/null || true
 echo "Building Docker image (without cache to ensure code changes are included)..."
 docker build --no-cache -t ${IMAGE_NAME}:${IMAGE_TAG} .
 
-# Step 2: Check and fix DNS in minikube node if needed
+# Step 2: Delete namespace BEFORE loading image (ensures old image is not in use)
 echo ""
-echo "Step 2: Checking DNS in minikube node..."
+echo "Step 2: Deleting namespace to release old image references..."
+kubectl config use-context $PROFILE
+if kubectl get namespace $NAMESPACE > /dev/null 2>&1; then
+    echo "Namespace $NAMESPACE exists. Deleting to release old image references..."
+    kubectl delete namespace $NAMESPACE --wait=true --timeout=60s
+    echo "Waiting for namespace deletion to complete..."
+    sleep 5
+    echo "✓ Namespace deleted - old image references released"
+else
+    echo "  Namespace $NAMESPACE does not exist (nothing to delete)"
+fi
+
+# Step 3: Check and fix DNS in minikube node if needed
+echo ""
+echo "Step 3: Checking DNS in minikube node..."
 if ! minikube ssh -p $PROFILE -- "nslookup ghcr.io > /dev/null 2>&1" 2>/dev/null; then
     echo "DNS resolution failed. Fixing DNS configuration..."
     minikube ssh -p $PROFILE -- "sudo bash -c '
@@ -128,23 +163,39 @@ else
     echo "✓ DNS is working correctly"
 fi
 
-# Step 3: Load image into minikube
+# Step 4: Load image into minikube (after namespace deletion ensures old image is not in use)
 echo ""
 echo "Step 3: Loading image into minikube..."
 
-# Get the new image creation time and size before loading (for verification)
+# Get the new image creation time, size, and ID before loading (for verification)
 NEW_IMAGE_CREATED=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.CreatedAt}}" | head -1)
 NEW_IMAGE_SIZE=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.Size}}" | head -1)
-if [ -z "$NEW_IMAGE_CREATED" ]; then
+NEW_IMAGE_ID=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.ID}}" | head -1)
+if [ -z "$NEW_IMAGE_CREATED" ] || [ -z "$NEW_IMAGE_ID" ]; then
     echo "✗ Error: Could not determine new image info"
     exit 1
 fi
 
+echo "Host image info: ID=${NEW_IMAGE_ID:0:12}..., Created=$NEW_IMAGE_CREATED, Size=$NEW_IMAGE_SIZE"
+
 # Remove old image from minikube first to ensure fresh load
 echo "Removing old image from minikube (if exists)..."
 eval $(minikube -p $PROFILE docker-env) > /dev/null 2>&1
-# Force remove all images with this tag (there might be multiple)
-docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.ID}}" | xargs -r docker rmi -f 2>/dev/null || true
+# Get all old image IDs before removal
+OLD_MINIKUBE_IMAGE_IDS=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.ID}}" 2>/dev/null | sort -u || true)
+if [ -n "$OLD_MINIKUBE_IMAGE_IDS" ]; then
+    echo "  Found existing image(s) in minikube:"
+    echo "$OLD_MINIKUBE_IMAGE_IDS" | while read img_id; do
+        if [ -n "$img_id" ]; then
+            echo "    - ${img_id:0:12}..."
+        fi
+    done
+    # Force remove all images with this tag (there might be multiple)
+    echo "$OLD_MINIKUBE_IMAGE_IDS" | xargs -r docker rmi -f 2>/dev/null || true
+    echo "  Removed old image(s) from minikube"
+    # Wait a moment for removal to complete
+    sleep 1
+fi
 unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD
 
 # Load the new image
@@ -154,8 +205,28 @@ if ! minikube image load ${IMAGE_NAME}:${IMAGE_TAG} -p $PROFILE; then
     exit 1
 fi
 
-# Wait a moment for the image to be fully loaded
-sleep 2
+# Wait a moment for the image to be fully loaded and indexed
+echo "Waiting for image to be fully indexed in minikube..."
+sleep 3
+
+# Verify the old image is gone and new one is there
+eval $(minikube -p $PROFILE docker-env) > /dev/null 2>&1
+CURRENT_MINIKUBE_IMAGE_IDS=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.ID}}" 2>/dev/null | sort -u || true)
+unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD
+
+# Check if any old image IDs are still present
+if [ -n "$OLD_MINIKUBE_IMAGE_IDS" ] && [ -n "$CURRENT_MINIKUBE_IMAGE_IDS" ]; then
+    for old_id in $OLD_MINIKUBE_IMAGE_IDS; do
+        if echo "$CURRENT_MINIKUBE_IMAGE_IDS" | grep -q "$old_id"; then
+            echo "⚠ Warning: Old image ${old_id:0:12}... is still present in minikube"
+            echo "  Attempting to force remove it..."
+            eval $(minikube -p $PROFILE docker-env) > /dev/null 2>&1
+            docker rmi -f "$old_id" 2>/dev/null || true
+            unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD
+            sleep 1
+        fi
+    done
+fi
 
 # Verify the image was loaded (note: minikube may assign different image IDs)
 echo "Verifying image was loaded into minikube..."
@@ -170,21 +241,50 @@ if [ -z "$LOADED_IMAGE_CREATED" ] || [ -z "$LOADED_IMAGE_ID" ]; then
     exit 1
 fi
 
-# Compare creation time and size (more reliable than ID which may differ in minikube)
-# Note: minikube may assign different image IDs, so we verify by creation time and size
-if [ "$NEW_IMAGE_CREATED" = "$LOADED_IMAGE_CREATED" ] || [ "$NEW_IMAGE_SIZE" = "$LOADED_IMAGE_SIZE" ]; then
-    echo "✓ Image loaded successfully (ID: ${LOADED_IMAGE_ID:0:12}..., Created: $LOADED_IMAGE_CREATED)"
+echo "Minikube image info: ID=${LOADED_IMAGE_ID:0:12}..., Created=$LOADED_IMAGE_CREATED, Size=$LOADED_IMAGE_SIZE"
+
+# Verify the loaded image matches the host image by comparing size and creation time
+# (Image IDs may differ between host and minikube, but size and creation time should match)
+IMAGE_MATCHES=false
+if [ "$NEW_IMAGE_SIZE" = "$LOADED_IMAGE_SIZE" ]; then
+    # Size matches - this is a good indicator
+    IMAGE_MATCHES=true
+    echo "✓ Image size matches (${NEW_IMAGE_SIZE})"
+elif [ "$NEW_IMAGE_CREATED" = "$LOADED_IMAGE_CREATED" ]; then
+    # Creation time matches - also a good indicator
+    IMAGE_MATCHES=true
+    echo "✓ Image creation time matches (${NEW_IMAGE_CREATED})"
 else
-    echo "⚠ Warning: Image metadata differs (this may be normal with minikube)"
-    echo "  Host image: Created=$NEW_IMAGE_CREATED, Size=$NEW_IMAGE_SIZE"
-    echo "  Minikube image: Created=$LOADED_IMAGE_CREATED, Size=$LOADED_IMAGE_SIZE"
-    echo "  Minikube image ID: ${LOADED_IMAGE_ID:0:12}..."
-    echo "  Continuing anyway - image was loaded into minikube"
+    echo "⚠ Warning: Image metadata differs between host and minikube"
+    echo "  Host: Created=$NEW_IMAGE_CREATED, Size=$NEW_IMAGE_SIZE, ID=${NEW_IMAGE_ID:0:12}..."
+    echo "  Minikube: Created=$LOADED_IMAGE_CREATED, Size=$LOADED_IMAGE_SIZE, ID=${LOADED_IMAGE_ID:0:12}..."
+    echo "  This may indicate the wrong image was loaded. Checking image digest..."
+    
+    # Try to compare by inspecting the image layers/config
+    HOST_DIGEST=$(docker inspect ${IMAGE_NAME}:${IMAGE_TAG} --format='{{index .RepoDigests 0}}' 2>/dev/null | cut -d'@' -f2 || echo "")
+    if [ -n "$HOST_DIGEST" ]; then
+        eval $(minikube -p $PROFILE docker-env) > /dev/null 2>&1
+        MINIKUBE_DIGEST=$(docker inspect ${IMAGE_NAME}:${IMAGE_TAG} --format='{{index .RepoDigests 0}}' 2>/dev/null | cut -d'@' -f2 || echo "")
+        unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD
+        
+        if [ -n "$MINIKUBE_DIGEST" ] && [ "$HOST_DIGEST" = "$MINIKUBE_DIGEST" ]; then
+            IMAGE_MATCHES=true
+            echo "✓ Image digest matches - images are identical"
+        fi
+    fi
 fi
 
-# Step 4: Verify the newly built image exists
+if [ "$IMAGE_MATCHES" = true ]; then
+    echo "✓ Image loaded successfully and verified (Minikube ID: ${LOADED_IMAGE_ID:0:12}...)"
+else
+    echo "⚠ Warning: Could not verify image match, but continuing..."
+    echo "  If pods use the wrong image, you may need to manually reload:"
+    echo "    minikube image load ${IMAGE_NAME}:${IMAGE_TAG} -p $PROFILE"
+fi
+
+# Step 5: Verify the newly built image exists
 echo ""
-echo "Step 4: Verifying newly built image exists..."
+echo "Step 5: Verifying newly built image exists..."
 if docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.Repository}}:{{.Tag}}" | grep -q "^${IMAGE_NAME}:${IMAGE_TAG}$"; then
     IMAGE_ID=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.ID}}" | head -1)
     echo "✓ Image ${IMAGE_NAME}:${IMAGE_TAG} found (ID: ${IMAGE_ID:0:12}...)"
@@ -193,24 +293,40 @@ else
     exit 1
 fi
 
-# Step 5: Set kubectl context to inOrch
+# Step 6: Create the namespace for fresh deployment
 echo ""
-echo "Step 5: Setting kubectl context to $PROFILE..."
-kubectl config use-context $PROFILE
+echo "Step 6: Creating namespace for fresh deployment..."
+kubectl create namespace $NAMESPACE
 
-# Step 6: Delete namespace if it exists to ensure fresh deployment with new image
-echo ""
-echo "Step 6: Ensuring clean namespace for fresh deployment..."
-if kubectl get namespace $NAMESPACE > /dev/null 2>&1; then
-    echo "Namespace $NAMESPACE exists. Deleting to ensure fresh deployment with new image..."
-    kubectl delete namespace $NAMESPACE --wait=true --timeout=60s
-    echo "Waiting for namespace deletion to complete..."
-    sleep 5
+# Verify the new image is available in minikube before deploying
+echo "Verifying new image is available in minikube before deployment..."
+eval $(minikube -p $PROFILE docker-env) > /dev/null 2>&1
+FINAL_CHECK_IMAGE_ID=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.ID}}" 2>/dev/null | head -1)
+FINAL_CHECK_IMAGE_SIZE=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.Size}}" 2>/dev/null | head -1)
+unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD
+
+if [ -z "$FINAL_CHECK_IMAGE_ID" ]; then
+    echo "✗ Error: New image not found in minikube. Attempting to reload..."
+    minikube image load ${IMAGE_NAME}:${IMAGE_TAG} -p $PROFILE
+    sleep 2
+    eval $(minikube -p $PROFILE docker-env) > /dev/null 2>&1
+    FINAL_CHECK_IMAGE_ID=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.ID}}" 2>/dev/null | head -1)
+    unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD
+    if [ -z "$FINAL_CHECK_IMAGE_ID" ]; then
+        echo "✗ Error: Image still not found in minikube after reload attempt"
+        exit 1
+    fi
 fi
 
-# Create the namespace
-echo "Creating namespace $NAMESPACE..."
-kubectl create namespace $NAMESPACE
+# Verify the image matches what we built (by size)
+if [ -n "$NEW_IMAGE_SIZE" ] && [ -n "$FINAL_CHECK_IMAGE_SIZE" ] && [ "$NEW_IMAGE_SIZE" != "$FINAL_CHECK_IMAGE_SIZE" ]; then
+    echo "⚠ Warning: Image size mismatch between host and minikube"
+    echo "  Host size: $NEW_IMAGE_SIZE"
+    echo "  Minikube size: $FINAL_CHECK_IMAGE_SIZE"
+    echo "  This may indicate the wrong image is in minikube"
+fi
+
+echo "✓ Image verified in minikube (ID: ${FINAL_CHECK_IMAGE_ID:0:12}..., Size: $FINAL_CHECK_IMAGE_SIZE)"
 
 # Step 7: Update the Helm deployment with the new image
 echo ""
@@ -234,6 +350,52 @@ kubectl rollout restart deployment/${FULLNAME} -n $NAMESPACE
 echo ""
 echo "Step 8: Waiting for deployment rollout..."
 kubectl rollout status deployment/${FULLNAME} -n $NAMESPACE --timeout=300s
+
+# Step 8.5: Recreate GHCR secret (required for pulling images from GHCR)
+echo ""
+echo "Step 8.5: Recreating GHCR credentials secret..."
+# Get GHCR credentials
+GHCR_USERNAME="${GHCR_USERNAME:-arne-munch-ellingsen}"
+GHCR_EMAIL="${GHCR_EMAIL:-you@example.com}"
+GHCR_PASSWORD_FILE="${GHCR_PASSWORD_FILE:-$SCRIPT_DIR/github-ghrc-pat}"
+
+# Read password from file or use environment variable
+if [ -z "$GHCR_PASSWORD" ]; then
+    if [ -f "$GHCR_PASSWORD_FILE" ]; then
+        GHCR_PASSWORD=$(cat "$GHCR_PASSWORD_FILE" | tr -d '\n\r ')
+    else
+        echo "⚠ Warning: GHCR password file not found at $GHCR_PASSWORD_FILE"
+        echo "  Skipping ghcr-secret creation. You may need to create it manually."
+        GHCR_PASSWORD=""
+    fi
+fi
+
+if [ -n "$GHCR_PASSWORD" ]; then
+    echo "Creating ghcr-secret secret in $NAMESPACE namespace..."
+    kubectl create secret docker-registry ghcr-secret \
+        --docker-server=ghcr.io \
+        --docker-username="$GHCR_USERNAME" \
+        --docker-password="$GHCR_PASSWORD" \
+        --docker-email="$GHCR_EMAIL" \
+        -n $NAMESPACE \
+        --dry-run=client -o yaml | kubectl apply -f -
+    
+    # Verify the secret was created
+    if kubectl get secret ghcr-secret -n $NAMESPACE &> /dev/null; then
+        echo "✓ GHCR credentials secret created and verified"
+    else
+        echo "⚠ Warning: Failed to verify GHCR credentials secret"
+    fi
+else
+    echo "⚠ Warning: GHCR password not available. Secret not created."
+    echo "  To create it manually, run:"
+    echo "    kubectl create secret docker-registry ghcr-secret \\"
+    echo "      --docker-server=ghcr.io \\"
+    echo "      --docker-username=arne-munch-ellingsen \\"
+    echo "      --docker-password=\$(cat github-ghrc-pat) \\"
+    echo "      --docker-email=you@example.com \\"
+    echo "      -n $NAMESPACE"
+fi
 
 # Step 9: Verify the deployment
 echo ""
@@ -269,26 +431,76 @@ if [ -z "$POD_IMAGE" ]; then
     exit 1
 fi
 
-# Verify the image exists in minikube (note: image IDs may differ, which is normal)
+# Verify the image exists in minikube and get its details
 echo "Verifying image exists in minikube..."
 eval $(minikube -p $PROFILE docker-env) > /dev/null 2>&1
 MINIKUBE_IMAGE_EXISTS=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep -q "^${IMAGE_NAME}:${IMAGE_TAG}$" && echo "yes" || echo "no")
 MINIKUBE_IMAGE_ID=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.ID}}" 2>/dev/null | head -1)
 MINIKUBE_IMAGE_CREATED=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.CreatedAt}}" 2>/dev/null | head -1)
+MINIKUBE_IMAGE_SIZE=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.Size}}" 2>/dev/null | head -1)
 unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD
 
 if [ "$MINIKUBE_IMAGE_EXISTS" != "yes" ] || [ -z "$MINIKUBE_IMAGE_ID" ]; then
     echo "✗ Verification failed: Image not found in minikube"
-    exit 1
+    echo "  Attempting to reload image..."
+    minikube image load ${IMAGE_NAME}:${IMAGE_TAG} -p $PROFILE
+    sleep 2
+    # Re-check
+    eval $(minikube -p $PROFILE docker-env) > /dev/null 2>&1
+    MINIKUBE_IMAGE_ID=$(docker images ${IMAGE_NAME}:${IMAGE_TAG} --format "{{.ID}}" 2>/dev/null | head -1)
+    unset DOCKER_HOST DOCKER_TLS_VERIFY DOCKER_CERT_PATH MINIKUBE_ACTIVE_DOCKERD
+    if [ -z "$MINIKUBE_IMAGE_ID" ]; then
+        echo "✗ Error: Image still not found in minikube after reload attempt"
+        exit 1
+    fi
 fi
+
+# Get the pod's actual image ID to verify it matches
+POD_IMAGE_ID=$(kubectl get pod -n $NAMESPACE $POD_NAME -o jsonpath='{.status.containerStatuses[0].imageID}' 2>/dev/null | sed 's/.*sha256://' | cut -c1-12 || echo "")
 
 # Verify pod is using the correct image
 if [ "$POD_IMAGE" = "${IMAGE_NAME}:${IMAGE_TAG}" ]; then
-    echo "✓ Verification passed: Pod is using the correct image"
-    echo "  Pod image: $POD_IMAGE"
-    echo "  Minikube image ID: ${MINIKUBE_IMAGE_ID:0:12}..."
-    echo "  Minikube image created: $MINIKUBE_IMAGE_CREATED"
-    echo "  Note: Image IDs may differ between host and minikube (this is normal)"
+    echo "✓ Pod image name matches: $POD_IMAGE"
+    
+    # Verify the image ID matches (or at least check if it's the expected one)
+    if [ -n "$POD_IMAGE_ID" ] && [ -n "$MINIKUBE_IMAGE_ID" ]; then
+        # Compare first 12 characters of image IDs
+        POD_IMAGE_ID_SHORT=$(echo "$POD_IMAGE_ID" | cut -c1-12)
+        MINIKUBE_IMAGE_ID_SHORT=$(echo "$MINIKUBE_IMAGE_ID" | cut -c1-12)
+        
+        if [ "$POD_IMAGE_ID_SHORT" = "$MINIKUBE_IMAGE_ID_SHORT" ]; then
+            echo "✓ Verification passed: Pod is using the correct image ID"
+            echo "  Pod image: $POD_IMAGE"
+            echo "  Pod image ID: ${POD_IMAGE_ID_SHORT}..."
+            echo "  Minikube image ID: ${MINIKUBE_IMAGE_ID_SHORT}..."
+            echo "  Minikube image created: $MINIKUBE_IMAGE_CREATED"
+            echo "  Minikube image size: $MINIKUBE_IMAGE_SIZE"
+        else
+            echo "⚠ Warning: Pod image ID does not match minikube image ID"
+            echo "  Pod image ID: ${POD_IMAGE_ID_SHORT}..."
+            echo "  Minikube image ID: ${MINIKUBE_IMAGE_ID_SHORT}..."
+            echo "  This may indicate the pod is using a cached/old image"
+            echo "  Attempting to force pod restart..."
+            kubectl delete pod -n $NAMESPACE $POD_NAME --grace-period=0 --force 2>/dev/null || true
+            echo "  Waiting for new pod to start..."
+            sleep 10
+            # Re-check with new pod
+            NEW_POD_NAME=$(get_latest_running_non_terminating_pod "$NAMESPACE" "$FULLNAME")
+            if [ -n "$NEW_POD_NAME" ]; then
+                NEW_POD_IMAGE_ID=$(kubectl get pod -n $NAMESPACE $NEW_POD_NAME -o jsonpath='{.status.containerStatuses[0].imageID}' 2>/dev/null | sed 's/.*sha256://' | cut -c1-12 || echo "")
+                if [ -n "$NEW_POD_IMAGE_ID" ] && [ "$(echo "$NEW_POD_IMAGE_ID" | cut -c1-12)" = "$MINIKUBE_IMAGE_ID_SHORT" ]; then
+                    echo "✓ New pod is using the correct image"
+                else
+                    echo "⚠ Warning: New pod may still be using old image. Manual intervention may be needed."
+                fi
+            fi
+        fi
+    else
+        echo "⚠ Warning: Could not verify image ID (pod may still be starting)"
+        echo "  Pod image: $POD_IMAGE"
+        echo "  Minikube image ID: ${MINIKUBE_IMAGE_ID:0:12}..."
+        echo "  Minikube image created: $MINIKUBE_IMAGE_CREATED"
+    fi
 else
     echo "✗ Verification failed: Pod is using wrong image"
     echo "  Expected: ${IMAGE_NAME}:${IMAGE_TAG}"

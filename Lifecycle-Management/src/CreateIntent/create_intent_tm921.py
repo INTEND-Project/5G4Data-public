@@ -5,7 +5,7 @@ import uuid
 import argparse
 
 # Base URL of the API
-BASE_URL = "http://start5g-1.cs.uit.no:3020/tmf-api/intentManagement/v5"
+BASE_URL = "http://start5g-1.cs.uit.no:3021/tmf-api/intentManagement/v5"
 
 def test_get_intents():
     url = f"{BASE_URL}/intent"

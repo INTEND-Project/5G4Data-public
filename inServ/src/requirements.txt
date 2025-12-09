@@ -1,0 +1,12 @@
+connexion[swagger-ui] >= 2.6.0; python_version>="3.6"
+connexion[swagger-ui] <= 2.14.2; python_version>"3.4"
+swagger-ui-bundle >= 0.0.2
+python_dateutil >= 2.6.0
+setuptools >= 21.0.0
+Flask >= 2.1.1,<3.0
+gunicorn >= 21.2.0,<22.0.0
+requests >= 2.31.0,<3.0
+rdflib >= 6.0.0
+PyYAML >= 6.0
+# intent-report-client is installed from ../intent-report-client in Dockerfile
+# For local development: pip install -e ../intent-report-client

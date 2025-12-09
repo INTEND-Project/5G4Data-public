@@ -1,9 +1,10 @@
 #!/bin/bash
-# Build and deploy inOrch-TMF-Proxy to minikube cluster (inOrch profile)
+# Build and deploy inOrch-TMF-Proxy to minikube cluster
 
 set -e  # Exit on error
 
-PROFILE="inOrch-TMF-Proxy"
+# Accept PROFILE from environment variable or use default
+PROFILE="${MINIKUBE_PROFILE:-inOrch-TMF-Proxy}"
 NAMESPACE="inorch-tmf-proxy"
 IMAGE_NAME="inorch-tmf-proxy"
 IMAGE_TAG="latest"
@@ -331,15 +332,30 @@ echo "✓ Image verified in minikube (ID: ${FINAL_CHECK_IMAGE_ID:0:12}..., Size:
 # Step 7: Update the Helm deployment with the new image
 echo ""
 echo "Step 7: Upgrading Helm deployment..."
-helm upgrade ${RELEASE_NAME} charts/inorch-tmf-proxy \
-  --namespace $NAMESPACE \
-  --set image.repository=${IMAGE_NAME} \
-  --set image.tag=${IMAGE_TAG} \
-  --set image.pullPolicy=Never \
-  --set env.KUBE_NAMESPACE=$NAMESPACE \
-  --set env.ENABLE_K8S="true" \
-  --set fullnameOverride=${FULLNAME} \
-  --install  # Install if it doesn't exist
+if [ -n "$PROXY_NODEPORT" ]; then
+    echo "Setting service.nodePort to $PROXY_NODEPORT"
+    helm upgrade ${RELEASE_NAME} charts/inorch-tmf-proxy \
+      --namespace $NAMESPACE \
+      --set image.repository=${IMAGE_NAME} \
+      --set image.tag=${IMAGE_TAG} \
+      --set image.pullPolicy=Never \
+      --set env.KUBE_NAMESPACE=$NAMESPACE \
+      --set env.ENABLE_K8S="true" \
+      --set fullnameOverride=${FULLNAME} \
+      --set service.type=NodePort \
+      --set service.nodePort=$PROXY_NODEPORT \
+      --install  # Install if it doesn't exist
+else
+    helm upgrade ${RELEASE_NAME} charts/inorch-tmf-proxy \
+      --namespace $NAMESPACE \
+      --set image.repository=${IMAGE_NAME} \
+      --set image.tag=${IMAGE_TAG} \
+      --set image.pullPolicy=Never \
+      --set env.KUBE_NAMESPACE=$NAMESPACE \
+      --set env.ENABLE_K8S="true" \
+      --set fullnameOverride=${FULLNAME} \
+      --install  # Install if it doesn't exist
+fi
 
 # Force rollout restart to ensure new image is used (even with same tag)
 echo ""

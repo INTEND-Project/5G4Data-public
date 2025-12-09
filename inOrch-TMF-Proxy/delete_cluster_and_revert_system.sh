@@ -5,6 +5,9 @@
 set -e
 
 # Default configuration
+DATACENTER=""
+EC_NUMBER=""
+EXTERNAL_PORT=""
 PROFILE="${MINIKUBE_PROFILE:-inOrch-TMF-Proxy}"
 HOST_EXTERNAL_IP="129.242.22.51"
 MINIKUBE_IP="192.168.49.2"
@@ -38,6 +41,10 @@ log_step() {
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
+            --datacenter)
+                DATACENTER="$2"
+                shift 2
+                ;;
             --profile)
                 PROFILE="$2"
                 shift 2
@@ -61,6 +68,40 @@ parse_args() {
                 ;;
         esac
     done
+    
+    # Validate that datacenter is provided (mandatory)
+    if [ -z "$DATACENTER" ]; then
+        log_error "Datacenter is required"
+        echo ""
+        echo "Please specify a datacenter using --datacenter (e.g., --datacenter EC1, --datacenter EC21)"
+        echo ""
+        show_help
+        exit 1
+    fi
+    
+    # Validate datacenter format (must start with EC followed by digits, case-insensitive)
+    if [[ ! "$DATACENTER" =~ ^[Ee][Cc][0-9]+$ ]]; then
+        log_error "Invalid datacenter format: $DATACENTER"
+        echo "Datacenter must start with 'EC' followed by digits (e.g., EC1, EC21, EC41)"
+        exit 1
+    fi
+    
+    # Extract EC number (remove EC prefix, case-insensitive)
+    EC_NUMBER=$(echo "$DATACENTER" | sed 's/^[Ee][Cc]//')
+    
+    # Calculate external port: 4000 + EC number
+    EXTERNAL_PORT=$((4000 + EC_NUMBER))
+    
+    # Calculate ingress NodePort: 32700 + EC number (datacenter-based)
+    INGRESS_NODEPORT=$((32700 + EC_NUMBER))
+    
+    # Set profile name to include datacenter
+    PROFILE="${DATACENTER}-inOrch-TMF-Proxy"
+    
+    log_info "Datacenter: $DATACENTER (EC$EC_NUMBER)"
+    log_info "External port: $EXTERNAL_PORT"
+    log_info "Ingress NodePort: $INGRESS_NODEPORT"
+    log_info "Profile: $PROFILE"
 }
 
 show_help() {
@@ -70,20 +111,22 @@ Usage: $0 [OPTIONS]
 Delete minikube cluster and revert all system-wide configurations.
 
 OPTIONS:
-    --profile PROFILE       Minikube profile name (default: inOrch-TMF-Proxy)
+    --datacenter DC         Datacenter name (REQUIRED) (e.g., EC1, EC21, EC41)
+                            Sets profile to {DC}-inOrch-TMF-Proxy and uses external port 4000+EC number
+    --profile PROFILE       Minikube profile name (overridden by --datacenter)
     --host-ip IP            Host external IP address (default: 129.242.22.51)
     --minikube-ip IP        Minikube node IP address (default: 192.168.49.2)
     -h, --help              Show this help message
 
 ENVIRONMENT VARIABLES:
-    MINIKUBE_PROFILE        Minikube profile name (overridden by --profile)
+    MINIKUBE_PROFILE        Minikube profile name (overridden by --profile or --datacenter)
 
 EXAMPLES:
-    # Delete cluster with defaults
-    $0
+    # Delete cluster for datacenter EC21 (profile: EC21-inOrch-TMF-Proxy, port: 4021)
+    $0 --datacenter EC21
 
-    # Delete specific profile
-    $0 --profile my-profile
+    # Delete cluster for datacenter EC1 (profile: EC1-inOrch-TMF-Proxy, port: 4001)
+    $0 --datacenter EC1
 EOF
 }
 
@@ -101,15 +144,19 @@ cleanup_systemd_services() {
         log_info "ingress-forwarding-${INGRESS_NODEPORT}.service not found"
     fi
     
+    # Determine port forwarding service name (datacenter-specific, datacenter is mandatory)
+    local portforward_service="systemd-portforward-inorch-tmf-proxy-${DATACENTER,,}"
+    
     # Stop and disable port forwarding service
-    if systemctl list-units --type=service | grep -q "systemd-portforward-inorch-tmf-proxy.service"; then
-        log_info "Stopping systemd-portforward-inorch-tmf-proxy.service..."
-        sudo systemctl stop systemd-portforward-inorch-tmf-proxy.service 2>/dev/null || true
-        sudo systemctl disable systemd-portforward-inorch-tmf-proxy.service 2>/dev/null || true
-        log_info "Stopped and disabled systemd-portforward-inorch-tmf-proxy.service"
+    if systemctl list-units --type=service | grep -q "${portforward_service}.service"; then
+        log_info "Stopping ${portforward_service}.service..."
+        sudo systemctl stop ${portforward_service}.service 2>/dev/null || true
+        sudo systemctl disable ${portforward_service}.service 2>/dev/null || true
+        log_info "Stopped and disabled ${portforward_service}.service"
     else
-        log_info "systemd-portforward-inorch-tmf-proxy.service not found"
+        log_info "${portforward_service}.service not found"
     fi
+    
     
     # Kill any remaining socat processes for the ingress port
     if pgrep -f "socat.*TCP-LISTEN:${INGRESS_NODEPORT}" >/dev/null 2>&1; then
@@ -119,10 +166,19 @@ cleanup_systemd_services() {
         log_info "Killed socat processes"
     fi
     
+    # Kill any remaining kubectl port-forward processes for the proxy service
+    local proxy_port="${EXTERNAL_PORT:-3020}"
+    if pgrep -f "kubectl.*port-forward.*inorch-tmf-proxy.*${proxy_port}" >/dev/null 2>&1; then
+        log_info "Killing remaining kubectl port-forward processes for proxy port ${proxy_port}..."
+        pkill -f "kubectl.*port-forward.*inorch-tmf-proxy.*${proxy_port}" 2>/dev/null || true
+        sleep 1
+        log_info "Killed kubectl port-forward processes"
+    fi
+    
     # Remove systemd service files
     local service_files=(
         "/etc/systemd/system/ingress-forwarding-${INGRESS_NODEPORT}.service"
-        "/etc/systemd/system/systemd-portforward-inorch-tmf-proxy.service"
+        "/etc/systemd/system/${portforward_service}.service"
     )
     
     for service_file in "${service_files[@]}"; do
@@ -132,9 +188,16 @@ cleanup_systemd_services() {
         fi
     done
     
-    # Reload systemd daemon
-    if [ -f "/etc/systemd/system/ingress-forwarding-${INGRESS_NODEPORT}.service" ] || \
-       [ -f "/etc/systemd/system/systemd-portforward-inorch-tmf-proxy.service" ]; then
+    # Reload systemd daemon if any service files were removed
+    local need_reload=false
+    for service_file in "${service_files[@]}"; do
+        if [ -f "$service_file" ]; then
+            need_reload=true
+            break
+        fi
+    done
+    
+    if [ "$need_reload" = true ]; then
         log_info "Reloading systemd daemon..."
         sudo systemctl daemon-reload
     fi
@@ -174,6 +237,49 @@ cleanup_iptables() {
         sudo iptables -t filter -D INPUT -s 192.168.49.0/24 -p tcp --dport 3040 -j ACCEPT 2>/dev/null || break
         log_info "Removed INPUT rule for 192.168.49.0/24 -> port 3040"
     done
+    
+    # Remove DNAT and FORWARD rules for proxy external port (if datacenter is set)
+    if [ -n "$EXTERNAL_PORT" ] && [ "$EXTERNAL_PORT" != "3020" ]; then
+        log_info "Removing DNAT and FORWARD rules for proxy external port ${EXTERNAL_PORT}..."
+        
+        # Remove DNAT rules for proxy port
+        while sudo iptables -t nat -C PREROUTING -d "$HOST_EXTERNAL_IP" -p tcp --dport $EXTERNAL_PORT -j DNAT --to-destination "${MINIKUBE_IP}:${EXTERNAL_PORT}" 2>/dev/null; do
+            sudo iptables -t nat -D PREROUTING -d "$HOST_EXTERNAL_IP" -p tcp --dport $EXTERNAL_PORT -j DNAT --to-destination "${MINIKUBE_IP}:${EXTERNAL_PORT}" 2>/dev/null || break
+            log_info "Removed DNAT rule for ${HOST_EXTERNAL_IP}:${EXTERNAL_PORT} -> ${MINIKUBE_IP}:${EXTERNAL_PORT}"
+        done
+        
+        # Remove generic DNAT rules for proxy port
+        while sudo iptables -t nat -C PREROUTING -p tcp --dport $EXTERNAL_PORT -j DNAT --to-destination "${MINIKUBE_IP}:${EXTERNAL_PORT}" 2>/dev/null; do
+            sudo iptables -t nat -D PREROUTING -p tcp --dport $EXTERNAL_PORT -j DNAT --to-destination "${MINIKUBE_IP}:${EXTERNAL_PORT}" 2>/dev/null || break
+            log_info "Removed generic DNAT rule for port ${EXTERNAL_PORT}"
+        done
+        
+        # Remove FORWARD rules for proxy port
+        while sudo iptables -t filter -C FORWARD -d "$MINIKUBE_IP" -p tcp --dport $EXTERNAL_PORT -j ACCEPT 2>/dev/null; do
+            sudo iptables -t filter -D FORWARD -d "$MINIKUBE_IP" -p tcp --dport $EXTERNAL_PORT -j ACCEPT 2>/dev/null || break
+            log_info "Removed FORWARD rule for ${MINIKUBE_IP}:${EXTERNAL_PORT}"
+        done
+        
+        # Remove INPUT rules for proxy port
+        while sudo iptables -t filter -C INPUT -p tcp --dport $EXTERNAL_PORT -j ACCEPT 2>/dev/null; do
+            sudo iptables -t filter -D INPUT -p tcp --dport $EXTERNAL_PORT -j ACCEPT 2>/dev/null || break
+            log_info "Removed INPUT rule for port ${EXTERNAL_PORT}"
+        done
+        
+        # Remove UFW-specific rules for proxy port
+        while sudo iptables -t filter -C ufw-before-input -p tcp --dport $EXTERNAL_PORT -j ACCEPT 2>/dev/null; do
+            sudo iptables -t filter -D ufw-before-input -p tcp --dport $EXTERNAL_PORT -j ACCEPT 2>/dev/null || break
+            log_info "Removed ufw-before-input rule for port ${EXTERNAL_PORT}"
+        done
+        
+        # Remove interface-specific INPUT rules for proxy port
+        if [ -n "$external_interface" ]; then
+            while sudo iptables -t filter -C INPUT -i "$external_interface" -p tcp --dport $EXTERNAL_PORT -j ACCEPT 2>/dev/null; do
+                sudo iptables -t filter -D INPUT -i "$external_interface" -p tcp --dport $EXTERNAL_PORT -j ACCEPT 2>/dev/null || break
+                log_info "Removed INPUT rule for interface $external_interface, port ${EXTERNAL_PORT}"
+            done
+        fi
+    fi
     
     # Remove INPUT rules for ingress port (if added directly, not via UFW)
     log_info "Removing direct INPUT rules for port ${INGRESS_NODEPORT}..."
@@ -247,9 +353,38 @@ cleanup_sysctl() {
     log_info "sysctl cleanup complete (ip_forward left as-is for other services)"
 }
 
+# Detect ingress NodePort from cluster
+detect_ingress_nodeport() {
+    # INGRESS_NODEPORT should already be set from datacenter calculation
+    if [ -n "$INGRESS_NODEPORT" ]; then
+        log_info "Using calculated ingress NodePort: $INGRESS_NODEPORT"
+        return 0
+    fi
+    
+    # Try to detect from the cluster's ingress controller service as fallback
+    if minikube profile list 2>/dev/null | grep -q "[[:space:]]*$PROFILE[[:space:]]"; then
+        log_info "Detecting ingress NodePort from cluster..."
+        local detected_port
+        detected_port=$(kubectl get svc ingress-nginx-controller -n ingress-nginx --context $PROFILE -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}' 2>/dev/null || echo "")
+        
+        if [ -n "$detected_port" ]; then
+            INGRESS_NODEPORT=$detected_port
+            log_info "Detected ingress NodePort: $INGRESS_NODEPORT"
+            return 0
+        fi
+    fi
+    
+    # This should not happen if datacenter is mandatory, but provide error message
+    log_error "Could not determine ingress NodePort. This should not happen if datacenter is provided."
+    return 1
+}
+
 # Delete minikube cluster
 delete_cluster() {
     log_step "Deleting minikube cluster"
+    
+    # Detect ingress NodePort before deleting cluster
+    detect_ingress_nodeport
     
     # Check if profile exists
     if ! minikube profile list 2>/dev/null | grep -q "[[:space:]]*$PROFILE[[:space:]]"; then
@@ -288,11 +423,14 @@ verify_cleanup() {
         log_info "ingress-forwarding-${INGRESS_NODEPORT}.service is stopped"
     fi
     
-    if systemctl is-active --quiet systemd-portforward-inorch-tmf-proxy.service 2>/dev/null; then
-        log_error "systemd-portforward-inorch-tmf-proxy.service is still active"
+    # Check datacenter-specific port forwarding service (datacenter is mandatory)
+    local portforward_service="systemd-portforward-inorch-tmf-proxy-${DATACENTER,,}"
+    
+    if systemctl is-active --quiet ${portforward_service}.service 2>/dev/null; then
+        log_error "${portforward_service}.service is still active"
         issues=$((issues + 1))
     else
-        log_info "systemd-portforward-inorch-tmf-proxy.service is stopped"
+        log_info "${portforward_service}.service is stopped"
     fi
     
     # Check if socat processes are still running
@@ -329,10 +467,13 @@ main() {
     
     parse_args "$@"
     
+    # Detect ingress NodePort early (needed for cleanup)
+    detect_ingress_nodeport
+    
     # Confirm deletion
     echo "This will:"
     echo "  - Delete minikube profile: $PROFILE"
-    echo "  - Stop and remove systemd services"
+    echo "  - Stop and remove systemd services (ingress NodePort: ${INGRESS_NODEPORT})"
     echo "  - Remove iptables rules"
     echo "  - Revert sysctl settings"
     echo ""

@@ -7,10 +7,13 @@ Usage:
     # REQUIRED: Set up port-forward first (in a separate terminal):
     kubectl port-forward -n rusty-llm svc/rusty-llm 8080:8080
     
-    # Then run this script:
-    python3 query_rusty_llm.py
+    # Then run this script with --datacenter argument:
+    python3 query_rusty_llm.py --datacenter EC21
     # or
     ./run_query_script.sh
+    
+    Note: The --datacenter argument is required and determines the port number.
+    Example: EC21 -> port 32721, EC05 -> port 32705, EC1 -> port 32701
     
     Note: With Minikube, NodePort services are not directly accessible from the host.
     Port-forward is the recommended way to access the service.
@@ -21,11 +24,12 @@ import time
 import random
 import sys
 import json
+import argparse
+import re
 from datetime import datetime
 from typing import List, Dict
 
 # Configuration
-RUSTY_LLM_URL = "http://129.242.22.51:30872/rusty-llm-ext"
 QUERY_INTERVAL = 10  # seconds
 LOG_REQUESTS = True
 
@@ -224,12 +228,57 @@ def get_question_by_type(q_type: str) -> str:
     return random.choice(QUESTION_TYPES["factual"])
 
 
+def get_port_from_datacenter(datacenter: str) -> int:
+    """
+    Calculate the port number from the datacenter argument.
+    
+    Args:
+        datacenter: Datacenter identifier (e.g., "EC21", "EC05", "EC1")
+    
+    Returns:
+        Port number (e.g., 32721 for EC21, 32705 for EC05, 32701 for EC1)
+    """
+    # Extract the number part from the datacenter string
+    # Match one or more digits at the end of the string
+    match = re.search(r'(\d+)$', datacenter)
+    if not match:
+        raise ValueError(f"Invalid datacenter format: {datacenter}. Expected format like EC21, EC05, etc.")
+    
+    number_part = match.group(1)
+    # Convert to int to remove leading zeros, then format with zero-padding if < 10
+    number = int(number_part)
+    if number < 10:
+        number_str = f"{number:02d}"  # Zero-pad to 2 digits: 01, 02, 03, etc.
+    else:
+        number_str = str(number)
+    
+    # Port is 327 + number part
+    port = int(f"327{number_str}")
+    return port
+
+
 def main():
     """Main loop to send queries every 10 seconds."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Send queries to rusty-llm service")
+    parser.add_argument(
+        "--datacenter",
+        type=str,
+        required=True,
+        help="Datacenter identifier (e.g., EC21, EC05, EC1). Used to determine the port number."
+    )
+    args = parser.parse_args()
+    
+    # Calculate port from datacenter argument
+    port = get_port_from_datacenter(args.datacenter)
+    rusty_llm_url = f"http://129.242.22.51:{port}/rusty-llm-ext"
+    
     print("=" * 80)
     print("Rusty-LLM Query Load Generator")
     print("=" * 80)
-    print(f"Target URL: {RUSTY_LLM_URL}")
+    print(f"Datacenter: {args.datacenter}")
+    print(f"Port: {port}")
+    print(f"Target URL: {rusty_llm_url}")
     print(f"Query Interval: {QUERY_INTERVAL} seconds")
     print(f"Press Ctrl+C to stop")
     print("=" * 80)
@@ -249,7 +298,7 @@ def main():
             question_type, question = get_random_question()
             
             # Send the query
-            result = send_query(RUSTY_LLM_URL, question, question_type)
+            result = send_query(rusty_llm_url, question, question_type)
             
             # Update statistics
             stats["total"] += 1

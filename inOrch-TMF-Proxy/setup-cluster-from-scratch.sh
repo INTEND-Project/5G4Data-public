@@ -5,6 +5,11 @@
 set -e  # Exit on error
 
 # Default configuration
+DATACENTER=""
+EC_NUMBER=""
+EXTERNAL_PORT=""
+PROXY_NODEPORT=""
+INGRESS_NODEPORT=""
 PROFILE="${MINIKUBE_PROFILE:-inOrch-TMF-Proxy}"
 NAMESPACE="inorch-tmf-proxy"
 IDO_NAMESPACE="ido"
@@ -61,6 +66,10 @@ log_step() {
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
+            --datacenter)
+                DATACENTER="$2"
+                shift 2
+                ;;
             --ido-repo-path)
                 IDO_REPO_PATH="$2"
                 shift 2
@@ -116,6 +125,40 @@ parse_args() {
                 ;;
         esac
     done
+    
+    # Validate that datacenter is provided (mandatory)
+    if [ -z "$DATACENTER" ]; then
+        log_error "Datacenter is required"
+        echo ""
+        echo "Please specify a datacenter using --datacenter (e.g., --datacenter EC1, --datacenter EC21)"
+        echo ""
+        show_help
+        exit 1
+    fi
+    
+    # Validate datacenter format (must start with EC followed by digits, case-insensitive)
+    if [[ ! "$DATACENTER" =~ ^[Ee][Cc][0-9]+$ ]]; then
+        log_error "Invalid datacenter format: $DATACENTER"
+        echo "Datacenter must start with 'EC' followed by digits (e.g., EC1, EC21, EC41)"
+        exit 1
+    fi
+    
+    # Extract EC number (remove EC prefix, case-insensitive)
+    EC_NUMBER=$(echo "$DATACENTER" | sed 's/^[Ee][Cc]//')
+    
+    # Calculate external port: 4000 + EC number (for port-forwarding)
+    EXTERNAL_PORT=$((4000 + EC_NUMBER))
+    
+    # Calculate proxy NodePort: 30000 + EC number (must be in range 30000-32767)
+    PROXY_NODEPORT=$((30000 + EC_NUMBER))
+    
+    # Set profile name to include datacenter
+    PROFILE="${DATACENTER}-inOrch-TMF-Proxy"
+    
+    log_info "Datacenter: $DATACENTER (EC$EC_NUMBER)"
+    log_info "External port: $EXTERNAL_PORT (for port-forwarding)"
+    log_info "Proxy NodePort: $PROXY_NODEPORT (for Kubernetes service)"
+    log_info "Profile: $PROFILE"
 }
 
 show_help() {
@@ -125,11 +168,13 @@ Usage: $0 [OPTIONS]
 Set up inOrch-TMF-Proxy from scratch with all required components.
 
 OPTIONS:
-    --ido-repo-path PATH       Path to IDO repository (optional, skips IDO if not provided)
+    --datacenter DC             Datacenter name (REQUIRED) (e.g., EC1, EC21, EC41)
+                                Sets profile to {DC}-inOrch-TMF-Proxy and external port to 4000+EC number
+    --ido-repo-path PATH        Path to IDO repository (optional, skips IDO if not provided)
     --ghcr-username USER        GitHub username for GHCR (default: arne-munch-ellingsen)
     --ghcr-password TOKEN       GitHub Personal Access Token for GHCR
     --ghcr-email EMAIL          Email for GHCR secret (default: you@example.com)
-    --profile PROFILE           Minikube profile name (default: inOrch-TMF-Proxy)
+    --profile PROFILE           Minikube profile name (default: inOrch-TMF-Proxy, overridden by --datacenter)
     --cpus CPUS                 Number of CPUs to allocate to minikube (default: 16)
     --memory MEMORY             Amount of memory to allocate to minikube (default: 24G)
     --skip-ido                  Skip IDO installation
@@ -139,7 +184,7 @@ OPTIONS:
     -h, --help                  Show this help message
 
 ENVIRONMENT VARIABLES:
-    MINIKUBE_PROFILE            Minikube profile name (overridden by --profile)
+    MINIKUBE_PROFILE            Minikube profile name (overridden by --profile or --datacenter)
     GHCR_USERNAME               GitHub username (overridden by --ghcr-username)
     GHCR_PASSWORD               GitHub PAT (overridden by --ghcr-password or password file)
     GHCR_PASSWORD_FILE          Path to file containing GitHub PAT (default: ./github-ghrc-pat)
@@ -153,17 +198,17 @@ PASSWORD FILE:
     Alternatively, use --ghcr-password or GHCR_PASSWORD environment variable.
 
 EXAMPLES:
-    # Full setup with IDO
-    $0 --ido-repo-path ../intent-driven-orchestration --ghcr-password ghp_xxx
+    # Full setup with IDO and datacenter EC21 (port 4021)
+    $0 --datacenter EC21 --ido-repo-path ../intent-driven-orchestration --ghcr-password ghp_xxx
 
-    # Setup without IDO
-    $0 --skip-ido --ghcr-password ghp_xxx
+    # Setup with datacenter EC1 (port 4001) without IDO
+    $0 --datacenter EC1 --skip-ido --ghcr-password ghp_xxx
 
-    # Setup with environment variables
-    GHCR_PASSWORD=ghp_xxx $0 --ido-repo-path ../intent-driven-orchestration
+    # Setup with environment variables and datacenter EC41 (port 4041)
+    GHCR_PASSWORD=ghp_xxx $0 --datacenter EC41 --ido-repo-path ../intent-driven-orchestration
 
-    # Setup with custom CPU and memory
-    $0 --cpus 8 --memory 16G --ghcr-password ghp_xxx
+    # Setup with custom CPU and memory for datacenter EC21
+    $0 --datacenter EC21 --cpus 8 --memory 16G --ghcr-password ghp_xxx
 EOF
 }
 
@@ -290,39 +335,156 @@ configure_ingress_snippets() {
     fi
 }
 
+# Check if a port is in use
+is_port_in_use() {
+    local port=$1
+    local in_use=false
+    
+    # Check if port is in Kubernetes NodePort range (30000-32767)
+    if [ "$port" -lt 30000 ] || [ "$port" -gt 32767 ]; then
+        log_warn "Port $port is outside NodePort range (30000-32767)"
+        return 1
+    fi
+    
+    # Check Kubernetes services across all minikube profiles
+    log_info "Checking Kubernetes services for port $port..."
+    local profiles
+    profiles=$(minikube profile list 2>/dev/null | awk 'NR>1 {print $1}' | grep -v "^$" || true)
+    
+    if [ -n "$profiles" ]; then
+        while IFS= read -r profile_name; do
+            if [ -z "$profile_name" ]; then
+                continue
+            fi
+            
+            # Check ingress controller service in this profile
+            local nodeport
+            nodeport=$(kubectl get svc ingress-nginx-controller -n ingress-nginx --context "$profile_name" -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}' 2>/dev/null || echo "")
+            
+            if [ "$nodeport" = "$port" ]; then
+                log_info "Port $port is already used by ingress controller in profile: $profile_name"
+                in_use=true
+                break
+            fi
+        done <<< "$profiles"
+    fi
+    
+    # Check systemd services for port-forwarding services
+    if [ "$in_use" = false ]; then
+        log_info "Checking systemd services for port $port..."
+        if systemctl list-units --type=service --all 2>/dev/null | grep -q "ingress-forwarding-${port}.service"; then
+            log_info "Port $port is used by systemd service: ingress-forwarding-${port}.service"
+            in_use=true
+        fi
+    fi
+    
+    # Check listening ports on host
+    if [ "$in_use" = false ]; then
+        log_info "Checking listening ports for port $port..."
+        if command -v ss >/dev/null 2>&1; then
+            if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
+                log_info "Port $port is listening on host (detected via ss)"
+                in_use=true
+            fi
+        elif command -v netstat >/dev/null 2>&1; then
+            if netstat -tlnp 2>/dev/null | grep -q ":${port} "; then
+                log_info "Port $port is listening on host (detected via netstat)"
+                in_use=true
+            fi
+        fi
+    fi
+    
+    # Check iptables rules
+    if [ "$in_use" = false ]; then
+        log_info "Checking iptables rules for port $port..."
+        if sudo iptables -t nat -L PREROUTING -n 2>/dev/null | grep -q ":${port} "; then
+            log_info "Port $port has iptables rules configured"
+            in_use=true
+        fi
+    fi
+    
+    if [ "$in_use" = true ]; then
+        return 0  # Port is in use
+    else
+        return 1  # Port is available
+    fi
+}
+
+# Find next available port starting from base port
+find_available_port() {
+    local base_port=$1
+    local max_port=32767
+    local current_port=$base_port
+    
+    log_info "Finding available port starting from $base_port..."
+    
+    while [ $current_port -le $max_port ]; do
+        if ! is_port_in_use $current_port; then
+            log_info "Found available port: $current_port"
+            echo $current_port
+            return 0
+        fi
+        current_port=$((current_port + 1))
+    done
+    
+    log_error "No available port found in range $base_port-$max_port"
+    return 1
+}
+
 # Configure ingress controller NodePort
 configure_ingress_nodeport() {
     log_step "Configuring ingress controller NodePort"
     
-    local target_port=30872
+    local target_port
     local current_port
     
+    # Determine target port based on datacenter (datacenter is mandatory)
+    # Use datacenter-based deterministic port: 32700 + EC_NUMBER
+    target_port=$((32700 + EC_NUMBER))
+    log_info "Using datacenter-based port: $target_port (32700 + $EC_NUMBER)"
+    
+    # Check if this port is available
+    if is_port_in_use $target_port; then
+        log_warn "Datacenter-based port $target_port is already in use, finding alternative starting from 32700..."
+        target_port=$(find_available_port 32700)
+        if [ $? -ne 0 ]; then
+            log_error "Failed to find available port"
+            return 1
+        fi
+    fi
+    
+    # Store the selected port globally
+    INGRESS_NODEPORT=$target_port
+    
+    log_info "Selected ingress NodePort: $INGRESS_NODEPORT"
+    
+    # Check current port in this cluster
     log_info "Checking current ingress controller NodePort..."
     current_port=$(kubectl get svc ingress-nginx-controller -n ingress-nginx --context $PROFILE -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}' 2>/dev/null || echo "")
     
     if [ -z "$current_port" ]; then
-        log_warn "Could not determine current NodePort, attempting to patch anyway..."
-    elif [ "$current_port" = "$target_port" ]; then
-        log_info "Ingress controller NodePort is already set to $target_port"
+        log_warn "Could not determine current NodePort, will set to $INGRESS_NODEPORT"
+    elif [ "$current_port" = "$INGRESS_NODEPORT" ]; then
+        log_info "Ingress controller NodePort is already set to $INGRESS_NODEPORT"
         return 0
     else
-        log_info "Current NodePort is $current_port, changing to $target_port"
+        log_info "Current NodePort is $current_port, changing to $INGRESS_NODEPORT"
     fi
     
-    log_info "Patching ingress controller service to use NodePort $target_port..."
+    log_info "Patching ingress controller service to use NodePort $INGRESS_NODEPORT..."
     kubectl patch svc ingress-nginx-controller -n ingress-nginx --context $PROFILE \
         --type='json' \
-        -p="[{\"op\": \"replace\", \"path\": \"/spec/ports/0/nodePort\", \"value\": $target_port}]" 2>/dev/null
+        -p="[{\"op\": \"replace\", \"path\": \"/spec/ports/0/nodePort\", \"value\": $INGRESS_NODEPORT}]" 2>/dev/null
     
     if [ $? -eq 0 ]; then
-        log_info "Successfully configured ingress controller NodePort to $target_port"
+        log_info "Successfully configured ingress controller NodePort to $INGRESS_NODEPORT"
         
         # Verify the change
         sleep 2
         local verified_port
         verified_port=$(kubectl get svc ingress-nginx-controller -n ingress-nginx --context $PROFILE -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}' 2>/dev/null || echo "")
-        if [ "$verified_port" = "$target_port" ]; then
-            log_info "Verified: Ingress controller NodePort is now $target_port"
+        if [ "$verified_port" = "$INGRESS_NODEPORT" ]; then
+            log_info "Verified: Ingress controller NodePort is now $INGRESS_NODEPORT"
         else
             log_warn "Warning: Could not verify NodePort change (got: $verified_port)"
         fi
@@ -368,38 +530,44 @@ configure_ingress_externalip() {
         fi
     fi
     
+    # Ensure INGRESS_NODEPORT is set (should be set by configure_ingress_nodeport)
+    if [ -z "$INGRESS_NODEPORT" ]; then
+        log_error "INGRESS_NODEPORT is not set. This should not happen."
+        return 1
+    fi
+    
     # Get minikube node IP
     local minikube_ip
     minikube_ip=$(minikube ip -p $PROFILE 2>/dev/null || echo "192.168.49.2")
     
     # Check if socat is handling port forwarding (via systemd service or direct process)
     local socat_handling_forwarding=false
-    if systemctl is-active --quiet ingress-forwarding-30872.service 2>/dev/null; then
+    if systemctl is-active --quiet ingress-forwarding-${INGRESS_NODEPORT}.service 2>/dev/null; then
         socat_handling_forwarding=true
-        log_info "Detected socat-based port forwarding (ingress-forwarding-30872.service is active)"
+        log_info "Detected socat-based port forwarding (ingress-forwarding-${INGRESS_NODEPORT}.service is active)"
         log_info "Skipping DNAT rule setup to avoid conflicts with socat"
-    elif pgrep -f "socat.*TCP-LISTEN:30872" >/dev/null 2>&1 && \
-         (ss -tlnp 2>/dev/null | grep -q ":30872.*socat" || netstat -tlnp 2>/dev/null | grep -q ":30872.*socat"); then
+    elif pgrep -f "socat.*TCP-LISTEN:${INGRESS_NODEPORT}" >/dev/null 2>&1 && \
+         (ss -tlnp 2>/dev/null | grep -q ":${INGRESS_NODEPORT}.*socat" || netstat -tlnp 2>/dev/null | grep -q ":${INGRESS_NODEPORT}.*socat"); then
         socat_handling_forwarding=true
-        log_info "Detected socat process handling port forwarding on port 30872"
+        log_info "Detected socat process handling port forwarding on port ${INGRESS_NODEPORT}"
         log_info "Skipping DNAT rule setup to avoid conflicts with socat"
     fi
     
     # Only set up iptables DNAT rules if socat is NOT handling the forwarding
     if [ "$socat_handling_forwarding" = "false" ]; then
-        log_info "Setting up iptables forwarding from $host_ip:30872 to $minikube_ip:30872"
+        log_info "Setting up iptables forwarding from $host_ip:${INGRESS_NODEPORT} to $minikube_ip:${INGRESS_NODEPORT}"
         
         # Add DNAT rule in PREROUTING
-        if ! sudo iptables -t nat -C PREROUTING -d "$host_ip" -p tcp --dport 30872 -j DNAT --to-destination "$minikube_ip:30872" 2>/dev/null; then
-            sudo iptables -t nat -I PREROUTING 1 -d "$host_ip" -p tcp --dport 30872 -j DNAT --to-destination "$minikube_ip:30872"
+        if ! sudo iptables -t nat -C PREROUTING -d "$host_ip" -p tcp --dport ${INGRESS_NODEPORT} -j DNAT --to-destination "$minikube_ip:${INGRESS_NODEPORT}" 2>/dev/null; then
+            sudo iptables -t nat -I PREROUTING 1 -d "$host_ip" -p tcp --dport ${INGRESS_NODEPORT} -j DNAT --to-destination "$minikube_ip:${INGRESS_NODEPORT}"
             log_info "Added PREROUTING DNAT rule"
         else
             log_info "PREROUTING DNAT rule already exists"
         fi
         
         # Add FORWARD rule
-        if ! sudo iptables -t filter -C FORWARD -d "$minikube_ip" -p tcp --dport 30872 -j ACCEPT 2>/dev/null; then
-            sudo iptables -t filter -I FORWARD 1 -d "$minikube_ip" -p tcp --dport 30872 -j ACCEPT
+        if ! sudo iptables -t filter -C FORWARD -d "$minikube_ip" -p tcp --dport ${INGRESS_NODEPORT} -j ACCEPT 2>/dev/null; then
+            sudo iptables -t filter -I FORWARD 1 -d "$minikube_ip" -p tcp --dport ${INGRESS_NODEPORT} -j ACCEPT
             log_info "Added FORWARD rule"
         else
             log_info "FORWARD rule already exists"
@@ -666,6 +834,15 @@ deploy_proxy() {
     log_info "Running build-and-deploy.sh..."
     cd "$SCRIPT_DIR"
     
+    # Export PROFILE and PROXY_NODEPORT for build-and-deploy.sh to use
+    export MINIKUBE_PROFILE="$PROFILE"
+    log_info "Setting MINIKUBE_PROFILE=$PROFILE for build-and-deploy.sh"
+    
+    if [ -n "$PROXY_NODEPORT" ]; then
+        export PROXY_NODEPORT
+        log_info "Setting PROXY_NODEPORT=$PROXY_NODEPORT for build-and-deploy.sh"
+    fi
+    
     # Run build-and-deploy.sh, but don't fail if pod verification fails
     # (the pod might exist but the verification function has issues)
     if bash ./build-and-deploy.sh; then
@@ -686,6 +863,18 @@ deploy_proxy() {
             log_error "Deployment not found, build-and-deploy may have failed"
             return 1
         fi
+    fi
+    
+    # If PROXY_NODEPORT is set, patch the service to use it as nodePort
+    if [ -n "$PROXY_NODEPORT" ]; then
+        log_info "Configuring service to use NodePort $PROXY_NODEPORT..."
+        kubectl patch svc inorch-tmf-proxy -n $NAMESPACE --context $PROFILE \
+            --type='json' \
+            -p="[{\"op\": \"replace\", \"path\": \"/spec/type\", \"value\": \"NodePort\"}, {\"op\": \"replace\", \"path\": \"/spec/ports/0/nodePort\", \"value\": $PROXY_NODEPORT}]" 2>/dev/null || \
+        kubectl patch svc inorch-tmf-proxy -n $NAMESPACE --context $PROFILE \
+            --type='json' \
+            -p="[{\"op\": \"add\", \"path\": \"/spec/ports/0/nodePort\", \"value\": $PROXY_NODEPORT}]" 2>/dev/null || true
+        log_info "Service configured with nodePort $PROXY_NODEPORT"
     fi
     
     log_info "Waiting for proxy deployment to be ready..."
@@ -974,7 +1163,7 @@ EOF
         log_info "Prometheus is accessible at:"
         log_info "  - In-cluster: http://prometheus.default.svc.cluster.local:9090"
         log_info "  - External: http://start5g-1.cs.uit.no:9090"
-        log_info "  - External (via Ingress): http://start5g-1.cs.uit.no:30872/ (if ingress forwarding is set up)"
+        log_info "  - External (via Ingress): http://start5g-1.cs.uit.no:${INGRESS_NODEPORT}/ (if ingress forwarding is set up)"
     else
         log_warn "Could not detect host IP or NodePort, Prometheus will only be accessible in-cluster"
         log_info "Prometheus is accessible at: http://prometheus.default.svc.cluster.local:9090"
@@ -1058,25 +1247,51 @@ setup_port_forward() {
     fi
     
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    SERVICE_FILE="$SCRIPT_DIR/systemd-portforward-inorch-tmf-proxy.service"
     
-    if [ ! -f "$SERVICE_FILE" ]; then
-        log_warn "Service file not found: $SERVICE_FILE"
-        log_info "You can set up port-forwarding manually later"
-        return 0
-    fi
+    # Determine the port to use (external port is set from datacenter)
+    local forward_port="$EXTERNAL_PORT"
+    local service_name="systemd-portforward-inorch-tmf-proxy-${DATACENTER,,}"
+    
+    log_info "Setting up port forwarding from external port $forward_port to internal port 3020"
+    
+    # Create systemd service file dynamically
+    local service_file="/tmp/${service_name}.service"
+    cat > "$service_file" <<EOF
+#
+# Systemd unit to keep a kubectl port-forward running so the inOrch-TMF-Proxy
+# service inside Minikube is reachable from remote machines.
+#
+[Unit]
+Description=inOrch-TMF-Proxy port-forward (expose svc/inorch-tmf-proxy on port $forward_port)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telco
+WorkingDirectory=$SCRIPT_DIR
+Environment=KUBECONFIG=/home/telco/.kube/config
+ExecStart=/usr/local/bin/kubectl -n $NAMESPACE port-forward svc/inorch-tmf-proxy $forward_port:3020 --address 0.0.0.0 --context $PROFILE
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
     
     log_info "Copying systemd service file..."
-    sudo cp "$SERVICE_FILE" /etc/systemd/system/
+    sudo cp "$service_file" /etc/systemd/system/${service_name}.service
+    rm -f "$service_file"
     
     log_info "Reloading systemd daemon..."
     sudo systemctl daemon-reload
     
     log_info "Enabling and starting service..."
-    sudo systemctl enable --now systemd-portforward-inorch-tmf-proxy.service
+    sudo systemctl enable --now ${service_name}.service
     
     log_info "Port-forwarding service is running"
-    log_info "Check status with: sudo systemctl status systemd-portforward-inorch-tmf-proxy.service"
+    log_info "Check status with: sudo systemctl status ${service_name}.service"
+    log_info "Service forwards port $forward_port (external) to port 3020 (internal)"
 }
 
 # Setup ingress forwarding (optional)
@@ -1087,6 +1302,12 @@ setup_ingress_forward() {
     fi
     
     log_step "Setting up ingress forwarding (optional)"
+    
+    # Ensure INGRESS_NODEPORT is set (should be set by configure_ingress_nodeport)
+    if [ -z "$INGRESS_NODEPORT" ]; then
+        log_error "INGRESS_NODEPORT is not set. This should not happen."
+        return 1
+    fi
     
     read -p "Do you want to set up iptables forwarding for ingress? (y/N): " -n 1 -r
     echo
@@ -1104,8 +1325,8 @@ setup_ingress_forward() {
         return 0
     fi
     
-    log_info "Running ingress forwarding setup script..."
-    bash "$FORWARD_SCRIPT"
+    log_info "Running ingress forwarding setup script with NodePort ${INGRESS_NODEPORT}..."
+    INGRESS_NODEPORT=$INGRESS_NODEPORT bash "$FORWARD_SCRIPT"
     
     log_info "Ingress forwarding setup complete"
 }
@@ -1243,8 +1464,15 @@ main() {
     echo ""
     echo "Your inOrch-TMF-Proxy is ready to receive intents."
     echo ""
-    echo "To test the proxy:"
-    echo "  curl http://localhost:3020/healthz"
+    
+    # Determine the port and URL for testing (EXTERNAL_PORT is set from datacenter)
+    local test_port="$EXTERNAL_PORT"
+    local api_url="http://start5g-1.cs.uit.no:${EXTERNAL_PORT}/tmf-api/intentManagement/v5/"
+    echo "TMF921 API endpoint:"
+    echo "  $api_url"
+    echo ""
+    echo "To test the proxy locally (via port-forward):"
+    echo "  curl http://localhost:${test_port}/healthz"
     echo ""
     echo "To view logs:"
     echo "  kubectl logs -n $NAMESPACE -l app.kubernetes.io/name=inorch-tmf-proxy --tail=50 -f --context $PROFILE"

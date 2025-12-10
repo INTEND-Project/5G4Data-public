@@ -15,7 +15,7 @@ def test_get_intents():
     print("Response Body:", response.text)
     return response
 
-def test_create_intent(print_turtle_only=False):
+def test_create_intent(print_turtle_only=False, datacenter="EC21"):
     url = f"{BASE_URL}/intent"
     # Sample payload conforming to the minimal Intent_FVO schema
     payload = {
@@ -53,7 +53,7 @@ def test_create_intent(print_turtle_only=False):
                 "data5g:CXaeb2dd7d12bc44dfb6506094bd5644c3 a icm:Context,\n"
                 "        icm:IntentElement ;\n"
                 "    data5g:Application \"ai-inference-service\" ;\n"
-                "    data5g:DataCenter \"EC21\" ;\n"
+                f"    data5g:DataCenter \"{datacenter}\" ;\n"
                 "    data5g:DeploymentDescriptor \"http://intend.eu/5G4DataWorkloadCatalogue/ai-inference-deployment.yaml\" .\n\n"
                 "data5g:DE41c5d73d719e43f2b11857ddb91d4c6f a data5g:DeploymentExpectation,\n"
                 "        icm:Expectation,\n"
@@ -125,7 +125,7 @@ def test_create_intent(print_turtle_only=False):
             pass
     return None
 
-def test_create_hello_intent(print_turtle_only=False):
+def test_create_hello_intent(print_turtle_only=False, datacenter="EC21"):
     url = f"{BASE_URL}/intent"
     
     # Generate UUIDs for each identifier type
@@ -178,7 +178,7 @@ def test_create_hello_intent(print_turtle_only=False):
                 f"data5g:{cx_id} a icm:Context,\n"
                 "        icm:IntentElement ;\n"
                 "    data5g:Application \"hello\" ;\n"
-                "    data5g:DataCenter \"EC21\" ;\n"
+                f"    data5g:DataCenter \"{datacenter}\" ;\n"
                 "    data5g:DeploymentDescriptor \"http://start5g-1.cs.uit.no:3040/charts/hello-0.1.0.tgz\" .\n\n"
                 f"data5g:{de_id} a data5g:DeploymentExpectation,\n"
                 "        icm:Expectation,\n"
@@ -250,7 +250,7 @@ def test_create_hello_intent(print_turtle_only=False):
             pass
     return None
 
-def test_create_rusty_llm_intent(print_turtle_only=False):
+def test_create_rusty_llm_intent(print_turtle_only=False, datacenter="EC21"):
     url = f"{BASE_URL}/intent"
     
     # Generate UUIDs for each identifier type
@@ -303,7 +303,7 @@ def test_create_rusty_llm_intent(print_turtle_only=False):
                 f"data5g:{cx_id} a icm:Context,\n"
                 "        icm:IntentElement ;\n"
                 "    data5g:Application \"rusty-llm\" ;\n"
-                "    data5g:DataCenter \"EC21\" ;\n"
+                f"    data5g:DataCenter \"{datacenter}\" ;\n"
                 "    data5g:DeploymentDescriptor \"http://start5g-1.cs.uit.no:3040/charts/rusty-llm-0.1.12.tgz\" .\n\n"
                 f"data5g:{de_id} a data5g:DeploymentExpectation,\n"
                 "        icm:Expectation,\n"
@@ -408,13 +408,15 @@ def main():
     parser = argparse.ArgumentParser(description="Create intents using TM Forum API")
     parser.add_argument("-turtle", action="store_true", 
                        help="Only print the resulting turtle expression without sending the request")
+    parser.add_argument("--datacenter", type=str, default="EC21",
+                       help="Set the datacenter for the intent (default: EC21)")
     args = parser.parse_args()
    
     # print("\nTesting POST /intent")
-    # result = test_create_intent(print_turtle_only=args.turtle)
+    # result = test_create_intent(print_turtle_only=args.turtle, datacenter=args.datacenter)
     
     print("\nTesting POST /intent (Rusty-llm Application)")
-    rusty_result = test_create_rusty_llm_intent(print_turtle_only=args.turtle)
+    rusty_result = test_create_rusty_llm_intent(print_turtle_only=args.turtle, datacenter=args.datacenter)
     
     # If -turtle flag was used, the functions already printed the turtle and returned None
     if args.turtle:

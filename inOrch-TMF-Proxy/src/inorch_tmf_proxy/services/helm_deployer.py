@@ -378,6 +378,340 @@ class HelmDeployer:
         except Exception:
             return False
 
+    def _is_nodeport_in_use(self, nodeport: int) -> bool:
+        """
+        Check if a NodePort is already in use across all minikube clusters.
+        
+        Args:
+            nodeport: The NodePort to check (must be in range 30000-32767)
+            
+        Returns:
+            True if the port is in use, False if available
+        """
+        if nodeport < 30000 or nodeport > 32767:
+            self._logger.warning("NodePort %d is outside valid range (30000-32767)", nodeport)
+            return True  # Consider invalid ports as "in use"
+        
+        # Get all minikube profiles
+        try:
+            result = subprocess.run(
+                ["minikube", "profile", "list"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            
+            if result.returncode != 0:
+                self._logger.debug("Could not list minikube profiles, assuming port is available")
+                return False
+            
+            # Parse profiles from output
+            # minikube profile list output format:
+            # |----------|-----------|---------|----------------|------|
+            # | Profile  | VM Driver | Runtime |      IP        | Port |
+            # |----------|-----------|---------|----------------|------|
+            # | profile1 | docker    | docker  | 192.168.49.2   | 8443 |
+            profiles = []
+            lines = result.stdout.split('\n')
+            # Find header line (contains "Profile")
+            header_idx = -1
+            for i, line in enumerate(lines):
+                if "Profile" in line and "VM Driver" in line:
+                    header_idx = i
+                    break
+            
+            # Parse profile names from lines after header
+            if header_idx >= 0:
+                for line in lines[header_idx + 1:]:
+                    line = line.strip()
+                    if not line or line.startswith('|') and '---' in line:
+                        continue
+                    # Extract profile name (first column after |)
+                    parts = [p.strip() for p in line.split('|') if p.strip()]
+                    if parts:
+                        profile_name = parts[0]
+                        # Skip header-like lines and empty names
+                        if profile_name and profile_name not in ("Profile", "minikube") and not profile_name.startswith('-'):
+                            profiles.append(profile_name)
+            
+            # Also check current context if available (in case it's not in profile list)
+            try:
+                result = subprocess.run(
+                    ["kubectl", "config", "current-context"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    current_context = result.stdout.strip()
+                    if current_context and current_context not in profiles:
+                        profiles.append(current_context)
+            except Exception:
+                pass
+            
+            # If no profiles found, try to check current context directly
+            if not profiles:
+                self._logger.debug("No minikube profiles found, checking current context only")
+                try:
+                    # Check current context without specifying --context
+                    result = subprocess.run(
+                        [
+                            "kubectl",
+                            "get",
+                            "svc",
+                            "--all-namespaces",
+                            "-o",
+                            "json",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    if result.returncode == 0:
+                        services_data = json.loads(result.stdout)
+                        for item in services_data.get("items", []):
+                            if item.get("spec", {}).get("type") == "NodePort":
+                                ports = item.get("spec", {}).get("ports", [])
+                                for port in ports:
+                                    if port.get("nodePort") == nodeport:
+                                        self._logger.debug(
+                                            "NodePort %d is in use by service %s/%s in current context",
+                                            nodeport,
+                                            item.get("metadata", {}).get("namespace"),
+                                            item.get("metadata", {}).get("name"),
+                                        )
+                                        return True
+                except Exception as exc:
+                    self._logger.debug("Error checking current context for NodePort %d: %s", nodeport, exc)
+            
+            # Check each profile for services using this NodePort
+            for profile in profiles:
+                try:
+                    # Get all services with NodePort type in all namespaces
+                    result = subprocess.run(
+                        [
+                            "kubectl",
+                            "get",
+                            "svc",
+                            "--all-namespaces",
+                            "--context",
+                            profile,
+                            "-o",
+                            "json",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    
+                    if result.returncode == 0:
+                        services_data = json.loads(result.stdout)
+                        for item in services_data.get("items", []):
+                            if item.get("spec", {}).get("type") == "NodePort":
+                                ports = item.get("spec", {}).get("ports", [])
+                                for port in ports:
+                                    if port.get("nodePort") == nodeport:
+                                        self._logger.debug(
+                                            "NodePort %d is in use by service %s/%s in profile %s",
+                                            nodeport,
+                                            item.get("metadata", {}).get("namespace"),
+                                            item.get("metadata", {}).get("name"),
+                                            profile,
+                                        )
+                                        return True
+                except Exception as exc:
+                    self._logger.debug(
+                        "Error checking profile %s for NodePort %d: %s", profile, nodeport, exc
+                    )
+                    continue
+            
+            return False
+            
+        except Exception as exc:
+            self._logger.warning("Error checking NodePort availability: %s", exc)
+            # On error, assume port is available to avoid blocking deployments
+            return False
+
+    def _find_available_nodeport(self, base_port: int) -> Optional[int]:
+        """
+        Find the next available NodePort starting from base_port.
+        
+        Args:
+            base_port: Starting port to check (must be in range 30000-32767)
+            
+        Returns:
+            First available NodePort, or None if no port is available
+        """
+        if base_port < 30000:
+            base_port = 30000
+        if base_port > 32767:
+            self._logger.error("Base port %d is outside NodePort range (30000-32767)", base_port)
+            return None
+        
+        current_port = base_port
+        max_port = 32767
+        
+        while current_port <= max_port:
+            if not self._is_nodeport_in_use(current_port):
+                self._logger.info("Found available NodePort: %d", current_port)
+                return current_port
+            current_port += 1
+        
+        self._logger.error("No available NodePort found in range %d-%d", base_port, max_port)
+        return None
+
+    def _extract_nodeports_from_chart(self, chart_path: str) -> dict[str, int]:
+        """
+        Extract NodePort values from a helm chart.
+        
+        Uses helm show values to get default values, then searches for service.nodePort
+        configurations. Handles multiple services in a chart.
+        
+        Args:
+            chart_path: Path to the helm chart (local file or URL)
+            
+        Returns:
+            Dictionary mapping service value paths to NodePort values.
+            Example: {"service.nodePort": 30020, "services.app1.nodePort": 30021}
+        """
+        nodeports = {}
+        
+        try:
+            # Use helm show values to get default values
+            result = subprocess.run(
+                ["helm", "show", "values", chart_path],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            
+            if result.returncode != 0:
+                self._logger.debug("Could not extract values from chart: %s", result.stderr)
+                return nodeports
+            
+            if yaml is None:
+                self._logger.warning("PyYAML not available, cannot parse chart values")
+                return nodeports
+            
+            # Parse YAML values
+            values = yaml.safe_load(result.stdout)
+            if not values:
+                return nodeports
+            
+            # Recursively search for nodePort values in the values structure
+            def find_nodeports(obj: dict, path: str = "") -> None:
+                """Recursively find nodePort values in nested dictionaries."""
+                if not isinstance(obj, dict):
+                    return
+                
+                for key, value in obj.items():
+                    current_path = f"{path}.{key}" if path else key
+                    
+                    # Check if this is a nodePort field
+                    if key == "nodePort" and isinstance(value, int):
+                        # Check if parent is a service or services structure
+                        if "service" in path.lower() or path == "":
+                            nodeports[current_path] = value
+                            self._logger.debug(
+                                "Found NodePort %d at path: %s", value, current_path
+                            )
+                    
+                    # Recursively search nested dictionaries
+                    if isinstance(value, dict):
+                        find_nodeports(value, current_path)
+            
+            find_nodeports(values)
+            
+            # Also check for common patterns like service.nodePort
+            if "service" in values:
+                service = values["service"]
+                if isinstance(service, dict) and "nodePort" in service:
+                    port = service["nodePort"]
+                    if isinstance(port, int):
+                        nodeports["service.nodePort"] = port
+            
+            # Check for services (plural) pattern
+            if "services" in values:
+                services = values["services"]
+                if isinstance(services, dict):
+                    for svc_name, svc_config in services.items():
+                        if isinstance(svc_config, dict) and "nodePort" in svc_config:
+                            port = svc_config["nodePort"]
+                            if isinstance(port, int):
+                                nodeports[f"services.{svc_name}.nodePort"] = port
+            
+        except Exception as exc:
+            self._logger.warning("Error extracting NodePorts from chart: %s", exc)
+        
+        return nodeports
+
+    def _resolve_nodeport_conflicts(
+        self, chart_path: str
+    ) -> tuple[list[str], dict[str, int]]:
+        """
+        Resolve NodePort conflicts for a helm chart and build --set flags.
+        
+        Args:
+            chart_path: Path to the helm chart
+            
+        Returns:
+            Tuple of (list of --set flag strings, dict of resolved NodePorts)
+            Example: (["--set", "service.nodePort=30021"], {"service.nodePort": 30021})
+        """
+        set_flags = []
+        resolved_ports = {}
+        
+        # Extract NodePort values from chart
+        requested_nodeports = self._extract_nodeports_from_chart(chart_path)
+        
+        if not requested_nodeports:
+            self._logger.debug("No NodePort values found in chart, skipping conflict resolution")
+            return set_flags, resolved_ports
+        
+        self._logger.info(
+            "Found %d NodePort configuration(s) in chart", len(requested_nodeports)
+        )
+        
+        # Resolve each NodePort
+        for value_path, requested_port in requested_nodeports.items():
+            if not isinstance(requested_port, int):
+                continue
+            
+            # Check if port is in use
+            if self._is_nodeport_in_use(requested_port):
+                self._logger.warning(
+                    "NodePort %d (requested for %s) is already in use, finding alternative...",
+                    requested_port,
+                    value_path,
+                )
+                resolved_port = self._find_available_nodeport(requested_port)
+                if resolved_port is None:
+                    self._logger.error(
+                        "Could not find available NodePort for %s, using requested port %d",
+                        value_path,
+                        requested_port,
+                    )
+                    resolved_port = requested_port
+                else:
+                    self._logger.info(
+                        "Resolved NodePort conflict: %s %d -> %d",
+                        value_path,
+                        requested_port,
+                        resolved_port,
+                    )
+            else:
+                resolved_port = requested_port
+                self._logger.debug(
+                    "NodePort %d for %s is available", resolved_port, value_path
+                )
+            
+            resolved_ports[value_path] = resolved_port
+            
+            # Build --set flag
+            set_flags.extend(["--set", f"{value_path}={resolved_port}"])
+        
+        return set_flags, resolved_ports
+
     def _install_release(
         self,
         release_name: str,
@@ -396,18 +730,32 @@ class HelmDeployer:
                 intent_id,
             )
 
+            # Resolve NodePort conflicts before installation
+            nodeport_set_flags, resolved_nodeports = self._resolve_nodeport_conflicts(chart_path)
+            if resolved_nodeports:
+                self._logger.info(
+                    "Resolved NodePort conflicts: %s", resolved_nodeports
+                )
+
+            # Build helm install command
+            helm_cmd = [
+                "helm",
+                "install",
+                release_name,
+                chart_path,
+                "--namespace",
+                namespace,
+                "--timeout",
+                "5m",
+            ]
+            
+            # Add NodePort override flags if any were resolved
+            if nodeport_set_flags:
+                helm_cmd.extend(nodeport_set_flags)
+
             # Install without --wait first, so we can patch ServiceAccounts before pods try to pull images
             result = subprocess.run(
-                [
-                    "helm",
-                    "install",
-                    release_name,
-                    chart_path,
-                    "--namespace",
-                    namespace,
-                    "--timeout",
-                    "5m",
-                ],
+                helm_cmd,
                 capture_output=True,
                 text=True,
                 timeout=600,
@@ -493,18 +841,34 @@ class HelmDeployer:
                 intent_id,
             )
 
+            # Resolve NodePort conflicts before upgrade
+            # Note: For upgrades, we should preserve existing NodePorts if they're still valid
+            # But if the chart specifies new NodePorts, we need to resolve conflicts
+            nodeport_set_flags, resolved_nodeports = self._resolve_nodeport_conflicts(chart_path)
+            if resolved_nodeports:
+                self._logger.info(
+                    "Resolved NodePort conflicts for upgrade: %s", resolved_nodeports
+                )
+
+            # Build helm upgrade command
+            helm_cmd = [
+                "helm",
+                "upgrade",
+                release_name,
+                chart_path,
+                "--namespace",
+                namespace,
+                "--timeout",
+                "5m",
+            ]
+            
+            # Add NodePort override flags if any were resolved
+            if nodeport_set_flags:
+                helm_cmd.extend(nodeport_set_flags)
+
             # Upgrade without --wait first, so we can patch ServiceAccounts before pods try to pull images
             result = subprocess.run(
-                [
-                    "helm",
-                    "upgrade",
-                    release_name,
-                    chart_path,
-                    "--namespace",
-                    namespace,
-                    "--timeout",
-                    "5m",
-                ],
+                helm_cmd,
                 capture_output=True,
                 text=True,
                 timeout=600,

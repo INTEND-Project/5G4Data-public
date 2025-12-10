@@ -40,6 +40,8 @@ class HelmDeployer:
         self._core_client: Optional["client.CoreV1Api"] = None
         self._source_namespace = config.kube_namespace or "inorch-tmf-proxy"
         self._image_pull_secret_name = "ghcr-secret"
+        # Track NodePorts assigned in this session
+        self._assigned_nodeports: set[int] = set()
 
         if not self._enabled:
             self._logger.warning("Helm deployment disabled (ENABLE_K8S set to false)")
@@ -378,187 +380,208 @@ class HelmDeployer:
         except Exception:
             return False
 
-    def _is_nodeport_in_use(self, nodeport: int) -> bool:
+    def _get_datacenter_number(self) -> Optional[int]:
         """
-        Check if a NodePort is already in use across all minikube clusters.
+        Extract datacenter number from Kubernetes context name.
         
-        Args:
-            nodeport: The NodePort to check (must be in range 30000-32767)
-            
+        Context name format: EC{NUMBER}-inOrch-TMF-Proxy
+        Example: EC21-inOrch-TMF-Proxy -> 21
+        
         Returns:
-            True if the port is in use, False if available
+            Datacenter number if found, None otherwise
         """
-        if nodeport < 30000 or nodeport > 32767:
-            self._logger.warning("NodePort %d is outside valid range (30000-32767)", nodeport)
-            return True  # Consider invalid ports as "in use"
-        
-        # Get all minikube profiles
         try:
             result = subprocess.run(
-                ["minikube", "profile", "list"],
+                ["kubectl", "config", "current-context"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            
+            if result.returncode != 0:
+                self._logger.debug("Could not get current Kubernetes context")
+                return None
+            
+            context_name = result.stdout.strip()
+            if not context_name:
+                return None
+            
+            # Extract EC number from context name (format: EC{NUMBER}-inOrch-TMF-Proxy)
+            import re
+            match = re.search(r'EC(\d+)-inOrch-TMF-Proxy', context_name, re.IGNORECASE)
+            if match:
+                ec_number = int(match.group(1))
+                self._logger.debug("Extracted datacenter number %d from context %s", ec_number, context_name)
+                return ec_number
+            
+            self._logger.debug("Could not extract datacenter number from context: %s", context_name)
+            return None
+            
+        except Exception as exc:
+            self._logger.debug("Error extracting datacenter number: %s", exc)
+            return None
+
+    def _get_cluster_nodeport_range(self) -> tuple[int, int]:
+        """
+        Get the NodePort range assigned to this cluster based on datacenter number.
+        
+        Each cluster gets 10 NodePorts: 30000 + (EC_NUMBER * 10) - 9 to 30000 + (EC_NUMBER * 10)
+        Example: EC21 -> 30201-30210
+        
+        Returns:
+            Tuple of (start_port, end_port) for this cluster's NodePort range
+            
+        Raises:
+            RuntimeError: If datacenter number cannot be determined from context
+        """
+        ec_number = self._get_datacenter_number()
+        
+        if ec_number is None:
+            raise RuntimeError(
+                "Cannot determine datacenter number from Kubernetes context. "
+                "Context name must match pattern 'EC{NUMBER}-inOrch-TMF-Proxy' "
+                "(e.g., 'EC21-inOrch-TMF-Proxy'). "
+                "Cannot proceed with NodePort assignment."
+            )
+        
+        start_port = 30000 + (ec_number * 10) - 9
+        end_port = 30000 + (ec_number * 10)
+        
+        # Validate range is within NodePort limits
+        if start_port < 30000:
+            raise RuntimeError(
+                f"Calculated NodePort range start ({start_port}) is below minimum (30000). "
+                f"Invalid datacenter number: {ec_number}"
+            )
+        if end_port > 32767:
+            raise RuntimeError(
+                f"Calculated NodePort range end ({end_port}) exceeds maximum (32767). "
+                f"Invalid datacenter number: {ec_number}"
+            )
+        
+        self._logger.info(
+            "Cluster NodePort range for EC%d: %d-%d", ec_number, start_port, end_port
+        )
+        
+        return (start_port, end_port)
+
+    def _get_used_nodeports_in_cluster(self) -> set[int]:
+        """
+        Get all NodePorts currently in use in the cluster.
+        
+        Returns:
+            Set of NodePort numbers that are currently in use
+        """
+        used_ports = set()
+        
+        try:
+            result = subprocess.run(
+                [
+                    "kubectl",
+                    "get",
+                    "svc",
+                    "--all-namespaces",
+                    "-o",
+                    "json",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
             
-            if result.returncode != 0:
-                self._logger.debug("Could not list minikube profiles, assuming port is available")
-                return False
+            if result.returncode == 0:
+                services_data = json.loads(result.stdout)
+                for item in services_data.get("items", []):
+                    if item.get("spec", {}).get("type") == "NodePort":
+                        ports = item.get("spec", {}).get("ports", [])
+                        for port in ports:
+                            nodeport = port.get("nodePort")
+                            if nodeport and isinstance(nodeport, int):
+                                used_ports.add(nodeport)
             
-            # Parse profiles from output
-            # minikube profile list output format:
-            # |----------|-----------|---------|----------------|------|
-            # | Profile  | VM Driver | Runtime |      IP        | Port |
-            # |----------|-----------|---------|----------------|------|
-            # | profile1 | docker    | docker  | 192.168.49.2   | 8443 |
-            profiles = []
-            lines = result.stdout.split('\n')
-            # Find header line (contains "Profile")
-            header_idx = -1
-            for i, line in enumerate(lines):
-                if "Profile" in line and "VM Driver" in line:
-                    header_idx = i
-                    break
-            
-            # Parse profile names from lines after header
-            if header_idx >= 0:
-                for line in lines[header_idx + 1:]:
-                    line = line.strip()
-                    if not line or line.startswith('|') and '---' in line:
-                        continue
-                    # Extract profile name (first column after |)
-                    parts = [p.strip() for p in line.split('|') if p.strip()]
-                    if parts:
-                        profile_name = parts[0]
-                        # Skip header-like lines and empty names
-                        if profile_name and profile_name not in ("Profile", "minikube") and not profile_name.startswith('-'):
-                            profiles.append(profile_name)
-            
-            # Also check current context if available (in case it's not in profile list)
-            try:
-                result = subprocess.run(
-                    ["kubectl", "config", "current-context"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if result.returncode == 0:
-                    current_context = result.stdout.strip()
-                    if current_context and current_context not in profiles:
-                        profiles.append(current_context)
-            except Exception:
-                pass
-            
-            # If no profiles found, try to check current context directly
-            if not profiles:
-                self._logger.debug("No minikube profiles found, checking current context only")
-                try:
-                    # Check current context without specifying --context
-                    result = subprocess.run(
-                        [
-                            "kubectl",
-                            "get",
-                            "svc",
-                            "--all-namespaces",
-                            "-o",
-                            "json",
-                        ],
-                        capture_output=True,
-                        text=True,
-                        timeout=10,
-                    )
-                    if result.returncode == 0:
-                        services_data = json.loads(result.stdout)
-                        for item in services_data.get("items", []):
-                            if item.get("spec", {}).get("type") == "NodePort":
-                                ports = item.get("spec", {}).get("ports", [])
-                                for port in ports:
-                                    if port.get("nodePort") == nodeport:
-                                        self._logger.debug(
-                                            "NodePort %d is in use by service %s/%s in current context",
-                                            nodeport,
-                                            item.get("metadata", {}).get("namespace"),
-                                            item.get("metadata", {}).get("name"),
-                                        )
-                                        return True
-                except Exception as exc:
-                    self._logger.debug("Error checking current context for NodePort %d: %s", nodeport, exc)
-            
-            # Check each profile for services using this NodePort
-            for profile in profiles:
-                try:
-                    # Get all services with NodePort type in all namespaces
-                    result = subprocess.run(
-                        [
-                            "kubectl",
-                            "get",
-                            "svc",
-                            "--all-namespaces",
-                            "--context",
-                            profile,
-                            "-o",
-                            "json",
-                        ],
-                        capture_output=True,
-                        text=True,
-                        timeout=10,
-                    )
-                    
-                    if result.returncode == 0:
-                        services_data = json.loads(result.stdout)
-                        for item in services_data.get("items", []):
-                            if item.get("spec", {}).get("type") == "NodePort":
-                                ports = item.get("spec", {}).get("ports", [])
-                                for port in ports:
-                                    if port.get("nodePort") == nodeport:
-                                        self._logger.debug(
-                                            "NodePort %d is in use by service %s/%s in profile %s",
-                                            nodeport,
-                                            item.get("metadata", {}).get("namespace"),
-                                            item.get("metadata", {}).get("name"),
-                                            profile,
-                                        )
-                                        return True
-                except Exception as exc:
-                    self._logger.debug(
-                        "Error checking profile %s for NodePort %d: %s", profile, nodeport, exc
-                    )
-                    continue
-            
-            return False
+            self._logger.debug("Found %d NodePorts in use in cluster", len(used_ports))
             
         except Exception as exc:
-            self._logger.warning("Error checking NodePort availability: %s", exc)
-            # On error, assume port is available to avoid blocking deployments
-            return False
+            self._logger.warning("Error getting used NodePorts from cluster: %s", exc)
+        
+        return used_ports
+
+    def _get_next_available_nodeport(self) -> Optional[int]:
+        """
+        Get the next available NodePort within this cluster's assigned range.
+        
+        Checks both:
+        1. NodePorts currently in use in the cluster
+        2. NodePorts assigned in this session
+        
+        Returns:
+            First available NodePort in cluster range, or None if range is exhausted
+            
+        Raises:
+            RuntimeError: If cluster NodePort range cannot be determined
+        """
+        start_port, end_port = self._get_cluster_nodeport_range()  # Will raise if cannot determine
+        
+        # Get all used NodePorts (from cluster + assigned in this session)
+        used_in_cluster = self._get_used_nodeports_in_cluster()
+        all_used = used_in_cluster | self._assigned_nodeports
+        
+        # Find first available port in cluster range
+        for port in range(start_port, end_port + 1):
+            if port not in all_used:
+                self._logger.info(
+                    "Found next available NodePort: %d (cluster range: %d-%d)",
+                    port, start_port, end_port
+                )
+                # Track this assignment
+                self._assigned_nodeports.add(port)
+                return port
+        
+        self._logger.error(
+            "No available NodePort in cluster range %d-%d (all %d ports are in use)",
+            start_port, end_port, (end_port - start_port + 1)
+        )
+        return None
+
+    def _is_nodeport_in_use(self, nodeport: int) -> bool:
+        """
+        Check if a NodePort is already in use.
+        
+        Checks both the cluster and session-assigned ports.
+        
+        Args:
+            nodeport: The NodePort to check
+            
+        Returns:
+            True if the port is in use, False if available
+        """
+        if nodeport < 30000 or nodeport > 32767:
+            return True
+        
+        # Check if assigned in this session
+        if nodeport in self._assigned_nodeports:
+            return True
+        
+        # Check if in use in cluster
+        used_in_cluster = self._get_used_nodeports_in_cluster()
+        return nodeport in used_in_cluster
 
     def _find_available_nodeport(self, base_port: int) -> Optional[int]:
         """
-        Find the next available NodePort starting from base_port.
+        Find the next available NodePort within this cluster's range.
+        
+        Ignores base_port and always returns the first free port in cluster range.
         
         Args:
-            base_port: Starting port to check (must be in range 30000-32767)
+            base_port: Ignored (kept for compatibility)
             
         Returns:
-            First available NodePort, or None if no port is available
+            First available NodePort in cluster range, or None if no port available
+            
+        Raises:
+            RuntimeError: If cluster NodePort range cannot be determined
         """
-        if base_port < 30000:
-            base_port = 30000
-        if base_port > 32767:
-            self._logger.error("Base port %d is outside NodePort range (30000-32767)", base_port)
-            return None
-        
-        current_port = base_port
-        max_port = 32767
-        
-        while current_port <= max_port:
-            if not self._is_nodeport_in_use(current_port):
-                self._logger.info("Found available NodePort: %d", current_port)
-                return current_port
-            current_port += 1
-        
-        self._logger.error("No available NodePort found in range %d-%d", base_port, max_port)
-        return None
+        return self._get_next_available_nodeport()
 
     def _extract_nodeports_from_chart(self, chart_path: str) -> dict[str, int]:
         """
@@ -651,64 +674,75 @@ class HelmDeployer:
         """
         Resolve NodePort conflicts for a helm chart and build --set flags.
         
+        Ignores NodePorts specified in the chart and assigns the next available
+        NodePort from this cluster's assigned range.
+        
         Args:
             chart_path: Path to the helm chart
             
         Returns:
             Tuple of (list of --set flag strings, dict of resolved NodePorts)
-            Example: (["--set", "service.nodePort=30021"], {"service.nodePort": 30021})
+            Example: (["--set", "service.nodePort=30201"], {"service.nodePort": 30201})
+            
+        Raises:
+            RuntimeError: If cluster NodePort range cannot be determined or range is exhausted
         """
         set_flags = []
         resolved_ports = {}
         
-        # Extract NodePort values from chart
+        # Extract NodePort configurations from chart (to know which services need NodePorts)
         requested_nodeports = self._extract_nodeports_from_chart(chart_path)
         
         if not requested_nodeports:
-            self._logger.debug("No NodePort values found in chart, skipping conflict resolution")
+            self._logger.debug("No NodePort configurations found in chart, skipping NodePort assignment")
             return set_flags, resolved_ports
         
         self._logger.info(
-            "Found %d NodePort configuration(s) in chart", len(requested_nodeports)
+            "Found %d NodePort configuration(s) in chart, assigning from cluster range",
+            len(requested_nodeports)
         )
         
-        # Resolve each NodePort
-        for value_path, requested_port in requested_nodeports.items():
-            if not isinstance(requested_port, int):
-                continue
+        # Get cluster range - this will raise RuntimeError if cannot determine
+        try:
+            start_port, end_port = self._get_cluster_nodeport_range()
+        except RuntimeError as exc:
+            self._logger.error(
+                "Failed to determine cluster NodePort range: %s. Cannot proceed with Helm deployment.",
+                exc
+            )
+            raise RuntimeError(
+                f"Cannot deploy Helm chart: {exc}. "
+                "Please ensure the Kubernetes context name matches the pattern 'EC{{NUMBER}}-inOrch-TMF-Proxy'."
+            ) from exc
+        
+        self._logger.info(
+            "Assigning NodePorts from cluster range: %d-%d", start_port, end_port
+        )
+        
+        # Assign next available NodePort for each service (ignoring chart's NodePort value)
+        for value_path, _ in requested_nodeports.items():
+            # Get next available NodePort from cluster range
+            assigned_port = self._get_next_available_nodeport()
             
-            # Check if port is in use
-            if self._is_nodeport_in_use(requested_port):
-                self._logger.warning(
-                    "NodePort %d (requested for %s) is already in use, finding alternative...",
-                    requested_port,
-                    value_path,
+            if assigned_port is None:
+                self._logger.error(
+                    "Could not assign NodePort for %s: cluster range exhausted (%d-%d)",
+                    value_path, start_port, end_port
                 )
-                resolved_port = self._find_available_nodeport(requested_port)
-                if resolved_port is None:
-                    self._logger.error(
-                        "Could not find available NodePort for %s, using requested port %d",
-                        value_path,
-                        requested_port,
-                    )
-                    resolved_port = requested_port
-                else:
-                    self._logger.info(
-                        "Resolved NodePort conflict: %s %d -> %d",
-                        value_path,
-                        requested_port,
-                        resolved_port,
-                    )
-            else:
-                resolved_port = requested_port
-                self._logger.debug(
-                    "NodePort %d for %s is available", resolved_port, value_path
+                raise RuntimeError(
+                    f"Cannot deploy Helm chart: No available NodePorts in cluster range {start_port}-{end_port}. "
+                    f"All {end_port - start_port + 1} ports are in use."
                 )
             
-            resolved_ports[value_path] = resolved_port
+            resolved_ports[value_path] = assigned_port
             
             # Build --set flag
-            set_flags.extend(["--set", f"{value_path}={resolved_port}"])
+            set_flags.extend(["--set", f"{value_path}={assigned_port}"])
+            
+            self._logger.info(
+                "Assigned NodePort %d to %s (from cluster range %d-%d)",
+                assigned_port, value_path, start_port, end_port
+            )
         
         return set_flags, resolved_ports
 
@@ -731,11 +765,18 @@ class HelmDeployer:
             )
 
             # Resolve NodePort conflicts before installation
-            nodeport_set_flags, resolved_nodeports = self._resolve_nodeport_conflicts(chart_path)
-            if resolved_nodeports:
-                self._logger.info(
-                    "Resolved NodePort conflicts: %s", resolved_nodeports
+            try:
+                nodeport_set_flags, resolved_nodeports = self._resolve_nodeport_conflicts(chart_path)
+                if resolved_nodeports:
+                    self._logger.info(
+                        "Resolved NodePort conflicts: %s", resolved_nodeports
+                    )
+            except RuntimeError as exc:
+                self._logger.error(
+                    "Failed to resolve NodePort conflicts: %s. Aborting Helm installation.",
+                    exc
                 )
+                return False  # Stop the installation
 
             # Build helm install command
             helm_cmd = [
@@ -844,11 +885,18 @@ class HelmDeployer:
             # Resolve NodePort conflicts before upgrade
             # Note: For upgrades, we should preserve existing NodePorts if they're still valid
             # But if the chart specifies new NodePorts, we need to resolve conflicts
-            nodeport_set_flags, resolved_nodeports = self._resolve_nodeport_conflicts(chart_path)
-            if resolved_nodeports:
-                self._logger.info(
-                    "Resolved NodePort conflicts for upgrade: %s", resolved_nodeports
+            try:
+                nodeport_set_flags, resolved_nodeports = self._resolve_nodeport_conflicts(chart_path)
+                if resolved_nodeports:
+                    self._logger.info(
+                        "Resolved NodePort conflicts for upgrade: %s", resolved_nodeports
+                    )
+            except RuntimeError as exc:
+                self._logger.error(
+                    "Failed to resolve NodePort conflicts: %s. Aborting Helm upgrade.",
+                    exc
                 )
+                return False  # Stop the upgrade
 
             # Build helm upgrade command
             helm_cmd = [

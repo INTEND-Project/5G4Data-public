@@ -342,12 +342,12 @@ is_port_in_use() {
     
     # Check if port is in Kubernetes NodePort range (30000-32767)
     if [ "$port" -lt 30000 ] || [ "$port" -gt 32767 ]; then
-        log_warn "Port $port is outside NodePort range (30000-32767)"
+        log_warn "Port $port is outside NodePort range (30000-32767)" >&2
         return 1
     fi
     
     # Check Kubernetes services across all minikube profiles
-    log_info "Checking Kubernetes services for port $port..."
+    log_info "Checking Kubernetes services for port $port..." >&2
     local profiles
     profiles=$(minikube profile list 2>/dev/null | awk 'NR>1 {print $1}' | grep -v "^$" || true)
     
@@ -361,47 +361,47 @@ is_port_in_use() {
             local nodeport
             nodeport=$(kubectl get svc ingress-nginx-controller -n ingress-nginx --context "$profile_name" -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}' 2>/dev/null || echo "")
             
-            if [ "$nodeport" = "$port" ]; then
-                log_info "Port $port is already used by ingress controller in profile: $profile_name"
-                in_use=true
-                break
+                    if [ "$nodeport" = "$port" ]; then
+                        log_info "Port $port is already used by ingress controller in profile: $profile_name" >&2
+                        in_use=true
+                        break
+                    fi
+                done <<< "$profiles"
             fi
-        done <<< "$profiles"
-    fi
-    
-    # Check systemd services for port-forwarding services
-    if [ "$in_use" = false ]; then
-        log_info "Checking systemd services for port $port..."
-        if systemctl list-units --type=service --all 2>/dev/null | grep -q "ingress-forwarding-${port}.service"; then
-            log_info "Port $port is used by systemd service: ingress-forwarding-${port}.service"
-            in_use=true
-        fi
-    fi
-    
-    # Check listening ports on host
-    if [ "$in_use" = false ]; then
-        log_info "Checking listening ports for port $port..."
-        if command -v ss >/dev/null 2>&1; then
-            if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
-                log_info "Port $port is listening on host (detected via ss)"
-                in_use=true
+            
+            # Check systemd services for port-forwarding services
+            if [ "$in_use" = false ]; then
+                log_info "Checking systemd services for port $port..." >&2
+                if systemctl list-units --type=service --all 2>/dev/null | grep -q "ingress-forwarding-${port}.service"; then
+                    log_info "Port $port is used by systemd service: ingress-forwarding-${port}.service" >&2
+                    in_use=true
+                fi
             fi
-        elif command -v netstat >/dev/null 2>&1; then
-            if netstat -tlnp 2>/dev/null | grep -q ":${port} "; then
-                log_info "Port $port is listening on host (detected via netstat)"
-                in_use=true
+            
+            # Check listening ports on host
+            if [ "$in_use" = false ]; then
+                log_info "Checking listening ports for port $port..." >&2
+                if command -v ss >/dev/null 2>&1; then
+                    if ss -tlnp 2>/dev/null | grep -q ":${port} "; then
+                        log_info "Port $port is listening on host (detected via ss)" >&2
+                        in_use=true
+                    fi
+                elif command -v netstat >/dev/null 2>&1; then
+                    if netstat -tlnp 2>/dev/null | grep -q ":${port} "; then
+                        log_info "Port $port is listening on host (detected via netstat)" >&2
+                        in_use=true
+                    fi
+                fi
             fi
-        fi
-    fi
-    
-    # Check iptables rules
-    if [ "$in_use" = false ]; then
-        log_info "Checking iptables rules for port $port..."
-        if sudo iptables -t nat -L PREROUTING -n 2>/dev/null | grep -q ":${port} "; then
-            log_info "Port $port has iptables rules configured"
-            in_use=true
-        fi
-    fi
+            
+            # Check iptables rules
+            if [ "$in_use" = false ]; then
+                log_info "Checking iptables rules for port $port..." >&2
+                if sudo iptables -t nat -L PREROUTING -n 2>/dev/null | grep -q ":${port} "; then
+                    log_info "Port $port has iptables rules configured" >&2
+                    in_use=true
+                fi
+            fi
     
     if [ "$in_use" = true ]; then
         return 0  # Port is in use
@@ -416,18 +416,20 @@ find_available_port() {
     local max_port=32767
     local current_port=$base_port
     
-    log_info "Finding available port starting from $base_port..."
+    # Send all log messages to stderr so they don't interfere with stdout (port number)
+    log_info "Finding available port starting from $base_port..." >&2
     
     while [ $current_port -le $max_port ]; do
-        if ! is_port_in_use $current_port; then
-            log_info "Found available port: $current_port"
-            echo $current_port
+        if ! is_port_in_use $current_port 2>/dev/null; then
+            log_info "Found available port: $current_port" >&2
+            # Only output the port number to stdout
+            printf "%d\n" $current_port
             return 0
         fi
         current_port=$((current_port + 1))
     done
     
-    log_error "No available port found in range $base_port-$max_port"
+    log_error "No available port found in range $base_port-$max_port" >&2
     return 1
 }
 

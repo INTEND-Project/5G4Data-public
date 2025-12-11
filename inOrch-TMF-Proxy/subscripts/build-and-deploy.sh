@@ -413,14 +413,30 @@ EOF
     # Get GHCR credentials
     GHCR_USERNAME="${GHCR_USERNAME:-arne-munch-ellingsen}"
     GHCR_EMAIL="${GHCR_EMAIL:-you@example.com}"
-    GHCR_PASSWORD_FILE="${GHCR_PASSWORD_FILE:-$SCRIPT_DIR/github-ghrc-pat}"
+    
+    # Determine password file location
+    # When run as standalone script, check parent directory first
+    # When run from setup-cluster-from-scratch.sh, use SCRIPT_DIR
+    if [ -z "$GHCR_PASSWORD_FILE" ]; then
+        # Try parent directory first (for standalone usage)
+        if [ -f "$PARENT_DIR/github-ghrc-pat" ]; then
+            GHCR_PASSWORD_FILE="$PARENT_DIR/github-ghrc-pat"
+        # Fall back to script directory (for setup-cluster-from-scratch.sh usage)
+        elif [ -f "$SCRIPT_DIR/github-ghrc-pat" ]; then
+            GHCR_PASSWORD_FILE="$SCRIPT_DIR/github-ghrc-pat"
+        else
+            GHCR_PASSWORD_FILE="$SCRIPT_DIR/github-ghrc-pat"
+        fi
+    fi
     
     # Read password from file or use environment variable
     if [ -z "$GHCR_PASSWORD" ]; then
         if [ -f "$GHCR_PASSWORD_FILE" ]; then
             GHCR_PASSWORD=$(cat "$GHCR_PASSWORD_FILE" | tr -d '\n\r ')
+            echo "Using GHCR password from: $GHCR_PASSWORD_FILE"
         else
             echo "⚠ Warning: GHCR password file not found at $GHCR_PASSWORD_FILE"
+            echo "  Also checked: $PARENT_DIR/github-ghrc-pat"
             echo "  Skipping ghcr-secret creation. You may need to create it manually."
             GHCR_PASSWORD=""
         fi

@@ -28,6 +28,7 @@ except Exception:  # pragma: no cover - optional dependency for local dev
     ConfigException = Exception  # type: ignore
 
 from inorch_tmf_proxy.config import AppConfig
+from inorch_tmf_proxy.services.turtle_parser import TurtleParser
 
 
 class HelmDeployer:
@@ -42,6 +43,8 @@ class HelmDeployer:
         self._image_pull_secret_name = "ghcr-secret"
         # Track NodePorts assigned in this session
         self._assigned_nodeports: set[int] = set()
+        # Turtle parser for extracting objectives from TMF Intent
+        self._turtle_parser = TurtleParser()
 
         if not self._enabled:
             self._logger.warning("Helm deployment disabled (ENABLE_K8S set to false)")
@@ -89,6 +92,7 @@ class HelmDeployer:
         release_name: Optional[str] = None,
         intent_id: Optional[str] = None,
         p99_token_target: Optional[float] = None,
+        turtle_data: Optional[str] = None,
     ) -> bool:
         """
         Deploy a Helm chart from a URL.
@@ -98,7 +102,8 @@ class HelmDeployer:
             namespace: Kubernetes namespace to deploy to
             release_name: Optional release name (defaults to namespace if not provided)
             intent_id: Optional intent ID for logging
-            p99_token_target: Optional p99-token-target value in seconds (for IDO Intent creation)
+            p99_token_target: Optional p99-token-target value in seconds (kept for backward compatibility)
+            turtle_data: Optional Turtle RDF expression from TMF Intent (used for generic objective parsing)
 
         Returns:
             True if deployment succeeded, False otherwise
@@ -145,12 +150,12 @@ class HelmDeployer:
                     release_name, chart_path, namespace, intent_id, p99_token_target
                 )
             
-            # Create IDO Intent and KPIProfile if p99_token_target is provided and deployment succeeded
-            if success and p99_token_target is not None:
+            # Update IDO Intent objectives if deployment succeeded and turtle_data is provided
+            if success and turtle_data:
                 self._create_ido_intent_and_kpi_profile(
                     namespace=namespace,
                     intent_id=intent_id,
-                    p99_token_target=p99_token_target,
+                    turtle_data=turtle_data,
                 )
             
             return success
@@ -725,6 +730,46 @@ class HelmDeployer:
         
         return nodeports
 
+    def _chart_contains_intent_template(self, chart_path: str) -> bool:
+        """
+        Check if the helm chart contains an intent.yaml template.
+        
+        Args:
+            chart_path: Path to the helm chart (local file or URL)
+            
+        Returns:
+            True if the chart contains intent.yaml template, False otherwise
+        """
+        try:
+            # Use helm show templates to list all templates in the chart
+            result = subprocess.run(
+                ["helm", "show", "templates", chart_path],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            
+            if result.returncode != 0:
+                self._logger.debug("Could not list templates from chart: %s", result.stderr)
+                return False
+            
+            # Check if intent.yaml is mentioned in the templates
+            # Templates are shown with their paths, so we look for intent.yaml
+            if "intent.yaml" in result.stdout.lower():
+                self._logger.debug("Found intent.yaml template in helm chart")
+                return True
+            
+            # Also check for variations like llm-intent.yaml
+            if "intent" in result.stdout.lower() and "kind: Intent" in result.stdout:
+                self._logger.debug("Found Intent resource in helm chart templates")
+                return True
+            
+            return False
+            
+        except Exception as exc:
+            self._logger.warning("Error checking for intent template in chart: %s", exc)
+            return False
+
     def _resolve_nodeport_conflicts(
         self, chart_path: str
     ) -> tuple[list[str], dict[str, int]]:
@@ -850,6 +895,10 @@ class HelmDeployer:
             # Add NodePort override flags if any were resolved
             if nodeport_set_flags:
                 helm_cmd.extend(nodeport_set_flags)
+            
+            # Add p99_token_target as helm value if provided (for IDO Intent in chart)
+            if p99_token_target is not None:
+                helm_cmd.extend(["--set", f"ido.p99TokenTarget={p99_token_target}"])
 
             # Install without --wait first, so we can patch ServiceAccounts before pods try to pull images
             result = subprocess.run(
@@ -970,6 +1019,10 @@ class HelmDeployer:
             # Add NodePort override flags if any were resolved
             if nodeport_set_flags:
                 helm_cmd.extend(nodeport_set_flags)
+            
+            # Add p99_token_target as helm value if provided (for IDO Intent in chart)
+            if p99_token_target is not None:
+                helm_cmd.extend(["--set", f"ido.p99TokenTarget={p99_token_target}"])
 
             # Upgrade without --wait first, so we can patch ServiceAccounts before pods try to pull images
             result = subprocess.run(
@@ -1825,209 +1878,218 @@ class HelmDeployer:
         self,
         namespace: str,
         intent_id: Optional[str] = None,
-        p99_token_target: Optional[float] = None,
+        turtle_data: Optional[str] = None,
         prometheus_endpoint: Optional[str] = None,
     ) -> None:
-        """Create IDO Intent and KPIProfile resources for the deployed application.
+        """Update IDO Intent resource created by helm chart with objective values from TMF intent.
+        
+        This method:
+        1. Parses objectives from TMF Intent DeploymentExpectation conditions
+        2. Gets objectives from IDO Intent in the cluster
+        3. Matches objectives by name and updates values from TMF Intent
+        
+        Since IDO Intent and KPIProfile are now part of the helm chart (when included),
+        we only need to patch the Intent's objective values to match the TMF intent values.
+        
+        Note: Not all helm charts include IDO Intent/KPI resources. If no Intent is found
+        in the namespace, this method will gracefully return without error.
         
         Args:
             namespace: Kubernetes namespace where the application is deployed
             intent_id: The TMF intent ID
-            p99_token_target: The p99-token-target value in seconds (from TMF intent)
-            prometheus_endpoint: Prometheus query endpoint URL. If None, will use PROMETHEUS_URL 
-                                 environment variable or default to http://start5g-1.cs.uit.no:9090/api/v1/query
+            turtle_data: Turtle RDF expression from TMF Intent
+            prometheus_endpoint: Not used (kept for compatibility)
         """
-        # Get Prometheus endpoint from parameter, environment variable, or use default
-        if prometheus_endpoint is None:
-            # Check if running inside Kubernetes cluster (in-cluster config available)
-            # If so, prefer Kubernetes service DNS name for better connectivity
-            try:
-                if client is not None:
-                    try:
-                        kube_config.load_incluster_config()
-                        # Running inside cluster - use Kubernetes service
-                        prometheus_endpoint = os.getenv(
-                            "PROMETHEUS_URL",
-                            "http://prometheus.default.svc.cluster.local:9090"
-                        )
-                    except ConfigException:
-                        # Running outside cluster - use external URL
-                        prometheus_endpoint = os.getenv(
-                            "PROMETHEUS_URL",
-                            "http://start5g-1.cs.uit.no:9090"
-                        )
-                else:
-                    # Kubernetes client not available - use external URL
-                    prometheus_endpoint = os.getenv(
-                        "PROMETHEUS_URL",
-                        "http://start5g-1.cs.uit.no:9090"
-                    )
-            except Exception:
-                # Fallback to external URL if detection fails
-                prometheus_endpoint = os.getenv(
-                    "PROMETHEUS_URL",
-                    "http://start5g-1.cs.uit.no:9090"
-                )
-            # Ensure it ends with /api/v1/query
-            if not prometheus_endpoint.endswith("/api/v1/query"):
-                prometheus_endpoint = prometheus_endpoint.rstrip("/") + "/api/v1/query"
         if client is None:
-            self._logger.debug("Kubernetes client not available, skipping IDO Intent creation")
+            self._logger.debug("Kubernetes client not available, skipping IDO Intent update")
             return
         
-        if p99_token_target is None:
-            self._logger.debug("No p99-token-target provided, skipping IDO Intent creation")
+        if not turtle_data:
+            self._logger.debug("No turtle_data provided, skipping IDO Intent update")
             return
         
         try:
+            # Parse objectives from TMF Intent DeploymentExpectation conditions
+            tmf_objectives = self._turtle_parser.parse_deployment_expectation_objectives(turtle_data)
+            
+            if not tmf_objectives:
+                self._logger.debug(
+                    "No objectives found in TMF Intent DeploymentExpectation conditions for intent_id=%s",
+                    intent_id
+                )
+                return
+            
+            self._logger.info(
+                "Found %d objective(s) in TMF Intent: %s",
+                len(tmf_objectives),
+                list(tmf_objectives.keys())
+            )
+            
             # Use CustomObjectsApi for IDO CRDs
             custom_api = client.CustomObjectsApi()
             
-            # Determine the deployment name (typically matches namespace or release name)
-            # Try to find the deployment in the namespace
-            apps_v1 = client.AppsV1Api()
-            deployments = apps_v1.list_namespaced_deployment(namespace=namespace)
+            # Check if IDO Intent exists in the cluster (matching llm-intent.yaml pattern)
+            # Not all helm charts include IDO Intent/KPI resources
+            # We check for Intent with kind "Intent" and apiVersion "ido.intel.com/v1alpha1"
+            existing_intent = None
+            ido_intent_name = None
             
-            deployment_name = None
-            if deployments.items:
-                # Use the first deployment found (or you could filter by labels)
-                deployment_name = deployments.items[0].metadata.name
-            else:
-                # Fallback: use namespace as deployment name
-                deployment_name = namespace
+            # Try common naming patterns from helm charts
+            intent_names_to_try = [
+                f"llm-intent-{namespace}",  # Pattern: llm-intent-{namespace}
+                "llm-intent",  # Pattern: llm-intent
+            ]
             
-            # Create KPIProfile first
-            kpi_profile_name = f"p99token-{namespace}"
-            kpi_profile_body = {
-                "apiVersion": "ido.intel.com/v1alpha1",
-                "kind": "KPIProfile",
-                "metadata": {
-                    "name": kpi_profile_name,
-                    "namespace": namespace,
-                },
-                "spec": {
-                    "type": "latency",
-                    "description": "token creation time (p99 percentile)",
-                    "query": "histogram_quantile(0.99, sum(rate(token_creation_duration_bucket[30s])) by (le))",
-                    "props": {
-                        "endpoint": prometheus_endpoint,
-                    },
-                },
-            }
+            for candidate_name in intent_names_to_try:
+                try:
+                    existing_intent = custom_api.get_namespaced_custom_object(
+                        group="ido.intel.com",
+                        version="v1alpha1",
+                        namespace=namespace,
+                        plural="intents",
+                        name=candidate_name,
+                    )
+                    # Verify it's actually an Intent resource
+                    if existing_intent.get("kind") == "Intent" and existing_intent.get("apiVersion") == "ido.intel.com/v1alpha1":
+                        ido_intent_name = candidate_name
+                        self._logger.debug(
+                            "Found IDO Intent %s in namespace %s",
+                            ido_intent_name,
+                            namespace,
+                        )
+                        break
+                    else:
+                        existing_intent = None
+                except ApiException as exc:
+                    if exc.status == 404:
+                        # Intent not found with this name, try next
+                        continue
+                    else:
+                        # Some other error occurred
+                        raise
             
-            # Log the KPIProfile YAML
-            if yaml:
-                kpi_profile_yaml = yaml.dump(kpi_profile_body, default_flow_style=False, sort_keys=False)
-            else:
-                kpi_profile_yaml = json.dumps(kpi_profile_body, indent=2)
-            self._logger.info(
-                "Creating KPIProfile %s in namespace %s for intent_id=%s:\n%s",
-                kpi_profile_name,
-                namespace,
-                intent_id,
-                kpi_profile_yaml,
-            )
-            
-            try:
-                custom_api.create_namespaced_custom_object(
-                    group="ido.intel.com",
-                    version="v1alpha1",
-                    namespace=namespace,
-                    plural="kpiprofiles",
-                    body=kpi_profile_body,
-                )
-                self._logger.info(
-                    "Created KPIProfile %s in namespace %s for intent_id=%s",
-                    kpi_profile_name,
-                    namespace,
-                    intent_id,
-                )
-            except ApiException as exc:
-                if exc.status == 409:
+            # If no Intent found with expected names, check if any Intent exists at all
+            if existing_intent is None:
+                try:
+                    intents_list = custom_api.list_namespaced_custom_object(
+                        group="ido.intel.com",
+                        version="v1alpha1",
+                        namespace=namespace,
+                        plural="intents",
+                    )
+                    intent_items = intents_list.get("items", [])
+                    
+                    if not intent_items:
+                        self._logger.debug(
+                            "No IDO Intent found in namespace %s. "
+                            "This helm chart does not include IDO Intent/KPI resources. "
+                            "Skipping objective update.",
+                            namespace
+                        )
+                        return
+                    
+                    # Use the first Intent found as fallback
+                    existing_intent = intent_items[0]
+                    ido_intent_name = existing_intent.get("metadata", {}).get("name")
                     self._logger.debug(
-                        "KPIProfile %s already exists in namespace %s",
-                        kpi_profile_name,
+                        "Using first Intent found in namespace %s: %s (does not match expected naming patterns)",
                         namespace,
+                        ido_intent_name,
+                    )
+                except ApiException as exc:
+                    if exc.status == 404:
+                        self._logger.debug(
+                            "IDO Intent CRD not available or no Intents in namespace %s. "
+                            "This helm chart does not include IDO Intent/KPI resources. "
+                            "Skipping objective update.",
+                            namespace
+                        )
+                        return
+                    else:
+                        raise
+            
+            # Get objectives from IDO Intent
+            spec = existing_intent.get("spec", {})
+            ido_objectives = spec.get("objectives", [])
+            
+            if not ido_objectives:
+                self._logger.debug(
+                    "IDO Intent %s has no objectives defined",
+                    ido_intent_name
+                )
+                return
+            
+            # Match objectives by name and update values
+            updated_count = 0
+            updated_objectives = []
+            
+            for ido_obj in ido_objectives:
+                obj_name = ido_obj.get("name")
+                if not obj_name:
+                    continue
+                
+                # Check if this objective exists in TMF Intent
+                if obj_name in tmf_objectives:
+                    tmf_value = tmf_objectives[obj_name]["value"]
+                    old_value = ido_obj.get("value")
+                    
+                    # Update the value
+                    ido_obj["value"] = tmf_value
+                    updated_count += 1
+                    updated_objectives.append(obj_name)
+                    
+                    self._logger.info(
+                        "Updating %s in IDO Intent %s: %.3f -> %.3f (from TMF intent)",
+                        obj_name,
+                        ido_intent_name,
+                        old_value if old_value is not None else 0.0,
+                        tmf_value,
                     )
                 else:
-                    self._logger.warning(
-                        "Failed to create KPIProfile %s: %s",
-                        kpi_profile_name,
-                        exc,
+                    self._logger.debug(
+                        "Objective %s in IDO Intent not found in TMF Intent conditions, keeping existing value",
+                        obj_name
                     )
-                    return
             
-            # Create IDO Intent
-            ido_intent_name = f"llm-intent-{namespace}"
-            ido_intent_body = {
-                "apiVersion": "ido.intel.com/v1alpha1",
-                "kind": "Intent",
-                "metadata": {
-                    "name": ido_intent_name,
-                    "namespace": namespace,
-                },
-                "spec": {
-                    "targetRef": {
-                        "kind": "Deployment",
-                        "name": f"{namespace}/{deployment_name}",
-                    },
-                    "priority": 1.0,
-                    "objectives": [
-                        {
-                            "name": "p99-token-target",
-                            "value": p99_token_target,  # Use p99-token-target from TMF intent
-                            "measuredBy": f"{namespace}/{kpi_profile_name}",
-                        }
-                    ],
-                },
-            }
+            if updated_count == 0:
+                self._logger.debug(
+                    "No matching objectives found between IDO Intent and TMF Intent. "
+                    "IDO Intent objectives: %s, TMF Intent objectives: %s",
+                    [obj.get("name") for obj in ido_objectives],
+                    list(tmf_objectives.keys())
+                )
+                return
             
-            # Log the IDO Intent YAML
-            if yaml:
-                ido_intent_yaml = yaml.dump(ido_intent_body, default_flow_style=False, sort_keys=False)
-            else:
-                ido_intent_yaml = json.dumps(ido_intent_body, indent=2)
+            # Patch the Intent with updated objectives
+            existing_intent["spec"]["objectives"] = ido_objectives
+            
+            custom_api.patch_namespaced_custom_object(
+                group="ido.intel.com",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="intents",
+                name=ido_intent_name,
+                body=existing_intent,
+            )
+            
             self._logger.info(
-                "Creating IDO Intent %s in namespace %s for intent_id=%s (p99-target=%.3f):\n%s",
+                "Updated IDO Intent %s in namespace %s with %d objective(s) from TMF intent_id=%s: %s",
                 ido_intent_name,
                 namespace,
+                updated_count,
                 intent_id,
-                p99_token_target,
-                ido_intent_yaml,
+                updated_objectives,
             )
-            
-            try:
-                custom_api.create_namespaced_custom_object(
-                    group="ido.intel.com",
-                    version="v1alpha1",
-                    namespace=namespace,
-                    plural="intents",
-                    body=ido_intent_body,
-                )
-                self._logger.info(
-                    "Created IDO Intent %s in namespace %s for intent_id=%s (p99-target=%.3f)",
-                    ido_intent_name,
-                    namespace,
-                    intent_id,
-                    p99_token_target,
-                )
-            except ApiException as exc:
-                if exc.status == 409:
-                    self._logger.debug(
-                        "IDO Intent %s already exists in namespace %s",
-                        ido_intent_name,
-                        namespace,
-                    )
-                else:
-                    self._logger.warning(
-                        "Failed to create IDO Intent %s: %s",
-                        ido_intent_name,
-                        exc,
-                    )
         
+        except ApiException as exc:
+            self._logger.warning(
+                "Failed to update IDO Intent in namespace %s: %s",
+                namespace,
+                exc,
+            )
         except Exception as exc:
             self._logger.warning(
-                "Could not create IDO Intent and KPIProfile for namespace %s (intent_id=%s): %s",
+                "Could not update IDO Intent for namespace %s (intent_id=%s): %s",
                 namespace,
                 intent_id,
                 exc,

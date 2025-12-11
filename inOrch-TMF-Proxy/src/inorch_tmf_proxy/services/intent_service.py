@@ -295,7 +295,8 @@ class IntentService:
                         namespace=application,
                         release_name=application,
                         intent_id=intent_id,
-                        p99_token_target=p99_token_target,
+                        p99_token_target=p99_token_target,  # Keep for backward compatibility
+                        turtle_data=turtle_data,  # Pass turtle_data for generic objective parsing
                     )
 
                     if success:

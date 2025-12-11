@@ -1,7 +1,16 @@
 # TODO
 
+
+## Done: Add the IDO intent to the helm chart
+<span style="color: green;">
+The workloads in the workload catalogue are the workloads that can be deployed to the edge data centers. Since each edge datacenter will have the IDO/Planner installed in the cluster, the IDO intent should be part of the helm chart. 
+
+The inOrch-TMF-proxy will set the value(s) in the IDO intent based on values found in the TMF intent and update the IDO intent spec acordingly.
+</span>
+
 ## How should the metric reporting be done?  
-IDO Prometheus query for the p99-target is mirrored and reported on if there is a TMF intent ReportingExpectation for it.
+ - IDO Prometheus query for the p99-target is mirrored and reported on
+ - Reports are only generated if there is a ReportingExpectation for it in the intent
 
 ## How do we query IDO to check the status of the intention 
 So that the TMF-proxy can report back according to TMF intent management specification (Received, Compliant, Degraded etc).

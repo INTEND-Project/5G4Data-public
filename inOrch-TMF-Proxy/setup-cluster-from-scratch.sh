@@ -36,6 +36,8 @@ GHCR_EMAIL="${GHCR_EMAIL:-you@example.com}"
 SKIP_IDO=false
 SKIP_PORT_FORWARD=false
 SKIP_INGRESS_FORWARD=false
+SKIP_NODEPORT_FORWARD=false
+DRYRUN_NETWORK=false
 FORCE_RECREATE=false
 
 # Colors for output
@@ -60,6 +62,53 @@ log_error() {
 log_step() {
     echo ""
     echo "=== $1 ==="
+}
+
+# Find ufw command path (handles cases where ufw is in /usr/sbin and not in PATH)
+find_ufw_cmd() {
+    if command -v ufw >/dev/null 2>&1; then
+        echo "ufw"
+    elif [ -x "/usr/sbin/ufw" ]; then
+        echo "/usr/sbin/ufw"
+    elif [ -x "/sbin/ufw" ]; then
+        echo "/sbin/ufw"
+    else
+        echo "ufw"  # Will try with sudo
+    fi
+}
+
+# Check if UFW is installed
+is_ufw_installed() {
+    local ufw_cmd
+    ufw_cmd=$(find_ufw_cmd)
+    # Check if the command exists or is executable
+    if [ "$ufw_cmd" = "ufw" ]; then
+        # Try to run it to see if it exists
+        if sudo "$ufw_cmd" --version >/dev/null 2>&1; then
+            return 0
+        else
+            return 1
+        fi
+    else
+        # Full path was found, it exists
+        return 0
+    fi
+}
+
+# Check if UFW is active
+is_ufw_active() {
+    if ! is_ufw_installed; then
+        return 1
+    fi
+    
+    local ufw_cmd
+    ufw_cmd=$(find_ufw_cmd)
+    
+    if sudo "$ufw_cmd" status 2>/dev/null | grep -q "Status: active"; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 # Parse command-line arguments
@@ -110,6 +159,14 @@ parse_args() {
                 SKIP_INGRESS_FORWARD=true
                 shift
                 ;;
+            --skip-nodeport-forward)
+                SKIP_NODEPORT_FORWARD=true
+                shift
+                ;;
+            --dryrun-network)
+                DRYRUN_NETWORK=true
+                shift
+                ;;
             --force-recreate)
                 FORCE_RECREATE=true
                 shift
@@ -152,12 +209,31 @@ parse_args() {
     # Calculate proxy NodePort: 30000 + EC number (must be in range 30000-32767)
     PROXY_NODEPORT=$((30000 + EC_NUMBER))
     
+    # Calculate Helm deployment NodePort range: 30100 + (EC_NUMBER * 10) - 9 to 30100 + (EC_NUMBER * 10)
+    # Each cluster gets 10 NodePorts for Helm deployments (e.g., EC21 -> 30301-30310)
+    HELM_NODEPORT_START=$((30100 + EC_NUMBER * 10 - 9))
+    HELM_NODEPORT_END=$((30100 + EC_NUMBER * 10))
+    HELM_NODEPORT_RANGE="${HELM_NODEPORT_START}-${HELM_NODEPORT_END}"
+    
+    # Calculate unique subnet per cluster: 192.168.${EC_NUMBER}.0/24
+    # Each cluster gets its own subnet to avoid conflicts
+    # Examples: EC1 -> 192.168.1.0/24, EC21 -> 192.168.21.0/24, EC31 -> 192.168.31.0/24
+    MINIKUBE_SUBNET="192.168.${EC_NUMBER}.0/24"
+    
+    # Calculate static IP for minikube: 192.168.${EC_NUMBER}.2
+    # Uses .2 as the static IP (standard Docker convention: .1 is gateway, .2 is first usable IP)
+    # Examples: EC1 -> 192.168.1.2, EC21 -> 192.168.21.2, EC31 -> 192.168.31.2
+    MINIKUBE_STATIC_IP="192.168.${EC_NUMBER}.2"
+    
     # Set profile name to include datacenter
     PROFILE="${DATACENTER}-inOrch-TMF-Proxy"
     
     log_info "Datacenter: $DATACENTER (EC$EC_NUMBER)"
     log_info "External port: $EXTERNAL_PORT (for port-forwarding)"
     log_info "Proxy NodePort: $PROXY_NODEPORT (for Kubernetes service)"
+    log_info "Helm NodePort range: $HELM_NODEPORT_RANGE (for Helm deployments)"
+    log_info "Minikube static IP: $MINIKUBE_STATIC_IP"
+    log_info "Minikube subnet: $MINIKUBE_SUBNET"
     log_info "Profile: $PROFILE"
 }
 
@@ -180,6 +256,8 @@ OPTIONS:
     --skip-ido                  Skip IDO installation
     --skip-port-forward         Skip systemd port-forwarding setup
     --skip-ingress-forward      Skip ingress forwarding setup
+    --skip-nodeport-forward     Skip NodePort forwarding setup for Helm deployments
+    --dryrun-network            Dry-run mode: only show what network functions would do (requires --datacenter)
     --force-recreate            Force recreation of existing minikube profile
     -h, --help                  Show this help message
 
@@ -250,11 +328,14 @@ check_prerequisites() {
 
 # Handle existing minikube profile
 handle_existing_profile() {
+    local profile_deleted=false
+    
     # Check if profile exists (minikube profile list outputs a table, so we check for the profile name in the output)
     if minikube profile list 2>/dev/null | grep -q "[[:space:]]*$PROFILE[[:space:]]"; then
         if [ "$FORCE_RECREATE" = true ]; then
             log_warn "Deleting existing minikube profile: $PROFILE"
             minikube delete -p $PROFILE
+            profile_deleted=true
         else
             log_warn "Minikube profile '$PROFILE' already exists."
             read -p "Do you want to delete and recreate it? (y/N): " -n 1 -r
@@ -262,12 +343,37 @@ handle_existing_profile() {
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 log_info "Deleting existing profile..."
                 minikube delete -p $PROFILE
+                profile_deleted=true
             else
                 log_info "Using existing profile. Skipping cluster creation."
                 return 1
             fi
         fi
     fi
+    
+    # Clean up any leftover Docker networks for this profile (only if profile was deleted)
+    # Minikube creates networks with the profile name, so we check for them
+    if [ "$profile_deleted" = true ]; then
+        # Wait a moment for Docker to clean up after profile deletion
+        log_info "Waiting for Docker to clean up networks..."
+        sleep 3
+        
+        log_info "Checking for leftover Docker networks..."
+        local network_name="${PROFILE}"
+        if docker network ls --format "{{.Name}}" 2>/dev/null | grep -q "^${network_name}$"; then
+            log_warn "Found leftover Docker network: ${network_name}"
+            log_info "Removing leftover Docker network..."
+            # Try to remove the network, wait a bit if it fails (might be in use)
+            if ! docker network rm "${network_name}" 2>/dev/null; then
+                log_warn "Failed to remove network immediately, waiting 3 seconds and retrying..."
+                sleep 3
+                docker network rm "${network_name}" 2>/dev/null || log_warn "Network may still be in use, continuing anyway"
+            else
+                log_info "Successfully removed leftover Docker network"
+            fi
+        fi
+    fi
+    
     return 0
 }
 
@@ -275,8 +381,8 @@ handle_existing_profile() {
 setup_cluster() {
     log_step "Creating minikube cluster"
     
-    log_info "Starting minikube with profile: $PROFILE (CPUs: $MINIKUBE_CPUS, Memory: $MINIKUBE_MEMORY)"
-    minikube start --driver=docker --cpus="$MINIKUBE_CPUS" --memory="$MINIKUBE_MEMORY" -p $PROFILE
+    log_info "Starting minikube with profile: $PROFILE (CPUs: $MINIKUBE_CPUS, Memory: $MINIKUBE_MEMORY, Static IP: $MINIKUBE_STATIC_IP, Subnet: $MINIKUBE_SUBNET)"
+    minikube start --driver=docker --cpus="$MINIKUBE_CPUS" --memory="$MINIKUBE_MEMORY" --subnet="$MINIKUBE_SUBNET" --static-ip="$MINIKUBE_STATIC_IP" -p $PROFILE
     
     log_info "Waiting for cluster to be ready..."
     kubectl wait --for=condition=ready node --all --context $PROFILE --timeout=300s
@@ -370,11 +476,32 @@ is_port_in_use() {
             fi
             
             # Check systemd services for port-forwarding services
+            # Only consider services that are actually active or have service files (not failed/not-found)
             if [ "$in_use" = false ]; then
                 log_info "Checking systemd services for port $port..." >&2
-                if systemctl list-units --type=service --all 2>/dev/null | grep -q "ingress-forwarding-${port}.service"; then
-                    log_info "Port $port is used by systemd service: ingress-forwarding-${port}.service" >&2
+                local service_name="ingress-forwarding-${port}.service"
+                local service_file="/etc/systemd/system/${service_name}"
+                
+                # Check if service is active (not failed/not-found)
+                local service_state
+                service_state=$(systemctl is-active "$service_name" 2>/dev/null || echo "inactive")
+                
+                # Check if service file exists
+                local service_file_exists=false
+                if [ -f "$service_file" ]; then
+                    service_file_exists=true
+                fi
+                
+                # Only consider port in use if service is active OR service file exists
+                # Ignore failed/not-found services without files
+                if [ "$service_state" = "active" ] || [ "$service_file_exists" = true ]; then
+                    log_info "Port $port is used by systemd service: ${service_name}" >&2
                     in_use=true
+                elif systemctl list-units --type=service --all 2>/dev/null | grep -q "${service_name}"; then
+                    # Service exists in systemd but is failed/not-found and file doesn't exist
+                    # Try to reset it and don't consider it as in use
+                    log_info "Found failed/not-found service ${service_name} without file, resetting..." >&2
+                    sudo systemctl reset-failed "$service_name" 2>/dev/null || true
                 fi
             fi
             
@@ -394,12 +521,14 @@ is_port_in_use() {
                 fi
             fi
             
-            # Check iptables rules
+            # Check iptables rules (informational only - don't consider port in use based on rules alone)
+            # Iptables rules can be leftover from previous setups and don't indicate active use
             if [ "$in_use" = false ]; then
                 log_info "Checking iptables rules for port $port..." >&2
                 if sudo iptables -t nat -L PREROUTING -n 2>/dev/null | grep -q ":${port} "; then
-                    log_info "Port $port has iptables rules configured" >&2
-                    in_use=true
+                    log_info "Port $port has iptables rules configured (but no active service detected)" >&2
+                    # Don't mark as in use - iptables rules alone don't mean the port is actively used
+                    # The rules will be cleaned up/replaced when we set up the new forwarding
                 fi
             fi
     
@@ -601,6 +730,16 @@ configure_chart_server_access() {
         return 0
     fi
     
+    # Get minikube node IP and calculate network
+    local minikube_ip
+    minikube_ip=$(minikube ip -p $PROFILE 2>/dev/null || echo "192.168.49.2")
+    
+    # Calculate minikube network from IP (assumes /24 subnet)
+    local minikube_network
+    minikube_network=$(echo "$minikube_ip" | sed 's/\.[0-9]*$/.0\/24/')
+    
+    log_info "Detected minikube network: $minikube_network (from IP: $minikube_ip)"
+    
     log_info "Creating Kubernetes service to expose chart server at $host_ip:3040"
     
     # Create a service that points to the host's chart server
@@ -654,16 +793,39 @@ spec:
 EOF
 
     # Add firewall rule to allow minikube network to access chart server
-    log_info "Configuring firewall to allow minikube network access to chart server..."
-    if ! sudo iptables -t filter -C INPUT -s 192.168.49.0/24 -p tcp --dport 3040 -j ACCEPT 2>/dev/null; then
-        sudo iptables -t filter -I INPUT 1 -s 192.168.49.0/24 -p tcp --dport 3040 -j ACCEPT
-        log_info "Added firewall rule to allow minikube network (192.168.49.0/24) access to port 3040"
+    log_info "Configuring firewall to allow minikube network ($minikube_network) access to chart server (port 3040)..."
+    if ! sudo iptables -t filter -C INPUT -s "$minikube_network" -p tcp --dport 3040 -j ACCEPT 2>/dev/null; then
+        sudo iptables -t filter -I INPUT 1 -s "$minikube_network" -p tcp --dport 3040 -j ACCEPT
+        log_info "Added firewall rule to allow minikube network ($minikube_network) access to port 3040"
     else
-        log_info "Firewall rule already exists"
+        log_info "Firewall rule for chart server already exists"
+    fi
+    
+    # Add firewall rule to allow minikube network to access GraphDB
+    log_info "Configuring firewall to allow minikube network ($minikube_network) access to GraphDB (port 7200)..."
+    if ! sudo iptables -t filter -C INPUT -s "$minikube_network" -p tcp --dport 7200 -j ACCEPT 2>/dev/null; then
+        sudo iptables -t filter -I INPUT 1 -s "$minikube_network" -p tcp --dport 7200 -j ACCEPT
+        log_info "Added firewall rule to allow minikube network ($minikube_network) access to port 7200 (GraphDB)"
+    else
+        log_info "Firewall rule for GraphDB already exists"
+    fi
+    
+    # Also add UFW rule if UFW is active
+    if is_ufw_active; then
+        local ufw_cmd
+        ufw_cmd=$(find_ufw_cmd)
+        # Check if UFW rule exists for this network
+        if ! sudo "$ufw_cmd" status 2>/dev/null | grep -q "$minikube_network.*7200"; then
+            sudo "$ufw_cmd" allow from "$minikube_network" to any port 7200 comment "GraphDB access from $PROFILE"
+            log_info "Added UFW rule to allow GraphDB access from $minikube_network"
+        else
+            log_info "UFW rule for GraphDB already exists"
+        fi
     fi
     
     log_info "Chart server service created: chart-server.default.svc.cluster.local:3040"
     log_info "Pods can now access charts via: http://chart-server.default.svc.cluster.local:3040/charts/..."
+    log_info "GraphDB access configured for network: $minikube_network"
 }
 
 # Fix DNS configuration
@@ -828,26 +990,39 @@ deploy_proxy() {
     
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     
-    if [ ! -f "$SCRIPT_DIR/build-and-deploy.sh" ]; then
-        log_error "build-and-deploy.sh not found in $SCRIPT_DIR"
+    if [ ! -f "$SCRIPT_DIR/subscripts/build-and-deploy.sh" ]; then
+        log_error "build-and-deploy.sh not found in $SCRIPT_DIR/subscripts"
         exit 1
+    fi
+    
+    # Ask if Docker image should be built
+    echo ""
+    echo "Docker image build configuration:"
+    echo "  The script will build the Docker image: inorch-tmf-proxy:latest"
+    read -p "Do you want to build the Docker inorch-tmf-proxy:latest image? (Y/n): " -n 1 -r
+    echo
+    
+    local skip_build_flag=""
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        log_info "Skipping Docker image build (will use existing image if available)"
+        skip_build_flag="--skip-build-if-exists"
+    else
+        log_info "Will build Docker image"
     fi
     
     log_info "Running build-and-deploy.sh..."
     cd "$SCRIPT_DIR"
     
-    # Export PROFILE and PROXY_NODEPORT for build-and-deploy.sh to use
-    export MINIKUBE_PROFILE="$PROFILE"
-    log_info "Setting MINIKUBE_PROFILE=$PROFILE for build-and-deploy.sh"
-    
+    # Export PROXY_NODEPORT for build-and-deploy.sh to use (if needed)
     if [ -n "$PROXY_NODEPORT" ]; then
         export PROXY_NODEPORT
         log_info "Setting PROXY_NODEPORT=$PROXY_NODEPORT for build-and-deploy.sh"
     fi
     
-    # Run build-and-deploy.sh, but don't fail if pod verification fails
-    # (the pod might exist but the verification function has issues)
-    if bash ./build-and-deploy.sh; then
+    # Run build-and-deploy.sh with --datacenter argument
+    # This will automatically calculate the profile from the datacenter
+    log_info "Calling build-and-deploy.sh with --datacenter $DATACENTER $skip_build_flag"
+    if bash "$SCRIPT_DIR/subscripts/build-and-deploy.sh" --datacenter "$DATACENTER" $skip_build_flag; then
         log_info "Build and deploy completed successfully"
     else
         local exit_code=$?
@@ -1130,14 +1305,27 @@ EOF
         nodeport=$(kubectl get svc prometheus -n default --context $PROFILE -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "30090")
     fi
     
-    log_info "Setting up iptables forwarding for Prometheus from port 9090 to NodePort $nodeport..."
+    # Calculate datacenter-specific Prometheus external port: 19000 + EC_NUMBER
+    # Last two digits represent the datacenter number
+    # Examples: EC1 -> 19001, EC21 -> 19021, EC31 -> 19031
+    local prometheus_external_port=$((19000 + EC_NUMBER))
+    
+    log_info "Setting up iptables forwarding for Prometheus from port $prometheus_external_port to NodePort $nodeport..."
     if [ -n "$host_ip" ] && [ -n "$nodeport" ]; then
-        # Add DNAT rule: forward from host:9090 to minikube:nodeport
-        if ! sudo iptables -t nat -C PREROUTING -d "$host_ip" -p tcp --dport 9090 -j DNAT --to-destination "$minikube_ip:$nodeport" 2>/dev/null; then
-            sudo iptables -t nat -I PREROUTING 1 -d "$host_ip" -p tcp --dport 9090 -j DNAT --to-destination "$minikube_ip:$nodeport"
-            log_info "Added PREROUTING DNAT rule for Prometheus (9090 -> $nodeport)"
+        # Add DNAT rule in PREROUTING: forward from host:prometheus_external_port to minikube:nodeport (for external connections)
+        if ! sudo iptables -t nat -C PREROUTING -d "$host_ip" -p tcp --dport "$prometheus_external_port" -j DNAT --to-destination "$minikube_ip:$nodeport" 2>/dev/null; then
+            sudo iptables -t nat -I PREROUTING 1 -d "$host_ip" -p tcp --dport "$prometheus_external_port" -j DNAT --to-destination "$minikube_ip:$nodeport"
+            log_info "Added PREROUTING DNAT rule for Prometheus ($prometheus_external_port -> $nodeport)"
         else
             log_info "PREROUTING DNAT rule for Prometheus already exists"
+        fi
+        
+        # Add DNAT rule in OUTPUT: forward from host:prometheus_external_port to minikube:nodeport (for local connections)
+        if ! sudo iptables -t nat -C OUTPUT -d "$host_ip" -p tcp --dport "$prometheus_external_port" -j DNAT --to-destination "$minikube_ip:$nodeport" 2>/dev/null; then
+            sudo iptables -t nat -I OUTPUT 1 -d "$host_ip" -p tcp --dport "$prometheus_external_port" -j DNAT --to-destination "$minikube_ip:$nodeport"
+            log_info "Added OUTPUT DNAT rule for Prometheus ($prometheus_external_port -> $nodeport) for local connections"
+        else
+            log_info "OUTPUT DNAT rule for Prometheus already exists"
         fi
         
         # Add FORWARD rule
@@ -1148,11 +1336,31 @@ EOF
             log_info "FORWARD rule for Prometheus already exists"
         fi
         
+        # Add INPUT rule for the external port
+        if ! sudo iptables -t filter -C INPUT -p tcp --dport "$prometheus_external_port" -j ACCEPT 2>/dev/null; then
+            sudo iptables -t filter -I INPUT 1 -p tcp --dport "$prometheus_external_port" -j ACCEPT
+            log_info "Added INPUT rule for Prometheus port $prometheus_external_port"
+        else
+            log_info "INPUT rule for Prometheus port $prometheus_external_port already exists"
+        fi
+        
         # Add firewall rules if ufw is active
-        if command -v ufw >/dev/null 2>&1 && sudo ufw status | grep -q "Status: active"; then
-            if ! sudo iptables -t filter -C ufw-before-input -p tcp --dport 9090 -j ACCEPT 2>/dev/null; then
-                sudo iptables -t filter -I ufw-before-input 1 -p tcp --dport 9090 -j ACCEPT
-                log_info "Added ufw rule for Prometheus port 9090"
+        if is_ufw_active; then
+            if ! sudo iptables -t filter -C ufw-before-input -p tcp --dport "$prometheus_external_port" -j ACCEPT 2>/dev/null; then
+                sudo iptables -t filter -I ufw-before-input 1 -p tcp --dport "$prometheus_external_port" -j ACCEPT
+                log_info "Added ufw rule for Prometheus port $prometheus_external_port"
+            fi
+            
+            local ufw_cmd
+            ufw_cmd=$(find_ufw_cmd)
+            if ! sudo "$ufw_cmd" status numbered 2>/dev/null | grep -q "$prometheus_external_port"; then
+                if sudo "$ufw_cmd" allow $prometheus_external_port/tcp comment "Prometheus access ($DATACENTER)" 2>/dev/null; then
+                    log_info "Opened UFW port $prometheus_external_port for Prometheus ($DATACENTER)"
+                else
+                    log_warn "Failed to open UFW port $prometheus_external_port"
+                fi
+            else
+                log_info "UFW rule for port $prometheus_external_port already exists"
             fi
         fi
         
@@ -1164,7 +1372,8 @@ EOF
         
         log_info "Prometheus is accessible at:"
         log_info "  - In-cluster: http://prometheus.default.svc.cluster.local:9090"
-        log_info "  - External: http://start5g-1.cs.uit.no:9090"
+        log_info "  - External: http://${host_ip}:${prometheus_external_port} (datacenter-specific port for $DATACENTER)"
+        log_info "  - Direct Minikube IP: http://${minikube_ip}:${nodeport}"
         log_info "  - External (via Ingress): http://start5g-1.cs.uit.no:${INGRESS_NODEPORT}/ (if ingress forwarding is set up)"
     else
         log_warn "Could not detect host IP or NodePort, Prometheus will only be accessible in-cluster"
@@ -1241,11 +1450,13 @@ setup_port_forward() {
     
     log_step "Setting up port-forwarding (optional)"
     
-    read -p "Do you want to set up systemd port-forwarding service? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_info "Skipping port-forwarding setup"
-        return 0
+    if [ "$DRYRUN_NETWORK" = false ]; then
+        read -p "Do you want to set up systemd port-forwarding service? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Skipping port-forwarding setup"
+            return 0
+        fi
     fi
     
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1253,6 +1464,34 @@ setup_port_forward() {
     # Determine the port to use (external port is set from datacenter)
     local forward_port="$EXTERNAL_PORT"
     local service_name="systemd-portforward-inorch-tmf-proxy-${DATACENTER,,}"
+    
+    if [ "$DRYRUN_NETWORK" = true ]; then
+        echo "[DRY RUN] Would set up port forwarding from external port $forward_port to internal port 3020"
+        echo "[DRY RUN] Service name: ${service_name}"
+        echo "[DRY RUN] Would create systemd service file: /etc/systemd/system/${service_name}.service"
+        echo "[DRY RUN] Service file content:"
+        echo "  [Unit]"
+        echo "  Description=inOrch-TMF-Proxy port-forward (expose svc/inorch-tmf-proxy on port $forward_port)"
+        echo "  After=network-online.target"
+        echo "  Wants=network-online.target"
+        echo ""
+        echo "  [Service]"
+        echo "  Type=simple"
+        echo "  User=telco"
+        echo "  WorkingDirectory=$SCRIPT_DIR"
+        echo "  Environment=KUBECONFIG=/home/telco/.kube/config"
+        echo "  ExecStart=/usr/local/bin/kubectl -n $NAMESPACE port-forward svc/inorch-tmf-proxy $forward_port:3020 --address 0.0.0.0 --context $PROFILE"
+        echo "  Restart=always"
+        echo "  RestartSec=5"
+        echo ""
+        echo "  [Install]"
+        echo "  WantedBy=multi-user.target"
+        echo "[DRY RUN] Would run: sudo systemctl daemon-reload"
+        echo "[DRY RUN] Would run: sudo systemctl enable --now ${service_name}.service"
+        echo "[DRY RUN] Service would forward port $forward_port (external) to port 3020 (internal)"
+        echo "[DRY RUN] Would add UFW allow rule for port $forward_port (if UFW is active)"
+        return 0
+    fi
     
     log_info "Setting up port forwarding from external port $forward_port to internal port 3020"
     
@@ -1294,6 +1533,21 @@ EOF
     log_info "Port-forwarding service is running"
     log_info "Check status with: sudo systemctl status ${service_name}.service"
     log_info "Service forwards port $forward_port (external) to port 3020 (internal)"
+    
+    # Open external port in UFW if active
+    if is_ufw_active; then
+        local ufw_cmd
+        ufw_cmd=$(find_ufw_cmd)
+        if ! sudo "$ufw_cmd" status numbered 2>/dev/null | grep -q "$forward_port"; then
+            if sudo "$ufw_cmd" allow ${forward_port}/tcp comment "inOrch-TMF-Proxy external port (${DATACENTER})" 2>/dev/null; then
+                log_info "Opened UFW port ${forward_port} for proxy access (${DATACENTER})"
+            else
+                log_warn "Failed to open UFW port ${forward_port}"
+            fi
+        else
+            log_info "UFW rule for port ${forward_port} already exists"
+        fi
+    fi
 }
 
 # Setup ingress forwarding (optional)
@@ -1311,15 +1565,29 @@ setup_ingress_forward() {
         return 1
     fi
     
-    read -p "Do you want to set up iptables forwarding for ingress? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_info "Skipping ingress forwarding setup"
-        return 0
+    if [ "$DRYRUN_NETWORK" = false ]; then
+        read -p "Do you want to set up iptables forwarding for ingress? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Skipping ingress forwarding setup"
+            return 0
+        fi
     fi
     
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    FORWARD_SCRIPT="$SCRIPT_DIR/setup-ingress-forwarding.sh"
+    FORWARD_SCRIPT="$SCRIPT_DIR/subscripts/setup-ingress-forwarding.sh"
+    
+    if [ "$DRYRUN_NETWORK" = true ]; then
+        echo "[DRY RUN] Would set up iptables forwarding for ingress"
+        echo "[DRY RUN] Ingress NodePort: ${INGRESS_NODEPORT}"
+        if [ -f "$FORWARD_SCRIPT" ]; then
+            echo "[DRY RUN] Would run: INGRESS_NODEPORT=${INGRESS_NODEPORT} MINIKUBE_IP=${MINIKUBE_STATIC_IP} MINIKUBE_PROFILE=${PROFILE} bash $FORWARD_SCRIPT"
+        else
+            echo "[DRY RUN] Warning: Ingress forwarding script not found: $FORWARD_SCRIPT"
+        fi
+        echo "[DRY RUN] Would add UFW allow rule for port ${INGRESS_NODEPORT} (if UFW is active)"
+        return 0
+    fi
     
     if [ ! -f "$FORWARD_SCRIPT" ]; then
         log_warn "Ingress forwarding script not found: $FORWARD_SCRIPT"
@@ -1327,10 +1595,258 @@ setup_ingress_forward() {
         return 0
     fi
     
-    log_info "Running ingress forwarding setup script with NodePort ${INGRESS_NODEPORT}..."
-    INGRESS_NODEPORT=$INGRESS_NODEPORT bash "$FORWARD_SCRIPT"
+    log_info "Running ingress forwarding setup script with NodePort ${INGRESS_NODEPORT} and Minikube IP ${MINIKUBE_STATIC_IP}..."
+    INGRESS_NODEPORT=$INGRESS_NODEPORT MINIKUBE_IP=$MINIKUBE_STATIC_IP MINIKUBE_PROFILE=$PROFILE bash "$FORWARD_SCRIPT"
+    
+    # Open ingress NodePort in UFW if active
+    if is_ufw_active; then
+        local ufw_cmd
+        ufw_cmd=$(find_ufw_cmd)
+        if ! sudo "$ufw_cmd" status numbered 2>/dev/null | grep -q "${INGRESS_NODEPORT}"; then
+            if sudo "$ufw_cmd" allow ${INGRESS_NODEPORT}/tcp comment "Ingress NodePort forwarding used for subpath routing (${DATACENTER})" 2>/dev/null; then
+                log_info "Opened UFW port ${INGRESS_NODEPORT} for ingress access (${DATACENTER})"
+            else
+                log_warn "Failed to open UFW port ${INGRESS_NODEPORT}"
+            fi
+        else
+            log_info "UFW rule for port ${INGRESS_NODEPORT} already exists"
+        fi
+    fi
     
     log_info "Ingress forwarding setup complete"
+}
+
+# Setup NodePort forwarding for Helm deployments (optional)
+setup_nodeport_forwarding() {
+    if [ "$SKIP_NODEPORT_FORWARD" = true ]; then
+        log_info "Skipping NodePort forwarding setup (--skip-nodeport-forward flag set)"
+        return 0
+    fi
+    
+    log_step "Setting up NodePort forwarding for Helm deployments (optional)"
+    
+    # Ensure Helm NodePort range is set (should be set by parse_args)
+    if [ -z "$HELM_NODEPORT_RANGE" ]; then
+        log_error "Helm NodePort range is not set. This should not happen."
+        return 1
+    fi
+    
+    if [ "$DRYRUN_NETWORK" = false ]; then
+        read -p "Do you want to set up port forwarding for Helm NodePort range $HELM_NODEPORT_RANGE? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Skipping NodePort forwarding setup"
+            return 0
+        fi
+    fi
+    
+    # Ensure Minikube static IP is set (should be set by parse_args)
+    if [ -z "$MINIKUBE_STATIC_IP" ]; then
+        log_error "Minikube static IP is not set. This should not happen."
+        return 1
+    fi
+    
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    FORWARD_SCRIPT="$SCRIPT_DIR/subscripts/setup-nodeport-forwarding.sh"
+    
+    if [ "$DRYRUN_NETWORK" = true ]; then
+        echo "[DRY RUN] Would set up port forwarding for Helm NodePort range: $HELM_NODEPORT_RANGE"
+        echo "[DRY RUN] Profile: $PROFILE"
+        echo "[DRY RUN] Minikube static IP: $MINIKUBE_STATIC_IP"
+        if [ -f "$FORWARD_SCRIPT" ]; then
+            # Get host external IP for display
+            local host_ip
+            host_ip=$(ip -o addr show | grep -E "inet.*129\.242\." | awk '{print $4}' | cut -d'/' -f1 | head -1)
+            if [ -z "$host_ip" ]; then
+                host_ip="129.242.22.51"  # Default
+            fi
+            echo "[DRY RUN] Host IP: $host_ip"
+            echo "[DRY RUN] Would run: $FORWARD_SCRIPT $HELM_NODEPORT_RANGE --profile $PROFILE --minikube-ip $MINIKUBE_STATIC_IP --host-ip $host_ip --dryrun"
+        else
+            echo "[DRY RUN] Warning: NodePort forwarding script not found: $FORWARD_SCRIPT"
+        fi
+        return 0
+    fi
+    
+    if [ ! -f "$FORWARD_SCRIPT" ]; then
+        log_warn "NodePort forwarding script not found: $FORWARD_SCRIPT"
+        log_info "You can set up NodePort forwarding manually later"
+        return 0
+    fi
+    
+    # Get host external IP
+    local host_ip
+    host_ip=$(ip -o addr show | grep -E "inet.*129\.242\." | awk '{print $4}' | cut -d'/' -f1 | head -1)
+    if [ -z "$host_ip" ]; then
+        host_ip="129.242.22.51"  # Default
+    fi
+    
+    log_info "Running NodePort forwarding setup script for range $HELM_NODEPORT_RANGE..."
+    log_info "  Profile: $PROFILE"
+    log_info "  Minikube static IP: $MINIKUBE_STATIC_IP"
+    log_info "  Host IP: $host_ip"
+    
+    "$FORWARD_SCRIPT" "$HELM_NODEPORT_RANGE" --profile "$PROFILE" --minikube-ip "$MINIKUBE_STATIC_IP" --host-ip "$host_ip"
+    
+    if [ $? -eq 0 ]; then
+        log_info "NodePort forwarding setup complete"
+        log_info "Helm deployments can now be accessed via NodePorts in range $HELM_NODEPORT_RANGE"
+    else
+        log_warn "NodePort forwarding setup may have failed. Check the output above."
+    fi
+}
+
+# Setup UFW rules for Helm NodePort range (optional)
+setup_ufw_nodeport_rules() {
+    if [ "$SKIP_NODEPORT_FORWARD" = true ]; then
+        log_info "Skipping UFW rules setup (--skip-nodeport-forward flag set)"
+        return 0
+    fi
+    
+    log_step "Setting up UFW rules for Helm NodePort range (optional)"
+    
+    # Ensure Helm NodePort range is set (should be set by parse_args)
+    if [ -z "$HELM_NODEPORT_RANGE" ]; then
+        log_error "Helm NodePort range is not set. This should not happen."
+        return 1
+    fi
+    
+    # Parse the range
+    local start_port end_port
+    if [[ "$HELM_NODEPORT_RANGE" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+        start_port="${BASH_REMATCH[1]}"
+        end_port="${BASH_REMATCH[2]}"
+    else
+        log_error "Invalid NodePort range format: $HELM_NODEPORT_RANGE"
+        return 1
+    fi
+    
+    read -p "Do you want to set up UFW rules for Helm NodePort range $HELM_NODEPORT_RANGE? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_info "Skipping UFW rules setup"
+        return 0
+    fi
+    
+    # Check if UFW is installed and active (skip check in dry-run, but still ask questions)
+    if [ "$DRYRUN_NETWORK" = false ]; then
+        if ! is_ufw_installed; then
+            log_warn "UFW is not installed. Skipping UFW rules setup."
+            return 0
+        fi
+        
+        if ! is_ufw_active; then
+            log_warn "UFW is not active. Skipping UFW rules setup."
+            return 0
+        fi
+    else
+        echo "[DRY RUN] Would check if UFW is installed and active"
+    fi
+    
+    # Ask if rule should be for specific IP or all IPs
+    echo ""
+    echo "UFW rule configuration:"
+    echo "  1) Allow from all IP addresses"
+    echo "  2) Allow from specific IP address"
+    read -p "Select option (1 or 2): " -n 1 -r
+    echo
+    
+    local allow_ip=""
+    local rule_comment=""
+    
+    if [[ $REPLY == "2" ]]; then
+        # Ask for specific IP address
+        read -p "Enter IP address to allow: " allow_ip
+        if [ -z "$allow_ip" ]; then
+            log_error "IP address cannot be empty"
+            return 1
+        fi
+        
+        # Validate IP format (basic check)
+        if [[ ! "$allow_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            log_error "Invalid IP address format: $allow_ip"
+            return 1
+        fi
+        
+        # Ask for comment
+        read -p "Enter comment for this rule (optional, press Enter for default): " rule_comment
+        if [ -z "$rule_comment" ]; then
+            rule_comment="Helm NodePort range ${HELM_NODEPORT_RANGE} non-subpath access (${DATACENTER})"
+        fi
+    else
+        # Default to all IPs
+        if [[ ! $REPLY == "1" ]]; then
+            log_info "Invalid option, defaulting to allow from all IPs"
+        fi
+        rule_comment="Helm NodePort range ${HELM_NODEPORT_RANGE} non-subpath access (${DATACENTER})"
+    fi
+    
+    # In dry-run mode, print the exact command and return
+    if [ "$DRYRUN_NETWORK" = true ]; then
+        echo ""
+        echo "[DRY RUN] UFW rule configuration complete:"
+        echo "[DRY RUN]   Port range: ${start_port}:${end_port}"
+        if [ -n "$allow_ip" ]; then
+            echo "[DRY RUN]   Access: From specific IP ${allow_ip}"
+            echo "[DRY RUN]   Comment: ${rule_comment}"
+            echo ""
+            echo "[DRY RUN] Would execute:"
+            echo "  sudo ufw allow from ${allow_ip} to any port ${start_port}:${end_port} proto tcp comment \"${rule_comment}\""
+        else
+            echo "[DRY RUN]   Access: From all IP addresses"
+            echo "[DRY RUN]   Comment: ${rule_comment}"
+            echo ""
+            echo "[DRY RUN] Would execute:"
+            echo "  sudo ufw allow ${start_port}:${end_port}/tcp comment \"${rule_comment}\""
+        fi
+        echo "[DRY RUN] Would add iptables rules for port range ${start_port}:${end_port}"
+        return 0
+    fi
+    
+    log_info "Setting up UFW rules for port range $start_port-$end_port..."
+    
+    local ufw_cmd
+    ufw_cmd=$(find_ufw_cmd)
+    
+    if [ -n "$allow_ip" ]; then
+        # Allow from specific IP (using port range)
+        if ! sudo "$ufw_cmd" status numbered 2>/dev/null | grep -q "${allow_ip}.*${start_port}:${end_port}" && \
+           ! sudo "$ufw_cmd" status 2>/dev/null | grep -q "${allow_ip}.*${start_port}:${end_port}"; then
+            if sudo "$ufw_cmd" allow from ${allow_ip} to any port ${start_port}:${end_port} proto tcp comment "$rule_comment" 2>/dev/null; then
+                log_info "  ✓ Added UFW rule for port range ${start_port}:${end_port} from ${allow_ip} (${rule_comment})"
+            else
+                log_warn "  ⚠ Failed to add UFW rule for port range ${start_port}:${end_port} from ${allow_ip}"
+            fi
+        else
+            log_info "  ℹ UFW rule for port range ${start_port}:${end_port} from ${allow_ip} already exists"
+        fi
+    else
+        # Allow from any IP (using port range)
+        # Check if range rule already exists
+        if sudo "$ufw_cmd" status numbered 2>/dev/null | grep -q "${start_port}:${end_port}" || \
+           sudo "$ufw_cmd" status 2>/dev/null | grep -q "${start_port}:${end_port}"; then
+            log_info "  ℹ UFW rule for port range ${start_port}:${end_port} already exists"
+        else
+            if sudo "$ufw_cmd" allow ${start_port}:${end_port}/tcp comment "$rule_comment" 2>/dev/null; then
+                log_info "  ✓ Added UFW rule for port range ${start_port}:${end_port} (${rule_comment})"
+            else
+                log_warn "  ⚠ Failed to add UFW rule for port range ${start_port}:${end_port} (may already exist)"
+            fi
+        fi
+    fi
+    
+    # Add iptables rules to ensure traffic is allowed (using port range)
+    if ! sudo iptables -t filter -C ufw-before-input -p tcp --dport ${start_port}:${end_port} -j ACCEPT 2>/dev/null; then
+        sudo iptables -t filter -I ufw-before-input 1 -p tcp --dport ${start_port}:${end_port} -j ACCEPT 2>/dev/null || true
+        log_info "  ✓ Added iptables rule for port range ${start_port}:${end_port} in ufw-before-input"
+    fi
+    
+    if ! sudo iptables -t filter -C INPUT -p tcp --dport ${start_port}:${end_port} -j ACCEPT 2>/dev/null; then
+        sudo iptables -t filter -I INPUT 1 -p tcp --dport ${start_port}:${end_port} -j ACCEPT 2>/dev/null || true
+        log_info "  ✓ Added iptables rule for port range ${start_port}:${end_port} in INPUT"
+    fi
+    
+    log_info "UFW rules setup complete for port range ${start_port}:${end_port}"
 }
 
 # Verify setup
@@ -1432,6 +1948,40 @@ main() {
     echo ""
     
     parse_args "$@"
+    
+    # If --dryrun-network is used, only run network setup functions and exit
+    if [ "$DRYRUN_NETWORK" = true ]; then
+        echo "=========================================="
+        echo "  DRY RUN MODE - Network Setup Only"
+        echo "=========================================="
+        echo ""
+        echo "This will show what the network setup functions would do:"
+        echo "  - setup_port_forward"
+        echo "  - setup_ingress_forward"
+        echo "  - setup_nodeport_forwarding"
+        echo "  - setup_ufw_nodeport_rules"
+        echo ""
+        
+        # Calculate INGRESS_NODEPORT for dry-run (needed by setup_ingress_forward)
+        if [ -z "$INGRESS_NODEPORT" ]; then
+            INGRESS_NODEPORT=$((32700 + EC_NUMBER))
+        fi
+        
+        setup_port_forward
+        setup_ingress_forward
+        setup_nodeport_forwarding
+        setup_ufw_nodeport_rules
+        
+        echo ""
+        echo "=========================================="
+        echo "  DRY RUN COMPLETE"
+        echo "=========================================="
+        echo ""
+        echo "No changes were made. Run without --dryrun-network to apply these changes."
+        echo ""
+        return 0
+    fi
+    
     check_prerequisites
     
     local recreate_cluster=true
@@ -1456,6 +2006,8 @@ main() {
     deploy_prometheus
     setup_port_forward
     setup_ingress_forward
+    setup_nodeport_forwarding
+    setup_ufw_nodeport_rules
     verify_setup
     check_chart_server
     

@@ -7,8 +7,17 @@ set -e
 
 # Accept INGRESS_NODEPORT from environment variable or use default
 INGRESS_NODEPORT="${INGRESS_NODEPORT:-30872}"
-MINIKUBE_IP="192.168.49.2"
-HOST_EXTERNAL_IP="129.242.22.51"
+# Accept MINIKUBE_IP from environment variable or try to detect it
+MINIKUBE_IP="${MINIKUBE_IP:-192.168.49.2}"
+# Auto-detect Minikube IP if not provided and MINIKUBE_PROFILE is set
+if [ "$MINIKUBE_IP" = "192.168.49.2" ] && [ -n "$MINIKUBE_PROFILE" ]; then
+    detected_ip=$(minikube ip -p "$MINIKUBE_PROFILE" 2>/dev/null || echo "")
+    if [ -n "$detected_ip" ]; then
+        MINIKUBE_IP="$detected_ip"
+        echo "Auto-detected Minikube IP: $MINIKUBE_IP"
+    fi
+fi
+HOST_EXTERNAL_IP="${HOST_EXTERNAL_IP:-129.242.22.51}"
 SERVICE_NAME="ingress-forwarding-${INGRESS_NODEPORT}"
 
 echo "Setting up port forwarding for ingress controller..."

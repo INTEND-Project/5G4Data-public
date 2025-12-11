@@ -382,70 +382,129 @@ class HelmDeployer:
 
     def _get_datacenter_number(self) -> Optional[int]:
         """
-        Extract datacenter number from Kubernetes context name.
+        Extract datacenter number from the node name where this pod is running.
         
-        Context name format: EC{NUMBER}-inOrch-TMF-Proxy
-        Example: EC21-inOrch-TMF-Proxy -> 21
+        Node name format: ec{NUMBER}-inorch-tmf-proxy
+        Example: ec31-inorch-tmf-proxy -> 31
         
         Returns:
             Datacenter number if found, None otherwise
         """
-        try:
-            result = subprocess.run(
-                ["kubectl", "config", "current-context"],
-                capture_output=True,
-                text=True,
-                timeout=5,
+        if self._core_client is None:
+            self._logger.error(
+                "Kubernetes client not available, cannot get node name"
             )
-            
-            if result.returncode != 0:
-                self._logger.debug("Could not get current Kubernetes context")
-                return None
-            
-            context_name = result.stdout.strip()
-            if not context_name:
-                return None
-            
-            # Extract EC number from context name (format: EC{NUMBER}-inOrch-TMF-Proxy)
-            import re
-            match = re.search(r'EC(\d+)-inOrch-TMF-Proxy', context_name, re.IGNORECASE)
-            if match:
-                ec_number = int(match.group(1))
-                self._logger.debug("Extracted datacenter number %d from context %s", ec_number, context_name)
-                return ec_number
-            
-            self._logger.debug("Could not extract datacenter number from context: %s", context_name)
             return None
+        
+        try:
+            # Get pod's own information to find the node name
+            # Read namespace from service account token
+            namespace = None
+            try:
+                with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r") as f:
+                    namespace = f.read().strip()
+            except Exception:
+                # Fallback to configured namespace
+                namespace = self._source_namespace
+            
+            if not namespace:
+                self._logger.error("Cannot determine pod namespace")
+                return None
+            
+            # Get pod name from hostname (Kubernetes sets HOSTNAME env var to pod name)
+            pod_name = os.getenv("HOSTNAME")
+            if not pod_name:
+                # Fallback: try to get from hostname command
+                try:
+                    result = subprocess.run(
+                        ["hostname"],
+                        capture_output=True,
+                        text=True,
+                        timeout=2,
+                    )
+                    if result.returncode == 0:
+                        pod_name = result.stdout.strip()
+                except Exception:
+                    pass
+            
+            if not pod_name:
+                self._logger.error("Cannot determine pod name")
+                return None
+            
+            # Get the pod's own information to extract node name
+            try:
+                pod = self._core_client.read_namespaced_pod(name=pod_name, namespace=namespace)
+                node_name = pod.spec.node_name
+                if not node_name:
+                    self._logger.error("Pod node name not found in pod spec")
+                    return None
+                
+                # Extract EC number from node name (format: ec{NUMBER}-inorch-tmf-proxy)
+                match = re.search(r'ec(\d+)-inorch-tmf-proxy', node_name, re.IGNORECASE)
+                if match:
+                    ec_number = int(match.group(1))
+                    self._logger.info(
+                        "Extracted datacenter number %d from node name %s",
+                        ec_number,
+                        node_name,
+                    )
+                    return ec_number
+                
+                self._logger.error(
+                    "Node name '%s' does not match expected pattern 'ec{NUMBER}-inorch-tmf-proxy'",
+                    node_name,
+                )
+                return None
+                
+            except ApiException as exc:
+                if exc.status == 403:
+                    self._logger.error(
+                        "Permission denied: cannot read pod '%s' in namespace '%s'. "
+                        "Service account needs 'get pods' permission in its own namespace.",
+                        pod_name,
+                        namespace,
+                    )
+                else:
+                    self._logger.error(
+                        "Failed to read pod '%s' in namespace '%s': %s",
+                        pod_name,
+                        namespace,
+                        exc,
+                    )
+                return None
             
         except Exception as exc:
-            self._logger.debug("Error extracting datacenter number: %s", exc)
+            self._logger.error("Error extracting datacenter number from node name: %s", exc)
             return None
 
     def _get_cluster_nodeport_range(self) -> tuple[int, int]:
         """
         Get the NodePort range assigned to this cluster based on datacenter number.
         
-        Each cluster gets 10 NodePorts: 30000 + (EC_NUMBER * 10) - 9 to 30000 + (EC_NUMBER * 10)
-        Example: EC21 -> 30201-30210
+        Each cluster gets 10 NodePorts: 30100 + (EC_NUMBER * 10) - 9 to 30100 + (EC_NUMBER * 10)
+        Example: EC21 -> 30301-30310
+        
+        Note: Starts from 30100 to leave room for default cluster NodePorts (30000-30040)
+        and Prometheus (30090).
         
         Returns:
             Tuple of (start_port, end_port) for this cluster's NodePort range
             
         Raises:
-            RuntimeError: If datacenter number cannot be determined from context
+            RuntimeError: If datacenter number cannot be determined from node hostname
         """
         ec_number = self._get_datacenter_number()
         
         if ec_number is None:
             raise RuntimeError(
-                "Cannot determine datacenter number from Kubernetes context. "
-                "Context name must match pattern 'EC{NUMBER}-inOrch-TMF-Proxy' "
-                "(e.g., 'EC21-inOrch-TMF-Proxy'). "
+                "Cannot determine datacenter number from node hostname. "
+                "Node hostname must match pattern 'ec{NUMBER}-inorch-tmf-proxy' "
+                "(e.g., 'ec31-inorch-tmf-proxy'). "
                 "Cannot proceed with NodePort assignment."
             )
         
-        start_port = 30000 + (ec_number * 10) - 9
-        end_port = 30000 + (ec_number * 10)
+        start_port = 30100 + (ec_number * 10) - 9
+        end_port = 30100 + (ec_number * 10)
         
         # Validate range is within NodePort limits
         if start_port < 30000:
@@ -474,33 +533,31 @@ class HelmDeployer:
         """
         used_ports = set()
         
+        if self._core_client is None:
+            self._logger.debug("Kubernetes client not available, cannot get used NodePorts")
+            return used_ports
+        
         try:
-            result = subprocess.run(
-                [
-                    "kubectl",
-                    "get",
-                    "svc",
-                    "--all-namespaces",
-                    "-o",
-                    "json",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+            # Get all services from all namespaces using Kubernetes API
+            services = self._core_client.list_service_for_all_namespaces()
             
-            if result.returncode == 0:
-                services_data = json.loads(result.stdout)
-                for item in services_data.get("items", []):
-                    if item.get("spec", {}).get("type") == "NodePort":
-                        ports = item.get("spec", {}).get("ports", [])
-                        for port in ports:
-                            nodeport = port.get("nodePort")
-                            if nodeport and isinstance(nodeport, int):
-                                used_ports.add(nodeport)
+            for service in services.items:
+                if service.spec.type == "NodePort":
+                    if service.spec.ports:
+                        for port in service.spec.ports:
+                            if port.node_port and isinstance(port.node_port, int):
+                                used_ports.add(port.node_port)
             
             self._logger.debug("Found %d NodePorts in use in cluster", len(used_ports))
             
+        except ApiException as exc:
+            if exc.status == 403:
+                self._logger.debug(
+                    "Permission denied: cannot list services from all namespaces. "
+                    "Will only check session-assigned NodePorts."
+                )
+            else:
+                self._logger.warning("Error getting used NodePorts from cluster: %s", exc)
         except Exception as exc:
             self._logger.warning("Error getting used NodePorts from cluster: %s", exc)
         
@@ -2074,15 +2131,63 @@ class HelmDeployer:
                         svc_info["node_port"],
                     )
                     self._logger.info(
-                        "  Application URL: %s",
+                        "  Application URL (from host machine): %s",
+                        access_url,
+                    )
+                    # Try to get node IP for better access info
+                    node_ip = None
+                    try:
+                        if self._core_client is not None:
+                            nodes = self._core_client.list_node()
+                            if nodes.items:
+                                # Get node's internal IP
+                                for address in nodes.items[0].status.addresses:
+                                    if address.type == "InternalIP":
+                                        node_ip = address.address
+                                        break
+                    except Exception:
+                        pass
+                    
+                    if node_ip:
+                        node_access_url = f"http://{node_ip}:{svc_info['node_port']}/"
+                        self._logger.info(
+                        "  Application URL (via node IP): %s",
+                        node_access_url,
+                    )
+                    
+                    self._logger.info(
+                        "  To access from host machine, use: %s",
                         access_url,
                     )
                     self._logger.info(
-                        "=" * 70
+                        "  To access from external network (http://start5g-1.cs.uit.no:%d/):",
+                        svc_info["node_port"],
                     )
-                    # Start port-forward in background to expose service externally
-                    self._start_port_forward(
-                        namespace, svc_info["name"], svc_info["node_port"], svc_info["port"]
+                    self._logger.info(
+                        "    Run on host machine: ./setup-nodeport-forwarding.sh %d",
+                        svc_info["node_port"],
+                    )
+                    self._logger.info(
+                        "    Or for a range: ./setup-nodeport-forwarding.sh 30301-30310",
+                    )
+                    self._logger.info(
+                        "    Or manually: sudo socat TCP-LISTEN:%d,fork,reuseaddr,bind=129.242.22.51 TCP:%s:%d",
+                        svc_info["node_port"],
+                        node_ip if node_ip else "192.168.49.2",
+                        svc_info["node_port"],
+                    )
+                    self._logger.info(
+                        "  Alternative: kubectl port-forward from host:"
+                    )
+                    self._logger.info(
+                        "    kubectl port-forward -n %s svc/%s %d:%d --address 0.0.0.0",
+                        namespace,
+                        svc_info["name"],
+                        svc_info["node_port"],
+                        svc_info["port"],
+                    )
+                    self._logger.info(
+                        "=" * 70
                     )
             else:
                 self._logger.debug(
@@ -2101,7 +2206,12 @@ class HelmDeployer:
     def _start_port_forward(
         self, namespace: str, service_name: str, local_port: int, target_port: int
     ) -> None:
-        """Start kubectl port-forward in a background thread to expose service externally."""
+        """Start kubectl port-forward in a background thread to expose service externally.
+        
+        Note: When running inside a pod, port-forward is not needed as services are
+        already accessible via NodePort. This method will skip silently if kubectl
+        is not available.
+        """
 
         def run_port_forward():
             try:
@@ -2114,10 +2224,14 @@ class HelmDeployer:
                         timeout=5,
                     )
                 except (FileNotFoundError, subprocess.TimeoutExpired):
-                    self._logger.warning(
-                        "kubectl not available, skipping port-forward for service %s/%s",
+                    # When running inside a pod, kubectl is typically not available
+                    # and port-forward is not needed (services are accessible via NodePort)
+                    self._logger.debug(
+                        "kubectl not available, skipping port-forward for service %s/%s "
+                        "(service is accessible via NodePort: %d)",
                         namespace,
                         service_name,
+                        local_port,
                     )
                     return
                 

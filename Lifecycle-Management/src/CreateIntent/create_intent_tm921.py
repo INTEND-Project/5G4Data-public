@@ -4,7 +4,7 @@ import re
 import uuid
 import argparse
 
-# Base URL of the API
+# Base URL of the inServ API
 BASE_URL = "http://start5g-1.cs.uit.no:3021/tmf-api/intentManagement/v5"
 
 def test_get_intents():
@@ -341,12 +341,45 @@ def test_create_rusty_llm_intent(print_turtle_only=False, datacenter="EC21"):
         print("  - The server crashed while processing the request")
         print("  - The payload is too large or malformed")
         print("  - Network connectivity issues")
+        print("\nChecking if intent was created despite the connection error...")
+        # Try to find the intent that might have been created
+        try:
+            get_response = requests.get(url, timeout=10)
+            if get_response.status_code == 200:
+                intents = get_response.json()
+                if isinstance(intents, list) and len(intents) > 0:
+                    # Look for the most recent intent matching our name
+                    matching_intents = [i for i in intents if i.get("name") == payload["name"]]
+                    if matching_intents:
+                        latest_intent = matching_intents[-1]  # Get the most recent one
+                        print(f"\nNote: Intent appears to have been created with ID: {latest_intent.get('id')}")
+                        return json.dumps(latest_intent)
+        except Exception as check_error:
+            print(f"Could not verify intent creation: {check_error}")
         return None
     except requests.exceptions.Timeout:
         print("Request timed out after 30 seconds")
         return None
     except requests.exceptions.RequestException as e:
+        error_str = str(e)
         print(f"Request Error: {e}")
+        # Check if this is an IncompleteRead error
+        if "IncompleteRead" in error_str or "Connection broken" in error_str:
+            print("\nConnection was broken during response. Checking if intent was created...")
+            # Try to find the intent that might have been created
+            try:
+                get_response = requests.get(url, timeout=10)
+                if get_response.status_code == 200:
+                    intents = get_response.json()
+                    if isinstance(intents, list) and len(intents) > 0:
+                        # Look for the most recent intent matching our name
+                        matching_intents = [i for i in intents if i.get("name") == payload["name"]]
+                        if matching_intents:
+                            latest_intent = matching_intents[-1]  # Get the most recent one
+                            print(f"\nNote: Intent appears to have been created with ID: {latest_intent.get('id')}")
+                            return json.dumps(latest_intent)
+            except Exception as check_error:
+                print(f"Could not verify intent creation: {check_error}")
         return None
     if response.status_code in [200, 201]:
         try:

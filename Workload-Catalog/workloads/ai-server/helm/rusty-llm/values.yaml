@@ -119,3 +119,29 @@ connectivityTest:
   ttlSecondsAfterFinished: 300  # Clean up job after 5 minutes
   backoffLimit: 3  # Retry up to 3 times on failure
 
+# Intent configuration for INTEND system
+intent:
+  enabled: true  # Set to true to enable Intent resource
+  name: "llm-intent"  # Name of the Intent resource
+  priority: 1.0
+  targetRef:
+    # If not specified, will use: <namespace>/<deployment-fullname>
+    # Format: "namespace/name" or just "name" (will use release namespace)
+    name: ""  # Leave empty to auto-generate from deployment
+  objectives:
+    - name: p99-token-target
+      value: 0.0  # Set to null so that TMF-proxy can set it during deployment based on value in TMF intent
+      measuredBy: intend/p99token
+  labels: {}
+
+# KPIProfile configuration for INTEND system
+kpiProfile:
+  enabled: true  # Set to true to enable KPIProfile resource
+  name: "p99token"
+  type: "latency"
+  description: "token creation time."
+  query: "histogram_quantile(0.99, sum(last_over_time(token_creation_duration_bucket[30s])) by (le))"
+  props:
+    endpoint: "http://10.21.70.53:9090/api/v1/query"
+  labels: {}
+

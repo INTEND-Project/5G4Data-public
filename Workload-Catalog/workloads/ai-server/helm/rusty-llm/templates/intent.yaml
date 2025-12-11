@@ -1,0 +1,44 @@
+{{- if .Values.intent.enabled }}
+---
+apiVersion: "ido.intel.com/v1alpha1"
+kind: Intent
+metadata:
+  name: {{ .Values.intent.name | default (printf "%s-intent" (include "rusty-llm.fullname" .)) }}
+  {{- with .Values.intent.labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  targetRef:
+    kind: "Deployment"
+    name: {{ .Values.intent.targetRef.name | default (printf "%s/%s" .Release.Namespace (include "rusty-llm.fullname" .)) }}
+  priority: {{ .Values.intent.priority | default 1.0 }}
+  objectives:
+    {{- range .Values.intent.objectives }}
+    - name: {{ .name }}
+      {{- if hasKey . "value" }}
+      value: {{ .value }}
+      {{- else }}
+      value: null
+      {{- end }}
+      measuredBy: {{ .measuredBy }}
+    {{- end }}
+{{- end }}
+---
+{{- if .Values.kpiProfile.enabled }}
+apiVersion: "ido.intel.com/v1alpha1"
+kind: KPIProfile
+metadata:
+  name: {{ .Values.kpiProfile.name | default "p99token" }}
+  {{- with .Values.kpiProfile.labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.kpiProfile.type | default "latency" | quote }}
+  description: {{ .Values.kpiProfile.description | default "token creation time." | quote }}
+  query: {{ .Values.kpiProfile.query | quote }}
+  props:
+    {{- toYaml .Values.kpiProfile.props | nindent 4 }}
+{{- end }}
+

@@ -3,14 +3,14 @@ entries:
   rusty-llm:
   - apiVersion: v2
     appVersion: 0.6.0
-    created: "2025-12-07T18:55:41.826775046Z"
+    created: "2025-12-11T20:35:00.307973205Z"
     description: A Helm chart for rusty_llm AI inference service with the Phi-3.5-mini-instruct-Q4_K_S model.
-    digest: 90c5627779d7018f3b2866fc2c1bafa30b6f25aec8c5e395ebfabd364599db6b
+    digest: ec1a1f8fb9047f1fde2190f004c4d9298459bfe83adecf056be6a2c37e2f2a0d
     icon: http://start5g-1.cs.uit.no:3040/images/rusty-llm-icon.svg
     name: rusty-llm
     type: application
     urls:
-    - charts/rusty-llm-0.1.12.tgz
-    version: 0.1.12
-generated: "2025-12-08T19:58:28Z"
+    - charts/rusty-llm-0.1.16.tgz
+    version: 0.1.16
+generated: "2025-12-11T20:35:40Z"
 serverInfo: {}

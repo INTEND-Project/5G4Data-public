@@ -10,12 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     FLASK_ENV=production \
-    PORT=5001
+    PORT=5001 \
+    DISABLE_INTENT_GENERATION=false
 
 # Set working directory
 WORKDIR /app
 
 # Copy requirements first for better layer caching
+# Note: Build context must be the parent directory (5G4Data-public/)
 COPY IntentReport-Simulator/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 

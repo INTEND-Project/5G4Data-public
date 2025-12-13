@@ -106,13 +106,15 @@ class ObservationGenerator:
         
         Args:
             condition_id: The condition ID to analyze
-            turtle_data: The Turtle data containing the condition definition
+            intent_data: The Turtle data containing the condition definition
             
         Returns:
             A tuple of (metric_prefix, unit) where:
-            - metric_prefix is one of: "NetworkLatency", "ComputeLatency", "NetworkBandwidth"
-            - unit is one of: "ms" for latency, "Mbps" for bandwidth
+            - metric_prefix is the metric name (e.g., "p99-token", "networklatency", "bandwidth")
+            - unit is one of: "ms" for latency, "Mbps" for bandwidth, or "NA" if unknown
         """
+        import re
+        
         # Split the turtle data into lines
         lines = intent_data.split('\n')
         
@@ -126,43 +128,139 @@ class ObservationGenerator:
         if condition_line_index == -1:
             return "Unknown", "NA"  # Default if condition not found
         
-        # Continue parsing from the condition line
+        # Extract condition description first (fallback method)
+        condition_description = None
+        unit_from_desc = None
+        for line in lines[condition_line_index:condition_line_index+10]:  # Check next 10 lines
+            if "dct:description" in line:
+                match = re.search(r'dct:description\s+"([^"]+)"', line)
+                if match:
+                    condition_description = match.group(1).lower()
+                    # Try to extract unit from description (e.g., "400ms", "100Mbps")
+                    unit_match = re.search(r'(\d+)\s*(ms|mbps|mb/s)', condition_description, re.IGNORECASE)
+                    if unit_match:
+                        unit_from_desc = unit_match.group(2).lower()
+                        if unit_from_desc in ['ms']:
+                            unit_from_desc = 'ms'
+                        elif unit_from_desc in ['mbps', 'mb/s']:
+                            unit_from_desc = 'Mbps'
+                    break
+        
+        # Continue parsing from the condition line to find target property
         target_property_line = None
+        unit_from_property = None
         for line in lines[condition_line_index:]:
             if "icm:valuesOfTargetProperty" in line:
                 target_property_line = line
                 break
+            # Also check for unit in quan:unit
+            if "quan:unit" in line:
+                unit_match = re.search(r'quan:unit\s+"([^"]+)"', line)
+                if unit_match:
+                    unit_from_property = unit_match.group(1).lower()
+                    if unit_from_property in ['ms', 'millisecond', 'milliseconds']:
+                        unit_from_property = 'ms'
+                    elif unit_from_property in ['mbps', 'mb/s', 'megabit', 'megabits']:
+                        unit_from_property = 'Mbps'
         
-        if not target_property_line:
-            return "Unknown", "NA"  # Default if property not found
+        # Determine unit (prefer property, then description)
+        unit = unit_from_property or unit_from_desc or "NA"
         
-        # Extract the metric type from the target property in a robust, case-insensitive way
-        # Example line fragment after 'data5g:': "networklatency_CO0e4003... ;"
-        # We want only the metric prefix part (e.g., "networklatency"), without the trailing
-        # "_CO..." condition identifier or any punctuation.
-        try:
-            after_prefix = target_property_line.split('data5g:', 1)[1]
-        except Exception:
-            return "Unknown", "NA"
+        # Extract metric name from target property
+        metric_match = None
+        if target_property_line:
+            try:
+                after_prefix = target_property_line.split('data5g:', 1)[1]
+                # Take the first token up to whitespace, then strip trailing punctuation
+                token = after_prefix.split()[0].rstrip(';,')
+                
+                # If the token ends with _{condition_id} (case-insensitive), drop that suffix
+                suffix = f"_{condition_id}"
+                if token.lower().endswith(suffix.lower()):
+                    metric_match = token[: -len(suffix)]
+                else:
+                    # Remove common suffixes like "-target", "-property", etc.
+                    metric_match = re.sub(r'[-_](target|property|metric|value)$', '', token, flags=re.IGNORECASE)
+                    # If still contains underscores/hyphens, take the meaningful parts
+                    if '_' in metric_match or '-' in metric_match:
+                        # Keep parts that look like metric names (not just condition IDs)
+                        parts = re.split(r'[-_]', metric_match)
+                        # Filter out parts that look like condition IDs (CO... or CX...)
+                        meaningful_parts = [p for p in parts if not re.match(r'^[COX][A-Za-z0-9]+$', p)]
+                        if meaningful_parts:
+                            metric_match = '-'.join(meaningful_parts)
+                        else:
+                            metric_match = parts[0] if parts else token
+            except Exception:
+                pass
+        
+        # Fallback: extract from condition description
+        if not metric_match or metric_match.lower() in ['unknown', 'na']:
+            if condition_description:
+                # Try to extract metric name from description
+                # Examples: "Token compute p99 condition" -> "p99-token" or "token-compute-p99"
+                # "Network latency condition" -> "network-latency"
+                desc_lower = condition_description.lower()
+                # Remove common words
+                words = re.findall(r'\b[a-z0-9]+\b', desc_lower)
+                # Filter out common condition words
+                skip_words = {'condition', 'quan', 'smaller', 'larger', 'equal', 'than', 'to', 'is', 'a', 'an', 'the', 'with', 'for', 'and', 'or'}
+                meaningful_words = [w for w in words if w not in skip_words and not re.match(r'^\d+$', w)]
+                if meaningful_words:
+                    metric_match = '-'.join(meaningful_words[:3])  # Take up to 3 words
+        
+        # Final fallback: use condition ID
+        if not metric_match or metric_match.lower() in ['unknown', 'na']:
+            metric_match = condition_id
+        
+        # Determine unit based on metric type if not already determined
+        if unit == "NA":
+            metric_lower = metric_match.lower()
+            if "latency" in metric_lower or "p99" in metric_lower or "p50" in metric_lower or "p95" in metric_lower or "compute" in metric_lower:
+                unit = "ms"
+            elif "bandwidth" in metric_lower or "throughput" in metric_lower:
+                unit = "Mbps"
+        
+        return metric_match, unit
 
-        # Take the first token up to whitespace, then strip trailing punctuation
-        token = after_prefix.split()[0].rstrip(';,')
-
-        # If the token ends with _{condition_id} (case-insensitive), drop that suffix
-        suffix = f"_{condition_id}"
-        if token.lower().endswith(suffix.lower()):
-            metric_match = token[: -len(suffix)]
-        else:
-            # Fallback: split at first underscore to keep just the leading metric name
-            metric_match = token.split('_')[0]
+    def _extract_target_property_name(self, condition_id: str, intent_data: str) -> str:
+        """Extract the full target property name from the condition's Turtle data.
         
-        # Determine the unit based on the metric type
-        if "latency" in metric_match.lower():
-            return metric_match, "ms"
-        elif "bandwidth" in metric_match.lower():
-            return metric_match, "Mbps"
-        else:
-            return "Unknown", "NA"  # Default if type not recognized
+        Args:
+            condition_id: The condition ID to analyze
+            intent_data: The Turtle data containing the condition definition
+            
+        Returns:
+            The full target property name (e.g., "p99-token-target") or None if not found
+        """
+        import re
+        
+        # Split the turtle data into lines
+        lines = intent_data.split('\n')
+        
+        # Find the line containing the condition definition
+        condition_line_index = -1
+        for i, line in enumerate(lines):
+            if f"data5g:{condition_id}" in line and "a icm:Condition" in line:
+                condition_line_index = i
+                break
+        
+        if condition_line_index == -1:
+            return None
+        
+        # Find the line with icm:valuesOfTargetProperty
+        for line in lines[condition_line_index:]:
+            if "icm:valuesOfTargetProperty" in line:
+                try:
+                    # Extract the target property name after "data5g:"
+                    after_prefix = line.split('data5g:', 1)[1]
+                    # Take the first token up to whitespace, then strip trailing punctuation
+                    target_property = after_prefix.split()[0].rstrip(';,')
+                    return target_property
+                except Exception:
+                    return None
+        
+        return None
 
     def generate_observation_turtle(self, condition_id: str, timestamp: datetime, min_value: float = 10, max_value: float = 100, turtle_data: str = "", metric_value: float = None) -> str:
         """Generate a single observation report in Turtle format."""
@@ -171,8 +269,20 @@ class ObservationGenerator:
         import random
         if metric_value is None:
             metric_value = random.uniform(min_value, max_value)
+        
+        # Get the full target property name from the condition (e.g., "p99-token-target")
+        target_property_name = self._extract_target_property_name(condition_id, turtle_data)
+        
+        # Get metric type and unit from the condition (we need unit regardless)
         metric_prefix, unit = self.get_metric_type_from_condition(condition_id, turtle_data)
-        turtle = f"""@prefix met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .\n@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n@prefix data5g: <http://5g4data.eu/5g4data#> .\n\ndata5g:{observation_id} a met:Observation ;\n    met:observedMetric data5g:{metric_prefix}_{condition_id} ;\n    met:observedValue [ rdf:value {metric_value:.1f} ; quan:unit \"{unit}\" ] ;\n    met:obtainedAt \"{timestamp_str}\"^^xsd:dateTime ."""
+        
+        # If we have a target property name, use it; otherwise fall back to metric_prefix
+        if target_property_name:
+            metric_name = f"{target_property_name}_{condition_id}"
+        else:
+            metric_name = f"{metric_prefix}_{condition_id}"
+        
+        turtle = f"""@prefix met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .\n@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n@prefix data5g: <http://5g4data.eu/5g4data#> .\n\ndata5g:{observation_id} a met:Observation ;\n    met:observedMetric data5g:{metric_name} ;\n    met:observedValue [ rdf:value {metric_value:.1f} ; quan:unit \"{unit}\" ] ;\n    met:obtainedAt \"{timestamp_str}\"^^xsd:dateTime ."""
         return turtle
 
     def store_observation(self, turtle_data: str, storage_type: str = "graphdb", 
@@ -253,8 +363,13 @@ class ObservationGenerator:
                 metric_value = random.uniform(params.min_value, params.max_value)
             if params.storage_type == "prometheus":
                 # Store in Prometheus
-                metric_type, unit = self.get_metric_type_from_condition(params.condition_id, params.turtle_data)
-                metric_name = f"{metric_type.lower()}_{params.condition_id}"
+                # Get the full target property name from the condition
+                target_property_name = self._extract_target_property_name(params.condition_id, params.turtle_data)
+                if target_property_name:
+                    metric_name = f"{target_property_name}_{params.condition_id}"
+                else:
+                    metric_type, unit = self.get_metric_type_from_condition(params.condition_id, params.turtle_data)
+                    metric_name = f"{metric_type.lower()}_{params.condition_id}"
                 labels = {
                     "condition_id": params.condition_id,
                     "intent_id": self.extract_intent_id(params.turtle_data),
@@ -294,8 +409,13 @@ class ObservationGenerator:
                 
                 # Store metadata in GraphDB for this condition (only once per condition)
                 if not hasattr(self, '_graphdb_metadata_stored') or params.condition_id not in getattr(self, '_graphdb_metadata_stored', set()):
-                    metric_type, unit = self.get_metric_type_from_condition(params.condition_id, params.turtle_data)
-                    metric_name = f"{metric_type.lower()}_{params.condition_id}"
+                    # Get the full target property name from the condition
+                    target_property_name = self._extract_target_property_name(params.condition_id, params.turtle_data)
+                    if target_property_name:
+                        metric_name = f"{target_property_name}_{params.condition_id}"
+                    else:
+                        metric_type, unit = self.get_metric_type_from_condition(params.condition_id, params.turtle_data)
+                        metric_name = f"{metric_type.lower()}_{params.condition_id}"
                     self.graphdb_client.store_graphdb_metadata(metric_name=metric_name)
                     # Track that we've stored metadata for this condition
                     if not hasattr(self, '_graphdb_metadata_stored'):

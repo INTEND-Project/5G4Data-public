@@ -11,12 +11,41 @@ import subprocess
 import re
 import time
 import logging
+import argparse
 from observation_generator import ObservationGenerator
 
 from intent_report_client import GraphDbClient, generate_turtle
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging early
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Intent Report Simulator')
+parser.add_argument('--disable-intent-generation', '--no-create-intents', 
+                    action='store_true',
+                    help='Disable automatic intent generation when no intents are found')
+parser.add_argument('--host', default='0.0.0.0', help='Host to bind to (default: 0.0.0.0)')
+parser.add_argument('--port', type=int, default=5000, help='Port to bind to (default: 5000)')
+parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+
+# Check for environment variable first (for Docker/gunicorn)
+# This allows Docker to set DISABLE_INTENT_GENERATION=true
+env_disable = os.getenv('DISABLE_INTENT_GENERATION', '').lower() in ('true', '1', 'yes')
+
+# Parse command line arguments (for direct Python execution)
+# Use parse_known_args to avoid conflicts with Flask/gunicorn arguments
+args, unknown = parser.parse_known_args()
+cli_disable = args.disable_intent_generation
+
+# Global flag to disable intent generation (env var takes precedence, then CLI arg)
+DISABLE_INTENT_GENERATION = env_disable or cli_disable
+
+if DISABLE_INTENT_GENERATION:
+    logger.info("Intent generation is DISABLED. No intents will be automatically created.")
 
 app = Flask(__name__)
 CORS(app, resources={
@@ -28,11 +57,11 @@ CORS(app, resources={
 })
 
 # Initialize GraphDB configuration
-graphdb_url = os.getenv('GRAPHDB_URL', 'http://start5g-1:7200')
+graphdb_url = os.getenv('GRAPHDB_URL', 'http://start5g-1.cs.uit.no:7200')
 if not graphdb_url.startswith('http://'):
     graphdb_url = f'http://{graphdb_url}'
 
-graphdb_repository = os.getenv('GRAPHDB_REPOSITORY', 'intent-reports')
+graphdb_repository = os.getenv('GRAPHDB_REPOSITORY', 'intents_and_intent_reports')
 
 print(f"Connecting to GraphDB at {graphdb_url}")
 print(f"Using repository '{graphdb_repository}' for intents and intent-reports")
@@ -43,10 +72,6 @@ reports_client = GraphDbClient(graphdb_url, repository=graphdb_repository)
 
 # Initialize the observation generator with the unified repository
 observation_generator = ObservationGenerator(graphdb_url, repository=graphdb_repository)
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 class IntentGenerator:
     """Intent generation utility for the app"""
@@ -457,9 +482,12 @@ def quick_populate_generate():
                 intents.append(intent)
             
             if not intents:
-                logger.info("No intents found during quick generation. Generating intents from configuration...")
-                generated_ids = intent_generator.generate_all_intents_from_config()
-                logger.info(f"Generated {len(generated_ids)} intents from configuration for quick generation")
+                if DISABLE_INTENT_GENERATION:
+                    logger.info("No intents found during quick generation. Intent generation is disabled, skipping intent creation.")
+                else:
+                    logger.info("No intents found during quick generation. Generating intents from configuration...")
+                    generated_ids = intent_generator.generate_all_intents_from_config()
+                    logger.info(f"Generated {len(generated_ids)} intents from configuration for quick generation")
                 
         except Exception as intent_error:
             logger.warning(f"Could not check/generate intents: {intent_error}")
@@ -638,8 +666,13 @@ def quick_populate_generate():
                             
                             # Store Prometheus metadata immediately
                             try:
-                                metric_type, unit = observation_generator.get_metric_type_from_condition(condition_id, turtle_data)
-                                metric_name = f"{metric_type.lower()}_{condition_id}"
+                                # Get the full target property name from the condition
+                                target_property_name = observation_generator._extract_target_property_name(condition_id, turtle_data)
+                                if target_property_name:
+                                    metric_name = f"{target_property_name}_{condition_id}"
+                                else:
+                                    metric_type, unit = observation_generator.get_metric_type_from_condition(condition_id, turtle_data)
+                                    metric_name = f"{metric_type.lower()}_{condition_id}"
                                 reports_client.store_prometheus_metadata(metric_name=metric_name)
                             except Exception as meta_error:
                                 logger.warning(f"Failed to store Prometheus metadata for {condition_id}: {meta_error}")
@@ -654,8 +687,13 @@ def quick_populate_generate():
                         # Store GraphDB metadata immediately
                         if storage_success:
                             try:
-                                metric_type, unit = observation_generator.get_metric_type_from_condition(condition_id, turtle_data)
-                                metric_name = f"{metric_type.lower()}_{condition_id}"
+                                # Get the full target property name from the condition
+                                target_property_name = observation_generator._extract_target_property_name(condition_id, turtle_data)
+                                if target_property_name:
+                                    metric_name = f"{target_property_name}_{condition_id}"
+                                else:
+                                    metric_type, unit = observation_generator.get_metric_type_from_condition(condition_id, turtle_data)
+                                    metric_name = f"{metric_type.lower()}_{condition_id}"
                                 reports_client.store_graphdb_metadata(metric_name=metric_name)
                             except Exception as meta_error:
                                 logger.warning(f"Failed to store GraphDB metadata for {condition_id}: {meta_error}")
@@ -721,8 +759,16 @@ def query_intents():
             }
             intents.append(intent)
         
-        # If no intents exist, generate intents from configuration
+        # If no intents exist, generate intents from configuration (unless disabled)
         if not intents:
+            if DISABLE_INTENT_GENERATION:
+                logger.info("No intents found in GraphDB. Intent generation is disabled, returning empty list.")
+                return jsonify({
+                    'intents': [],
+                    'message': 'No intents found. Intent generation is disabled. Use --disable-intent-generation=false to enable automatic intent creation.',
+                    'generating': False
+                })
+            
             logger.info("No intents found in GraphDB. Generating intents from configuration...")
             try:
                 generated_ids = intent_generator.generate_all_intents_from_config()
@@ -743,7 +789,7 @@ def query_intents():
         return jsonify({'intents': intents})
         
     except Exception as e:
-        print(f"Error querying intents: {str(e)}")
+        logger.error(f"Error querying intents: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/get-intent/<intent_id>', methods=['GET'])
@@ -752,20 +798,26 @@ def get_intent(intent_id):
         intent_data = intents_client.get_intent(intent_id)
         if not intent_data:
             return jsonify({"error": f"No intent found with ID {intent_id}"}), 404
+        logger.info("=== Retrieved Intent (Turtle Format) ===")
+        logger.info(f"Intent ID: {intent_id}")
+        logger.info("Turtle Data:")
+        logger.info(intent_data)
+        logger.info("=== End of Turtle Format ===")
+        
         return jsonify({
             "intent_id": intent_id,
             "data": intent_data
         })
     except Exception as e:
-        print("Error:", str(e))
+        logger.error(f"Error getting intent {intent_id}: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 400
 
 @app.route('/api/generate-report', methods=['POST'])
 def generate_intent_report():
-    print("=== Received request to /api/generate-report ===")  # Debug log
-    print(f"Request method: {request.method}")  # Debug log
-    print(f"Request headers: {dict(request.headers)}")  # Debug log
-    print(f"Request data: {request.get_data()}")  # Debug log
+    logger.debug("=== Received request to /api/generate-report ===")
+    logger.debug(f"Request method: {request.method}")
+    logger.debug(f"Request headers: {dict(request.headers)}")
+    logger.debug(f"Request data: {request.get_data()}")
     
     try:
         report_data = request.json
@@ -774,11 +826,16 @@ def generate_intent_report():
         if report_data.get('report_type') in ['STATE_CHANGE', 'UPDATE_CHANGE']:
             # Generate Turtle format
             turtle_data = generate_turtle(report_data)
-            print(f"Generated Turtle data: {turtle_data}")  # Debug log
+            logger.info("=== Generated Intent Report (Turtle Format) ===")
+            logger.info(f"Report Type: {report_data.get('report_type')}")
+            logger.info(f"Intent ID: {report_data.get('intent_id')}")
+            logger.info("Turtle Data:")
+            logger.info(turtle_data)
+            logger.info("=== End of Turtle Format ===")
             
             # Store in GraphDB using the reports client
             response = reports_client.store_intent_report(turtle_data)
-            print(f"GraphDB response: {response}")  # Debug log
+            logger.info(f"GraphDB storage response: {response}")
         
         # If this is an expectation report with observation data, start observation generation
         if report_data.get('report_type') == 'EXPECTATION' and 'observation_data' in report_data:
@@ -792,14 +849,18 @@ def generate_intent_report():
             if not turtle_data:
                 return jsonify({"status": "error", "message": f"Could not find intent with ID {intent_id}"}), 404
             
-            print(f"Got Turtle data from intents repository: {turtle_data}")  # Debug log
+            logger.info("=== Retrieved Intent Turtle Data from GraphDB ===")
+            logger.info(f"Intent ID: {intent_id}")
+            logger.info("Turtle Data:")
+            logger.info(turtle_data)
+            logger.info("=== End of Intent Turtle Data ===")
             
             for observation in report_data['observation_data']:
-                print(f"\n=== Starting observation generation ===")
-                print(f"Condition ID: {observation['condition_id']}")
-                print(f"Frequency: {observation['frequency']} seconds")
-                print(f"Start Time: {observation['start_time']}")
-                print(f"Stop Time: {observation['stop_time']}")
+                logger.info("=== Starting observation generation ===")
+                logger.info(f"Condition ID: {observation['condition_id']}")
+                logger.info(f"Frequency: {observation['frequency']} seconds")
+                logger.info(f"Start Time: {observation['start_time']}")
+                logger.info(f"Stop Time: {observation['stop_time']}")
                 start_time = datetime.fromisoformat(observation['start_time'].replace('Z', '+00:00'))
                 stop_time = datetime.fromisoformat(observation['stop_time'].replace('Z', '+00:00'))
                 min_value = observation.get('min_value', 10)
@@ -819,12 +880,12 @@ def generate_intent_report():
                     storage_type=observation.get('storage_type', 'graphdb'),
                     honor_valuefile_timestamps=observation.get('honor_valuefile_timestamps', False)
                 )
-                print(f"Started observation task {task_id} for condition {observation['condition_id']}")
-                print("=====================================\n")
+                logger.info(f"Started observation task {task_id} for condition {observation['condition_id']}")
+                logger.info("=====================================")
         
         return jsonify({"status": "success", "message": "Report generated successfully"})
     except Exception as e:
-        print(f"Error generating report: {str(e)}")  # Debug log
+        logger.error(f"Error generating report: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/get-last-intent-report/<intent_id>')
@@ -833,23 +894,30 @@ def get_last_intent_report(intent_id):
         # Get the last report from GraphDB
         turtle_data = reports_client.get_last_intent_report(intent_id)
         if not turtle_data:
+            logger.warning(f"No report found for intent {intent_id}")
             return jsonify({"error": f"No report found for intent {intent_id}"}), 404
+        
+        logger.info("=== Retrieved Last Intent Report (Turtle Format) ===")
+        logger.info(f"Intent ID: {intent_id}")
+        logger.info("Turtle Data:")
+        logger.info(turtle_data)
+        logger.info("=== End of Turtle Format ===")
         
         return jsonify({"data": turtle_data})
     except Exception as e:
-        print(f"Error getting last report: {str(e)}")  # Debug log
+        logger.error(f"Error getting last report: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/get-next-report-number/<intent_id>', methods=['GET'])
 def get_next_report_number(intent_id):
     try:
-        print(f"Fetching next report number for intent: {intent_id}")  # Debug log
+        logger.debug(f"Fetching next report number for intent: {intent_id}")
         highest_number = reports_client.get_highest_intent_report_number(intent_id)
         next_number = highest_number + 1
-        print(f"Current highest number: {highest_number}, next number: {next_number}")  # Debug log
+        logger.debug(f"Current highest number: {highest_number}, next number: {next_number}")
         return jsonify({"next_number": next_number})
     except Exception as e:
-        print(f"Error getting next report number: {str(e)}")
+        logger.error(f"Error getting next report number: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 400
 
 @app.route('/api/debug/list-reports/<intent_id>')
@@ -886,11 +954,18 @@ def get_report_by_number(intent_id, report_number):
         # Use the reports_client to get the report by number
         report_data = reports_client.get_intent_report_by_number(intent_id, int(report_number))
         if not report_data:
+            logger.warning(f"No report found with number {report_number} for intent {intent_id}")
             return jsonify({'error': f'No report found with number {report_number} for intent {intent_id}'}), 404
+        
+        logger.info("=== Retrieved Intent Report by Number (Turtle Format) ===")
+        logger.info(f"Intent ID: {intent_id}, Report Number: {report_number}")
+        logger.info("Turtle Data:")
+        logger.info(report_data)
+        logger.info("=== End of Turtle Format ===")
             
         return jsonify({'data': report_data})
     except Exception as e:
-        print(f"Error getting report by number: {str(e)}")  # Debug log
+        logger.error(f"Error getting report by number: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/active-tasks', methods=['GET'])
@@ -966,9 +1041,15 @@ def get_last_observation_report(intent_id, observed_metric):
         # Format as Turtle
         turtle = f"""@prefix met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .\n@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n@prefix data5g: <http://5g4data.eu/5g4data#> .\n\n"""
         turtle += f"{b['observation']['value']} a met:Observation ;\n    met:observedMetric data5g:{observed_metric} ;\n    met:observedValue [ rdf:value {b['value']['value']} ; quan:unit \"{b['unit']['value']}\" ] ;\n    met:obtainedAt \"{b['obtainedAt']['value']}\"^^xsd:dateTime .\n"
+        logger.info("=== Retrieved Last Observation Report (Turtle Format) ===")
+        logger.info(f"Observed Metric: {observed_metric}")
+        logger.info("Turtle Data:")
+        logger.info(turtle)
+        logger.info("=== End of Turtle Format ===")
+        
         return jsonify({"data": turtle})
     except Exception as e:
-        print(f"Error getting last observation report: {str(e)}")
+        logger.error(f"Error getting last observation report: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/upload-value-file', methods=['POST'])
@@ -1119,5 +1200,5 @@ def generate_state_change_events(intent_id: str, start_time: datetime, handler: 
 
 
 if __name__ == '__main__':
-     app.run(host='0.0.0.0', port=5000, debug=True)
+     app.run(host=args.host, port=args.port, debug=args.debug)
 

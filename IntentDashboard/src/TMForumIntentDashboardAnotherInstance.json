@@ -1,96 +1,21 @@
 {
-    "__inputs": [
-      {
-        "name": "DS_GRAPHDB",
-        "label": "graphdb",
+  "__inputs": [
+    {
+      "name": "DS_FLANDERSMAKE-SPARQL-DATASOURCE",
+      "label": "flandersmake-sparql-datasource",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "flandersmake-sparql-datasource",
+      "pluginName": "SPARQL"
+    }
+  ],
+  "__elements": {
+    "ff2ahp0avbta8d": {
+      "name": "INTEND heading with icon",
+      "uid": "ff2ahp0avbta8d",
+      "kind": 1,
+      "model": {
         "description": "",
-        "type": "datasource",
-        "pluginId": "flandersmake-sparql-datasource",
-        "pluginName": "SPARQL"
-      }
-    ],
-    "__elements": {},
-    "__requires": [
-      {
-        "type": "datasource",
-        "id": "flandersmake-sparql-datasource",
-        "name": "SPARQL",
-        "version": "1.0.0"
-      },
-      {
-        "type": "grafana",
-        "id": "grafana",
-        "name": "Grafana",
-        "version": "11.6.0"
-      },
-      {
-        "type": "panel",
-        "id": "piechart",
-        "name": "Pie chart",
-        "version": ""
-      },
-      {
-        "type": "panel",
-        "id": "stat",
-        "name": "Stat",
-        "version": ""
-      },
-      {
-        "type": "panel",
-        "id": "table",
-        "name": "Table",
-        "version": ""
-      },
-      {
-        "type": "panel",
-        "id": "text",
-        "name": "Text",
-        "version": ""
-      }
-    ],
-    "annotations": {
-      "list": [
-        {
-          "builtIn": 1,
-          "datasource": {
-            "type": "grafana",
-            "uid": "-- Grafana --"
-          },
-          "enable": true,
-          "hide": true,
-          "iconColor": "rgba(0, 211, 255, 1)",
-          "name": "Annotations & Alerts",
-          "type": "dashboard"
-        }
-      ]
-    },
-    "editable": true,
-    "fiscalYearStartMonth": 0,
-    "graphTooltip": 0,
-    "id": null,
-    "links": [
-      {
-        "asDropdown": false,
-        "icon": "external link",
-        "includeVars": false,
-        "keepTime": false,
-        "tags": [],
-        "targetBlank": false,
-        "title": "New link",
-        "tooltip": "",
-        "type": "dashboards",
-        "url": ""
-      }
-    ],
-    "panels": [
-      {
-        "gridPos": {
-          "h": 5,
-          "w": 24,
-          "x": 0,
-          "y": 0
-        },
-        "id": 9,
         "options": {
           "code": {
             "language": "plaintext",
@@ -100,696 +25,798 @@
           "content": "<div style=\"background-color: #1885f1; padding: 20px; text-align: center; color: white;\">\n  <a href=\"https://intendproject.eu/\" target=\"_blank\" rel=\"noopener noreferrer\">\n    <img src=\"https://intendproject.eu/assets/INTEND_logo-97702745.gif\" alt=\"INTEND Logo\" style=\"height: 60px;\" />\n  </a>\n  <div style=\"margin-top: 10px; font-size: 24px;\">\n    INTEND 5G4Data Intent Dashboard\n  </div>\n</div>\n",
           "mode": "html"
         },
-        "pluginVersion": "11.6.0",
-        "type": "text"
-      },
-      {
+        "pluginVersion": "12.3.0-pre",
+        "type": "text",
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {
+              "uid": "ef230yl11uscgb",
+              "type": "flandersmake-sparql-datasource"
+            }
+          }
+        ],
         "datasource": {
           "type": "flandersmake-sparql-datasource",
-          "uid": "${DS_GRAPHDB}"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green"
-                }
-              ]
-            },
-            "unit": "none"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 6,
-          "w": 6,
-          "x": 0,
-          "y": 5
-        },
-        "id": 1,
-        "options": {
-          "colorMode": "value",
-          "graphMode": "area",
-          "justifyMode": "auto",
-          "orientation": "auto",
-          "percentChangeColorMode": "standard",
-          "reduceOptions": {
-            "calcs": [
-              "last"
-            ],
-            "fields": "/^totalIntents$/",
-            "values": false
-          },
-          "showPercentChange": false,
-          "textMode": "auto",
-          "wideLayout": true
-        },
-        "pluginVersion": "11.6.0",
-        "targets": [
-          {
-            "datasource": {
-              "type": "flandersmake-sparql-datasource",
-              "uid": "${DS_GRAPHDB}"
-            },
-            "hide": false,
-            "query": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
-            "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
-            "refId": "A"
-          }
-        ],
-        "title": "Total",
-        "type": "stat"
-      },
-      {
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green"
-                }
-              ]
-            },
-            "unit": "none"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 3,
-          "w": 3,
-          "x": 6,
-          "y": 5
-        },
-        "id": 7,
-        "options": {
-          "colorMode": "value",
-          "graphMode": "area",
-          "justifyMode": "auto",
-          "orientation": "auto",
-          "percentChangeColorMode": "standard",
-          "reduceOptions": {
-            "calcs": [
-              "last"
-            ],
-            "fields": "/^DeploymentExpectationCount$/",
-            "values": true
-          },
-          "showPercentChange": false,
-          "textMode": "auto",
-          "wideLayout": true
-        },
-        "pluginVersion": "11.6.0",
-        "targets": [
-          {
-            "datasource": {
-              "type": "flandersmake-sparql-datasource",
-              "uid": "${DS_GRAPHDB}"
-            },
-            "hide": false,
-            "query": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
-            "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?DeploymentExpectationCount)\nWHERE {\n  ?intent rdf:type icm:Intent ;\n         log:allOf ?expectation .\n  ?expectation a data5g:DeploymentExpectation .\n}",
-            "refId": "A"
-          }
-        ],
-        "title": "Deployment",
-        "transformations": [
-          {
-            "id": "convertFieldType",
-            "options": {
-              "conversions": [
-                {
-                  "destinationType": "number",
-                  "targetField": "DeliveryExpectationCount"
-                }
-              ],
-              "fields": {}
-            }
-          }
-        ],
-        "type": "stat"
-      },
-      {
-        "datasource": {
-          "type": "flandersmake-sparql-datasource",
-          "uid": "${DS_GRAPHDB}"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              }
-            },
-            "mappings": [],
-            "unit": "none"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 6,
-          "w": 5,
-          "x": 9,
-          "y": 5
-        },
-        "id": 4,
-        "options": {
-          "displayLabels": [
-            "percent",
-            "name"
-          ],
-          "legend": {
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": false
-          },
-          "pieType": "pie",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "/.*/",
-            "values": true
-          },
-          "tooltip": {
-            "hideZeros": false,
-            "mode": "single",
-            "sort": "none"
-          }
-        },
-        "pluginVersion": "11.6.0",
-        "targets": [
-          {
-            "datasource": {
-              "type": "flandersmake-sparql-datasource",
-              "uid": "${DS_GRAPHDB}"
-            },
-            "format": "table",
-            "intervalMs": 1000,
-            "maxDataPoints": 100,
-            "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT \n  (REPLACE(\n    IF(STRSTARTS(STR(?expectationType), STR(icm:)),\n       STRAFTER(STR(?expectationType), \"IntentCommonModel/\"),\n       STRAFTER(STR(?expectationType), \"5g4data#\")\n    ),\n    \"Expectation\", \"\"\n  ) as ?Label)\n  (COUNT(DISTINCT ?intent) as ?Value)\nWHERE {\n  ?intent rdf:type ?intentType ;\n          ?op ?expectation .\n  \n  FILTER(STRSTARTS(STR(?op), STR(log:)))  # ← this line catches all log:* operators\n\n  ?expectation rdf:type ?expectationType .\n  FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n}\nGROUP BY ?expectationType\n",
-            "refId": "A"
-          }
-        ],
-        "title": "Expectation Distribution",
-        "transformations": [
-          {
-            "id": "convertFieldType",
-            "options": {
-              "conversions": [
-                {
-                  "destinationType": "string",
-                  "targetField": "Label"
-                },
-                {
-                  "destinationType": "number",
-                  "targetField": "Value"
-                }
-              ],
-              "fields": {}
-            }
-          }
-        ],
-        "type": "piechart"
-      },
-      {
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              }
-            },
-            "mappings": [],
-            "unit": "none"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 6,
-          "w": 5,
-          "x": 14,
-          "y": 5
-        },
-        "id": 5,
-        "options": {
-          "displayLabels": [
-            "percent",
-            "name"
-          ],
-          "legend": {
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": false,
-            "values": []
-          },
-          "pieType": "pie",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "values": true
-          },
-          "tooltip": {
-            "hideZeros": false,
-            "mode": "single",
-            "sort": "none"
-          }
-        },
-        "pluginVersion": "11.6.0",
-        "targets": [
-          {
-            "datasource": {
-              "type": "flandersmake-sparql-datasource",
-              "uid": "${DS_GRAPHDB}"
-            },
-            "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT \n  (STRAFTER(STR(?target), \"5g4data#\") AS ?target_name)\n  (COUNT(DISTINCT ?intent) AS ?count)\nWHERE {\n  ?intent rdf:type ?intentType ;\n          ?op ?expectation .\n  FILTER(STRSTARTS(STR(?op), STR(log:)))  # ← capture any logical operator\n\n  ?expectation icm:target ?target .\n}\nGROUP BY ?target\n",
-            "refId": "A"
-          }
-        ],
-        "title": "Intent targets",
-        "transformations": [
-          {
-            "id": "convertFieldType",
-            "options": {
-              "conversions": [
-                {
-                  "destinationType": "string",
-                  "targetField": "target_name"
-                },
-                {
-                  "destinationType": "number",
-                  "targetField": "count"
-                }
-              ],
-              "fields": {}
-            }
-          }
-        ],
-        "type": "piechart"
-      },
-      {
-        "datasource": {
-          "type": "flandersmake-sparql-datasource",
-          "uid": "${DS_GRAPHDB}"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              }
-            },
-            "mappings": []
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 6,
-          "w": 5,
-          "x": 19,
-          "y": 5
-        },
-        "id": 8,
-        "interval": "8",
-        "maxDataPoints": 5,
-        "options": {
-          "displayLabels": [
-            "name",
-            "value"
-          ],
-          "legend": {
-            "displayMode": "list",
-            "placement": "right",
-            "showLegend": false,
-            "values": []
-          },
-          "pieType": "pie",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "limit": 40,
-            "values": true
-          },
-          "tooltip": {
-            "hideZeros": false,
-            "mode": "single",
-            "sort": "none"
-          }
-        },
-        "pluginVersion": "11.6.0",
-        "targets": [
-          {
-            "datasource": {
-              "type": "flandersmake-sparql-datasource",
-              "uid": "${DS_GRAPHDB}"
-            },
-            "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT \n  ?target_name\n  (COUNT(DISTINCT ?intent) AS ?count)\nWHERE {\n  ?intent rdf:type icm:Intent ;\n          ?op1 ?expectation .\n  FILTER(STRSTARTS(STR(?op1), STR(log:)))\n\n  ?expectation a ?expectationType ;\n               ?op2 ?context .\n  FILTER(STRSTARTS(STR(?expectationType), STR(data5g:)))\n  FILTER(STRSTARTS(STR(?op2), STR(log:)))\n\n  ?context a icm:Context ;\n           data5g:DataCenter ?target_name .\n}\nGROUP BY ?target_name\nORDER BY DESC(?count)\nLIMIT 5\n",
-            "refId": "A"
-          }
-        ],
-        "title": "Top 5 Edges (# deployments)",
-        "transformations": [
-          {
-            "id": "convertFieldType",
-            "options": {
-              "conversions": [
-                {
-                  "destinationType": "string",
-                  "targetField": "target_name"
-                },
-                {
-                  "destinationType": "number",
-                  "targetField": "count"
-                }
-              ],
-              "fields": {}
-            }
-          }
-        ],
-        "type": "piechart"
-      },
-      {
-        "datasource": {
-          "type": "flandersmake-sparql-datasource",
-          "uid": "${DS_GRAPHDB}"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green"
-                }
-              ]
-            },
-            "unit": "none"
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 3,
-          "w": 3,
-          "x": 6,
-          "y": 8
-        },
-        "id": 6,
-        "options": {
-          "colorMode": "value",
-          "graphMode": "area",
-          "justifyMode": "auto",
-          "orientation": "auto",
-          "percentChangeColorMode": "standard",
-          "reduceOptions": {
-            "calcs": [
-              "last"
-            ],
-            "fields": "/^NetworkExpectationCount$/",
-            "values": true
-          },
-          "showPercentChange": false,
-          "textMode": "auto",
-          "wideLayout": true
-        },
-        "pluginVersion": "11.6.0",
-        "targets": [
-          {
-            "datasource": {
-              "type": "flandersmake-sparql-datasource",
-              "uid": "${DS_GRAPHDB}"
-            },
-            "hide": false,
-            "query": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
-            "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?NetworkExpectationCount)\nWHERE {\n  ?intent rdf:type icm:Intent ;\n         log:allOf ?expectation .\n  ?expectation a data5g:NetworkExpectation .\n}",
-            "refId": "A"
-          }
-        ],
-        "title": "Network",
-        "transformations": [
-          {
-            "id": "convertFieldType",
-            "options": {
-              "conversions": [
-                {
-                  "destinationType": "number",
-                  "targetField": "NetworkExpectationCount"
-                }
-              ],
-              "fields": {}
-            }
-          }
-        ],
-        "type": "stat"
-      },
-      {
-        "datasource": {
-          "type": "flandersmake-sparql-datasource",
-          "uid": "${DS_GRAPHDB}"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "custom": {
-              "align": "auto",
-              "cellOptions": {
-                "type": "auto",
-                "wrapText": true
-              },
-              "inspect": false,
-              "minWidth": 50
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green"
-                }
-              ]
-            }
-          },
-          "overrides": [
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "intent_link"
-              },
-              "properties": [
-                {
-                  "id": "links",
-                  "value": [
-                    {
-                      "targetBlank": true,
-                      "title": "Open Intent Dashboard",
-                      "url": "${__value.text}"
-                    }
-                  ]
-                },
-                {
-                  "id": "custom.hidden",
-                  "value": true
-                }
-              ]
-            },
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "intent_id"
-              },
-              "properties": [
-                {
-                  "id": "links",
-                  "value": [
-                    {
-                      "title": "Show details",
-                      "url": "${__data.fields.intent_link}"
-                    }
-                  ]
-                },
-                {
-                  "id": "custom.width",
-                  "value": 300
-                }
-              ]
-            },
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "intent_state"
-              },
-              "properties": [
-                {
-                  "id": "mappings",
-                  "value": [
-                    {
-                      "options": {
-                        "StateCompliant": {
-                          "color": "dark-green",
-                          "index": 0
-                        },
-                        "StateDegraded": {
-                          "color": "dark-red",
-                          "index": 1
-                        },
-                        "StateFinalizing": {
-                          "color": "#ffffff",
-                          "index": 2
-                        },
-                        "StateReceived": {
-                          "color": "dark-orange",
-                          "index": 3
-                        }
-                      },
-                      "type": "value"
-                    }
-                  ]
-                },
-                {
-                  "id": "custom.cellOptions",
-                  "value": {
-                    "applyToRow": false,
-                    "mode": "gradient",
-                    "type": "color-background"
-                  }
-                },
-                {
-                  "id": "custom.width",
-                  "value": 120
-                }
-              ]
-            }
-          ]
-        },
-        "gridPos": {
-          "h": 21,
-          "w": 24,
-          "x": 0,
-          "y": 11
-        },
-        "id": 3,
-        "options": {
-          "cellHeight": "sm",
-          "footer": {
-            "countRows": false,
-            "enablePagination": false,
-            "fields": "",
-            "reducer": [
-              "sum"
-            ],
-            "show": false
-          },
-          "showHeader": true,
-          "sortBy": [
-            {
-              "desc": true,
-              "displayName": "intent_id"
-            }
-          ]
-        },
-        "pluginVersion": "11.6.0",
-        "targets": [
-          {
-            "datasource": {
-              "type": "flandersmake-sparql-datasource",
-              "uid": "${DS_GRAPHDB}"
-            },
-            "queryText": "PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\n\nSELECT DISTINCT \n  (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n  (GROUP_CONCAT(DISTINCT ?description; separator=\"; \") AS ?intent_description)\n  (CONCAT(\n    \"http://start5g-1.cs.uit.no:3001/d/fekk4b61d38qof/intent-and-condition-metrics-timeseries-dashboard?var-intent_id=\",\n    STRAFTER(STR(?intent), \"5g4data#\"),\n    \"&var-condition_metrics=\",\n    GROUP_CONCAT(DISTINCT REPLACE(REPLACE(STR(?metric), \".*#\", \"\"), \"-\", \"_\"); separator=\",\")\n  ) AS ?intent_link)\n  (GROUP_CONCAT(DISTINCT ?condition_description; separator=\"; \") AS ?condition_descriptions)\nWHERE {\n  SERVICE <repository:intents_and_intent_reports> {\n    ?intent rdf:type ?intentType ;\n            log:allOf ?expectation .\n\n    ?expectation rdf:type ?expectationType ;\n                 dct:description ?description .\n\n    OPTIONAL {\n      ?expectation log:allOf ?condition .\n      ?condition rdf:type icm:Condition .\n\n      OPTIONAL {\n        ?condition set:forAll [\n          icm:valuesOfTargetProperty ?metric\n        ] .\n      }\n\n      OPTIONAL {\n        ?condition dct:description ?condition_description .\n      }\n    }\n\n    FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n  }\n}\nGROUP BY ?intent\nLIMIT 10",
-            "refId": "A"
-          },
-          {
-            "datasource": {
-              "type": "flandersmake-sparql-datasource",
-              "uid": "${DS_GRAPHDB}"
-            },
-            "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n\nSELECT (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n       (STRAFTER(STR(?state), \"IntentModelOntology/\") AS ?intent_state)\nWHERE {\n  SERVICE <repository:intents_and_intent_reports> {\n    {\n      SELECT ?intent (MAX(?generated) AS ?latestGenerated)\n      WHERE {\n        ?report a icm:IntentReport ;\n                icm:about ?intent ;\n                icm:reportGenerated ?generated .\n      }\n      GROUP BY ?intent\n    }\n    ?report a icm:IntentReport ;\n            icm:about ?intent ;\n            icm:reportGenerated ?latestGenerated ;\n            icm:intentHandlingState ?state .\n  }\n}",
-            "refId": "B"
-          }
-        ],
-        "title": "Intent Details (up to 10 latest, only if state reported, state based on state report)",
-        "transformations": [
-          {
-            "id": "joinByField",
-            "options": {
-              "byField": "intent_id",
-              "fields": {
-                "intent_id": {
-                  "aggregations": []
-                }
-              },
-              "mode": "inner"
-            }
-          }
-        ],
-        "type": "table"
+          "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+        }
       }
-    ],
-    "refresh": "30m",
-    "schemaVersion": 41,
-    "tags": [],
-    "templating": {
-      "list": [
+    }
+  },
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "flandersmake-sparql-datasource",
+      "name": "SPARQL",
+      "version": "1.1.0"
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "12.3.0-pre"
+    },
+    {
+      "type": "panel",
+      "id": "piechart",
+      "name": "Pie chart",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "New link",
+      "tooltip": "",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 9,
+      "libraryPanel": {
+        "uid": "ff2ahp0avbta8d",
+        "name": "INTEND heading with icon"
+      }
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 5
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "/^totalIntents$/",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0-pre",
+      "targets": [
         {
-          "current": {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "hide": false,
+          "query": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
+          "refId": "A"
+        }
+      ],
+      "title": "Total",
+      "type": "stat"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 6,
+        "y": 5
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "/^DeploymentExpectationCount$/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0-pre",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "hide": false,
+          "query": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?DeploymentExpectationCount)\nWHERE {\n  ?intent rdf:type icm:Intent ;\n         log:allOf ?expectation .\n  ?expectation a data5g:DeploymentExpectation .\n}",
+          "refId": "A"
+        }
+      ],
+      "title": "Deployment",
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "number",
+                "targetField": "DeliveryExpectationCount"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [],
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 5,
+        "x": 9,
+        "y": 5
+      },
+      "id": 4,
+      "options": {
+        "displayLabels": [
+          "percent",
+          "name"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0-pre",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 100,
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT \n  (REPLACE(\n    IF(STRSTARTS(STR(?expectationType), STR(icm:)),\n       STRAFTER(STR(?expectationType), \"IntentCommonModel/\"),\n       STRAFTER(STR(?expectationType), \"5g4data#\")\n    ),\n    \"Expectation\", \"\"\n  ) as ?Label)\n  (COUNT(DISTINCT ?intent) as ?Value)\nWHERE {\n  ?intent rdf:type ?intentType ;\n          ?op ?expectation .\n  \n  FILTER(STRSTARTS(STR(?op), STR(log:)))  # ← this line catches all log:* operators\n\n  ?expectation rdf:type ?expectationType .\n  FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n}\nGROUP BY ?expectationType\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Expectation Distribution",
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "Label"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "Value"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "piechart"
+    },
+    {
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [],
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 5,
+        "x": 14,
+        "y": 5
+      },
+      "id": 5,
+      "options": {
+        "displayLabels": [
+          "percent",
+          "name"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false,
+          "values": []
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0-pre",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT \n  (STRAFTER(STR(?target), \"5g4data#\") AS ?target_name)\n  (COUNT(DISTINCT ?intent) AS ?count)\nWHERE {\n  ?intent rdf:type ?intentType ;\n          ?op ?expectation .\n  FILTER(STRSTARTS(STR(?op), STR(log:)))  # ← capture any logical operator\n\n  ?expectation icm:target ?target .\n}\nGROUP BY ?target\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Intent targets",
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "target_name"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "count"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 5,
+        "x": 19,
+        "y": 5
+      },
+      "id": 8,
+      "interval": "8",
+      "maxDataPoints": 5,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": false,
+          "values": []
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "limit": 40,
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.3.0-pre",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT \n  ?target_name\n  (COUNT(DISTINCT ?intent) AS ?count)\nWHERE {\n  ?intent rdf:type icm:Intent ;\n          ?op1 ?expectation .\n  FILTER(STRSTARTS(STR(?op1), STR(log:)))\n\n  ?expectation a ?expectationType ;\n               ?op2 ?context .\n  FILTER(STRSTARTS(STR(?expectationType), STR(data5g:)))\n  FILTER(STRSTARTS(STR(?op2), STR(log:)))\n\n  ?context a icm:Context ;\n           data5g:DataCenter ?target_name .\n}\nGROUP BY ?target_name\nORDER BY DESC(?count)\nLIMIT 5\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Top 5 Edges (# deployments)",
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "target_name"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "count"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 6,
+        "y": 8
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "/^NetworkExpectationCount$/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0-pre",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "hide": false,
+          "query": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?totalIntents)\nWHERE {\n  ?intent rdf:type icm:Intent .\n}",
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT (COUNT(DISTINCT ?intent) as ?NetworkExpectationCount)\nWHERE {\n  ?intent rdf:type icm:Intent ;\n         log:allOf ?expectation .\n  ?expectation a data5g:NetworkExpectation .\n}",
+          "refId": "A"
+        }
+      ],
+      "title": "Network",
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "number",
+                "targetField": "NetworkExpectationCount"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false,
+            "minWidth": 50,
+            "wrapText": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intent_link"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "Open Intent Dashboard",
+                    "url": "${__value.text}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.hideFrom.viz",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intent_id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Show details",
+                    "url": "${__data.fields.intent_link}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 300
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intent_state"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "StateAccepted": {
+                        "color": "blue",
+                        "index": 4
+                      },
+                      "StateCompliant": {
+                        "color": "dark-green",
+                        "index": 0
+                      },
+                      "StateDegraded": {
+                        "color": "dark-red",
+                        "index": 1
+                      },
+                      "StateFinalizing": {
+                        "color": "#ffffff",
+                        "index": 2
+                      },
+                      "StateReceived": {
+                        "color": "dark-orange",
+                        "index": 3
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "applyToRow": false,
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 21,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "id": 3,
+      "options": {
+        "cellHeight": "sm",
+        "enablePagination": false,
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "intent_id"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.0-pre",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "queryText": "PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\n\nSELECT DISTINCT \n  (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n  (GROUP_CONCAT(DISTINCT ?description; separator=\"; \") AS ?intent_description)\n  (CONCAT(\n    \"http://start5g-1.cs.uit.no:3002/d/fekk4b61d38qof/intent-and-condition-metrics-timeseries-dashboard?var-intent_id=\",\n    STRAFTER(STR(?intent), \"5g4data#\"),\n    \"&var-condition_metrics=\",\n    GROUP_CONCAT(DISTINCT \n      CONCAT(\n        STRAFTER(STR(?metric), \"5g4data#\"),\n        \"_\",\n        STRAFTER(STR(?condition), \"5g4data#\")\n      ); \n      separator=\",\"\n    )\n  ) AS ?intent_link)\n  (GROUP_CONCAT(DISTINCT ?condition_description; separator=\"; \") AS ?condition_descriptions)\nWHERE {\n  SERVICE <repository:intents_and_intent_reports> {\n    ?intent rdf:type ?intentType ;\n            log:allOf ?expectation .\n\n    ?expectation rdf:type ?expectationType ;\n                 dct:description ?description .\n\n    OPTIONAL {\n      ?expectation log:allOf ?condition .\n      ?condition rdf:type icm:Condition .\n\n      OPTIONAL {\n        ?condition set:forAll [\n          icm:valuesOfTargetProperty ?metric\n        ] .\n      }\n\n      OPTIONAL {\n        ?condition dct:description ?condition_description .\n      }\n    }\n\n    FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n  }\n}\nGROUP BY ?intent",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentModelOntology/>\nPREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n\nSELECT (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n       (STRAFTER(STR(?state), \"IntentModelOntology/\") AS ?intent_state)\nWHERE {\n  SERVICE <repository:intents_and_intent_reports> {\n    {\n      SELECT ?intent (MAX(?generated) AS ?latestGenerated)\n      WHERE {\n        ?report a icm:IntentReport ;\n                icm:about ?intent ;\n                icm:reportGenerated ?generated .\n      }\n      GROUP BY ?intent\n    }\n    ?report a icm:IntentReport ;\n            icm:about ?intent ;\n            icm:reportGenerated ?latestGenerated ;\n            icm:intentHandlingState ?state .\n  }\n}",
+          "refId": "B"
+        }
+      ],
+      "title": "Intent Details (up to 10 latest, only if state reported, state based on state report)",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "intent_id",
+            "fields": {
+              "intent_id": {
+                "aggregations": []
+              }
+            },
+            "mode": "inner"
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "30m",
+  "schemaVersion": 42,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 2,
+        "name": "intent_id",
+        "options": [
+          {
+            "selected": true,
             "text": "",
             "value": ""
-          },
-          "hide": 2,
-          "name": "intent_id",
-          "options": [
-            {
-              "selected": true,
-              "text": "",
-              "value": ""
-            }
-          ],
-          "query": "",
-          "type": "textbox"
-        }
-      ]
-    },
-    "time": {
-      "from": "now-6h",
-      "to": "now"
-    },
-    "timepicker": {},
-    "timezone": "",
-    "title": "TMForum Intent Dashboard",
-    "uid": "intent-overview",
-    "version": 1,
-    "weekStart": ""
-  }
+          }
+        ],
+        "query": "",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "TMForum Intent Dashboard",
+  "uid": "intent-overview",
+  "version": 6,
+  "weekStart": "",
+  "id": null
+}

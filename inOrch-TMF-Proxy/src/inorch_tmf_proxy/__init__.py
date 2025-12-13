@@ -13,6 +13,7 @@ from inorch_tmf_proxy.services.helm_deployer import HelmDeployer
 from inorch_tmf_proxy.services.reporting_service import IntentReportingService
 from inorch_tmf_proxy.services.notification_dispatcher import http_notification_sender
 from inorch_tmf_proxy.services.observation_scheduler import ObservationScheduler
+from inorch_tmf_proxy.services.observation_reporter import ObservationReporter
 
 try:
     from intent_report_client import GraphDbClient
@@ -103,10 +104,20 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
         else None
     )
 
+    observation_reporter = (
+        ObservationReporter(
+            config=config,
+            graphdb_client=graphdb_client,
+        )
+        if config.observation_reporting_enabled
+        else None
+    )
+
     flask_app.config["INTENT_REPORT_REPOSITORY"] = report_repository
     flask_app.config["HUB_REPOSITORY"] = hub_repository
     flask_app.config["REPORTING_SERVICE"] = reporting_service
     flask_app.config["OBSERVATION_SCHEDULER"] = observation_scheduler
+    flask_app.config["OBSERVATION_REPORTER"] = observation_reporter
     flask_app.config["INTENT_SERVICE"] = IntentService(
         intent_repository,
         deployer,
@@ -114,6 +125,7 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
         reporting_service=reporting_service,
         observation_scheduler=observation_scheduler,
         graphdb_client=graphdb_client,
+        observation_reporter=observation_reporter,
         handler_name=config.reporting_handler,
         owner_name=config.reporting_owner,
     )

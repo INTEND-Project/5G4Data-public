@@ -1874,19 +1874,124 @@ class HelmDeployer:
                 exc,
             )
 
+    def extract_kpi_profiles_from_namespace(self, namespace: str) -> list[dict]:
+        """
+        Extract KPIProfile resources from a Kubernetes namespace.
+        
+        This method queries Kubernetes for KPIProfile custom resources and extracts
+        all relevant information needed for observation reporting.
+        
+        Args:
+            namespace: Kubernetes namespace to query
+            
+        Returns:
+            List of dictionaries containing KPIProfile information:
+            - name: KPIProfile name
+            - namespace: Namespace
+            - query: Prometheus query string
+            - endpoint: Prometheus endpoint URL (from props.endpoint)
+            - type: KPIProfile type (e.g., "latency")
+            - description: KPIProfile description
+            - reportingFrequency: Optional reporting frequency in seconds
+        """
+        if client is None:
+            self._logger.debug("Kubernetes client not available, cannot extract KPIProfiles")
+            return []
+        
+        try:
+            custom_api = client.CustomObjectsApi()
+            
+            # Query for KPIProfile resources
+            kpi_profiles = custom_api.list_namespaced_custom_object(
+                group="ido.intel.com",
+                version="v1alpha1",
+                namespace=namespace,
+                plural="kpiprofiles"
+            )
+            
+            items = kpi_profiles.get("items", [])
+            if not items:
+                self._logger.debug(
+                    "No KPIProfile resources found in namespace %s",
+                    namespace
+                )
+                return []
+            
+            extracted_profiles = []
+            for kpi_profile in items:
+                metadata = kpi_profile.get("metadata", {})
+                spec = kpi_profile.get("spec", {})
+                
+                # Extract endpoint from props
+                endpoint = None
+                props = spec.get("props", {})
+                if isinstance(props, dict):
+                    endpoint = props.get("endpoint")
+                
+                profile_info = {
+                    "name": metadata.get("name"),
+                    "namespace": metadata.get("namespace"),
+                    "query": spec.get("query", ""),
+                    "endpoint": endpoint,
+                    "type": spec.get("type", ""),
+                    "description": spec.get("description", ""),
+                    "reportingFrequency": spec.get("reportingFrequency"),  # Optional
+                }
+                
+                extracted_profiles.append(profile_info)
+                
+                self._logger.debug(
+                    "Extracted KPIProfile %s from namespace %s: query=%s, endpoint=%s",
+                    profile_info["name"],
+                    namespace,
+                    profile_info["query"][:50] + "..." if len(profile_info["query"]) > 50 else profile_info["query"],
+                    profile_info["endpoint"]
+                )
+            
+            self._logger.info(
+                "Extracted %d KPIProfile resource(s) from namespace %s",
+                len(extracted_profiles),
+                namespace
+            )
+            
+            return extracted_profiles
+            
+        except ApiException as exc:
+            if exc.status == 404:
+                self._logger.debug(
+                    "KPIProfile CRD not available or no KPIProfiles in namespace %s",
+                    namespace
+                )
+                return []
+            else:
+                self._logger.warning(
+                    "Failed to extract KPIProfiles from namespace %s: %s",
+                    namespace,
+                    exc
+                )
+                return []
+        except Exception as exc:
+            self._logger.warning(
+                "Error extracting KPIProfiles from namespace %s: %s",
+                namespace,
+                exc
+            )
+            return []
+
     def _create_ido_intent_and_kpi_profile(
         self,
         namespace: str,
         intent_id: Optional[str] = None,
         turtle_data: Optional[str] = None,
         prometheus_endpoint: Optional[str] = None,
-    ) -> None:
+    ) -> Optional[list[dict]]:
         """Update IDO Intent resource created by helm chart with objective values from TMF intent.
         
         This method:
         1. Parses objectives from TMF Intent DeploymentExpectation conditions
         2. Gets objectives from IDO Intent in the cluster
         3. Matches objectives by name and updates values from TMF Intent
+        4. Extracts KPIProfile resources for observation reporting
         
         Since IDO Intent and KPIProfile are now part of the helm chart (when included),
         we only need to patch the Intent's objective values to match the TMF intent values.
@@ -1899,14 +2004,18 @@ class HelmDeployer:
             intent_id: The TMF intent ID
             turtle_data: Turtle RDF expression from TMF Intent
             prometheus_endpoint: Not used (kept for compatibility)
+            
+        Returns:
+            List of KPIProfile dictionaries if found, None otherwise.
+            Each dictionary contains: name, namespace, query, endpoint, type, description, reportingFrequency
         """
         if client is None:
             self._logger.debug("Kubernetes client not available, skipping IDO Intent update")
-            return
+            return None
         
         if not turtle_data:
             self._logger.debug("No turtle_data provided, skipping IDO Intent update")
-            return
+            return None
         
         try:
             # Parse objectives from TMF Intent DeploymentExpectation conditions
@@ -1917,7 +2026,8 @@ class HelmDeployer:
                     "No objectives found in TMF Intent DeploymentExpectation conditions for intent_id=%s",
                     intent_id
                 )
-                return
+                # Still extract KPIProfiles even if no objectives found
+                return self.extract_kpi_profiles_from_namespace(namespace)
             
             self._logger.info(
                 "Found %d objective(s) in TMF Intent: %s",
@@ -1986,7 +2096,8 @@ class HelmDeployer:
                             "Skipping objective update.",
                             namespace
                         )
-                        return
+                        # Still check for KPIProfiles (they might exist without Intent)
+                        return self.extract_kpi_profiles_from_namespace(namespace)
                     
                     # Use the first Intent found as fallback
                     existing_intent = intent_items[0]
@@ -2004,7 +2115,8 @@ class HelmDeployer:
                             "Skipping objective update.",
                             namespace
                         )
-                        return
+                        # Still check for KPIProfiles (they might exist without Intent)
+                        return self.extract_kpi_profiles_from_namespace(namespace)
                     else:
                         raise
             
@@ -2017,7 +2129,8 @@ class HelmDeployer:
                     "IDO Intent %s has no objectives defined",
                     ido_intent_name
                 )
-                return
+                # Still extract KPIProfiles
+                return self._extract_kpi_profiles_from_namespace(namespace)
             
             # Match objectives by name and update values
             updated_count = 0
@@ -2058,7 +2171,8 @@ class HelmDeployer:
                     [obj.get("name") for obj in ido_objectives],
                     list(tmf_objectives.keys())
                 )
-                return
+                # Still extract KPIProfiles even if no objectives matched
+                return self._extract_kpi_profiles_from_namespace(namespace)
             
             # Patch the Intent with updated objectives
             existing_intent["spec"]["objectives"] = ido_objectives
@@ -2080,6 +2194,10 @@ class HelmDeployer:
                 intent_id,
                 updated_objectives,
             )
+            
+            # Extract KPIProfiles for observation reporting
+            kpi_profiles = self.extract_kpi_profiles_from_namespace(namespace)
+            return kpi_profiles
         
         except ApiException as exc:
             self._logger.warning(
@@ -2087,6 +2205,8 @@ class HelmDeployer:
                 namespace,
                 exc,
             )
+            # Still try to extract KPIProfiles even if Intent update failed
+            return self._extract_kpi_profiles_from_namespace(namespace)
         except Exception as exc:
             self._logger.warning(
                 "Could not update IDO Intent for namespace %s (intent_id=%s): %s",
@@ -2094,6 +2214,8 @@ class HelmDeployer:
                 intent_id,
                 exc,
             )
+            # Still try to extract KPIProfiles even if Intent update failed
+            return self._extract_kpi_profiles_from_namespace(namespace)
 
     def _log_service_access_info(
         self, namespace: str, release_name: str, intent_id: Optional[str] = None

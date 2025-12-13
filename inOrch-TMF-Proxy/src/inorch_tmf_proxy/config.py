@@ -30,6 +30,10 @@ class AppConfig:
     graphdb_base_url: str = "http://start5g-1.cs.uit.no:7200"
     graphdb_repository: str = "intents_and_intent_reports"
     enable_graphdb: bool = True
+    observation_reporting_enabled: bool = True
+    observation_reporting_frequency: int = 30  # Default frequency in seconds
+    prometheus_query_timeout: int = 10  # Timeout for Prometheus queries in seconds
+    prometheus_retry_attempts: int = 3  # Number of retry attempts for Prometheus queries
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -61,6 +65,18 @@ class AppConfig:
             ),
             graphdb_repository=os.getenv("GRAPHDB_REPOSITORY", "intents_and_intent_reports"),
             enable_graphdb=_str_to_bool(os.getenv("ENABLE_GRAPHDB"), True),
+            observation_reporting_enabled=_str_to_bool(
+                os.getenv("OBSERVATION_REPORTING_ENABLED"), True
+            ),
+            observation_reporting_frequency=int(
+                os.getenv("OBSERVATION_REPORTING_FREQUENCY", "30")
+            ),
+            prometheus_query_timeout=int(
+                os.getenv("PROMETHEUS_QUERY_TIMEOUT", "10")
+            ),
+            prometheus_retry_attempts=int(
+                os.getenv("PROMETHEUS_RETRY_ATTEMPTS", "3")
+            ),
         )
 
 

@@ -15,6 +15,7 @@ from inorch_tmf_proxy.services.helm_deployer import HelmDeployer
 from inorch_tmf_proxy.services.turtle_parser import TurtleParser
 from inorch_tmf_proxy.services.reporting_service import IntentReportingService
 from inorch_tmf_proxy.services.observation_scheduler import ObservationScheduler
+from inorch_tmf_proxy.services.observation_reporter import ObservationReporter
 from inorch_tmf_proxy.models.report_enums import HandlingState
 
 try:
@@ -35,6 +36,7 @@ class IntentService:
         reporting_service: IntentReportingService | None = None,
         observation_scheduler: ObservationScheduler | None = None,
         graphdb_client: Optional["GraphDbClient"] = None,
+        observation_reporter: ObservationReporter | None = None,
         handler_name: str = "inOrch-TMF-Proxy",
         owner_name: str | None = None,
     ) -> None:
@@ -45,6 +47,7 @@ class IntentService:
         self._reporting = reporting_service
         self._scheduler = observation_scheduler
         self._graphdb_client = graphdb_client
+        self._observation_reporter = observation_reporter
         self._handler_name = handler_name
         self._owner_name = owner_name
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -146,6 +149,12 @@ class IntentService:
                             "reason": "Intent received and being processed",
                         }
                         turtle_report = generate_turtle(report_data)
+                        # Log the Turtle data being sent to GraphDB
+                        self._logger.info("Storing initial state report in GraphDB (Turtle format):")
+                        self._logger.info("=" * 70)
+                        for line in turtle_report.split('\n'):
+                            self._logger.info("  %s", line)
+                        self._logger.info("=" * 70)
                         self._graphdb_client.store_intent_report(turtle_report)
                         self._logger.info(
                             "Stored initial state report for intent_id=%s in GraphDB",
@@ -214,6 +223,8 @@ class IntentService:
         self._deployer.delete_for_intent(intent_id)
         if self._scheduler:
             self._scheduler.stop_for_intent(intent_id)
+        if self._observation_reporter:
+            self._observation_reporter.stop_reporting_for_intent(intent_id)
         if self._reporting and deleted:
             self._reporting.record_state_report(
                 Intent.from_dict({"id": intent_id}),
@@ -304,6 +315,44 @@ class IntentService:
                             "Successfully deployed Helm chart for intent_id=%s",
                             intent_id,
                         )
+                        
+                        # Start observation reporting if enabled
+                        if self._observation_reporter:
+                            try:
+                                # Get KPIProfiles from the deployment
+                                # Extract them after deployment
+                                kpi_profiles = self._helm_deployer.extract_kpi_profiles_from_namespace(application)
+                                
+                                if kpi_profiles:
+                                    # Get IDO Intent for mapping
+                                    ido_intent = self._observation_reporter._get_ido_intent(application)
+                                    
+                                    # Start observation reporting
+                                    self._observation_reporter.start_reporting_for_intent(
+                                        intent_id=intent_id,
+                                        namespace=application,
+                                        kpi_profiles=kpi_profiles,
+                                        turtle_data=turtle_data,
+                                        ido_intent=ido_intent
+                                    )
+                                    self._logger.info(
+                                        "Started observation reporting for intent_id=%s with %d KPIProfile(s)",
+                                        intent_id,
+                                        len(kpi_profiles)
+                                    )
+                                else:
+                                    self._logger.debug(
+                                        "No KPIProfiles found for intent_id=%s, skipping observation reporting",
+                                        intent_id
+                                    )
+                            except Exception as obs_exc:
+                                self._logger.warning(
+                                    "Failed to start observation reporting for intent_id=%s: %s",
+                                    intent_id,
+                                    obs_exc,
+                                    exc_info=True
+                                )
+                        
                         # Optionally record deployment success in reporting service
                         if self._reporting:
                             self._reporting.record_state_report(

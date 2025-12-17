@@ -20,10 +20,11 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
     """Create and configure the Connexion application instance."""
     import connexion
     import logging
-    from flask import request, jsonify
+    from flask import Response, request, jsonify
     from inserv.health import register_health_blueprint
+    from inserv.utils import tail_log_file
     config = config or AppConfig.from_env()
-    configure_logging(config.log_level)
+    configure_logging(config.log_level, getattr(config, "log_file_path", None))
 
     connexion_app = connexion.App(__name__, specification_dir="./openapi/")
     connexion_app.add_api(
@@ -80,10 +81,34 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
         base_url=config.datacenter_base_url,
         port_base=config.datacenter_port_base,
     )
-    intent_router = IntentRouter(infrastructure_service)
+    intent_router = IntentRouter(
+        infrastructure_service=infrastructure_service,
+        test_mode=getattr(config, "test_mode", False),
+    )
 
     flask_app.config["INFRASTRUCTURE_SERVICE"] = infrastructure_service
     flask_app.config["INTENT_ROUTER"] = intent_router
 
     register_health_blueprint(flask_app)
+
+    # Optional /logs endpoint for browsing recent application logs.
+    if getattr(config, "enable_log_endpoint", False):
+
+        @flask_app.route("/logs")
+        def view_logs():
+            """Return recent log output as plain text.
+
+            Intended for use on trusted/local networks only.
+            """
+            max_bytes_param = request.args.get("max_bytes", type=int)
+            max_bytes = (
+                max_bytes_param
+                if max_bytes_param is not None and 1024 <= max_bytes_param <= 1024 * 1024
+                else 256 * 1024
+            )
+
+            log_path = getattr(config, "log_file_path", "logs/inserv.log")
+            content = tail_log_file(log_path, max_bytes=max_bytes)
+            return Response(content, mimetype="text/plain")
+
     return connexion_app

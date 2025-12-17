@@ -9,9 +9,10 @@ import requests
 class IntentRouter:
     """Service to route intents to the appropriate inOrch-TMF-Proxy instance."""
 
-    def __init__(self, infrastructure_service):
+    def __init__(self, infrastructure_service, test_mode: bool = False):
         self._infrastructure_service = infrastructure_service
         self._logger = logging.getLogger(self.__class__.__name__)
+        self._test_mode = test_mode
 
     def route_intent(
         self, intent_data: dict, datacenter: str
@@ -27,6 +28,18 @@ class IntentRouter:
             Tuple of (response_data, status_code, headers)
             Returns (None, error_code, {}) on error
         """
+        # In test mode we do not forward intents, we only log them.
+        if self._test_mode:
+            self._logger.info(
+                "Test mode enabled - received intent for DataCenter %s but NOT "
+                "forwarding to inOrch-TMF-Proxy. Payload: %s",
+                datacenter,
+                intent_data,
+            )
+            response_data: dict | None = dict(intent_data) if isinstance(intent_data, dict) else None
+            headers: dict = {}
+            return response_data, 200, headers
+
         # Get the target URL for this DataCenter (required from GraphDB, no fallback)
         try:
             target_url = self._infrastructure_service.get_datacenter_url(datacenter)

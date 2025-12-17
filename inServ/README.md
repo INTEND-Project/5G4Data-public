@@ -67,6 +67,19 @@ docker run --network host \
   inserv
 ```
 
+To run the container in **test mode** with a fixed name and the `/logs` endpoint enabled:
+
+```bash
+docker run -d --network host \
+  --name inserv \
+  -e GRAPHDB_BASE_URL=http://start5g-1.cs.uit.no:7200 \
+  -e GRAPHDB_REPOSITORY=intents_and_intent_reports \
+  -e INSERV_TEST_MODE=true \
+  -e ENABLE_LOG_ENDPOINT=true \
+  -e INSERV_LOG_FILE=/app/logs/inserv.log \
+  inserv
+```
+
 ### Local Development
 
 1. Clone the repository:

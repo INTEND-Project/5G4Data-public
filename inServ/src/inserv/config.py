@@ -17,6 +17,9 @@ class AppConfig:
     host: str = "0.0.0.0"
     port: int = 3021
     log_level: str = "INFO"
+    # Absolute or relative path to the main application log file.
+    # When not set, logging falls back to stdout only.
+    log_file_path: str = "logs/inserv.log"
     graphdb_base_url: str = "http://start5g-1.cs.uit.no:7200"
     graphdb_repository: str = "intents_and_intent_reports"
     enable_graphdb: bool = True
@@ -24,6 +27,11 @@ class AppConfig:
     datacenter_base_url: str = "http://start5g-1.cs.uit.no"
     datacenter_port_base: int = 4000
     api_path: str = "/tmf-api/intentManagement/v5/"
+    # When enabled, inServ will not forward intents to inOrch-TMF-Proxy
+    # but will only log that they were received.
+    test_mode: bool = False
+    # Enable the internal /logs HTTP endpoint for browsing recent logs.
+    enable_log_endpoint: bool = False
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -32,11 +40,14 @@ class AppConfig:
             host=os.getenv("INSERV_HOST", "0.0.0.0"),
             port=int(os.getenv("INSERV_PORT", "3021")),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
+            log_file_path=os.getenv("INSERV_LOG_FILE", "logs/inserv.log"),
             graphdb_base_url=os.getenv(
                 "GRAPHDB_BASE_URL", "http://start5g-1.cs.uit.no:7200"
             ),
             graphdb_repository=os.getenv("GRAPHDB_REPOSITORY", "intents_and_intent_reports"),
             enable_graphdb=_str_to_bool(os.getenv("ENABLE_GRAPHDB"), True),
+            test_mode=_str_to_bool(os.getenv("INSERV_TEST_MODE"), False),
+            enable_log_endpoint=_str_to_bool(os.getenv("ENABLE_LOG_ENDPOINT"), False),
             infrastructure_graph=os.getenv(
                 "INFRASTRUCTURE_GRAPH", "http://intendproject.eu/telenor/infra"
             ),

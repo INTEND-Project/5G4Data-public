@@ -776,7 +776,7 @@
                 "aggregations": []
               }
             },
-            "mode": "inner"
+            "mode": "outer"
           }
         }
       ],

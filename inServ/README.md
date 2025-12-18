@@ -1,22 +1,29 @@
 # inServ - Intent Management Service
 
-inServ is a microservice that provides an Intent Management API router for the INTEND 5G4DATA use case. It implements the TM Forum Intent Management API (TMF921) specification and routes intents to appropriate inOrch (inOrch-TMF-Proxy) instances based on DataCenter information extracted from intent expressions. Routing of network intents to inNet will be added later.
+inServ is a microservice that provides an Intent Management API router for the INTEND 5G4DATA use case. It implements the TM Forum Intent Management API (TMF921) specification and intelligently routes intents to appropriate handlers (inOrch-TMF-Proxy or inNet) based on the expectations contained in intent expressions. When an intent contains both NetworkExpectation and DeploymentExpectation, inServ automatically splits it into two separate intents and routes them to the appropriate handlers.
 
 ## Overview
 
 inServ acts as a central routing service that:
 - Receives intent creation requests conforming to the TMF921 specification
-- Extracts DataCenter information from Turtle expressions in intents
-- Queries inGraph (GraphDB) to determine the appropriate inOrch instance for routing
-- Forwards intents to the correct proxy instance
+- Analyzes Turtle expressions to detect NetworkExpectation and DeploymentExpectation
+- Routes intents based on their content:
+  - **NetworkExpectation only** → routes to inNet
+  - **DeploymentExpectation only** → routes to inOrch-TMF-Proxy (via GraphDB lookup)
+  - **Both NE and DE** → splits the intent and routes to both handlers, returns bundle response
+- Extracts DataCenter information from Turtle expressions for inOrch routing
+- Queries inGraph (GraphDB) to determine the appropriate inOrch instance for deployment intents
 - Provides health check endpoints for monitoring
 
 ## Features
 
 - **TMF921 API Implementation**: Full support for TM Forum Intent Management API v5.0
-- **Intent Routing**: Automatic routing of intents to appropriate DataCenter proxies
-- **GraphDB Integration**: Queries infrastructure data from GraphDB to determine routing targets
-- **Turtle Expression Parsing**: Extracts DataCenter identifiers from Turtle expressions
+- **Intelligent Intent Routing**: Automatic routing based on expectation types (NetworkExpectation, DeploymentExpectation)
+- **Intent Splitting**: Automatically splits intents containing both NE and DE into separate intents
+- **Dual Handler Support**: Routes to both inNet (network intents) and inOrch-TMF-Proxy (deployment intents)
+- **GraphDB Integration**: Queries infrastructure data from GraphDB to determine inOrch routing targets
+- **Turtle Expression Parsing**: Extracts expectations and DataCenter identifiers from Turtle expressions
+- **Bundle Responses**: Returns bundled responses when intents are split across handlers
 - **OpenAPI/Swagger UI**: Interactive API documentation available at runtime
 - **Health Checks**: Built-in health monitoring endpoints
 - **Docker Support**: Containerized deployment with Gunicorn
@@ -28,21 +35,26 @@ Client Request
     ↓
 inServ (Intent Router)
     ↓
-Extract DataCenter from Turtle Expression
+Parse Turtle Expression
     ↓
-Query GraphDB for DataCenter URL
+Detect Expectations (NE/DE/RE)
     ↓
-Route Intent to inOrch
-    ↓
-Return Response
+    ├─→ Only NetworkExpectation → Route to inNet
+    ├─→ Only DeploymentExpectation → Query GraphDB → Route to inOrch
+    └─→ Both NE + DE → Split Intent
+            ├─→ NE Intent → Route to inNet
+            └─→ DE Intent → Query GraphDB → Route to inOrch
+                    ↓
+            Return Bundle Response
 ```
 
 ## Prerequisites
 
 - Python 3.11+ (for local development)
 - Docker (for containerized deployment)
-- GraphDB instance with infrastructure data
-- Access to inOrch-TMF-Proxy instances
+- GraphDB instance with infrastructure data (for inOrch routing)
+- Access to inOrch-TMF-Proxy instances (for deployment intents)
+- Access to inNet service (for network intents)
 
 ## Installation
 
@@ -61,7 +73,10 @@ docker build --no-cache -f inServ/Dockerfile -t inserv .
 
 2. Run the container:
 ```bash
+# If -e INSERV_PORT=3021 is omittet, defaults to 3021
+# If -e GRAPHDB_BASE_URL=7200 is omittet, defaults to 7200
 docker run --network host \
+  -e INSERV_PORT=3021 \ 
   -e GRAPHDB_BASE_URL=http://start5g-1.cs.uit.no:7200 \
   -e GRAPHDB_REPOSITORY=intents_and_intent_reports \
   inserv
@@ -116,7 +131,10 @@ inServ can be configured using environment variables:
 | `INFRASTRUCTURE_GRAPH` | `http://intendproject.eu/telenor/infra` | Infrastructure graph URI in GraphDB |
 | `DATACENTER_BASE_URL` | `http://start5g-1.cs.uit.no` | Base URL for DataCenter proxies |
 | `DATACENTER_PORT_BASE` | `4000` | Base port number for DataCenter proxies |
+| `INNET_BASE_URL` | `http://intend.eu/inNet` | Base URL for inNet service |
 | `API_PATH` | `/tmf-api/intentManagement/v5/` | API base path |
+| `INSERV_TEST_MODE` | `false` | Enable test mode (logs intents without forwarding) |
+| `ENABLE_LOG_ENDPOINT` | `false` | Enable `/logs` endpoint for browsing logs |
 
 ## API Endpoints
 
@@ -142,11 +160,29 @@ inServ can be configured using environment variables:
 
 See the client program in ../Lifecycle-Management/src/CreateIntent/
 
-inServ will:
-1. Extract the DataCenter identifier (e.g., "EC21") from the Turtle expression
-2. Query GraphDB to find the URL for the inOrch-TMF-Proxy handling EC21
-3. Forward the intent to that proxy
-4. Return the response from the proxy
+### Routing Behavior
+
+inServ automatically determines the routing based on the expectations in the intent:
+
+**NetworkExpectation only:**
+1. Detects NetworkExpectation in Turtle expression
+2. Routes intent to inNet at `{INNET_BASE_URL}/intent`
+3. Returns response from inNet
+
+**DeploymentExpectation only:**
+1. Extracts DataCenter identifier (e.g., "EC21") from the Turtle expression
+2. Queries GraphDB to find the URL for the inOrch-TMF-Proxy handling that DataCenter
+3. Routes intent to that proxy
+4. Returns response from inOrch
+
+**Both NetworkExpectation and DeploymentExpectation:**
+1. Detects both expectations in Turtle expression
+2. Splits the intent into two parts:
+   - NE intent: Contains NetworkExpectation + all RequirementExpectations
+   - DE intent: Contains DeploymentExpectation + all RequirementExpectations
+3. Routes NE intent to inNet
+4. Routes DE intent to inOrch (via GraphDB lookup)
+5. Returns a bundle response containing both responses with `isBundle: true`
 
 ## Project Structure
 

@@ -27,6 +27,7 @@ class AppConfig:
     datacenter_base_url: str = "http://start5g-1.cs.uit.no"
     datacenter_port_base: int = 4000
     api_path: str = "/tmf-api/intentManagement/v5/"
+    innet_base_url: str = "http://intend.eu/inNet"
     # When enabled, inServ will not forward intents to inOrch-TMF-Proxy
     # but will only log that they were received.
     test_mode: bool = False
@@ -56,4 +57,5 @@ class AppConfig:
             ),
             datacenter_port_base=int(os.getenv("DATACENTER_PORT_BASE", "4000")),
             api_path=os.getenv("API_PATH", "/tmf-api/intentManagement/v5/"),
+            innet_base_url=os.getenv("INNET_BASE_URL", "http://intend.eu/inNet"),
         )

@@ -4,6 +4,39 @@ The python program *create_intent_tm921.py* is a very simple python program that
 > **⚠️ NOTE:**  
 >It seems to be obvious that the detailed resource level intents (as in the examples below) will be created by *inSwitch* (i.e. *inSwitch* will be the owner of these intents). What *inChat* should create is a bit more unclear to us (TEL). We do believe that *inChat* could send TM Forum formated business level intents to *inSwitch*, but exactly how such an intend should be formed is still TBD. In its simplest form it could contain one single Expectation with a textual **dct:description** (in json format?) containing the parameters needed to fill into the templates below.
 
+## Usage
+
+The script can be run with the following command-line arguments:
+
+```bash
+python create_intent_tm921.py [OPTIONS]
+```
+
+### Options
+
+- `-turtle` (flag): Only print the resulting turtle expression without sending the request to the API
+- `--datacenter <name>`: Set the datacenter for the intent (default: `EC21`)
+- `--port <port_number>`: Port to use in the BASE_URL (default: `3021`)
+
+### Examples
+
+```bash
+# Create intent with default settings (port 3021, datacenter EC21)
+python create_intent_tm921.py
+
+# Create intent with custom port
+python create_intent_tm921.py --port 8080
+
+# Create intent with custom datacenter
+python create_intent_tm921.py --datacenter EC22
+
+# Print only the turtle expression without sending the request
+python create_intent_tm921.py -turtle
+
+# Combine multiple options
+python create_intent_tm921.py --port 8080 --datacenter EC22
+```
+
 # Templates for creating TM Forum formatted intents for the 5G4DATA use-case
 In the INTEND project's 5G4DATA use-case, all intents (exept the initial natural languague version based on a dialogue with the user/customer) shall be formatted using the TM Forum Intent ontology v.3.6.0 or later versions.
 

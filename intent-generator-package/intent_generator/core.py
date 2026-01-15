@@ -52,14 +52,16 @@ class IntentGenerator:
             except ValueError:
                 raise ValueError(f"Unknown intent type: {intent_type}")
         
-        # Convert dict to appropriate params object if needed
+        # Convert params object to dict if needed, otherwise keep as dict
+        # This allows arbitrary parameter names to be used
         if isinstance(parameters, dict):
-            if intent_type == IntentType.NETWORK:
-                parameters = NetworkIntentParams(**parameters)
-            elif intent_type == IntentType.WORKLOAD:
-                parameters = WorkloadIntentParams(**parameters)
-            elif intent_type == IntentType.COMBINED:
-                parameters = CombinedIntentParams(**parameters)
+            # Keep as dict - will be handled dynamically
+            pass
+        elif isinstance(parameters, (NetworkIntentParams, WorkloadIntentParams, CombinedIntentParams)):
+            # Convert dataclass to dict for dynamic handling
+            parameters = {k: v for k, v in parameters.__dict__.items() if v is not None}
+        else:
+            raise ValueError(f"Invalid parameters type: {type(parameters)}")
         
         # Generate based on type
         if intent_type == IntentType.NETWORK:
@@ -91,26 +93,30 @@ class IntentGenerator:
                 time.sleep(interval)
         return intents
 
-    def generate_network_intent(self, params: NetworkIntentParams) -> str:
-        """Generate a network intent."""
+    def generate_network_intent(self, params: Union[NetworkIntentParams, Dict[str, Any]]) -> str:
+        """Generate a network intent with dynamic parameter support."""
+        # Convert params object to dict if needed
+        if not isinstance(params, dict):
+            params = {k: v for k, v in params.__dict__.items() if v is not None}
+        
         g = self._create_base_graph()
         
         # Get polygon from location if provided
-        if params.location and not params.polygon:
+        location = params.get('location')
+        polygon_param = params.get('polygon')
+        if location and not polygon_param:
             try:
-                polygon = get_polygon_from_location(params.location)
+                polygon = get_polygon_from_location(location)
             except Exception:
                 polygon = get_default_polygon()
-        elif params.polygon:
-            polygon = params.polygon
+        elif polygon_param:
+            polygon = polygon_param
         else:
             polygon = get_default_polygon()
 
         # Generate unique IDs
         intent_id = f"I{uuid.uuid4().hex}"
         de_id = f"NE{uuid.uuid4().hex}"
-        c1_id = f"CO{uuid.uuid4().hex}"
-        c2_id = f"CO{uuid.uuid4().hex}"
         cx_id = f"CX{uuid.uuid4().hex}"
         region_id = f"RG{uuid.uuid4().hex}"
         re_id = f"RE{uuid.uuid4().hex}"
@@ -122,12 +128,12 @@ class IntentGenerator:
         g.add((intent_uri, self.log.allOf, self.data[re_id]))
 
         # Add handler and owner if provided
-        if params.handler:
-            g.add((intent_uri, self.imo.handler, Literal(params.handler, datatype=self.xsd.string)))
-        if params.owner:
-            g.add((intent_uri, self.imo.owner, Literal(params.owner, datatype=self.xsd.string)))
-        if params.intent_description:
-            g.add((intent_uri, self.dct.description, Literal(params.intent_description)))
+        if params.get('handler'):
+            g.add((intent_uri, self.imo.handler, Literal(params['handler'], datatype=self.xsd.string)))
+        if params.get('owner'):
+            g.add((intent_uri, self.imo.owner, Literal(params['owner'], datatype=self.xsd.string)))
+        if params.get('intent_description'):
+            g.add((intent_uri, self.dct.description, Literal(params['intent_description'])))
 
         # Create delivery expectation
         de_uri = self.data[de_id]
@@ -135,42 +141,55 @@ class IntentGenerator:
         g.add((de_uri, RDF.type, self.icm.IntentElement))
         g.add((de_uri, RDF.type, self.icm.Expectation))
         g.add((de_uri, self.icm.target, self.data["network-slice"]))
-        g.add((de_uri, self.dct.description, Literal(params.description or "Ensure QoS guarantees for network slice")))
-        g.add((de_uri, self.log.allOf, self.data[c1_id]))
-        g.add((de_uri, self.log.allOf, self.data[c2_id]))
+        g.add((de_uri, self.dct.description, Literal(params.get('description', "Ensure QoS guarantees for network slice"))))
         g.add((de_uri, self.log.allOf, self.data[cx_id]))
-
-        # Create latency condition
-        c1_uri = self.data[c1_id]
-        g.add((c1_uri, RDF.type, self.icm.Condition))
-        description = self._create_condition_description("Latency", params.latency_operator, params.latency, params.latency_end, "ms")
-        g.add((c1_uri, self.dct.description, Literal(description)))
-        g.add((c1_uri, self.set.forAll, self._create_latency_condition(
-            g, 
-            params.latency,
-            params.latency_operator,
-            params.latency_end,
-            c1_id
-        )))
-
-        # Create bandwidth condition
-        c2_uri = self.data[c2_id]
-        g.add((c2_uri, RDF.type, self.icm.Condition))
-        description = self._create_condition_description("Bandwidth", params.bandwidth_operator, params.bandwidth, params.bandwidth_end, "mbit/s")
-        g.add((c2_uri, self.dct.description, Literal(description)))
-        g.add((c2_uri, self.set.forAll, self._create_bandwidth_condition(
-            g, 
-            params.bandwidth,
-            params.bandwidth_operator,
-            params.bandwidth_end,
-            c2_id
-        )))
+        
+        # Find all parameter/operator pairs dynamically
+        special_fields = {'description', 'intent_description', 'handler', 'owner', 'customer',
+                         'datacenter', 'application', 'descriptor', 'location', 'polygon'}
+        param_pairs = self._find_parameter_pairs(params, special_fields)
+        
+        # Create conditions for each parameter pair
+        for pair in param_pairs:
+            c_id = f"CO{uuid.uuid4().hex}"
+            c_uri = self.data[c_id]
+            g.add((c_uri, RDF.type, self.icm.Condition))
+            
+            # Create description
+            metric_display_name = pair['name'].replace('-', ' ').replace('_', ' ').title()
+            # Determine unit based on parameter name (default to ms, but use mbit/s for bandwidth-like params)
+            unit = "mbit/s" if "bandwidth" in pair['name'].lower() or "throughput" in pair['name'].lower() else "ms"
+            description = self._create_condition_description(
+                metric_display_name, 
+                pair['operator'], 
+                pair['value'], 
+                pair['end'], 
+                unit
+            )
+            g.add((c_uri, self.dct.description, Literal(description)))
+            
+            # Create the condition
+            condition_bnode = self._create_generic_condition(
+                g,
+                pair['name'],
+                pair['value'],
+                pair['operator'],
+                pair['end'],
+                c_id,
+                unit
+            )
+            g.add((c_uri, self.set.forAll, condition_bnode))
+            
+            # Add condition to delivery expectation
+            g.add((de_uri, self.log.allOf, self.data[c_id]))
 
         # Create context
         cx_uri = self.data[cx_id]
         g.add((cx_uri, RDF.type, self.icm.Context))
         g.add((cx_uri, self.data.appliesToRegion, self.data[region_id]))
-        g.add((cx_uri, self.data.appliesToCustomer, Literal(params.customer)))
+        
+        customer = params.get('customer', '+47 90914547')
+        g.add((cx_uri, self.data.appliesToCustomer, Literal(customer)))
 
         # Create region
         region_uri = self.data[region_id]
@@ -185,14 +204,17 @@ class IntentGenerator:
 
         return g.serialize(format="turtle")
 
-    def generate_workload_intent(self, params: WorkloadIntentParams) -> str:
-        """Generate a workload intent."""
+    def generate_workload_intent(self, params: Union[WorkloadIntentParams, Dict[str, Any]]) -> str:
+        """Generate a workload intent with dynamic parameter support."""
+        # Convert params object to dict if needed
+        if not isinstance(params, dict):
+            params = {k: v for k, v in params.__dict__.items() if v is not None}
+        
         g = self._create_base_graph()
 
         # Generate unique IDs
         intent_id = f"I{uuid.uuid4().hex}"
         de_id = f"DE{uuid.uuid4().hex}"
-        c1_id = f"CO{uuid.uuid4().hex}"
         cx_id = f"CX{uuid.uuid4().hex}"
         re_id = f"RE{uuid.uuid4().hex}"
 
@@ -203,12 +225,12 @@ class IntentGenerator:
         g.add((intent_uri, self.log.allOf, self.data[re_id]))
 
         # Add handler and owner if provided
-        if params.handler:
-            g.add((intent_uri, self.imo.handler, Literal(params.handler)))
-        if params.owner:
-            g.add((intent_uri, self.imo.owner, Literal(params.owner)))
-        if params.intent_description:
-            g.add((intent_uri, self.dct.description, Literal(params.intent_description)))
+        if params.get('handler'):
+            g.add((intent_uri, self.imo.handler, Literal(params['handler'])))
+        if params.get('owner'):
+            g.add((intent_uri, self.imo.owner, Literal(params['owner'])))
+        if params.get('intent_description'):
+            g.add((intent_uri, self.dct.description, Literal(params['intent_description'])))
 
         # Create deployment expectation
         de_uri = self.data[de_id]
@@ -216,29 +238,60 @@ class IntentGenerator:
         g.add((de_uri, RDF.type, self.icm.IntentElement))
         g.add((de_uri, RDF.type, self.icm.Expectation))
         g.add((de_uri, self.icm.target, self.data["deployment"]))
-        g.add((de_uri, self.dct.description, Literal(params.description or "Deploy application to Edge Data Center")))
-        g.add((de_uri, self.log.allOf, self.data[c1_id]))
+        
+        description = params.get('description', "Deploy application to Edge Data Center")
+        g.add((de_uri, self.dct.description, Literal(description)))
         g.add((de_uri, self.log.allOf, self.data[cx_id]))
-
-        # Create condition
-        c1_uri = self.data[c1_id]
-        g.add((c1_uri, RDF.type, self.icm.Condition))
-        description = self._create_condition_description("Compute latency", params.compute_latency_operator, params.compute_latency, params.compute_latency_end, "ms")
-        g.add((c1_uri, self.dct.description, Literal(description)))
-        g.add((c1_uri, self.set.forAll, self._create_compute_latency_condition(
-            g, 
-            params.compute_latency,
-            params.compute_latency_operator,
-            params.compute_latency_end,
-            c1_id
-        )))
+        
+        # Find all parameter/operator pairs dynamically
+        special_fields = {'description', 'intent_description', 'handler', 'owner', 'customer',
+                         'datacenter', 'application', 'descriptor', 'location', 'polygon'}
+        param_pairs = self._find_parameter_pairs(params, special_fields)
+        
+        # Create conditions for each parameter pair
+        for pair in param_pairs:
+            c_id = f"CO{uuid.uuid4().hex}"
+            c_uri = self.data[c_id]
+            g.add((c_uri, RDF.type, self.icm.Condition))
+            
+            # Create description
+            metric_display_name = pair['name'].replace('-', ' ').replace('_', ' ').title()
+            description = self._create_condition_description(
+                metric_display_name, 
+                pair['operator'], 
+                pair['value'], 
+                pair['end'], 
+                "ms"  # Default unit, could be made configurable
+            )
+            g.add((c_uri, self.dct.description, Literal(description)))
+            
+            # Create the condition
+            condition_bnode = self._create_generic_condition(
+                g,
+                pair['name'],
+                pair['value'],
+                pair['operator'],
+                pair['end'],
+                c_id,
+                "ms"  # Default unit
+            )
+            g.add((c_uri, self.set.forAll, condition_bnode))
+            
+            # Add condition to deployment expectation
+            g.add((de_uri, self.log.allOf, self.data[c_id]))
 
         # Create context
         cx_uri = self.data[cx_id]
         g.add((cx_uri, RDF.type, self.icm.Context))
-        g.add((cx_uri, self.data.DataCenter, Literal(params.datacenter)))
-        g.add((cx_uri, self.data.Application, Literal(params.application)))
-        g.add((cx_uri, self.data.DeploymentDescriptor, Literal(params.descriptor)))
+        
+        datacenter = params.get('datacenter', 'EC1')
+        g.add((cx_uri, self.data.DataCenter, Literal(datacenter)))
+        
+        application = params.get('application', 'AR-retail-app')
+        g.add((cx_uri, self.data.Application, Literal(application)))
+        
+        descriptor = params.get('descriptor', 'http://intend.eu/5G4DataWorkloadCatalogue/appx-deployment.yaml')
+        g.add((cx_uri, self.data.DeploymentDescriptor, Literal(descriptor)))
 
         # Create reporting expectation
         re_uri = self.data[re_id]
@@ -248,18 +301,24 @@ class IntentGenerator:
 
         return g.serialize(format="turtle")
 
-    def generate_combined_intent(self, params: CombinedIntentParams) -> str:
-        """Generate a combined network and workload intent."""
+    def generate_combined_intent(self, params: Union[CombinedIntentParams, Dict[str, Any]]) -> str:
+        """Generate a combined network and workload intent with dynamic parameter support."""
+        # Convert params object to dict if needed
+        if not isinstance(params, dict):
+            params = {k: v for k, v in params.__dict__.items() if v is not None}
+        
         g = self._create_base_graph()
         
         # Get polygon from location if provided
-        if params.location and not params.polygon:
+        location = params.get('location')
+        polygon_param = params.get('polygon')
+        if location and not polygon_param:
             try:
-                polygon = get_polygon_from_location(params.location)
+                polygon = get_polygon_from_location(location)
             except Exception:
                 polygon = get_default_polygon()
-        elif params.polygon:
-            polygon = params.polygon
+        elif polygon_param:
+            polygon = polygon_param
         else:
             polygon = get_default_polygon()
 
@@ -267,9 +326,6 @@ class IntentGenerator:
         intent_id = f"I{uuid.uuid4().hex}"
         de1_id = f"NE{uuid.uuid4().hex}"
         de2_id = f"DE{uuid.uuid4().hex}"
-        c1_id = f"CO{uuid.uuid4().hex}"
-        c2_id = f"CO{uuid.uuid4().hex}"
-        c3_id = f"CO{uuid.uuid4().hex}"
         cx1_id = f"CX{uuid.uuid4().hex}"
         cx2_id = f"CX{uuid.uuid4().hex}"
         region_id = f"RG{uuid.uuid4().hex}"
@@ -285,12 +341,12 @@ class IntentGenerator:
         g.add((intent_uri, self.log.allOf, self.data[re2_id]))
 
         # Add handler and owner if provided
-        if params.handler:
-            g.add((intent_uri, self.imo.handler, Literal(params.handler)))
-        if params.owner:
-            g.add((intent_uri, self.imo.owner, Literal(params.owner)))
-        if params.intent_description:
-            g.add((intent_uri, self.dct.description, Literal(params.intent_description)))
+        if params.get('handler'):
+            g.add((intent_uri, self.imo.handler, Literal(params['handler'])))
+        if params.get('owner'):
+            g.add((intent_uri, self.imo.owner, Literal(params['owner'])))
+        if params.get('intent_description'):
+            g.add((intent_uri, self.dct.description, Literal(params['intent_description'])))
 
         # Create network expectation
         de1_uri = self.data[de1_id]
@@ -298,9 +354,7 @@ class IntentGenerator:
         g.add((de1_uri, RDF.type, self.icm.IntentElement))
         g.add((de1_uri, RDF.type, self.icm.Expectation))
         g.add((de1_uri, self.icm.target, self.data["network-slice"]))
-        g.add((de1_uri, self.dct.description, Literal(params.description or "Ensure QoS guarantees for network slice")))
-        g.add((de1_uri, self.log.allOf, self.data[c1_id]))
-        g.add((de1_uri, self.log.allOf, self.data[c2_id]))
+        g.add((de1_uri, self.dct.description, Literal(params.get('description', "Ensure QoS guarantees for network slice"))))
         g.add((de1_uri, self.log.allOf, self.data[cx1_id]))
 
         # Create deployment expectation
@@ -309,59 +363,103 @@ class IntentGenerator:
         g.add((de2_uri, RDF.type, self.icm.IntentElement))
         g.add((de2_uri, RDF.type, self.icm.Expectation))
         g.add((de2_uri, self.icm.target, self.data["deployment"]))
-        g.add((de2_uri, self.dct.description, Literal(params.description or "Deploy application to Edge Data Center")))
-        g.add((de2_uri, self.log.allOf, self.data[c3_id]))
+        g.add((de2_uri, self.dct.description, Literal(params.get('description', "Deploy application to Edge Data Center"))))
         g.add((de2_uri, self.log.allOf, self.data[cx2_id]))
 
+        # Find all parameter/operator pairs dynamically
+        special_fields = {'description', 'intent_description', 'handler', 'owner', 'customer',
+                         'datacenter', 'application', 'descriptor', 'location', 'polygon'}
+        param_pairs = self._find_parameter_pairs(params, special_fields)
+        
+        # Separate pairs into network and workload based on parameter names
+        # This is a heuristic - parameters with "compute" or "workload" in name go to workload,
+        # others go to network. You can customize this logic.
+        network_pairs = []
+        workload_pairs = []
+        
+        for pair in param_pairs:
+            name_lower = pair['name'].lower()
+            if 'compute' in name_lower or 'workload' in name_lower or 'deployment' in name_lower:
+                workload_pairs.append(pair)
+            else:
+                network_pairs.append(pair)
+        
         # Create network conditions
-        c1_uri = self.data[c1_id]
-        g.add((c1_uri, RDF.type, self.icm.Condition))
-        description = self._create_condition_description("Latency", params.latency_operator, params.latency, params.latency_end, "ms")
-        g.add((c1_uri, self.dct.description, Literal(description)))
-        g.add((c1_uri, self.set.forAll, self._create_latency_condition(
-            g, 
-            params.latency,
-            params.latency_operator,
-            params.latency_end,
-            c1_id
-        )))
+        for pair in network_pairs:
+            c_id = f"CO{uuid.uuid4().hex}"
+            c_uri = self.data[c_id]
+            g.add((c_uri, RDF.type, self.icm.Condition))
+            
+            metric_display_name = pair['name'].replace('-', ' ').replace('_', ' ').title()
+            unit = "mbit/s" if "bandwidth" in pair['name'].lower() or "throughput" in pair['name'].lower() else "ms"
+            description = self._create_condition_description(
+                metric_display_name, 
+                pair['operator'], 
+                pair['value'], 
+                pair['end'], 
+                unit
+            )
+            g.add((c_uri, self.dct.description, Literal(description)))
+            
+            condition_bnode = self._create_generic_condition(
+                g,
+                pair['name'],
+                pair['value'],
+                pair['operator'],
+                pair['end'],
+                c_id,
+                unit
+            )
+            g.add((c_uri, self.set.forAll, condition_bnode))
+            g.add((de1_uri, self.log.allOf, self.data[c_id]))
 
-        c2_uri = self.data[c2_id]
-        g.add((c2_uri, RDF.type, self.icm.Condition))
-        description = self._create_condition_description("Bandwidth", params.bandwidth_operator, params.bandwidth, params.bandwidth_end, "mbit/s")
-        g.add((c2_uri, self.dct.description, Literal(description)))
-        g.add((c2_uri, self.set.forAll, self._create_bandwidth_condition(
-            g, 
-            params.bandwidth,
-            params.bandwidth_operator,
-            params.bandwidth_end,
-            c2_id
-        )))
-
-        # Create workload condition
-        c3_uri = self.data[c3_id]
-        g.add((c3_uri, RDF.type, self.icm.Condition))
-        description = self._create_condition_description("Compute latency", params.compute_latency_operator, params.compute_latency, params.compute_latency_end, "ms")
-        g.add((c3_uri, self.dct.description, Literal(description)))
-        g.add((c3_uri, self.set.forAll, self._create_compute_latency_condition(
-            g, 
-            params.compute_latency,
-            params.compute_latency_operator,
-            params.compute_latency_end,
-            c3_id
-        )))
+        # Create workload conditions
+        for pair in workload_pairs:
+            c_id = f"CO{uuid.uuid4().hex}"
+            c_uri = self.data[c_id]
+            g.add((c_uri, RDF.type, self.icm.Condition))
+            
+            metric_display_name = pair['name'].replace('-', ' ').replace('_', ' ').title()
+            description = self._create_condition_description(
+                metric_display_name, 
+                pair['operator'], 
+                pair['value'], 
+                pair['end'], 
+                "ms"
+            )
+            g.add((c_uri, self.dct.description, Literal(description)))
+            
+            condition_bnode = self._create_generic_condition(
+                g,
+                pair['name'],
+                pair['value'],
+                pair['operator'],
+                pair['end'],
+                c_id,
+                "ms"
+            )
+            g.add((c_uri, self.set.forAll, condition_bnode))
+            g.add((de2_uri, self.log.allOf, self.data[c_id]))
 
         # Create contexts
         cx1_uri = self.data[cx1_id]
         g.add((cx1_uri, RDF.type, self.icm.Context))
         g.add((cx1_uri, self.data.appliesToRegion, self.data[region_id]))
-        g.add((cx1_uri, self.data.appliesToCustomer, Literal(params.customer)))
+        
+        customer = params.get('customer', '+47 90914547')
+        g.add((cx1_uri, self.data.appliesToCustomer, Literal(customer)))
 
         cx2_uri = self.data[cx2_id]
         g.add((cx2_uri, RDF.type, self.icm.Context))
-        g.add((cx2_uri, self.data.DataCenter, Literal(params.datacenter)))
-        g.add((cx2_uri, self.data.Application, Literal(params.application)))
-        g.add((cx2_uri, self.data.DeploymentDescriptor, Literal(params.descriptor)))
+        
+        datacenter = params.get('datacenter', 'EC1')
+        g.add((cx2_uri, self.data.DataCenter, Literal(datacenter)))
+        
+        application = params.get('application', 'AR-retail-app')
+        g.add((cx2_uri, self.data.Application, Literal(application)))
+        
+        descriptor = params.get('descriptor', 'http://intend.eu/5G4DataWorkloadCatalogue/appx-deployment.yaml')
+        g.add((cx2_uri, self.data.DeploymentDescriptor, Literal(descriptor)))
 
         # Create region
         region_uri = self.data[region_id]
@@ -396,6 +494,91 @@ class IntentGenerator:
         g.bind("data5g", self.data)
         g.bind("imo", self.imo)
         return g
+
+    def _find_parameter_pairs(self, params: Dict[str, Any], special_fields: set = None) -> List[Dict[str, Any]]:
+        """Find all parameter/operator pairs in the parameters dict.
+        
+        Looks for pairs where both {name} and {name}_operator exist.
+        Also checks for optional {name}_end for inRange operators.
+        
+        Args:
+            params: Dictionary of parameters
+            special_fields: Set of field names to exclude from dynamic pairs
+        
+        Returns:
+            List of dicts with keys: 'name', 'value', 'operator', 'end' (optional)
+        """
+        if special_fields is None:
+            special_fields = {
+                'description', 'intent_description', 'handler', 'owner', 'customer',
+                'datacenter', 'application', 'descriptor', 'location', 'polygon'
+            }
+        
+        pairs = []
+        processed = set()
+        
+        for key, value in params.items():
+            # Skip if this is an operator or end parameter (we'll process it with its base)
+            if key.endswith('_operator') or key.endswith('_end'):
+                continue
+            
+            # Skip special fields that aren't part of the dynamic pattern
+            if key in special_fields:
+                continue
+            
+            # Skip None values
+            if value is None:
+                continue
+            
+            operator_key = f"{key}_operator"
+            end_key = f"{key}_end"
+            
+            # Check if operator exists
+            if operator_key in params:
+                pair = {
+                    'name': key,
+                    'value': value,
+                    'operator': params[operator_key],
+                    'end': params.get(end_key)  # Optional
+                }
+                pairs.append(pair)
+                processed.add(key)
+                processed.add(operator_key)
+                if end_key in params:
+                    processed.add(end_key)
+        
+        return pairs
+
+    def _create_generic_condition(self, g: Graph, param_name: str, value: float, operator: str = "smaller", value_end: float = None, condition_id: str = None, unit: str = "ms") -> BNode:
+        """Create a generic condition for any parameter name.
+        
+        Args:
+            g: RDF graph
+            param_name: Name of the parameter (e.g., 'p99-token-target')
+            value: Parameter value
+            operator: Operator (e.g., 'smaller', 'larger', 'inRange')
+            value_end: End value for inRange operator
+            condition_id: Optional condition ID
+            unit: Unit for the value (default: 'ms')
+        
+        Returns:
+            BNode representing the condition
+        """
+        bnode = BNode()
+        
+        # Create metric name from parameter name (sanitize for RDF)
+        # Replace hyphens and other special chars with underscores
+        metric_name = param_name.replace('-', '_').replace(' ', '_')
+        metric_name = f"{metric_name}_{condition_id}" if condition_id else metric_name
+        
+        g.add((bnode, self.icm.valuesOfTargetProperty, self.data[metric_name]))
+        
+        if operator == "inRange" and value_end is not None:
+            self._create_range_condition(g, bnode, operator, value, value_end, unit)
+        else:
+            self._create_simple_condition(g, bnode, operator, value, unit)
+        
+        return bnode
 
     def _create_condition_description(self, metric_name: str, operator: str, value: float, end_value: float = None, unit: str = "") -> str:
         """Create a description for a condition."""

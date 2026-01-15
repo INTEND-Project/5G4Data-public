@@ -10,11 +10,14 @@ COPY intent-generator-package /intent-generator-package
 RUN pip install --no-cache-dir -e /intent-generator-package
 
 # Copy requirements and install dependencies (excluding intent-generator)
-COPY requirements.txt .
+COPY Intent-Simulator/requirements.txt .
 RUN sed -i '/intent-generator/d' requirements.txt && pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy application code from Intent-Simulator directory only
+COPY Intent-Simulator/app.py .
+COPY Intent-Simulator/shared ./shared
+COPY Intent-Simulator/templates ./templates
+COPY Intent-Simulator/static ./static
 
 # Create intents directory
 RUN mkdir -p intents

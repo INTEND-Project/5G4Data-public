@@ -23,34 +23,62 @@ def index():
 @app.route('/api/generate-intent', methods=['POST'])
 def generate_intent():
     try:
+        start_time = time.time()
+        print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting generate_intent request")
+        
         data = request.get_json()
-        print("Received data:", data)  # Debug print
+        print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Received data: {data}")
+        
         intent_type = data.get('intent_type')
         parameters = data.get('parameters', {})
         count = int(data.get('count', 1))
         interval = float(data.get('interval', 0))
+        
+        print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Parsed: intent_type={intent_type}, count={count}, interval={interval}")
+        print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Parameters keys: {list(parameters.keys())}")
 
         if count > 1:
+            print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Generating sequence of {count} intents...")
             intents = intent_generator.generate_sequence(intent_type, parameters, count, interval)
+            print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Generated {len(intents)} intents, starting to store...")
             intent_ids = []
-            for intent in intents:
+            for i, intent in enumerate(intents):
+                print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Storing intent {i+1}/{len(intents)}...")
+                print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Intent {i+1} turtle preview (first 500 chars):\n{intent[:500]}")
                 intent_id = graphdb_client.store_intent(intent)
+                print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Stored intent {i+1} with ID: {intent_id}")
                 intent_ids.append(intent_id)
+            elapsed = time.time() - start_time
+            print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Successfully completed sequence generation in {elapsed:.2f}s")
             return jsonify({
                 "message": f"Generated and stored {count} intents",
                 "intent_ids": intent_ids
             })
         else:
+            print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] About to call intent_generator.generate()...")
             intent = intent_generator.generate(intent_type, parameters)
+            elapsed_gen = time.time() - start_time
+            print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Intent generated in {elapsed_gen:.2f}s, length: {len(intent)} chars")
+            print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Intent turtle content (first 1000 chars):\n{intent[:1000]}")
+            print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Intent turtle content (last 500 chars):\n{intent[-500:]}")
+            print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] About to store intent in GraphDB...")
+            
             intent_id = graphdb_client.store_intent(intent)
+            elapsed_store = time.time() - start_time
+            print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Intent stored in GraphDB in {elapsed_store:.2f}s, ID: {intent_id}")
+            
+            total_elapsed = time.time() - start_time
+            print(f"[DEBUG] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Total request time: {total_elapsed:.2f}s")
             return jsonify({
                 "message": f"Intent generated and stored successfully: {intent_id}",
                 "intent_ids": [intent_id]
             })
     except Exception as e:
-        print(f"Error generating intent: {str(e)}")  # Debug print
+        elapsed = time.time() - start_time if 'start_time' in locals() else 0
+        print(f"[ERROR] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Error after {elapsed:.2f}s: {str(e)}")
         import traceback
-        print(traceback.format_exc())  # Print full traceback
+        print(f"[ERROR] [{time.strftime('%Y-%m-%d %H:%M:%S')}] Full traceback:")
+        print(traceback.format_exc())
         return jsonify({"error": str(e)}), 400
 
 @app.route('/api/get-intent/<intent_id>', methods=['GET'])
@@ -170,4 +198,4 @@ def delete_intent(intent_id):
         return jsonify({"error": str(e)}), 400
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True) 
+    app.run(host='0.0.0.0', port=5000, debug=True)

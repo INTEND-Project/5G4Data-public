@@ -239,7 +239,10 @@ class IntentGenerator:
 # Initialize intent generator
 intent_generator = IntentGenerator()
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploaded_value_files')
+# Get the directory where this script is located (works in Docker too)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+UPLOAD_FOLDER = os.path.join(current_dir, 'uploaded_value_files')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route('/')
@@ -328,8 +331,8 @@ def process_csv_to_graphdb(csv_path: str, intent_id: str, condition_id: str, tur
 @app.route('/populate/generate', methods=['POST'])
 def populate_generate():
     try:
-        # Directory where generated files will be stored
-        output_dir = "/Users/arneme/CodeExplorations/INTEND-Project/5G4Data-public/IntentReport-Simulator/generated_observation_files"
+        # Directory where generated files will be stored (relative to app directory, works in Docker)
+        output_dir = os.path.join(current_dir, 'generated_observation_files')
         os.makedirs(output_dir, exist_ok=True)
 
         # Path to the generator script
@@ -349,8 +352,8 @@ def populate_generate():
         # Cache intent turtle and parsed condition descriptions per intent
         intent_to_condition_desc = {}
         
-        # Directory for debug Turtle files
-        debug_turtle_dir = "/Users/arneme/CodeExplorations/INTEND-Project/5G4Data-public/IntentReport-Simulator/generated_observations"
+        # Directory for debug Turtle files (relative to app directory, works in Docker)
+        debug_turtle_dir = os.path.join(current_dir, 'generated_observations')
         os.makedirs(debug_turtle_dir, exist_ok=True)
 
         def parse_condition_descriptions(turtle_text: str):
@@ -493,12 +496,12 @@ def quick_populate_generate():
             logger.warning(f"Could not check/generate intents: {intent_error}")
             # Continue with generation even if intent check fails
         
-        # Directory where generated files will be stored
-        output_dir = "/Users/arneme/CodeExplorations/INTEND-Project/5G4Data-public/IntentReport-Simulator/generated_observation_files"
+        # Directory where generated files will be stored (relative to app directory, works in Docker)
+        output_dir = os.path.join(current_dir, 'generated_observation_files')
         os.makedirs(output_dir, exist_ok=True)
         
-        # Directory for debug Turtle files
-        debug_turtle_dir = "/Users/arneme/CodeExplorations/INTEND-Project/5G4Data-public/IntentReport-Simulator/generated_observations"
+        # Directory for debug Turtle files (relative to app directory, works in Docker)
+        debug_turtle_dir = os.path.join(current_dir, 'generated_observations')
         os.makedirs(debug_turtle_dir, exist_ok=True)
         
         # Path to the generator script

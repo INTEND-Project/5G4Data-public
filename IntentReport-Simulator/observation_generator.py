@@ -256,6 +256,12 @@ class ObservationGenerator:
                     after_prefix = line.split('data5g:', 1)[1]
                     # Take the first token up to whitespace, then strip trailing punctuation
                     target_property = after_prefix.split()[0].rstrip(';,')
+                    
+                    # If the target property already ends with the condition ID, remove it
+                    suffix = f"_{condition_id}"
+                    if target_property.lower().endswith(suffix.lower()):
+                        target_property = target_property[:-len(suffix)]
+                    
                     return target_property
                 except Exception:
                     return None

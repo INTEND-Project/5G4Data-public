@@ -4,7 +4,10 @@ Python/Flask microservice that implements TMF921 Intent Management APIs and can 
 
 ## Setting up a cluster and making it available over TMF 921.
 
-The `setup-cluster-from-scratch.sh` script automates the complete setup of a minikube cluster with all required components for inOrch-TMF-Proxy. It performs the following steps:
+The `setup-cluster-from-scratch.sh` script automates the complete setup of a minikube cluster with all required components for inOrch-TMF-Proxy. **The script can be used to set up multiple clusters on the same host to simulate that the 5G4Data use-case has multiple Edge datacenters.**
+
+
+It performs the following steps:
 
 ### What the script does:
 

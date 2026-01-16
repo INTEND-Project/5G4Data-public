@@ -142,6 +142,9 @@ The `delete_cluster_and_revert_system.sh` script properly tears down the cluster
 # With custom profile
 ./delete_cluster_and_revert_system.sh --profile my-profile
 
+# Delete a specific cluster by datacenter identifier
+./delete_cluster_and_revert_system.sh --datacenter EC21
+
 # Show help
 ./delete_cluster_and_revert_system.sh --help
 ```
@@ -149,6 +152,7 @@ The `delete_cluster_and_revert_system.sh` script properly tears down the cluster
 ### Command-line Options:
 
 - `--profile PROFILE`: Minikube profile name to delete (default: inOrch-TMF-Proxy)
+- `--datacenter IDENTIFIER`: Datacenter identifier of the cluster to delete (e.g., EC21). This allows you to delete a specific cluster when multiple clusters are set up on the same host.
 - `--host-ip IP`: Host external IP address (default: 129.242.22.51)
 - `--minikube-ip IP`: Minikube node IP address (default: 192.168.49.2)
 - `-h, --help`: Show help message

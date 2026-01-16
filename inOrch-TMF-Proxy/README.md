@@ -15,8 +15,9 @@ It performs the following steps:
 
 2. **Cluster Creation**: 
    - Creates a new minikube cluster (or reuses existing one if found)
-   - Configures the cluster with appropriate resources (16 CPUs, 24GB memory)
+   - Configures the cluster with appropriate resources (default: 16 CPUs, 24GB memory; configurable via `--cpus` and `--memory`)
    - Labels the node for ingress controller scheduling
+   - Sets datacenter identifier (configurable via `--datacenter`) for multi-cluster scenarios
 
 3. **Ingress Configuration**:
    - Enables the ingress addon
@@ -62,6 +63,9 @@ It performs the following steps:
 # Setup without IDO
 ./setup-cluster-from-scratch.sh --skip-ido --ghcr-password ghp_your_token
 
+# Setup with custom datacenter identifier and resource limits
+./setup-cluster-from-scratch.sh --ido-repo-path /home/telco/arneme/Intel-IDO/intent-driven-orchestration --datacenter EC31 --cpus 8 --memory 12G --ghcr-password ghp_your_token
+
 # See all options
 ./setup-cluster-from-scratch.sh --help
 ```
@@ -73,6 +77,9 @@ It performs the following steps:
 - `--ghcr-password TOKEN`: GitHub Personal Access Token for GHCR (required)
 - `--ghcr-email EMAIL`: Email for GHCR secret
 - `--profile PROFILE`: Minikube profile name (default: inOrch-TMF-Proxy)
+- `--datacenter IDENTIFIER`: Datacenter identifier for the cluster (e.g., EC31). Useful for multi-cluster scenarios where multiple Edge datacenters are simulated on the same host.
+- `--cpus NUMBER`: Number of CPUs to allocate to the minikube cluster (default: 16)
+- `--memory SIZE`: Memory to allocate to the minikube cluster (default: 24G). Accepts units like G (gigabytes) or M (megabytes), e.g., 12G, 8192M.
 - `--skip-ido`: Skip IDO installation
 - `--skip-port-forward`: Skip systemd port-forwarding setup
 - `--skip-ingress-forward`: Skip ingress forwarding setup

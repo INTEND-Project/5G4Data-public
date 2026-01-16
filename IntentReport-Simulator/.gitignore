@@ -25,6 +25,7 @@ wheels/
 intent-report-env/
 ENV/
 env/
+convert/venv/
 
 # IDE
 .idea/

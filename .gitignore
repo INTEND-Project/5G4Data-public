@@ -25,3 +25,4 @@ Workload-Catalog/workloads/ai-server/models/embed.gguf
 Workload-Catalog/workloads/ai-server/rusty-llm-0.1.1.tgz
 inOrch-TMF-Proxy/llm-intent.yaml
 inOrch-TMF-Proxy/prompt.txt
+inOrch-TMF-Proxy/TODO.md

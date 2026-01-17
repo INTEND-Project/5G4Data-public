@@ -4,8 +4,13 @@ import re
 import uuid
 import argparse
 
+<<<<<<< HEAD
 # Base URL of the inServ API (will be set dynamically based on port argument)
 BASE_URL = None
+=======
+# Base URL of the API
+BASE_URL = "http://start5g-1.cs.uit.no:3020/tmf-api/intentManagement/v5"
+>>>>>>> d5abd10 (Updated BASE_URL in create_intent_tm921.py to point to the production API endpoint.)
 
 def test_get_intents():
     url = f"{BASE_URL}/intent"

@@ -10,8 +10,8 @@ try:
 except ImportError:
     from requests.packages.urllib3.util.retry import Retry
 
-# Base URL of the API
-BASE_URL = "http://start5g-1.cs.uit.no:3020/tmf-api/intentManagement/v5"
+# Base URL of the inServ API (will be set dynamically based on port argument)
+BASE_URL = None
 
 def test_get_intents():
     url = f"{BASE_URL}/intent"

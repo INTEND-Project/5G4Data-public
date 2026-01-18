@@ -130,7 +130,7 @@ k8s_cluster = (500, 175, 1190, 690)  # Expanded vertically
 workload_namespaces = (695, 230, 995, 270)  # 300px wide, 40px tall, centered at x=845
 
 components = {
-    "inOrch-TMF-Proxy": (520, 370, 820, 485),  # Top left, 115px tall
+    "inOrch-TMF-Proxy": (520, 370, 820, 505),  # Top left, 135px tall, increased for 5 bullet points
     "Intel IDO": (870, 370, 1170, 485),  # Top right, 115px tall
     "Planner": (520, 530, 820, 645),  # Bottom left, 115px tall, more gap from top row
     "Prometheus": (870, 530, 1170, 645),  # Bottom right, 115px tall

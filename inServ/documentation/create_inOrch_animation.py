@@ -42,8 +42,14 @@ def text_width(font, s):
 def wrap_lines(lines, font, max_w):
     out = []
     for line in lines:
+        # Preserve leading whitespace for continuation lines
+        leading_ws = ""
+        stripped_line = line.lstrip()
+        if stripped_line != line:
+            leading_ws = line[:len(line) - len(stripped_line)]
+        
         bullet = ""
-        core = line
+        core = stripped_line
         for pref in ["• ", "- "]:
             if core.startswith(pref):
                 bullet = pref
@@ -53,14 +59,15 @@ def wrap_lines(lines, font, max_w):
         if not words:
             out.append(line)
             continue
-        cur = bullet
+        prefix = leading_ws + bullet
+        cur = prefix
         for w in words:
-            test = (cur + ("" if cur.endswith(("• ","- ")) else " ") + w) if cur.strip() else (bullet + w)
+            test = (cur + ("" if cur.endswith(("• ","- ")) else " ") + w) if cur.strip() else (prefix + w)
             if text_width(font, test) <= max_w:
                 cur = test
             else:
                 out.append(cur)
-                cur = bullet + w
+                cur = prefix + w
         if cur:
             out.append(cur)
     return out
@@ -101,34 +108,32 @@ def fit_and_draw_text(draw, box, lines, font, fill=(40,40,40), padding=14, line_
         y = y1 + padding
 
     for line in wrapped:
-        draw.text((x1+padding, y), line, font=used_font, fill=fill)
+        # Measure leading whitespace and apply as extra indentation
+        stripped = line.lstrip()
+        leading_spaces = len(line) - len(stripped)
+        indent = text_width(used_font, " ") * leading_spaces
+        draw.text((x1+padding+indent, y), stripped, font=used_font, fill=fill)
         y += used_font.size + line_gap
 
 # Layout
 boxes = {
-    "inServ": (70, 185, 360, 335),
-    "inGraph": (795, 680, 895, 740),  # Below inOrch rectangle, centered (inOrch center x=845), moved further down
-    "inOrch": (480, 160, 1210, 640),  # Increased bottom to accommodate moved components
+    "inServ": (70, 355, 360, 505),  # Vertically centered with inOrch (inOrch center y=430)
+    "inGraph": (795, 720, 895, 800),  # Below inOrch rectangle, centered (inOrch center x=845), expanded height for circles
+    "inOrch": (480, 130, 1210, 700),  # Expanded vertically for more spacing
 }
 
 # Kubernetes cluster box inside inOrch - moved down to avoid covering "inOrch" text
-# Components: leftmost x=520, rightmost x=1170, top y=260 (workload namespaces), bottom y=610 (all 120px tall)
 # Text "Kubernetes Cluster" at top needs ~40px space (12px offset + 18px font + 10px extra)
-# Moved down to give clear space for "inOrch" text at top (y=172, so cluster starts at y=200 with 28px gap)
-k8s_cluster = (500, 200, 1190, 630)  # Padding: 20px left/right, 40px top (for text), 20px bottom
+k8s_cluster = (500, 175, 1190, 690)  # Expanded vertically
 
-# Components inside Kubernetes cluster - moved down below "Kubernetes Cluster" text
-# Width calculation: cluster width 690, padding 20 each side, gap 50 between = (690-40-50)/2 = 300px per component
-# All rectangles adjusted to same height (120px) to fit the tallest description (inOrch-TMF-Proxy with 5 bullet points)
-# Workload namespaces: centered above inOrch-TMF-Proxy and Intel IDO, same width (300px)
-# Center between proxy (520-820) and IDO (870-1170) = (520+1170)/2 = 845
-workload_namespaces = (695, 260, 995, 300)  # 300px wide, 40px tall, centered at x=845
+# Components inside Kubernetes cluster - more vertical spacing
+workload_namespaces = (695, 230, 995, 270)  # 300px wide, 40px tall, centered at x=845
 
 components = {
-    "inOrch-TMF-Proxy": (520, 330, 820, 450),  # Top left, 120px tall, moved down to create more gap from workload namespaces
-    "Intel IDO": (870, 330, 1170, 450),  # Top right, 120px tall, moved down to create more gap from workload namespaces
-    "Planner": (520, 490, 820, 610),  # Bottom left, 120px tall, moved down
-    "Prometheus": (870, 490, 1170, 610),  # Bottom right, 120px tall, moved down
+    "inOrch-TMF-Proxy": (520, 370, 820, 485),  # Top left, 115px tall
+    "Intel IDO": (870, 370, 1170, 485),  # Top right, 115px tall
+    "Planner": (520, 530, 820, 645),  # Bottom left, 115px tall, more gap from top row
+    "Prometheus": (870, 530, 1170, 645),  # Bottom right, 115px tall
 }
 
 def draw_scene(step, t=0.0):
@@ -142,21 +147,35 @@ def draw_scene(step, t=0.0):
     # Draw inServ
     rounded_rectangle(d, boxes["inServ"])
     cx = (boxes["inServ"][0]+boxes["inServ"][2])//2
-    d.text((cx, boxes["inServ"][1]+12), "inServ", font=FONT, fill=(10,10,10), anchor="ma")
+    # Draw colored background for header text
+    inServ_text_height = FONT.size
+    inServ_header_top = boxes["inServ"][1] + 8
+    inServ_header_bottom = inServ_header_top + inServ_text_height + 10
+    inServ_header_bg = (boxes["inServ"][0]+10, inServ_header_top, boxes["inServ"][2]-10, inServ_header_bottom)
+    d.rounded_rectangle(inServ_header_bg, radius=10, fill=(230,210,150))  # Light yellow/gold for inServ
+    # Center text in the colored area
+    inServ_text_y = (inServ_header_top + inServ_header_bottom) // 2
+    d.text((cx, inServ_text_y), "inServ", font=FONT, fill=(10,10,10), anchor="mm")
     fit_and_draw_text(d, (boxes["inServ"][0], boxes["inServ"][1]+44, boxes["inServ"][2], boxes["inServ"][3]),
                       ["Sends workload intent", "to inOrch"], FONT_SMALL, padding=16, line_gap=6)
 
     # Draw inGraph
     rounded_rectangle(d, boxes["inGraph"], r=12, fill=(245,245,245))
     cx_graph = (boxes["inGraph"][0] + boxes["inGraph"][2]) // 2
-    d.text((cx_graph, boxes["inGraph"][1]+10), "inGraph", font=FONT_SMALL, fill=(10,10,10), anchor="ma")
+    # Draw colored background for header text
+    inGraph_text_height = FONT_SMALL.size
+    inGraph_header_top = boxes["inGraph"][1] + 6
+    inGraph_header_bottom = inGraph_header_top + inGraph_text_height + 8
+    inGraph_header_bg = (boxes["inGraph"][0]+10, inGraph_header_top, boxes["inGraph"][2]-10, inGraph_header_bottom)
+    d.rounded_rectangle(inGraph_header_bg, radius=8, fill=(200,210,230))  # Light gray-blue for inGraph
+    # Center text in the colored area
+    inGraph_text_y = (inGraph_header_top + inGraph_header_bottom) // 2
+    d.text((cx_graph, inGraph_text_y), "inGraph", font=FONT_SMALL, fill=(10,10,10), anchor="mm")
     # Draw two circles side by side: Workload KG (W) and Intent Observations (IO)
-    # Text takes ~18px, so circle center at text_bottom + padding + radius
-    circle_y = boxes["inGraph"][1] + 10 + 18 + 12 + 5  # text top + text height + padding + radius + extra
+    # Position circles below the header background
     circle_radius = 12
-    # Ensure circle fits: check if circle bottom (circle_y + radius) is within rectangle
-    if circle_y + circle_radius > boxes["inGraph"][3] - 5:
-        circle_y = boxes["inGraph"][3] - circle_radius - 5
+    # Center circles vertically in the space below the header (header ends at inGraph_header_bottom)
+    circle_y = inGraph_header_bottom + circle_radius + 8  # Below header with padding
     # Workload KG circle (left)
     circle_spacing = 8
     w_circle_x = cx_graph - circle_radius - circle_spacing // 2
@@ -171,7 +190,16 @@ def draw_scene(step, t=0.0):
 
     # Draw inOrch main box
     rounded_rectangle(d, boxes["inOrch"], fill=(250,250,250))
-    d.text(((boxes["inOrch"][0]+boxes["inOrch"][2])//2, boxes["inOrch"][1]+12), "inOrch", font=FONT, fill=(10,10,10), anchor="ma")
+    cx_orch = (boxes["inOrch"][0]+boxes["inOrch"][2])//2
+    # Draw colored background for header text
+    inOrch_text_height = FONT.size
+    inOrch_header_top = boxes["inOrch"][1] + 8
+    inOrch_header_bottom = inOrch_header_top + inOrch_text_height + 10
+    inOrch_header_bg = (boxes["inOrch"][0]+10, inOrch_header_top, boxes["inOrch"][2]-10, inOrch_header_bottom)
+    d.rounded_rectangle(inOrch_header_bg, radius=10, fill=(220,180,200))  # Light pink/magenta for inOrch
+    # Center text in the colored area
+    inOrch_text_y = (inOrch_header_top + inOrch_header_bottom) // 2
+    d.text((cx_orch, inOrch_text_y), "inOrch", font=FONT, fill=(10,10,10), anchor="mm")
 
     # Draw Kubernetes cluster box
     rounded_rectangle(d, k8s_cluster, r=14, fill=(240,248,255), outline=(100,149,237), width=3)
@@ -198,15 +226,20 @@ def draw_scene(step, t=0.0):
         legend_x += circle_r * 2 + 10 + int(text_width(FONT_TINY, label)) + 25
 
     # Draw Workload namespaces with stacked effect (multiple rectangles offset)
-    offset = 4  # Offset between stacked rectangles
+    offset = 7  # Offset between stacked rectangles (moved apart)
+    # Distinct colors for each layer
+    stack_colors = [
+        (235, 210, 210),  # Back - light pink/rose
+        (240, 190, 190),  # Middle - light red
+        (190, 210, 235),  # Front - light blue
+    ]
     # Draw three rectangles with cascading effect
     for i in range(3):
         x1 = workload_namespaces[0] + i * offset
         y1 = workload_namespaces[1] + i * offset
         x2 = workload_namespaces[2] + i * offset
         y2 = workload_namespaces[3] + i * offset
-        # Use lighter fill for back rectangles, darker for front
-        fill_color = (255 - i * 5, 255 - i * 5, 255 - i * 5) if i < 2 else (255, 255, 255)
+        fill_color = stack_colors[i]
         rounded_rectangle(d, (x1, y1, x2, y2), r=10, fill=fill_color, outline=(60,60,60), width=2)
         # Only draw text on the topmost rectangle
         if i == 2:
@@ -217,6 +250,22 @@ def draw_scene(step, t=0.0):
     ellipsis_x = workload_namespaces[2] + offset * 2 - 15
     ellipsis_y = workload_namespaces[3] + offset * 2 - 8
     d.text((ellipsis_x, ellipsis_y), "...", font=FONT_TINY, fill=(100,100,100), anchor="mm")
+
+    # Draw inOrch namespace rectangle surrounding the four component rectangles
+    # Components span: left=520, right=1170, top=370, bottom=645
+    # Moved down to avoid covering stacked Workload namespaces and leave room for arrow
+    inorch_ns_rect = (510, 335, 1180, 655)  # With padding around components
+    rounded_rectangle(d, inorch_ns_rect, r=12, fill=(248,252,248), outline=(80,80,80), width=2)
+    # Draw header background (same color as component headers - light mint/seafoam green)
+    inorch_ns_text_height = FONT_TINY.size
+    inorch_ns_header_top = inorch_ns_rect[1] + 5
+    inorch_ns_header_bottom = inorch_ns_header_top + inorch_ns_text_height + 6
+    inorch_ns_header_bg = (inorch_ns_rect[0]+8, inorch_ns_header_top, inorch_ns_rect[2]-8, inorch_ns_header_bottom)
+    d.rounded_rectangle(inorch_ns_header_bg, radius=8, fill=(200,230,210))  # Light mint/seafoam green
+    # Center text in the colored area
+    inorch_ns_cx = (inorch_ns_rect[0] + inorch_ns_rect[2]) // 2
+    inorch_ns_text_y = (inorch_ns_header_top + inorch_ns_header_bottom) // 2
+    d.text((inorch_ns_cx, inorch_ns_text_y), "inOrch namespace", font=FONT_TINY, fill=(10,10,10), anchor="mm")
 
     # Draw components inside Kubernetes cluster
     comp_descriptions = {
@@ -229,16 +278,24 @@ def draw_scene(step, t=0.0):
         ],
         "Intel IDO": ["• Intent CRD orchestration", "• Intent lifecycle management"],
         "Planner": ["• Workload optimization", "• Decision making"],
-        "Prometheus": ["• Metrics monitoring", "• Make measurements available for the planner", "• Make measurements available for the proxy"], 
+        "Prometheus": ["• Metrics monitoring", "• Measurements available for", "   planner and proxy"], 
     }
     for name, xy in components.items():
         rounded_rectangle(d, xy, r=10, fill=(255,255,255), outline=(60,60,60), width=2)
         cx_comp = (xy[0]+xy[2])//2
-        d.text((cx_comp, xy[1]+6), name, font=FONT_TINY, fill=(10,10,10), anchor="ma")
+        # Draw colored background for header text (light mint/seafoam green)
+        comp_text_height = FONT_TINY.size
+        comp_header_top = xy[1] + 5
+        comp_header_bottom = comp_header_top + comp_text_height + 6
+        comp_header_bg = (xy[0]+8, comp_header_top, xy[2]-8, comp_header_bottom)
+        d.rounded_rectangle(comp_header_bg, radius=8, fill=(200,230,210))  # Light mint/seafoam green
+        # Center text in the colored area
+        comp_text_y = (comp_header_top + comp_header_bottom) // 2
+        d.text((cx_comp, comp_text_y), name, font=FONT_TINY, fill=(10,10,10), anchor="mm")
         # Add descriptions
         desc = comp_descriptions.get(name, [])
         if desc:
-            fit_and_draw_text(d, (xy[0], xy[1]+30, xy[2], xy[3]), desc, FONT_MICRO, padding=4, line_gap=2)
+            fit_and_draw_text(d, (xy[0], xy[1]+30, xy[2], xy[3]), desc, FONT_MICRO, padding=12, line_gap=2)
 
     # Arrows - positioned to avoid crossing rectangles
     # inServ to inOrch-TMF-Proxy (horizontal, connects at right edge of inServ to left edge of proxy)
@@ -375,10 +432,10 @@ def draw_scene(step, t=0.0):
         # Metrics Observations in parallel: from Prometheus to inGraph AND from Prometheus to Planner
         x1 = p6a_s[0] + (p6a_e[0]-p6a_s[0]) * t
         y1 = p6a_s[1] + (p6a_e[1]-p6a_s[1]) * t
-        draw_packet(x1, y1, "Metrics Observations", fill=(200,200,255))
+        draw_packet(x1, y1, "Metrics Observations", fill=(180,100,200))
         x2 = p6b_s[0] + (p6b_e[0]-p6b_s[0]) * t
         y2 = p6b_s[1] + (p6b_e[1]-p6b_s[1]) * t
-        draw_packet(x2, y2, "Metrics Observations", fill=(200,200,255))
+        draw_packet(x2, y2, "Metrics Observations", fill=(180,100,200))
 
     return img
 

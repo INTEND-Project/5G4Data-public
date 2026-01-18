@@ -12,10 +12,21 @@ def load_font(size):
             return ImageFont.truetype(p, size)
     return ImageFont.load_default()
 
+def load_bold_font(size):
+    for p in [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    ]:
+        if os.path.exists(p):
+            return ImageFont.truetype(p, size)
+    return load_font(size)  # Fallback to regular if bold not available
+
 FONT_TITLE = load_font(32)
 FONT = load_font(22)
 FONT_SMALL = load_font(18)
+FONT_SMALL_BOLD = load_bold_font(18)
 FONT_TINY = load_font(15)
+FONT_TINY_BOLD = load_bold_font(15)
 FONT_MICRO = load_font(13)
 
 def rounded_rectangle(draw, xy, r=18, outline=(30,30,30), width=3, fill=(245,245,245)):
@@ -104,18 +115,19 @@ def fit_and_draw_text(draw, box, lines, font, fill=(40,40,40), padding=14, line_
         draw.text((x1+padding, y), line, font=used_font, fill=fill)
         y += used_font.size + line_gap
 
-# Layout - shifted down 65px to center content in available space under header
+# Layout - moved up 35px to give more space at the bottom
 boxes = {
     # inGraph: header(30) + row1(24) + spacing(8) + row2(24) + padding(10) = 96px height
-    "inGraph": (300, 380, 430, 476),  # Snug fit for 2 rows of circles
-    "inChat": (70, 185, 360, 335),
-    "inServ": (70, 525, 360, 695),  # Moved further down, shifted down
-    "inOrch": (940, 285, 1210, 445),  # Adjusted to align with horizontal arrow at y=365
-    "inNet":  (940, 535, 1210, 695),  # Adjusted to align with horizontal arrow at y=615
+    "inGraph": (300, 345, 430, 441),  # Snug fit for 2 rows of circles
+    "inChat": (70, 150, 360, 300),
+    "inServ": (70, 490, 360, 660),  # Moved up
+    "inOrch": (940, 250, 1210, 410),  # Adjusted to align with horizontal arrow at y=330
+    "inNet":  (940, 500, 1210, 660),  # Adjusted to align with horizontal arrow at y=580
 }
-# Split box sized to fit snugly around subrectangles - shifted down
-# Top at 155 (centered), bottom at 743 (nw_rect ends at 725 + 18px padding)
-split_box = (480, 155, 800, 743)
+# Split box sized to fit snugly around subrectangles - moved up
+# Top at 120, bottom at 725 (expanded to fit content)
+# Width expanded from 800 to 830 to fit longer text lines
+split_box = (480, 120, 830, 725)
 
 def draw_scene(step, t=0.0):
     img = Image.new("RGB", (W,H), (255,255,255))
@@ -130,7 +142,15 @@ def draw_scene(step, t=0.0):
             # Draw inGraph with five circles in 2 rows: I, W, P on row 1; IO, IN on row 2
             rounded_rectangle(d, xy, r=12, fill=(245,245,245))
             box_cx = (xy[0]+xy[2])//2
-            d.text((box_cx, xy[1]+10), name, font=FONT_SMALL, fill=(10,10,10), anchor="ma")
+            # Draw colored background for header text (same style as other boxes)
+            text_height = FONT_SMALL.size
+            header_top = xy[1] + 6
+            header_bottom = header_top + text_height + 8
+            header_bg = (xy[0]+10, header_top, xy[2]-10, header_bottom)
+            d.rounded_rectangle(header_bg, radius=8, fill=(200,210,230))  # Light gray-blue for inGraph
+            # Center text in the colored area
+            text_y = (header_top + header_bottom) // 2
+            d.text((box_cx, text_y), name, font=FONT_SMALL, fill=(10,10,10), anchor="mm")
             
             header_height = 30
             available_width = (xy[2] - xy[0]) - 20  # Leave padding on sides
@@ -179,10 +199,38 @@ def draw_scene(step, t=0.0):
         else:
             rounded_rectangle(d, xy)
             cx = (xy[0]+xy[2])//2
-            d.text((cx, xy[1]+12), name, font=FONT, fill=(10,10,10), anchor="ma")
+            # Draw colored background for header text (snug fit to text height, full width)
+            # Header colors - distinct from KG legend colors
+            header_colors = {
+                "inChat": (150,220,220),   # Light cyan/teal
+                "inServ": (230,210,150),   # Light yellow/gold
+                "inOrch": (220,180,200),   # Light pink/magenta
+                "inNet": (180,190,210),    # Light slate/gray-blue
+            }
+            if name in header_colors:
+                text_height = FONT.size
+                # Move colored area down with 8px top margin, center text in colored area
+                header_top = xy[1] + 8
+                header_bottom = header_top + text_height + 10  # 5px padding top and bottom
+                header_bg = (xy[0]+10, header_top, xy[2]-10, header_bottom)
+                d.rounded_rectangle(header_bg, radius=10, fill=header_colors[name])
+                # Center text in the colored area
+                text_y = (header_top + header_bottom) // 2
+                d.text((cx, text_y), name, font=FONT, fill=(10,10,10), anchor="mm")
+            else:
+                d.text((cx, xy[1]+12), name, font=FONT, fill=(10,10,10), anchor="ma")
 
     rounded_rectangle(d, split_box, fill=(250,250,250))
-    d.text(((split_box[0]+split_box[2])//2, split_box[1]+12), "inServ Split Result", font=FONT, fill=(10,10,10), anchor="ma")
+    # Draw colored background for "inServ Split Result" header (same color as inServ)
+    split_text_height = FONT.size
+    # Move colored area down with 8px top margin, center text in colored area
+    split_header_top = split_box[1] + 8
+    split_header_bottom = split_header_top + split_text_height + 10  # 5px padding top and bottom
+    split_header_bg = (split_box[0]+10, split_header_top, split_box[2]-10, split_header_bottom)
+    d.rounded_rectangle(split_header_bg, radius=10, fill=(230,210,150))  # inServ color
+    # Center text in the colored area
+    split_text_y = (split_header_top + split_header_bottom) // 2
+    d.text(((split_box[0]+split_box[2])//2, split_text_y), "inServ Split Result", font=FONT, fill=(10,10,10), anchor="mm")
 
     # Legend at bottom
     legend_y = H - 45
@@ -221,18 +269,28 @@ def draw_scene(step, t=0.0):
     # inServ to Split Result: horizontal from right side of inServ to center of left side of Split Result
     inServ_center_y = (boxes["inServ"][1] + boxes["inServ"][3]) // 2
     arrow(d, (boxes["inServ"][2], inServ_center_y), (split_box[0], split_box_center_y))
-    # Split Result to inOrch: horizontal at y=365 (shifted down)
-    arrow(d, (split_box[2], 365), (boxes["inOrch"][0], 365))
-    # Split Result to inNet: horizontal at y=615 (shifted down)
-    arrow(d, (split_box[2], 615), (boxes["inNet"][0], 615))
+    # Split Result to inOrch: horizontal at y=330 (moved up)
+    arrow(d, (split_box[2], 330), (boxes["inOrch"][0], 330))
+    # Split Result to inNet: horizontal at y=580 (moved up)
+    arrow(d, (split_box[2], 580), (boxes["inNet"][0], 580))
 
     # Wrapped text inside main boxes
     intent_id = "data5g:I7475…aab6"
     combined_desc = "Combined Intent: Rusty-LLM Deployment and Network Slice"
+    # Draw inChat text with "Intent:" in bold
+    inchat_text_y = boxes["inChat"][1] + 44 + 16  # Start y position (box top + header offset + padding)
+    line_gap = 6
+    # Intent: (bold)
+    d.text((boxes["inChat"][0]+16, inchat_text_y), "Intent:", font=FONT_SMALL_BOLD, fill=(40,40,40))
+    inchat_text_y += FONT_SMALL_BOLD.size + line_gap
+    # ID line (regular)
+    d.text((boxes["inChat"][0]+16, inchat_text_y), f"ID: {intent_id}", font=FONT_SMALL, fill=(40,40,40))
+    inchat_text_y += FONT_SMALL.size + line_gap
+    # Combined description - use fit_and_draw_text for wrapping
     fit_and_draw_text(
         d,
-        (boxes["inChat"][0], boxes["inChat"][1]+44, boxes["inChat"][2], boxes["inChat"][3]),
-        ["Turtle intent", f"ID: {intent_id}", combined_desc],
+        (boxes["inChat"][0], inchat_text_y - 16, boxes["inChat"][2], boxes["inChat"][3]),
+        [combined_desc],
         FONT_SMALL,
         padding=16, line_gap=6
     )
@@ -246,37 +304,69 @@ def draw_scene(step, t=0.0):
     )
 
     # Split cards sized to new split_box - Network Intent sized to fit text
-    wl_rect = (split_box[0]+18, split_box[1]+60, split_box[2]-18, split_box[1]+320)
-    # Network Intent rectangle sized to fit text: header (34px) + body (8 lines * 19px + padding 32px) ≈ 230px
-    nw_rect = (split_box[0]+18, split_box[1]+340, split_box[2]-18, split_box[1]+570)
+    # Deployment Intent rectangle - expanded height to fit extra line (7 lines now)
+    # header (34px) + body (7 lines * 19px + padding 32px) = 34 + 133 + 32 = 199px, use 210px
+    wl_rect = (split_box[0]+18, split_box[1]+60, split_box[2]-18, split_box[1]+340)
+    # Network Intent rectangle sized to fit text: header (34px) + body (9 lines * 19px + padding 32px) ≈ 240px
+    nw_rect = (split_box[0]+18, split_box[1]+360, split_box[2]-18, split_box[1]+600)
     rounded_rectangle(d, wl_rect, r=14, fill=(245,250,245))
     rounded_rectangle(d, nw_rect, r=14, fill=(245,245,250))
 
-    d.text((wl_rect[0]+14, wl_rect[1]+10), "Workload Intent (to inOrch)", font=FONT_SMALL, fill=(20,60,20))
-    wl_body = [
-        "DeploymentExpectation",
+    d.text((wl_rect[0]+14, wl_rect[1]+10), "Deployment Intent (to inOrch)", font=FONT_SMALL, fill=(20,60,20))
+    # Draw body with bold for Expectation lines
+    wl_body_y = wl_rect[1] + 34 + 16  # Start y position (box top + header + padding)
+    line_gap = 4
+    # DeploymentExpectation (bold)
+    d.text((wl_rect[0]+16, wl_body_y), "DeploymentExpectation", font=FONT_TINY_BOLD, fill=(40,40,40))
+    wl_body_y += FONT_TINY_BOLD.size + line_gap
+    # Regular body lines
+    regular_lines = [
         "• Application: rusty-llm",
         "• DataCenter: EC31",
         "• DeploymentDescriptor:",
         "  http://.../charts/rusty-llm.tgz",
-        "ReportingExpectation: deployment metrics",
     ]
-    fit_and_draw_text(d, (wl_rect[0], wl_rect[1]+34, wl_rect[2], wl_rect[3]),
-                      wl_body, FONT_TINY, padding=16, line_gap=4)
+    for line in regular_lines:
+        d.text((wl_rect[0]+16, wl_body_y), line, font=FONT_TINY, fill=(40,40,40))
+        wl_body_y += FONT_TINY.size + line_gap
+    # ReportingExpectation: (bold)
+    d.text((wl_rect[0]+16, wl_body_y), "ReportingExpectation:", font=FONT_TINY_BOLD, fill=(40,40,40))
+    wl_body_y += FONT_TINY_BOLD.size + line_gap
+    # Deployment metrics as bullet point (capital D)
+    d.text((wl_rect[0]+16, wl_body_y), "• Deployment metrics", font=FONT_TINY, fill=(40,40,40))
 
     d.text((nw_rect[0]+14, nw_rect[1]+10), "Network Intent (to inNet)", font=FONT_SMALL, fill=(20,20,70))
-    nw_body = [
-        "NetworkExpectation (QoS slice)",
+    # Draw body with bold for specific lines
+    nw_body_y = nw_rect[1] + 34 + 16  # Start y position (box top + header + padding)
+    nw_line_gap = 4
+    # NetworkExpectation (QoS slice): (bold)
+    d.text((nw_rect[0]+16, nw_body_y), "NetworkExpectation (QoS slice):", font=FONT_TINY_BOLD, fill=(40,40,40))
+    nw_body_y += FONT_TINY_BOLD.size + nw_line_gap
+    # Regular bullet lines under NetworkExpectation
+    nw_regular_lines1 = [
         "• Latency < 50 ms",
         "• Bandwidth > 300 mbit/s",
         "• P99 token target < 400 ms",
-        "Context",
+    ]
+    for line in nw_regular_lines1:
+        d.text((nw_rect[0]+16, nw_body_y), line, font=FONT_TINY, fill=(40,40,40))
+        nw_body_y += FONT_TINY.size + nw_line_gap
+    # Context: (bold)
+    d.text((nw_rect[0]+16, nw_body_y), "Context:", font=FONT_TINY_BOLD, fill=(40,40,40))
+    nw_body_y += FONT_TINY_BOLD.size + nw_line_gap
+    # Regular bullet lines under Context
+    nw_regular_lines2 = [
         "• Customer: +47 90914547",
         "• Region: geo polygon",
-        "ReportingExpectation: slice metrics",
     ]
-    fit_and_draw_text(d, (nw_rect[0], nw_rect[1]+34, nw_rect[2], nw_rect[3]),
-                      nw_body, FONT_TINY, padding=16, line_gap=4)
+    for line in nw_regular_lines2:
+        d.text((nw_rect[0]+16, nw_body_y), line, font=FONT_TINY, fill=(40,40,40))
+        nw_body_y += FONT_TINY.size + nw_line_gap
+    # ReportingExpectation: (bold)
+    d.text((nw_rect[0]+16, nw_body_y), "ReportingExpectation:", font=FONT_TINY_BOLD, fill=(40,40,40))
+    nw_body_y += FONT_TINY_BOLD.size + nw_line_gap
+    # Slice metrics as bullet point
+    d.text((nw_rect[0]+16, nw_body_y), "• Slice metrics", font=FONT_TINY, fill=(40,40,40))
 
     # Destinations
     fit_and_draw_text(d, (boxes["inOrch"][0], boxes["inOrch"][1]+44, boxes["inOrch"][2], boxes["inOrch"][3]),
@@ -360,10 +450,10 @@ def draw_scene(step, t=0.0):
     split_box_center_y = (split_box[1] + split_box[3]) // 2
     p2s = (boxes["inServ"][2]-10, inServ_center_y)
     p2e = (split_box[0]+10, split_box_center_y)
-    p3s = (split_box[2]-10, 365)  # Shifted down
-    p3e = (boxes["inOrch"][0]+10, 365)  # Shifted down
-    p4s = (split_box[2]-10, 615)  # Shifted down
-    p4e = (boxes["inNet"][0]+10, 615)  # Shifted down
+    p3s = (split_box[2]-10, 330)  # Moved up
+    p3e = (boxes["inOrch"][0]+10, 330)  # Moved up
+    p4s = (split_box[2]-10, 580)  # Moved up
+    p4e = (boxes["inNet"][0]+10, 580)  # Moved up
 
     if step == 0:
         # Flow from all three KGs to inChat AND from infrastructure and workload KG to inServ AND infrastructure KG to Split Result (parallel)
@@ -406,8 +496,8 @@ def draw_scene(step, t=0.0):
         y = p2s[1] + (p2e[1]-p2s[1]) * t
         draw_packet(x, y, "Split", fill=(255, 220, 180))
     elif step == 5:
-        draw_packet((split_box[0]+split_box[2])//2, 365, "Workload Intent", fill=(230,250,230))  # Shifted down
-        draw_packet((split_box[0]+split_box[2])//2, 615, "Network Intent", fill=(230,230,255))  # Shifted down
+        draw_packet((split_box[0]+split_box[2])//2, 330, "Workload Intent", fill=(230,250,230))  # Moved up
+        draw_packet((split_box[0]+split_box[2])//2, 580, "Network Intent", fill=(230,230,255))  # Moved up
     elif step == 6:
         x = p3s[0] + (p3e[0]-p3s[0]) * t
         y = p3s[1] + (p3e[1]-p3s[1]) * t

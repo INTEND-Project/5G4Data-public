@@ -393,10 +393,10 @@ for i in range(18):
     frames.append(draw_scene(7, i/17))
 frames += [draw_scene(7, 1.0)] * 14
 
-gif_path = "inServ_intent_animation_expanded.gif"
+gif_path = "inServ_intent_animation.gif"
 frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=70, loop=0, disposal=2)
 
-mp4_path = "inServ_intent_animation_expanded.mp4"
+mp4_path = "inServ_intent_animation.mp4"
 ffmpeg = shutil.which("ffmpeg")
 if ffmpeg:
     subprocess.run([ffmpeg, "-y", "-i", gif_path, "-movflags", "faststart", "-pix_fmt", "yuv420p", mp4_path],

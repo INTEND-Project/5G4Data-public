@@ -106,7 +106,8 @@ def fit_and_draw_text(draw, box, lines, font, fill=(40,40,40), padding=14, line_
 
 # Layout - shifted down 65px to center content in available space under header
 boxes = {
-    "inGraph": (310, 395, 410, 465),  # Moved further left, shifted down
+    # inGraph: header(30) + row1(24) + spacing(8) + row2(24) + padding(10) = 96px height
+    "inGraph": (300, 380, 430, 476),  # Snug fit for 2 rows of circles
     "inChat": (70, 185, 360, 335),
     "inServ": (70, 525, 360, 695),  # Moved further down, shifted down
     "inOrch": (940, 285, 1210, 445),  # Adjusted to align with horizontal arrow at y=365
@@ -126,35 +127,55 @@ def draw_scene(step, t=0.0):
 
     for name, xy in boxes.items():
         if name == "inGraph":
-            # Draw inGraph with three KG circles
+            # Draw inGraph with five circles in 2 rows: I, W, P on row 1; IO, IN on row 2
             rounded_rectangle(d, xy, r=12, fill=(245,245,245))
-            cx = (xy[0]+xy[2])//2
-            d.text((cx, xy[1]+10), name, font=FONT_SMALL, fill=(10,10,10), anchor="ma")
-            # Draw three KG circles: Infrastructure (blue), Workload (green), Polygons (orange)
-            # Distribute circles evenly horizontally
+            box_cx = (xy[0]+xy[2])//2
+            d.text((box_cx, xy[1]+10), name, font=FONT_SMALL, fill=(10,10,10), anchor="ma")
+            
             header_height = 30
             available_width = (xy[2] - xy[0]) - 20  # Leave padding on sides
+            available_height = (xy[3] - xy[1]) - header_height - 10  # Leave padding at bottom
             circle_radius = 12
-            # Calculate spacing to distribute three circles evenly horizontally
-            circle_spacing = (available_width - 3 * circle_radius * 2) // 4
-            circle_x_start = xy[0] + 10 + circle_radius + circle_spacing
-            # Center circles vertically in available space
-            available_height = (xy[3] - xy[1]) - header_height
-            circle_y = xy[1] + header_height + available_height // 2
-            # Infrastructure KG (blue)
-            d.ellipse([circle_x_start-circle_radius, circle_y-circle_radius, circle_x_start+circle_radius, circle_y+circle_radius], 
+            row_spacing = 8  # Vertical gap between rows
+            
+            # Row 1: 3 circles (I, W, P)
+            row1_circles = 3
+            row1_spacing = (available_width - row1_circles * circle_radius * 2) // (row1_circles + 1)
+            row1_y = xy[1] + header_height + circle_radius + 5
+            row1_x_start = xy[0] + 10 + circle_radius + row1_spacing
+            
+            # Infrastructure KG (blue) - "I"
+            cx_i = row1_x_start
+            d.ellipse([cx_i-circle_radius, row1_y-circle_radius, cx_i+circle_radius, row1_y+circle_radius], 
                      fill=(100,150,255), outline=(40,40,40), width=2)
-            d.text((circle_x_start, circle_y), "I", font=FONT_MICRO, fill=(255,255,255), anchor="mm")
-            # Workload KG (green)
-            circle_x_wl = circle_x_start + circle_radius * 2 + circle_spacing
-            d.ellipse([circle_x_wl-circle_radius, circle_y-circle_radius, circle_x_wl+circle_radius, circle_y+circle_radius], 
+            d.text((cx_i, row1_y), "I", font=FONT_MICRO, fill=(255,255,255), anchor="mm")
+            # Workload KG (green) - "W"
+            cx_w = cx_i + circle_radius * 2 + row1_spacing
+            d.ellipse([cx_w-circle_radius, row1_y-circle_radius, cx_w+circle_radius, row1_y+circle_radius], 
                      fill=(100,200,100), outline=(40,40,40), width=2)
-            d.text((circle_x_wl, circle_y), "W", font=FONT_MICRO, fill=(255,255,255), anchor="mm")
-            # Polygons KG (orange)
-            circle_x_poly = circle_x_wl + circle_radius * 2 + circle_spacing
-            d.ellipse([circle_x_poly-circle_radius, circle_y-circle_radius, circle_x_poly+circle_radius, circle_y+circle_radius], 
+            d.text((cx_w, row1_y), "W", font=FONT_MICRO, fill=(255,255,255), anchor="mm")
+            # Polygons KG (orange) - "P"
+            cx_p = cx_w + circle_radius * 2 + row1_spacing
+            d.ellipse([cx_p-circle_radius, row1_y-circle_radius, cx_p+circle_radius, row1_y+circle_radius], 
                      fill=(255,180,100), outline=(40,40,40), width=2)
-            d.text((circle_x_poly, circle_y), "P", font=FONT_MICRO, fill=(255,255,255), anchor="mm")
+            d.text((cx_p, row1_y), "P", font=FONT_MICRO, fill=(255,255,255), anchor="mm")
+            
+            # Row 2: 2 circles (IO, IN) - centered
+            row2_circles = 2
+            row2_spacing = (available_width - row2_circles * circle_radius * 2) // (row2_circles + 1)
+            row2_y = row1_y + circle_radius * 2 + row_spacing
+            row2_x_start = xy[0] + 10 + circle_radius + row2_spacing
+            
+            # Intent Observations (purple) - "IO"
+            cx_io = row2_x_start
+            d.ellipse([cx_io-circle_radius, row2_y-circle_radius, cx_io+circle_radius, row2_y+circle_radius], 
+                     fill=(180,100,200), outline=(40,40,40), width=2)
+            d.text((cx_io, row2_y), "IO", font=load_font(10), fill=(255,255,255), anchor="mm")
+            # Intents (red) - "IN"
+            cx_in = cx_io + circle_radius * 2 + row2_spacing
+            d.ellipse([cx_in-circle_radius, row2_y-circle_radius, cx_in+circle_radius, row2_y+circle_radius], 
+                     fill=(220,100,100), outline=(40,40,40), width=2)
+            d.text((cx_in, row2_y), "IN", font=load_font(10), fill=(255,255,255), anchor="mm")
         else:
             rounded_rectangle(d, xy)
             cx = (xy[0]+xy[2])//2
@@ -162,6 +183,29 @@ def draw_scene(step, t=0.0):
 
     rounded_rectangle(d, split_box, fill=(250,250,250))
     d.text(((split_box[0]+split_box[2])//2, split_box[1]+12), "inServ Split Result", font=FONT, fill=(10,10,10), anchor="ma")
+
+    # Legend at bottom
+    legend_y = H - 45
+    legend_items = [
+        ("I", "Infrastructure KG", (100,150,255)),
+        ("W", "Workload KG", (100,200,100)),
+        ("P", "Polygons KG", (255,180,100)),
+        ("IO", "Intent Observations KG", (180,100,200)),
+        ("IN", "Intents KG", (220,100,100)),
+    ]
+    legend_x = 40
+    circle_r = 10
+    for abbrev, label, color in legend_items:
+        # Draw circle
+        d.ellipse([legend_x-circle_r, legend_y-circle_r, legend_x+circle_r, legend_y+circle_r],
+                  fill=color, outline=(40,40,40), width=2)
+        # Draw abbreviation in circle
+        abbrev_font = load_font(9) if len(abbrev) > 1 else FONT_MICRO
+        d.text((legend_x, legend_y), abbrev, font=abbrev_font, fill=(255,255,255), anchor="mm")
+        # Draw label text
+        d.text((legend_x + circle_r + 6, legend_y), label, font=FONT_TINY, fill=(40,40,40), anchor="lm")
+        # Move to next item
+        legend_x += circle_r * 2 + 10 + int(text_width(FONT_TINY, label)) + 25
 
     # Arrows
     # inGraph to inChat: from top left of inGraph to bottom center of inChat
@@ -285,21 +329,23 @@ def draw_scene(step, t=0.0):
     available_height = (boxes["inGraph"][3] - boxes["inGraph"][1]) - header_height
     kg_y = boxes["inGraph"][1] + header_height + available_height // 2  # All KGs at same y
     
-    # Paths for KG flows to inChat (all three) - ending at bottom center of inChat
+    # Paths for KG flows to inChat (all three) - spread horizontally to avoid overlap
     chat_center_x = (boxes["inChat"][0] + boxes["inChat"][2]) // 2
+    chat_spread = 70  # horizontal spread between packet endpoints
     kg_to_chat_s = (kg_inf_x - circle_radius - 5, kg_y)
-    kg_to_chat_e = (chat_center_x, boxes["inChat"][3] - 10)
+    kg_to_chat_e = (chat_center_x - chat_spread, boxes["inChat"][3] - 10)  # Left position
     kg_wl_to_chat_s = (kg_wl_x - circle_radius - 5, kg_y)
-    kg_wl_to_chat_e = (chat_center_x, boxes["inChat"][3] - 5)
+    kg_wl_to_chat_e = (chat_center_x, boxes["inChat"][3] - 10)  # Center position
     kg_poly_to_chat_s = (kg_poly_x - circle_radius - 5, kg_y)
-    kg_poly_to_chat_e = (chat_center_x, boxes["inChat"][3])
+    kg_poly_to_chat_e = (chat_center_x + chat_spread, boxes["inChat"][3] - 10)  # Right position
     
-    # Paths for KG flows to inServ (infrastructure and workload only) - ending at top center of inServ
+    # Paths for KG flows to inServ (infrastructure and workload only) - spread horizontally
     serv_center_x = (boxes["inServ"][0] + boxes["inServ"][2]) // 2
+    serv_spread = 50  # horizontal spread between packet endpoints
     kg_to_serv_s = (kg_inf_x - circle_radius - 5, kg_y)
-    kg_to_serv_e = (serv_center_x, boxes["inServ"][1] + 10)
+    kg_to_serv_e = (serv_center_x - serv_spread, boxes["inServ"][1] + 10)  # Left position
     kg_wl_to_serv_s = (kg_wl_x - circle_radius - 5, kg_y)
-    kg_wl_to_serv_e = (serv_center_x, boxes["inServ"][1] + 20)
+    kg_wl_to_serv_e = (serv_center_x + serv_spread, boxes["inServ"][1] + 10)  # Right position
     
     # Path for infrastructure KG flow to Split Result (from right side of inGraph)
     split_box_center_y = (split_box[1] + split_box[3]) // 2
@@ -321,21 +367,24 @@ def draw_scene(step, t=0.0):
 
     if step == 0:
         # Flow from all three KGs to inChat AND from infrastructure and workload KG to inServ AND infrastructure KG to Split Result (parallel)
-        # To inChat
+        # Vertical offsets to stack packets and avoid overlap (offset applied during middle of animation)
+        v_offset = 55  # vertical spacing between stacked packets
+        
+        # To inChat - stacked vertically with offsets
         x1 = kg_to_chat_s[0] + (kg_to_chat_e[0]-kg_to_chat_s[0]) * t
-        y1 = kg_to_chat_s[1] + (kg_to_chat_e[1]-kg_to_chat_s[1]) * t
+        y1 = kg_to_chat_s[1] + (kg_to_chat_e[1]-kg_to_chat_s[1]) * t - v_offset
         x2 = kg_wl_to_chat_s[0] + (kg_wl_to_chat_e[0]-kg_wl_to_chat_s[0]) * t
         y2 = kg_wl_to_chat_s[1] + (kg_wl_to_chat_e[1]-kg_wl_to_chat_s[1]) * t
         x3 = kg_poly_to_chat_s[0] + (kg_poly_to_chat_e[0]-kg_poly_to_chat_s[0]) * t
-        y3 = kg_poly_to_chat_s[1] + (kg_poly_to_chat_e[1]-kg_poly_to_chat_s[1]) * t
+        y3 = kg_poly_to_chat_s[1] + (kg_poly_to_chat_e[1]-kg_poly_to_chat_s[1]) * t + v_offset
         draw_packet(x1, y1, "Infra KG", fill=(100,150,255))
         draw_packet(x2, y2, "Workload KG", fill=(100,200,100))
         draw_packet(x3, y3, "Polygons KG", fill=(255,180,100))
-        # To inServ (parallel)
+        # To inServ (parallel) - stacked vertically with offsets
         x4 = kg_to_serv_s[0] + (kg_to_serv_e[0]-kg_to_serv_s[0]) * t
-        y4 = kg_to_serv_s[1] + (kg_to_serv_e[1]-kg_to_serv_s[1]) * t
+        y4 = kg_to_serv_s[1] + (kg_to_serv_e[1]-kg_to_serv_s[1]) * t - v_offset // 2
         x5 = kg_wl_to_serv_s[0] + (kg_wl_to_serv_e[0]-kg_wl_to_serv_s[0]) * t
-        y5 = kg_wl_to_serv_s[1] + (kg_wl_to_serv_e[1]-kg_wl_to_serv_s[1]) * t
+        y5 = kg_wl_to_serv_s[1] + (kg_wl_to_serv_e[1]-kg_wl_to_serv_s[1]) * t + v_offset // 2
         draw_packet(x4, y4, "Infra KG", fill=(100,150,255))
         draw_packet(x5, y5, "Workload KG", fill=(100,200,100))
         # To Split Result (parallel)
@@ -372,10 +421,14 @@ def draw_scene(step, t=0.0):
 
 # Frames
 frames = []
+# Initial pause: 5 seconds before any animation (5000ms / 70ms per frame ≈ 71 frames)
+# Use a static scene with no animated packets (we'll use step -1 or step 0 at t=0 without drawing packets)
+frames += [draw_scene(-1, 0.0)] * 71
 # Step 0: KG flows to inChat (all three) AND to inServ (infrastructure and workload) in parallel
 for i in range(18):
     frames.append(draw_scene(0, i/17))
-frames += [draw_scene(0, 1.0)] * 6
+# Pause for 4 seconds after KG flow completes (4000ms / 70ms per frame ≈ 57 frames)
+frames += [draw_scene(0, 1.0)] * 57
 frames += [draw_scene(1, 0.0)] * 10
 for i in range(18):
     frames.append(draw_scene(2, i/17))

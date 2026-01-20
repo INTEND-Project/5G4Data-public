@@ -196,6 +196,33 @@ def draw_scene(step, t=0.0):
             d.ellipse([cx_in-circle_radius, row2_y-circle_radius, cx_in+circle_radius, row2_y+circle_radius], 
                      fill=(220,100,100), outline=(40,40,40), width=2)
             d.text((cx_in, row2_y), "IN", font=load_font(10), fill=(255,255,255), anchor="mm")
+        elif name == "inOrch":
+            # Draw inOrch as stacked rectangles to give impression of multiple instances
+            stack_offset = 6  # offset between stacked layers
+            num_layers = 3  # number of stacked layers
+            # Draw back layers first (from back to front)
+            for layer in range(num_layers - 1, 0, -1):
+                offset = layer * stack_offset
+                layer_xy = (xy[0] + offset, xy[1] - offset, xy[2] + offset, xy[3] - offset)
+                # Use slightly darker fill for back layers
+                layer_fill = (235, 235, 235)
+                rounded_rectangle(d, layer_xy, fill=layer_fill)
+            # Draw front (main) layer
+            rounded_rectangle(d, xy)
+            cx = (xy[0]+xy[2])//2
+            # Draw colored background for header text
+            header_colors = {
+                "inOrch": (220,180,200),   # Light pink/magenta
+            }
+            text_height = FONT.size
+            header_top = xy[1] + 8
+            header_bottom = header_top + text_height + 10
+            header_bg = (xy[0]+10, header_top, xy[2]-10, header_bottom)
+            d.rounded_rectangle(header_bg, radius=10, fill=header_colors["inOrch"])
+            text_y = (header_top + header_bottom) // 2
+            d.text((cx, text_y), name, font=FONT, fill=(10,10,10), anchor="mm")
+            # Add text below the stacked rectangles
+            d.text((cx, xy[3] + 12), "Datacenter EC1 to EC40", font=FONT_TINY, fill=(80,80,80), anchor="ma")
         else:
             rounded_rectangle(d, xy)
             cx = (xy[0]+xy[2])//2

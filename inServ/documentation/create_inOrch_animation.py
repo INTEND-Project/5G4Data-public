@@ -441,34 +441,37 @@ def draw_scene(step, t=0.0):
 
 # Frames
 frames = []
-# Initial pause: 4 seconds before any animation (4000ms / 70ms per frame ≈ 57 frames)
-frames += [draw_scene(-1, 0.0)] * 57
+# Initial pause: 16 seconds before any animation (4000ms / 70ms per frame ≈ 114 frames)
+frames += [draw_scene(-1, 0.0)] * 230
 # Step 0: Workload Info from inGraph to inOrch
 for i in range(18):
     frames.append(draw_scene(0, i/17))
-frames += [draw_scene(0, 1.0)] * 6
+# Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
+frames += [draw_scene(0, 1.0)] * 142
 # Step 1: Workload Intent from inServ to inOrch-TMF-Proxy
 for i in range(18):
     frames.append(draw_scene(1, i/17))
-frames += [draw_scene(1, 1.0)] * 6
+# Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
+frames += [draw_scene(1, 1.0)] * 30
 # Step 2: Parsing
-frames += [draw_scene(2, 0.0)] * 12
+frames += [draw_scene(2, 0.0)] * 100
 # Step 3: Deployment to Workload namespaces
 for i in range(18):
     frames.append(draw_scene(3, i/17))
-frames += [draw_scene(3, 1.0)] * 6
+# Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
+frames += [draw_scene(3, 1.0)] * 142
 # Step 4: Transform to IDO CRDs
 for i in range(18):
     frames.append(draw_scene(4, i/17))
-frames += [draw_scene(4, 1.0)] * 6
+frames += [draw_scene(4, 1.0)] * 50
 # Step 5: Deploy workload planner
 for i in range(18):
     frames.append(draw_scene(5, i/17))
-frames += [draw_scene(5, 1.0)] * 6
+frames += [draw_scene(5, 1.0)] * 50
 # Step 6: Metrics Observations (parallel: Prometheus to inGraph and Prometheus to Planner)
 for i in range(18):
     frames.append(draw_scene(6, i/17))
-frames += [draw_scene(6, 1.0)] * 14
+frames += [draw_scene(6, 1.0)] * 142
 
 gif_path = "inOrch_animation.gif"
 frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=70, loop=0, disposal=2)

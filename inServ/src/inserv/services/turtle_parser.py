@@ -218,11 +218,11 @@ class TurtleParser:
                 for datacenter_obj in graph.objects(context, data5g_datacenter):
                     if isinstance(datacenter_obj, Literal):
                         datacenter = str(datacenter_obj)
-                        self._logger.info("Extracted DataCenter: %s", datacenter)
+                        self._logger.debug("Extracted DataCenter: %s", datacenter)
                         return datacenter
                     elif isinstance(datacenter_obj, URIRef):
                         datacenter = str(datacenter_obj)
-                        self._logger.info("Extracted DataCenter: %s", datacenter)
+                        self._logger.debug("Extracted DataCenter: %s", datacenter)
                         return datacenter
             
             self._logger.debug("No DataCenter found in Turtle data")
@@ -366,7 +366,7 @@ class TurtleParser:
             for subject in graph.subjects(RDF.type, icm_reporting_expectation):
                 re_list.append(subject)
             
-            self._logger.info(
+            self._logger.debug(
                 "Found expectations: NE=%s, DE=%s, REs=%d: %s",
                 ne,
                 de,
@@ -390,6 +390,20 @@ class TurtleParser:
             
             if not intent_node:
                 raise ValueError("Cannot split intent: Intent node not found")
+            
+            # Generate new intent IDs for NE and DE versions
+            # Extract original ID from intent_node URI (e.g., "http://5g4data.eu/5g4data#I<uuid>" -> "<uuid>")
+            original_uri = str(intent_node)
+            # Create new URIs with suffixes
+            ne_intent_node = URIRef(f"{original_uri}-ne")
+            de_intent_node = URIRef(f"{original_uri}-de")
+            
+            self._logger.debug(
+                "Creating new intent IDs: NE=%s, DE=%s (original=%s)",
+                ne_intent_node,
+                de_intent_node,
+                intent_node
+            )
             
             # Get log:allOf property from intent
             log_allof = URIRef("http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/allOf")
@@ -432,7 +446,7 @@ class TurtleParser:
                 collect_referenced_entities(re_entity, ne_entities)
             # Ensure core entities are included
             ne_entities.add(ne)
-            ne_entities.add(intent_node)
+            ne_entities.add(intent_node)  # Include original for triple collection
             
             # Collect entities for DE: DE itself + all entities it references + all REs + entities REs reference
             # Start with empty set, collect recursively, then add core entities
@@ -444,7 +458,7 @@ class TurtleParser:
                 collect_referenced_entities(re_entity, de_entities)
             # Ensure core entities are included
             de_entities.add(de)
-            de_entities.add(intent_node)
+            de_entities.add(intent_node)  # Include original for triple collection
             
             self._logger.debug(
                 "Found %d REs: %s",
@@ -574,11 +588,21 @@ class TurtleParser:
                 if should_include_triple(triple, de_entities, de_blank_nodes):
                     de_triples_to_add.add(triple)
             
-            # Add all collected triples
+            # Helper function to replace intent node in a triple
+            def replace_intent_node(triple, old_node: URIRef, new_node: URIRef):
+                """Replace old_node with new_node in a triple."""
+                subject, predicate, obj = triple
+                new_subject = new_node if subject == old_node else subject
+                new_obj = new_node if obj == old_node else obj
+                return (new_subject, predicate, new_obj)
+            
+            # Add all collected triples, replacing the original intent_node with new ones
             for triple in ne_triples_to_add:
-                ne_graph.add(triple)
+                new_triple = replace_intent_node(triple, intent_node, ne_intent_node)
+                ne_graph.add(new_triple)
             for triple in de_triples_to_add:
-                de_graph.add(triple)
+                new_triple = replace_intent_node(triple, intent_node, de_intent_node)
+                de_graph.add(new_triple)
             
             # Verify RE triples are included
             for re_entity in re_list:
@@ -601,25 +625,31 @@ class TurtleParser:
                 len(de_blank_nodes)
             )
             
-            # Update Intent node properties for NE version
+            # Update Intent node properties for NE version (using new ne_intent_node)
             imo_handler = URIRef("http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/handler")
             imo_owner = URIRef("http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/owner")
-            # Remove old handler and owner
-            ne_graph.remove((intent_node, imo_handler, None))
-            ne_graph.remove((intent_node, imo_owner, None))
+            data5g_derived_from = URIRef(f"{self.DATA5G_NS}derivedFrom")
+            
+            # Remove old handler and owner (from new intent node, which was copied from original)
+            ne_graph.remove((ne_intent_node, imo_handler, None))
+            ne_graph.remove((ne_intent_node, imo_owner, None))
             # Set handler to "inNet" and owner to "inServ"
-            ne_graph.add((intent_node, imo_handler, Literal("inNet")))
-            ne_graph.add((intent_node, imo_owner, Literal("inServ")))
+            ne_graph.add((ne_intent_node, imo_handler, Literal("inNet")))
+            ne_graph.add((ne_intent_node, imo_owner, Literal("inServ")))
+            # Add provenance link to original combined intent
+            ne_graph.add((ne_intent_node, data5g_derived_from, intent_node))
             
-            # Update Intent node properties for DE version
-            # Remove old handler and owner
-            de_graph.remove((intent_node, imo_handler, None))
-            de_graph.remove((intent_node, imo_owner, None))
+            # Update Intent node properties for DE version (using new de_intent_node)
+            # Remove old handler and owner (from new intent node, which was copied from original)
+            de_graph.remove((de_intent_node, imo_handler, None))
+            de_graph.remove((de_intent_node, imo_owner, None))
             # Set handler to "inOrch" and owner to "inServ"
-            de_graph.add((intent_node, imo_handler, Literal("inOrch")))
-            de_graph.add((intent_node, imo_owner, Literal("inServ")))
+            de_graph.add((de_intent_node, imo_handler, Literal("inOrch")))
+            de_graph.add((de_intent_node, imo_owner, Literal("inServ")))
+            # Add provenance link to original combined intent
+            de_graph.add((de_intent_node, data5g_derived_from, intent_node))
             
-            # Update log:allOf for NE version: include NE + all REs
+            # Update log:allOf for NE version: include NE + all REs (using new ne_intent_node)
             ne_allof = [ne] + re_list
             self._logger.debug(
                 "NE log:allOf will include: NE=%s, REs=%s (total %d items)",
@@ -627,20 +657,20 @@ class TurtleParser:
                 [str(re) for re in re_list],
                 len(ne_allof)
             )
-            # Remove old log:allOf from intent in NE graph
-            ne_graph.remove((intent_node, log_allof, None))
+            # Remove old log:allOf from intent in NE graph (from new intent node)
+            ne_graph.remove((ne_intent_node, log_allof, None))
             # Add new log:allOf with NE and REs
             for obj in ne_allof:
-                ne_graph.add((intent_node, log_allof, obj))
+                ne_graph.add((ne_intent_node, log_allof, obj))
             
             # Verify REs were added to log:allOf
-            ne_allof_actual = list(ne_graph.objects(intent_node, log_allof))
+            ne_allof_actual = list(ne_graph.objects(ne_intent_node, log_allof))
             self._logger.debug(
                 "NE log:allOf after update: %s",
                 [str(obj) for obj in ne_allof_actual]
             )
             
-            # Update log:allOf for DE version: include DE + all REs
+            # Update log:allOf for DE version: include DE + all REs (using new de_intent_node)
             de_allof = [de] + re_list
             self._logger.debug(
                 "DE log:allOf will include: DE=%s, REs=%s (total %d items)",
@@ -648,14 +678,14 @@ class TurtleParser:
                 [str(re) for re in re_list],
                 len(de_allof)
             )
-            # Remove old log:allOf from intent in DE graph
-            de_graph.remove((intent_node, log_allof, None))
+            # Remove old log:allOf from intent in DE graph (from new intent node)
+            de_graph.remove((de_intent_node, log_allof, None))
             # Add new log:allOf with DE and REs
             for obj in de_allof:
-                de_graph.add((intent_node, log_allof, obj))
+                de_graph.add((de_intent_node, log_allof, obj))
             
             # Verify REs were added to log:allOf
-            de_allof_actual = list(de_graph.objects(intent_node, log_allof))
+            de_allof_actual = list(de_graph.objects(de_intent_node, log_allof))
             self._logger.debug(
                 "DE log:allOf after update: %s",
                 [str(obj) for obj in de_allof_actual]
@@ -668,9 +698,11 @@ class TurtleParser:
             de_turtle = de_serialized.decode("utf-8") if isinstance(de_serialized, bytes) else de_serialized
             
             self._logger.info(
-                "Split intent: NE version has %d triples, DE version has %d triples",
+                "Parsing: Split intent into NE version (%d triples, ID: %s) and DE version (%d triples, ID: %s)",
                 len(ne_graph),
-                len(de_graph)
+                ne_intent_node,
+                len(de_graph),
+                de_intent_node
             )
             
             return (ne_turtle, de_turtle)

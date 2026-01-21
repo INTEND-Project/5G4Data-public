@@ -79,7 +79,7 @@ def create_intent(body, fields=None):  # noqa: E501
                 400,
             )
         
-        logger.info("Extracted DataCenter: %s from intent", datacenter)
+        logger.debug("Extracted DataCenter: %s from intent", datacenter)
         
         # Route intent to appropriate proxy
         intent_router = _intent_router()
@@ -129,7 +129,7 @@ def delete_intent(id):  # noqa: E501
 
 def list_intent(fields=None, offset=None, limit=None):  # noqa: E501
     """List or find Intent objects - not implemented in inServ (proxy handles this)"""
-    logger.warning("list_intent called but not implemented in inServ")
+    logger.debug("list_intent called but not implemented in inServ")
     return _error_response("List intent not supported in inServ", 501)
 
 

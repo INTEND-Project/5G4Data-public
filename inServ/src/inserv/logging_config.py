@@ -37,3 +37,6 @@ def configure_logging(level: str = "INFO", log_file_path: str | None = None) -> 
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         handlers=handlers,
     )
+
+    # Suppress noisy connexion warnings about multiple content types
+    logging.getLogger("connexion.operations.openapi3").setLevel(logging.ERROR)

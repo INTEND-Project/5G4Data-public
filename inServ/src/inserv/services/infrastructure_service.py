@@ -53,7 +53,7 @@ class InfrastructureService:
                 "GraphDB may be unavailable or DataCenter not found in infrastructure data."
             )
         
-        self._logger.info(
+        self._logger.debug(
             "Retrieved DataCenter URL from GraphDB for %s: %s",
             datacenter,
             url,
@@ -100,8 +100,7 @@ class InfrastructureService:
                     url = self._query_graphdb_for_datacenter(dc_format)
                     if url:
                         self._logger.info(
-                            "Found DataCenter URL in GraphDB for %s (format %s): %s",
-                            datacenter,
+                            "Lookup: Found %s endpoint in inGraph: %s",
                             dc_format,
                             url,
                         )
@@ -201,7 +200,7 @@ class InfrastructureService:
                 domain = bindings[0].get("domain", {}).get("value")
                 if domain:
                     domain_str = str(domain)
-                    self._logger.info(
+                    self._logger.debug(
                         "Found domain in GraphDB for %s: %s",
                         dc_identifier,
                         domain_str,
@@ -287,7 +286,7 @@ class InfrastructureService:
             # Construct URL
             url = f"{self._base_url}:{port}/tmf-api/intentManagement/v5/"
             
-            self._logger.info(
+            self._logger.debug(
                 "Constructed URL for DataCenter %s (EC%d): %s",
                 datacenter,
                 dc_number,

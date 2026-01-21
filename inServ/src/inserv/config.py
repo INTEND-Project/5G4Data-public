@@ -31,6 +31,9 @@ class AppConfig:
     # When enabled, inServ will not forward intents to inOrch-TMF-Proxy
     # but will only log that they were received.
     test_mode: bool = False
+    # When False, inServ will not forward intents to inNet but will still
+    # log as if they were being sent (useful when inNet is not available).
+    innet_ready: bool = True
     # Enable the internal /logs HTTP endpoint for browsing recent logs.
     enable_log_endpoint: bool = False
 
@@ -48,6 +51,7 @@ class AppConfig:
             graphdb_repository=os.getenv("GRAPHDB_REPOSITORY", "intents_and_intent_reports"),
             enable_graphdb=_str_to_bool(os.getenv("ENABLE_GRAPHDB"), True),
             test_mode=_str_to_bool(os.getenv("INSERV_TEST_MODE"), False),
+            innet_ready=_str_to_bool(os.getenv("INSERV_INNET_READY"), True),
             enable_log_endpoint=_str_to_bool(os.getenv("ENABLE_LOG_ENDPOINT"), False),
             infrastructure_graph=os.getenv(
                 "INFRASTRUCTURE_GRAPH", "http://intendproject.eu/telenor/infra"

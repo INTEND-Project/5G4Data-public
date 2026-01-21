@@ -46,7 +46,11 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
         # Skip logging for /logs endpoint to avoid log noise
         if request.path == "/logs":
             return
-        logger.info(f"Request: {request.method} {request.path}")
+        # Only log intent-related requests with cleaner message
+        if "/intent" in request.path and request.method == "POST":
+            logger.info("Received intent, parsing it...")
+        elif request.path not in ["/health", "/ready"]:
+            logger.debug(f"Request: {request.method} {request.path}")
         if request.is_json:
             try:
                 logger.debug(f"Request body: {request.get_json()}")
@@ -55,10 +59,12 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
     
     @flask_app.after_request
     def log_response_info(response):
-        # Skip logging for /logs endpoint to avoid log noise
-        if request.path == "/logs":
+        # Skip logging for /logs endpoint and health endpoints to avoid log noise
+        if request.path in ["/logs", "/health", "/ready"]:
             return response
-        logger.info(f"Response: {response.status_code}")
+        # Only log at debug level for non-intent requests
+        if "/intent" not in request.path:
+            logger.debug(f"Response: {response.status_code}")
         return response
     
     @flask_app.errorhandler(Exception)
@@ -91,6 +97,8 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
         infrastructure_service=infrastructure_service,
         test_mode=getattr(config, "test_mode", False),
         innet_base_url=getattr(config, "innet_base_url", "http://intend.eu/inNet"),
+        innet_ready=getattr(config, "innet_ready", True),
+        graphdb_client=graphdb_client,
     )
 
     flask_app.config["INFRASTRUCTURE_SERVICE"] = infrastructure_service

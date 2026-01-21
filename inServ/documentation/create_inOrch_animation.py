@@ -1,5 +1,12 @@
+import argparse
 import math, os, shutil, subprocess
 from PIL import Image, ImageDraw, ImageFont
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Generate inOrch animation')
+parser.add_argument('--layoutOnly', action='store_true', 
+                    help='Only create the first frame to preview layout')
+args = parser.parse_args()
 
 W, H = 1280, 820
 
@@ -116,25 +123,37 @@ def fit_and_draw_text(draw, box, lines, font, fill=(40,40,40), padding=14, line_
         y += used_font.size + line_gap
 
 # Layout
+# Moved inServ and inOrch left, reduced gap to 2/3 (from 120px to 80px)
+# inGraph moved to right side of inOrch
 boxes = {
-    "inServ": (70, 355, 360, 505),  # Vertically centered with inOrch (inOrch center y=430)
-    "inGraph": (795, 720, 895, 800),  # Below inOrch rectangle, centered (inOrch center x=845), expanded height for circles
-    "inOrch": (480, 130, 1210, 700),  # Expanded vertically for more spacing
+    "inServ": (30, 320, 320, 470),  # Moved up by 35px
+    "inGraph": (1150, 320, 1250, 470),  # Right side of inOrch, vertically centered with inServ
+    "inOrch": (370, 100, 1130, 760),  # Expanded left by 30px
 }
 
 # Kubernetes cluster box inside inOrch - moved down to avoid covering "inOrch" text
 # Text "Kubernetes Cluster" at top needs ~40px space (12px offset + 18px font + 10px extra)
-k8s_cluster = (500, 175, 1190, 690)  # Expanded vertically
+k8s_cluster = (390, 145, 1110, 750)  # Expanded left to match inOrch
 
 # Components inside Kubernetes cluster - more vertical spacing
-workload_namespaces = (695, 230, 995, 270)  # 300px wide, 40px tall, centered at x=845
+# Workload namespaces taller to accommodate Prometheus oval inside
+# Centered horizontally in Kubernetes cluster (k8s center x = 750)
+workload_namespaces = (550, 180, 950, 250)  # 400px wide, 70px tall, re-centered
 
+# inOrch-TMF-Proxy is now outside inOrch namespace, below Workload namespaces
+# Same width as inOrch namespace rectangle
+inorch_tmf_proxy = (410, 290, 1095, 390)  # Extended right for scheduler gap
+
+# Components inside inOrch namespace (now only Intel IDO and Planner)
+# More vertical spacing between components
 components = {
-    "inOrch-TMF-Proxy": (520, 370, 820, 505),  # Top left, 135px tall, increased for 5 bullet points
-    "Intel IDO": (870, 370, 1170, 485),  # Top right, 115px tall
-    "Planner": (520, 530, 820, 645),  # Bottom left, 115px tall, more gap from top row
-    "Prometheus": (870, 530, 1170, 645),  # Bottom right, 115px tall
+    "Intel IDO": (420, 500, 720, 615),  # Expanded left
+    "Planner": (770, 500, 1070, 615),  # Gap to right edge
 }
+
+# Scheduler stacked rectangles below Intel IDO and Planner
+# With stacked offset of 5*2=10px, rightmost edge will be at 1080, leaving 30px gap to k8s (1110)
+scheduler_rect = (420, 655, 1070, 710)  # Gap to right side of k8s cluster
 
 def draw_scene(step, t=0.0):
     img = Image.new("RGB", (W,H), (255,255,255))
@@ -171,22 +190,20 @@ def draw_scene(step, t=0.0):
     # Center text in the colored area
     inGraph_text_y = (inGraph_header_top + inGraph_header_bottom) // 2
     d.text((cx_graph, inGraph_text_y), "inGraph", font=FONT_SMALL, fill=(10,10,10), anchor="mm")
-    # Draw two circles side by side: Workload KG (W) and Intent Observations (IO)
+    # Draw two circles stacked vertically: Workload KG (W) and Intent Observations (IO)
     # Position circles below the header background
     circle_radius = 12
-    # Center circles vertically in the space below the header (header ends at inGraph_header_bottom)
-    circle_y = inGraph_header_bottom + circle_radius + 8  # Below header with padding
-    # Workload KG circle (left)
-    circle_spacing = 8
-    w_circle_x = cx_graph - circle_radius - circle_spacing // 2
-    d.ellipse([w_circle_x-circle_radius, circle_y-circle_radius, w_circle_x+circle_radius, circle_y+circle_radius], 
+    circle_spacing = 10
+    # Workload KG circle (top)
+    w_circle_y = inGraph_header_bottom + circle_radius + 12
+    d.ellipse([cx_graph-circle_radius, w_circle_y-circle_radius, cx_graph+circle_radius, w_circle_y+circle_radius], 
              fill=(100,200,100), outline=(40,40,40), width=2)
-    d.text((w_circle_x, circle_y), "W", font=FONT_MICRO, fill=(255,255,255), anchor="mm")
-    # Intent Observations circle (right) - purple color matching create_inServ_animation.py
-    io_circle_x = cx_graph + circle_radius + circle_spacing // 2
-    d.ellipse([io_circle_x-circle_radius, circle_y-circle_radius, io_circle_x+circle_radius, circle_y+circle_radius], 
+    d.text((cx_graph, w_circle_y), "W", font=FONT_MICRO, fill=(255,255,255), anchor="mm")
+    # Intent Observations circle (bottom) - purple color matching create_inServ_animation.py
+    io_circle_y = w_circle_y + circle_radius * 2 + circle_spacing
+    d.ellipse([cx_graph-circle_radius, io_circle_y-circle_radius, cx_graph+circle_radius, io_circle_y+circle_radius], 
              fill=(180,100,200), outline=(40,40,40), width=2)
-    d.text((io_circle_x, circle_y), "IO", font=load_font(10), fill=(255,255,255), anchor="mm")
+    d.text((cx_graph, io_circle_y), "IO", font=load_font(10), fill=(255,255,255), anchor="mm")
 
     # Draw inOrch main box
     rounded_rectangle(d, boxes["inOrch"], fill=(250,250,250))
@@ -241,20 +258,61 @@ def draw_scene(step, t=0.0):
         y2 = workload_namespaces[3] + i * offset
         fill_color = stack_colors[i]
         rounded_rectangle(d, (x1, y1, x2, y2), r=10, fill=fill_color, outline=(60,60,60), width=2)
-        # Only draw text on the topmost rectangle
+        # Only draw text on the topmost rectangle (shifted left to make room for Prometheus)
         if i == 2:
-            cx_ns = (x1 + x2) // 2
+            cx_ns = (x1 + x2) // 2 - 30  # Shift text left to make room for Prometheus
             cy_ns = (y1 + y2) // 2
             d.text((cx_ns, cy_ns), "Workload namespaces", font=FONT_TINY, fill=(10,10,10), anchor="mm")
     # Draw ellipsis on the right side of the bottom rectangle to indicate more
     ellipsis_x = workload_namespaces[2] + offset * 2 - 15
     ellipsis_y = workload_namespaces[3] + offset * 2 - 8
     d.text((ellipsis_x, ellipsis_y), "...", font=FONT_TINY, fill=(100,100,100), anchor="mm")
+    
+    # Draw Prometheus oval inside the topmost Workload namespaces rectangle (on the right side)
+    # Top rectangle coordinates after offset*2
+    top_rect_x2 = workload_namespaces[2] + offset * 2
+    top_rect_y1 = workload_namespaces[1] + offset * 2
+    top_rect_y2 = workload_namespaces[3] + offset * 2
+    prom_radius_x = 50  # Horizontal radius (wider for text)
+    prom_radius_y = 25  # Vertical radius
+    prom_circle_x = top_rect_x2 - prom_radius_x - 10  # Inside right edge with padding
+    prom_circle_y = (top_rect_y1 + top_rect_y2) // 2  # Vertically centered
+    d.ellipse([prom_circle_x-prom_radius_x, prom_circle_y-prom_radius_y, 
+               prom_circle_x+prom_radius_x, prom_circle_y+prom_radius_y], 
+              fill=(255,180,100), outline=(40,40,40), width=2)
+    d.text((prom_circle_x, prom_circle_y), "Prometheus", font=FONT_TINY, fill=(10,10,10), anchor="mm")
 
-    # Draw inOrch namespace rectangle surrounding the four component rectangles
-    # Components span: left=520, right=1170, top=370, bottom=645
-    # Moved down to avoid covering stacked Workload namespaces and leave room for arrow
-    inorch_ns_rect = (510, 335, 1180, 655)  # With padding around components
+    # Draw inOrch-TMF-Proxy (outside inOrch namespace, below Workload namespaces)
+    rounded_rectangle(d, inorch_tmf_proxy, r=10, fill=(255,255,255), outline=(60,60,60), width=2)
+    cx_proxy = (inorch_tmf_proxy[0] + inorch_tmf_proxy[2]) // 2
+    # Draw colored background for header text
+    proxy_text_height = FONT_TINY.size
+    proxy_header_top = inorch_tmf_proxy[1] + 5
+    proxy_header_bottom = proxy_header_top + proxy_text_height + 6
+    proxy_header_bg = (inorch_tmf_proxy[0]+8, proxy_header_top, inorch_tmf_proxy[2]-8, proxy_header_bottom)
+    d.rounded_rectangle(proxy_header_bg, radius=8, fill=(200,180,220))  # Light lavender/purple
+    proxy_text_y = (proxy_header_top + proxy_header_bottom) // 2
+    d.text((cx_proxy, proxy_text_y), "inOrch-TMF-Proxy", font=FONT_TINY, fill=(10,10,10), anchor="mm")
+    # Two columns of bullet points
+    proxy_desc_left = [
+        "• Receives & parses intents",
+        "• Identify workload",
+        "• Retrieve helm chart URL from inGraph",
+    ]
+    proxy_desc_right = [
+        "• Deploy workload to k8s namespace",
+        "• Transform to IDO CRDs"
+    ]
+    # Left column
+    fit_and_draw_text(d, (inorch_tmf_proxy[0], inorch_tmf_proxy[1]+30, cx_proxy, inorch_tmf_proxy[3]), 
+                      proxy_desc_left, FONT_MICRO, padding=12, line_gap=2)
+    # Right column
+    fit_and_draw_text(d, (cx_proxy, inorch_tmf_proxy[1]+30, inorch_tmf_proxy[2], inorch_tmf_proxy[3]), 
+                      proxy_desc_right, FONT_MICRO, padding=12, line_gap=2)
+
+    # Draw inOrch namespace rectangle surrounding Intel IDO, Planner, and Scheduler
+    # Components span: left=420, right=1070, top=500, bottom=710 (including scheduler)
+    inorch_ns_rect = (410, 430, 1095, 740)  # Extended right for scheduler gap
     rounded_rectangle(d, inorch_ns_rect, r=12, fill=(248,252,248), outline=(80,80,80), width=2)
     # Draw header background (same color as component headers - light mint/seafoam green)
     inorch_ns_text_height = FONT_TINY.size
@@ -267,18 +325,10 @@ def draw_scene(step, t=0.0):
     inorch_ns_text_y = (inorch_ns_header_top + inorch_ns_header_bottom) // 2
     d.text((inorch_ns_cx, inorch_ns_text_y), "inOrch namespace", font=FONT_TINY, fill=(10,10,10), anchor="mm")
 
-    # Draw components inside Kubernetes cluster
+    # Draw components inside inOrch namespace (Intel IDO and Planner)
     comp_descriptions = {
-        "inOrch-TMF-Proxy": [
-            "• Receives & parses intents",
-            "• Identify workload",
-            "• Retrieve helm chart URL from inGraph",
-            "• Deploy workload to k8s cluster namespace",
-            "• Transform to IDO CRDs"
-        ],
         "Intel IDO": ["• Intent CRD orchestration", "• Intent lifecycle management"],
         "Planner": ["• Workload optimization", "• Decision making"],
-        "Prometheus": ["• Metrics monitoring", "• Measurements available for", "   planner and proxy"], 
     }
     for name, xy in components.items():
         rounded_rectangle(d, xy, r=10, fill=(255,255,255), outline=(60,60,60), width=2)
@@ -296,53 +346,85 @@ def draw_scene(step, t=0.0):
         desc = comp_descriptions.get(name, [])
         if desc:
             fit_and_draw_text(d, (xy[0], xy[1]+30, xy[2], xy[3]), desc, FONT_MICRO, padding=12, line_gap=2)
+    
+    # Draw Scheduler with stacked effect (under Intel IDO and Planner)
+    sched_offset = 5
+    sched_colors = [
+        (235, 210, 210),  # Back - light pink/rose (matches Workload namespaces)
+        (240, 190, 190),  # Middle - light red (matches Workload namespaces)
+        (190, 210, 235),  # Front - light blue (matches Workload namespaces)
+    ]
+    for i in range(3):
+        sx1 = scheduler_rect[0] + i * sched_offset
+        sy1 = scheduler_rect[1] + i * sched_offset
+        sx2 = scheduler_rect[2] + i * sched_offset
+        sy2 = scheduler_rect[3] + i * sched_offset
+        fill_color = sched_colors[i]
+        rounded_rectangle(d, (sx1, sy1, sx2, sy2), r=10, fill=fill_color, outline=(60,60,60), width=2)
+        if i == 2:
+            sched_cx = (sx1 + sx2) // 2
+            sched_cy = (sy1 + sy2) // 2
+            d.text((sched_cx, sched_cy), "Scheduler", font=FONT_TINY, fill=(10,10,10), anchor="mm")
 
     # Arrows - positioned to avoid crossing rectangles
     # inServ to inOrch-TMF-Proxy (horizontal, connects at right edge of inServ to left edge of proxy)
     inServ_center_y = (boxes["inServ"][1] + boxes["inServ"][3]) // 2
-    proxy_center_y = (components["inOrch-TMF-Proxy"][1] + components["inOrch-TMF-Proxy"][3]) // 2
-    arrow(d, (boxes["inServ"][2], inServ_center_y), (components["inOrch-TMF-Proxy"][0], proxy_center_y))
+    proxy_center_y = (inorch_tmf_proxy[1] + inorch_tmf_proxy[3]) // 2
+    arrow(d, (boxes["inServ"][2], inServ_center_y), (inorch_tmf_proxy[0], proxy_center_y))
     
-    # inGraph to inOrch (workload info) - from top of inGraph to bottom of inOrch
-    graph_top = boxes["inGraph"][1]
-    graph_center_x = (boxes["inGraph"][0] + boxes["inGraph"][2]) // 2
-    arrow(d, (graph_center_x, graph_top), (graph_center_x, boxes["inOrch"][3]))
+    # inGraph to inOrch (workload info) - from left of inGraph to right of inOrch
+    # Moved down to avoid overlap with Prometheus to inGraph arrow, horizontal arrow
+    graph_left = boxes["inGraph"][0]
+    graph_lower_y = boxes["inGraph"][1] + (boxes["inGraph"][3] - boxes["inGraph"][1]) * 3 // 4  # 3/4 down
+    inOrch_right = boxes["inOrch"][2]
+    arrow(d, (graph_left, graph_lower_y), (inOrch_right, graph_lower_y))  # Same y for horizontal arrow
 
     # Internal arrows within Kubernetes cluster - connect at edges
-    proxy_right = components["inOrch-TMF-Proxy"][2]
-    proxy_bottom = components["inOrch-TMF-Proxy"][3]
+    proxy_right = inorch_tmf_proxy[2]
+    proxy_bottom = inorch_tmf_proxy[3]
+    proxy_top = inorch_tmf_proxy[1]
+    proxy_center_x = (inorch_tmf_proxy[0] + inorch_tmf_proxy[2]) // 2
+    
     ido_left = components["Intel IDO"][0]
+    ido_right = components["Intel IDO"][2]
+    ido_top = components["Intel IDO"][1]
     ido_center_y = (components["Intel IDO"][1] + components["Intel IDO"][3]) // 2
+    ido_center_x = (components["Intel IDO"][0] + components["Intel IDO"][2]) // 2
     ido_bottom = components["Intel IDO"][3]
+    
     planner_left = components["Planner"][0]
     planner_top = components["Planner"][1]
     planner_center_y = (components["Planner"][1] + components["Planner"][3]) // 2
-    prom_left = components["Prometheus"][0]
-    prom_center_y = (components["Prometheus"][1] + components["Prometheus"][3]) // 2
-    prom_top = components["Prometheus"][1]
-    
-    # inOrch-TMF-Proxy to Intel IDO (horizontal, right to left)
-    arrow(d, (proxy_right, proxy_center_y), (ido_left, ido_center_y))
-    # Intel IDO to Planner (vertical, bottom to top - route around to avoid crossing)
     planner_center_x = (components["Planner"][0] + components["Planner"][2]) // 2
-    arrow(d, (ido_left, ido_bottom), (planner_center_x, planner_top))
-    # Prometheus to Planner (horizontal, from left of Prometheus to right of Planner)
     planner_right = components["Planner"][2]
-    arrow(d, (prom_left, prom_center_y), (planner_right, planner_center_y))
+    
     # inOrch-TMF-Proxy to Workload namespaces (vertical, from top center of proxy to bottom center of namespaces)
-    proxy_top = components["inOrch-TMF-Proxy"][1]
-    proxy_center_x = (components["inOrch-TMF-Proxy"][0] + components["inOrch-TMF-Proxy"][2]) // 2
-    namespaces_bottom = workload_namespaces[3]
-    namespaces_center_x = (workload_namespaces[0] + workload_namespaces[2]) // 2
+    namespaces_bottom = workload_namespaces[3] + 7 * 2  # Account for stack offset
+    namespaces_center_x = (workload_namespaces[0] + workload_namespaces[2]) // 2 + 7  # Account for stack offset
     arrow(d, (proxy_center_x, proxy_top), (namespaces_center_x, namespaces_bottom))
+    
+    # inOrch-TMF-Proxy to Intel IDO (vertical down from proxy bottom to IDO top)
+    arrow(d, (proxy_center_x, proxy_bottom), (ido_center_x, ido_top))
+    
+    # Intel IDO to Planner (horizontal, right to left)
+    arrow(d, (ido_right, ido_center_y), (planner_left, planner_center_y))
+    
+    # Prometheus to Planner (from Prometheus oval bottom to top of Planner)
+    arrow(d, (prom_circle_x, prom_circle_y + prom_radius_y), (planner_center_x, planner_top))
+    
+    # Intel IDO to Scheduler (from bottom of IDO to top of Scheduler)
+    scheduler_top = scheduler_rect[1] + 5 * 2  # Account for stack offset
+    scheduler_center_x = (scheduler_rect[0] + scheduler_rect[2]) // 2 + 5  # Account for stack offset
+    arrow(d, (ido_center_x, ido_bottom), (scheduler_center_x - 100, scheduler_top))
+    
+    # Planner to Scheduler (from bottom of Planner to top of Scheduler)
+    arrow(d, (planner_center_x, components["Planner"][3]), (scheduler_center_x + 100, scheduler_top))
 
     # Outgoing arrows from inOrch - route to avoid crossing
-    # To inGraph (store metrics) - from bottom of Prometheus to right side of inGraph
-    prom_bottom = components["Prometheus"][3]
-    prom_center_x = (components["Prometheus"][0] + components["Prometheus"][2]) // 2
-    graph_right = boxes["inGraph"][2]
-    graph_center_y = (boxes["inGraph"][1] + boxes["inGraph"][3]) // 2
-    arrow(d, (prom_center_x, prom_bottom), (graph_right, graph_center_y))
+    # Prometheus to inGraph (store metrics) - from Prometheus oval right to left of inGraph
+    graph_left = boxes["inGraph"][0]
+    graph_center_y_prom = (boxes["inGraph"][1] + boxes["inGraph"][3]) // 2
+    arrow(d, (prom_circle_x + prom_radius_x, prom_circle_y), (graph_left, graph_center_y_prom))
 
     # Packet drawing function
     def draw_packet(x, y, label, fill=(255, 245, 210)):
@@ -362,42 +444,35 @@ def draw_scene(step, t=0.0):
             d.text((x, y), label, font=FONT_MICRO, fill=(20,20,20), anchor="mm")
 
     # Animation paths
-    # Step 0: Workload Info (from inGraph to inOrch)
-    graph_center_x = (boxes["inGraph"][0] + boxes["inGraph"][2]) // 2
-    graph_top = boxes["inGraph"][1]
-    p0s = (graph_center_x, graph_top+10)
-    p0e = (graph_center_x, boxes["inOrch"][3]-10)
+    # Step 0: Workload Info (from inGraph to inOrch - horizontal from right, moved down)
+    graph_left_anim = boxes["inGraph"][0]
+    graph_lower_y_anim = boxes["inGraph"][1] + (boxes["inGraph"][3] - boxes["inGraph"][1]) * 3 // 4
+    inOrch_right_anim = boxes["inOrch"][2]
+    p0s = (graph_left_anim-10, graph_lower_y_anim)
+    p0e = (inOrch_right_anim+10, graph_lower_y_anim)  # Same y for horizontal animation
     
     # Step 1: Workload Intent (from inServ to inOrch-TMF-Proxy)
     p1s = (boxes["inServ"][2]-10, inServ_center_y)
-    p1e = (components["inOrch-TMF-Proxy"][0]+10, proxy_center_y)
+    p1e = (inorch_tmf_proxy[0]+10, proxy_center_y)
     
     # Step 2: Parsing (inside proxy)
     # Step 3: Deployment (from top center of proxy to bottom center of Workload namespaces)
-    proxy_top = components["inOrch-TMF-Proxy"][1]
-    proxy_center_x = (components["inOrch-TMF-Proxy"][0] + components["inOrch-TMF-Proxy"][2]) // 2
-    namespaces_bottom = workload_namespaces[3]
-    namespaces_center_x = (workload_namespaces[0] + workload_namespaces[2]) // 2
     p3s = (proxy_center_x, proxy_top+10)
     p3e = (namespaces_center_x, namespaces_bottom-10)
     
-    # Step 4: Transform to IDO CRDs (from proxy to IDO)
-    p4s = (proxy_right-10, proxy_center_y)
-    p4e = (ido_left+10, ido_center_y)
+    # Step 4: Transform to IDO CRDs (from proxy bottom to IDO top)
+    p4s = (proxy_center_x, proxy_bottom+10)
+    p4e = (ido_center_x, ido_top-10)
     
-    # Step 5: Deploy workload planner (from Intel IDO to Planner)
-    p5s = (ido_left, ido_bottom+10)
-    p5e = (planner_center_x, planner_top-10)
+    # Step 5: Deploy workload planner (from Intel IDO to Planner - horizontal)
+    p5s = (ido_right+10, ido_center_y)
+    p5e = (planner_left-10, planner_center_y)
     
     # Step 6: Metrics Observations (from Prometheus to inGraph AND from Prometheus to Planner in parallel)
-    prom_bottom = components["Prometheus"][3]
-    prom_center_x = (components["Prometheus"][0] + components["Prometheus"][2]) // 2
-    graph_right = boxes["inGraph"][2]
-    graph_center_y = (boxes["inGraph"][1] + boxes["inGraph"][3]) // 2
-    p6a_s = (prom_center_x, prom_bottom+10)  # To inGraph
-    p6a_e = (graph_right-10, graph_center_y)
-    p6b_s = (prom_center_x, prom_bottom+10)  # To Planner
-    p6b_e = (planner_right-10, planner_center_y)
+    p6a_s = (prom_circle_x + prom_radius_x + 10, prom_circle_y)  # To inGraph (horizontal right)
+    p6a_e = (graph_left - 10, graph_center_y_prom)
+    p6b_s = (prom_circle_x, prom_circle_y + prom_radius_y + 10)  # To Planner
+    p6b_e = (planner_center_x, planner_top-10)
 
     if step == 0:
         # Workload Info from inGraph to inOrch
@@ -411,7 +486,7 @@ def draw_scene(step, t=0.0):
         draw_packet(x, y, "Workload Intent", fill=(230,250,230))
     elif step == 2:
         # Parsing and analysis
-        draw_packet((components["inOrch-TMF-Proxy"][0]+components["inOrch-TMF-Proxy"][2])//2, proxy_center_y, 
+        draw_packet((inorch_tmf_proxy[0]+inorch_tmf_proxy[2])//2, proxy_center_y, 
                    "Parse & Analyze", fill=(255, 220, 180))
     elif step == 3:
         # Deployment to Kubernetes (Workload namespaces)
@@ -441,37 +516,44 @@ def draw_scene(step, t=0.0):
 
 # Frames
 frames = []
-# Initial pause: 16 seconds before any animation (4000ms / 70ms per frame ≈ 114 frames)
-frames += [draw_scene(-1, 0.0)] * 230
-# Step 0: Workload Info from inGraph to inOrch
-for i in range(18):
-    frames.append(draw_scene(0, i/17))
-# Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
-frames += [draw_scene(0, 1.0)] * 142
-# Step 1: Workload Intent from inServ to inOrch-TMF-Proxy
-for i in range(18):
-    frames.append(draw_scene(1, i/17))
-# Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
-frames += [draw_scene(1, 1.0)] * 30
-# Step 2: Parsing
-frames += [draw_scene(2, 0.0)] * 100
-# Step 3: Deployment to Workload namespaces
-for i in range(18):
-    frames.append(draw_scene(3, i/17))
-# Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
-frames += [draw_scene(3, 1.0)] * 142
-# Step 4: Transform to IDO CRDs
-for i in range(18):
-    frames.append(draw_scene(4, i/17))
-frames += [draw_scene(4, 1.0)] * 50
-# Step 5: Deploy workload planner
-for i in range(18):
-    frames.append(draw_scene(5, i/17))
-frames += [draw_scene(5, 1.0)] * 50
-# Step 6: Metrics Observations (parallel: Prometheus to inGraph and Prometheus to Planner)
-for i in range(18):
-    frames.append(draw_scene(6, i/17))
-frames += [draw_scene(6, 1.0)] * 142
+
+if args.layoutOnly:
+    # Only generate the first frame to preview layout
+    frames = [draw_scene(-1, 0.0)]
+    print("Layout-only mode: generating single frame...")
+else:
+    # Full animation
+    # Initial pause: 16 seconds before any animation (4000ms / 70ms per frame ≈ 114 frames)
+    frames += [draw_scene(-1, 0.0)] * 230
+    # Step 0: Workload Info from inGraph to inOrch
+    for i in range(18):
+        frames.append(draw_scene(0, i/17))
+    # Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
+    frames += [draw_scene(0, 1.0)] * 142
+    # Step 1: Workload Intent from inServ to inOrch-TMF-Proxy
+    for i in range(18):
+        frames.append(draw_scene(1, i/17))
+    # Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
+    frames += [draw_scene(1, 1.0)] * 30
+    # Step 2: Parsing
+    frames += [draw_scene(2, 0.0)] * 100
+    # Step 3: Deployment to Workload namespaces
+    for i in range(18):
+        frames.append(draw_scene(3, i/17))
+    # Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
+    frames += [draw_scene(3, 1.0)] * 142
+    # Step 4: Transform to IDO CRDs
+    for i in range(18):
+        frames.append(draw_scene(4, i/17))
+    frames += [draw_scene(4, 1.0)] * 50
+    # Step 5: Deploy workload planner
+    for i in range(18):
+        frames.append(draw_scene(5, i/17))
+    frames += [draw_scene(5, 1.0)] * 50
+    # Step 6: Metrics Observations (parallel: Prometheus to inGraph and Prometheus to Planner)
+    for i in range(18):
+        frames.append(draw_scene(6, i/17))
+    frames += [draw_scene(6, 1.0)] * 142
 
 gif_path = "inOrch_animation.gif"
 frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=70, loop=0, disposal=2)
@@ -482,4 +564,11 @@ if ffmpeg:
     subprocess.run([ffmpeg, "-y", "-i", gif_path, "-movflags", "faststart", "-pix_fmt", "yuv420p", mp4_path],
                    check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-(gif_path, mp4_path if os.path.exists(mp4_path) and os.path.getsize(mp4_path)>0 else None)
+if args.layoutOnly:
+    print(f"Layout preview saved to: {gif_path}")
+    if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+        print(f"Layout preview saved to: {mp4_path}")
+else:
+    print(f"Animation saved to: {gif_path}")
+    if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+        print(f"Animation saved to: {mp4_path}")

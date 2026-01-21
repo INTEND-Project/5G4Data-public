@@ -6,6 +6,10 @@ from PIL import Image, ImageDraw, ImageFont
 parser = argparse.ArgumentParser(description='Generate inOrch animation')
 parser.add_argument('--layoutOnly', action='store_true', 
                     help='Only create the first frame to preview layout')
+parser.add_argument('--redBlink', action='store_true',
+                    help='Add red blinking box around source component before animations')
+parser.add_argument('--fancyAnimation', action='store_true',
+                    help='Add dissolve effect: packets move to target center and shrink')
 args = parser.parse_args()
 
 W, H = 1280, 820
@@ -155,7 +159,9 @@ components = {
 # With stacked offset of 5*2=10px, rightmost edge will be at 1080, leaving 30px gap to k8s (1110)
 scheduler_rect = (420, 655, 1070, 710)  # Gap to right side of k8s cluster
 
-def draw_scene(step, t=0.0):
+def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fancy_t=0.0):
+    # fancy_phase: 0=normal animation, 1=move to center, 2=shrink/dissolve
+    # fancy_t: progress within the fancy phase (0.0 to 1.0)
     img = Image.new("RGB", (W,H), (255,255,255))
     d = ImageDraw.Draw(img)
 
@@ -364,7 +370,7 @@ def draw_scene(step, t=0.0):
         if i == 2:
             sched_cx = (sx1 + sx2) // 2
             sched_cy = (sy1 + sy2) // 2
-            d.text((sched_cx, sched_cy), "Scheduler", font=FONT_TINY, fill=(10,10,10), anchor="mm")
+            d.text((sched_cx, sched_cy), "Schedulers for deployed workloads", font=FONT_TINY, fill=(10,10,10), anchor="mm")
 
     # Arrows - positioned to avoid crossing rectangles
     # inServ to inOrch-TMF-Proxy (horizontal, connects at right edge of inServ to left edge of proxy)
@@ -372,12 +378,13 @@ def draw_scene(step, t=0.0):
     proxy_center_y = (inorch_tmf_proxy[1] + inorch_tmf_proxy[3]) // 2
     arrow(d, (boxes["inServ"][2], inServ_center_y), (inorch_tmf_proxy[0], proxy_center_y))
     
-    # inGraph to inOrch (workload info) - from left of inGraph to right of inOrch
-    # Moved down to avoid overlap with Prometheus to inGraph arrow, horizontal arrow
+    # inGraph to inOrch-TMF-Proxy (workload info) - from left of inGraph to right of proxy
+    # Parallel to Prometheus to inGraph arrow
     graph_left = boxes["inGraph"][0]
-    graph_lower_y = boxes["inGraph"][1] + (boxes["inGraph"][3] - boxes["inGraph"][1]) * 3 // 4  # 3/4 down
-    inOrch_right = boxes["inOrch"][2]
-    arrow(d, (graph_left, graph_lower_y), (inOrch_right, graph_lower_y))  # Same y for horizontal arrow
+    graph_lower_y = boxes["inGraph"][1] + (boxes["inGraph"][3] - boxes["inGraph"][1]) * 3 // 4  # 3/4 down on inGraph
+    proxy_right_edge = inorch_tmf_proxy[2]
+    proxy_arrow_y = graph_lower_y - 40  # Moved up ~1cm to hit inOrch-TMF-Proxy
+    arrow(d, (graph_left, graph_lower_y), (proxy_right_edge, proxy_arrow_y))
 
     # Internal arrows within Kubernetes cluster - connect at edges
     proxy_right = inorch_tmf_proxy[2]
@@ -426,64 +433,104 @@ def draw_scene(step, t=0.0):
     graph_center_y_prom = (boxes["inGraph"][1] + boxes["inGraph"][3]) // 2
     arrow(d, (prom_circle_x + prom_radius_x, prom_circle_y), (graph_left, graph_center_y_prom))
 
-    # Packet drawing function
-    def draw_packet(x, y, label, fill=(255, 245, 210)):
-        pw, ph = 190, 46
+    # Packet drawing function with optional scaling for fancy animation
+    def draw_packet(x, y, label, fill=(255, 245, 210), scale=1.0):
+        if scale <= 0.05:
+            return  # Don't draw if too small
+        pw, ph = int(190 * scale), int(46 * scale)
+        if pw < 4 or ph < 4:
+            return
         rr = (x-pw//2, y-ph//2, x+pw//2, y+ph//2)
-        d.rounded_rectangle(rr, radius=12, fill=fill, outline=(80,80,80), width=2)
-        lines = wrap_lines([label], FONT_MICRO, pw-24)
-        if len(lines) > 1:
-            f = load_font(12)
+        radius = max(2, int(12 * scale))
+        d.rounded_rectangle(rr, radius=radius, fill=fill, outline=(80,80,80), width=max(1, int(2*scale)))
+        if scale >= 0.3:  # Only draw text if packet is large enough
+            font_size = max(8, int(13 * scale))
+            f = load_font(font_size)
             lines = wrap_lines([label], f, pw-24)
-            total_h = len(lines)* (f.size+2) - 2
-            yy = y - total_h//2
-            for ln in lines:
-                d.text((x, yy + f.size//2), ln, font=f, fill=(20,20,20), anchor="mm")
-                yy += f.size+2
-        else:
-            d.text((x, y), label, font=FONT_MICRO, fill=(20,20,20), anchor="mm")
+            if len(lines) > 1:
+                f = load_font(max(8, int(12 * scale)))
+                lines = wrap_lines([label], f, pw-24)
+                total_h = len(lines)* (f.size+2) - 2
+                yy = y - total_h//2
+                for ln in lines:
+                    d.text((x, yy + f.size//2), ln, font=f, fill=(20,20,20), anchor="mm")
+                    yy += f.size+2
+            else:
+                d.text((x, y), label, font=f, fill=(20,20,20), anchor="mm")
 
     # Animation paths
-    # Step 0: Workload Info (from inGraph to inOrch - horizontal from right, moved down)
+    # Step 0: Workload Info (from inGraph to inOrch-TMF-Proxy - parallel to Prometheus arrow)
     graph_left_anim = boxes["inGraph"][0]
     graph_lower_y_anim = boxes["inGraph"][1] + (boxes["inGraph"][3] - boxes["inGraph"][1]) * 3 // 4
-    inOrch_right_anim = boxes["inOrch"][2]
+    proxy_right_anim = inorch_tmf_proxy[2]
+    proxy_arrow_y_anim = graph_lower_y_anim - 40  # Moved up ~1cm to hit inOrch-TMF-Proxy
     p0s = (graph_left_anim-10, graph_lower_y_anim)
-    p0e = (inOrch_right_anim+10, graph_lower_y_anim)  # Same y for horizontal animation
+    p0e = (proxy_right_anim+10, proxy_arrow_y_anim)
     
     # Step 1: Workload Intent (from inServ to inOrch-TMF-Proxy)
     p1s = (boxes["inServ"][2]-10, inServ_center_y)
     p1e = (inorch_tmf_proxy[0]+10, proxy_center_y)
+    p1_target = (proxy_center_x, proxy_center_y)  # Center of inOrch-TMF-Proxy
     
     # Step 2: Parsing (inside proxy)
     # Step 3: Deployment (from top center of proxy to bottom center of Workload namespaces)
     p3s = (proxy_center_x, proxy_top+10)
     p3e = (namespaces_center_x, namespaces_bottom-10)
+    p3_target = (namespaces_center_x, (workload_namespaces[1] + workload_namespaces[3])//2 + 7)  # Center of Workload namespaces
     
     # Step 4: Transform to IDO CRDs (from proxy bottom to IDO top)
     p4s = (proxy_center_x, proxy_bottom+10)
     p4e = (ido_center_x, ido_top-10)
+    p4_target = (ido_center_x, ido_center_y)  # Center of Intel IDO
     
     # Step 5: Deploy workload planner (from Intel IDO to Planner - horizontal)
     p5s = (ido_right+10, ido_center_y)
     p5e = (planner_left-10, planner_center_y)
+    p5_target = (planner_center_x, planner_center_y)  # Center of Planner
     
     # Step 6: Metrics Observations (from Prometheus to inGraph AND from Prometheus to Planner in parallel)
     p6a_s = (prom_circle_x + prom_radius_x + 10, prom_circle_y)  # To inGraph (horizontal right)
     p6a_e = (graph_left - 10, graph_center_y_prom)
+    p6a_target = ((boxes["inGraph"][0]+boxes["inGraph"][2])//2, (boxes["inGraph"][1]+boxes["inGraph"][3])//2)  # Center of inGraph
     p6b_s = (prom_circle_x, prom_circle_y + prom_radius_y + 10)  # To Planner
     p6b_e = (planner_center_x, planner_top-10)
+    p6b_target = (planner_center_x, planner_center_y)  # Center of Planner
+    
+    # Also define target for step 0
+    p0_target = (proxy_center_x, proxy_center_y)  # Center of inOrch-TMF-Proxy
+
+    # Helper to compute fancy animation position and scale
+    def get_fancy_pos_scale(end_pos, target_pos):
+        if fancy_phase == 0:
+            return end_pos, 1.0
+        elif fancy_phase == 1:
+            # Move from end to target center
+            fx = end_pos[0] + (target_pos[0] - end_pos[0]) * fancy_t
+            fy = end_pos[1] + (target_pos[1] - end_pos[1]) * fancy_t
+            return (fx, fy), 1.0
+        else:  # fancy_phase == 2
+            # Shrink at target center
+            scale = 1.0 - fancy_t
+            return target_pos, scale
 
     if step == 0:
-        # Workload Info from inGraph to inOrch
+        # Workload Info from inGraph to inOrch-TMF-Proxy
         x = p0s[0] + (p0e[0]-p0s[0]) * t
         y = p0s[1] + (p0e[1]-p0s[1]) * t
-        draw_packet(x, y, "Workload Info", fill=(100,200,100))
+        if fancy_phase > 0:
+            (x, y), scale = get_fancy_pos_scale(p0e, p0_target)
+            draw_packet(x, y, "Workload Info", fill=(100,200,100), scale=scale)
+        else:
+            draw_packet(x, y, "Workload Info", fill=(100,200,100))
     elif step == 1:
         # Workload Intent flows from inServ to inOrch-TMF-Proxy
         x = p1s[0] + (p1e[0]-p1s[0]) * t
         y = p1s[1] + (p1e[1]-p1s[1]) * t
-        draw_packet(x, y, "Workload Intent", fill=(230,250,230))
+        if fancy_phase > 0:
+            (x, y), scale = get_fancy_pos_scale(p1e, p1_target)
+            draw_packet(x, y, "Workload Intent", fill=(230,250,230), scale=scale)
+        else:
+            draw_packet(x, y, "Workload Intent", fill=(230,250,230))
     elif step == 2:
         # Parsing and analysis
         draw_packet((inorch_tmf_proxy[0]+inorch_tmf_proxy[2])//2, proxy_center_y, 
@@ -492,25 +539,67 @@ def draw_scene(step, t=0.0):
         # Deployment to Kubernetes (Workload namespaces)
         x = p3s[0] + (p3e[0]-p3s[0]) * t
         y = p3s[1] + (p3e[1]-p3s[1]) * t
-        draw_packet(x, y, "Deploy (Helm)", fill=(200,230,255))
+        if fancy_phase > 0:
+            (x, y), scale = get_fancy_pos_scale(p3e, p3_target)
+            draw_packet(x, y, "Deploy (Helm)", fill=(200,230,255), scale=scale)
+        else:
+            draw_packet(x, y, "Deploy (Helm)", fill=(200,230,255))
     elif step == 4:
         # Transform to IDO CRDs
         x = p4s[0] + (p4e[0]-p4s[0]) * t
         y = p4s[1] + (p4e[1]-p4s[1]) * t
-        draw_packet(x, y, "IDO Intent CRD", fill=(255,240,200))
+        if fancy_phase > 0:
+            (x, y), scale = get_fancy_pos_scale(p4e, p4_target)
+            draw_packet(x, y, "IDO Intent CRD", fill=(255,240,200), scale=scale)
+        else:
+            draw_packet(x, y, "IDO Intent CRD", fill=(255,240,200))
     elif step == 5:
         # Deploy workload planner (from Intel IDO to Planner)
         x = p5s[0] + (p5e[0]-p5s[0]) * t
         y = p5s[1] + (p5e[1]-p5s[1]) * t
-        draw_packet(x, y, "Deploy workload planner", fill=(240,240,255))
+        if fancy_phase > 0:
+            (x, y), scale = get_fancy_pos_scale(p5e, p5_target)
+            draw_packet(x, y, "Deploy workload planner", fill=(240,240,255), scale=scale)
+        else:
+            draw_packet(x, y, "Deploy workload planner", fill=(240,240,255))
     elif step == 6:
         # Metrics Observations in parallel: from Prometheus to inGraph AND from Prometheus to Planner
         x1 = p6a_s[0] + (p6a_e[0]-p6a_s[0]) * t
         y1 = p6a_s[1] + (p6a_e[1]-p6a_s[1]) * t
-        draw_packet(x1, y1, "Metrics Observations", fill=(180,100,200))
         x2 = p6b_s[0] + (p6b_e[0]-p6b_s[0]) * t
         y2 = p6b_s[1] + (p6b_e[1]-p6b_s[1]) * t
-        draw_packet(x2, y2, "Metrics Observations", fill=(180,100,200))
+        if fancy_phase > 0:
+            (x1, y1), scale1 = get_fancy_pos_scale(p6a_e, p6a_target)
+            (x2, y2), scale2 = get_fancy_pos_scale(p6b_e, p6b_target)
+            draw_packet(x1, y1, "Metrics Observations", fill=(180,100,200), scale=scale1)
+            draw_packet(x2, y2, "Metrics Observations", fill=(180,100,200), scale=scale2)
+        else:
+            draw_packet(x1, y1, "Metrics Observations", fill=(180,100,200))
+            draw_packet(x2, y2, "Metrics Observations", fill=(180,100,200))
+
+    # Draw red blinking box if requested
+    if blink_target and blink_on:
+        blink_padding = 6
+        if blink_target == "inGraph":
+            bx = (boxes["inGraph"][0] - blink_padding, boxes["inGraph"][1] - blink_padding,
+                  boxes["inGraph"][2] + blink_padding, boxes["inGraph"][3] + blink_padding)
+        elif blink_target == "inServ":
+            bx = (boxes["inServ"][0] - blink_padding, boxes["inServ"][1] - blink_padding,
+                  boxes["inServ"][2] + blink_padding, boxes["inServ"][3] + blink_padding)
+        elif blink_target == "inOrch-TMF-Proxy":
+            bx = (inorch_tmf_proxy[0] - blink_padding, inorch_tmf_proxy[1] - blink_padding,
+                  inorch_tmf_proxy[2] + blink_padding, inorch_tmf_proxy[3] + blink_padding)
+        elif blink_target == "Intel IDO":
+            bx = (components["Intel IDO"][0] - blink_padding, components["Intel IDO"][1] - blink_padding,
+                  components["Intel IDO"][2] + blink_padding, components["Intel IDO"][3] + blink_padding)
+        elif blink_target == "Prometheus":
+            # Prometheus is an oval, draw box around it
+            bx = (prom_circle_x - prom_radius_x - blink_padding, prom_circle_y - prom_radius_y - blink_padding,
+                  prom_circle_x + prom_radius_x + blink_padding, prom_circle_y + prom_radius_y + blink_padding)
+        else:
+            bx = None
+        if bx:
+            d.rounded_rectangle(bx, radius=10, outline=(255, 0, 0), width=4)
 
     return img
 
@@ -522,38 +611,132 @@ if args.layoutOnly:
     frames = [draw_scene(-1, 0.0)]
     print("Layout-only mode: generating single frame...")
 else:
+    # Helper function to add blinking frames
+    # 2 seconds = 2000ms / 70ms per frame ≈ 28 frames
+    # Blink on/off every ~4 frames (280ms cycle)
+    def add_blink_frames(target, step, t):
+        if args.redBlink:
+            blink_frames = 28  # 2 seconds worth
+            for i in range(blink_frames):
+                blink_on = (i // 4) % 2 == 0  # Toggle every 4 frames
+                frames.append(draw_scene(step, t, blink_target=target, blink_on=blink_on))
+    
+    # Helper function to add fancy animation frames (pause + move to center + shrink)
+    # 28 frames pause (2 seconds), 10 frames for move to center, 10 frames for shrink
+    def add_fancy_frames(step):
+        if args.fancyAnimation:
+            # Phase 0: Pause at arrow end for 2 seconds (28 frames)
+            for i in range(28):
+                frames.append(draw_scene(step, 1.0, fancy_phase=1, fancy_t=0.0))
+            # Phase 1: Move to target center (10 frames)
+            for i in range(10):
+                frames.append(draw_scene(step, 1.0, fancy_phase=1, fancy_t=i/9))
+            # Phase 2: Shrink/dissolve (10 frames)
+            for i in range(10):
+                frames.append(draw_scene(step, 1.0, fancy_phase=2, fancy_t=i/9))
+            # Return True to indicate fancy frames were added
+            return True
+        return False
+    
     # Full animation
-    # Initial pause: 16 seconds before any animation (4000ms / 70ms per frame ≈ 114 frames)
-    frames += [draw_scene(-1, 0.0)] * 230
-    # Step 0: Workload Info from inGraph to inOrch
+    # Initial pause: 16 seconds before any animation (reduced by 2 seconds if blinking)
+    initial_pause = 230 - (28 if args.redBlink else 0)
+    frames += [draw_scene(-1, 0.0)] * initial_pause
+    
+    # Blink inGraph before Step 0: Workload Info from inGraph to inOrch
+    add_blink_frames("inGraph", -1, 0.0)
+    # Step 0: Workload Info from inGraph to inOrch-TMF-Proxy
     for i in range(18):
         frames.append(draw_scene(0, i/17))
-    # Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
-    frames += [draw_scene(0, 1.0)] * 142
+    add_fancy_frames(0)
+    # Pause for 10 seconds after KG flow completes (reduced by 2 seconds if blinking)
+    # If fancy animation, show empty scene (no packet); otherwise show packet at end
+    pause_after_0 = 142 - (28 if args.redBlink else 0) - (48 if args.fancyAnimation else 0)
+    if pause_after_0 < 2:
+        pause_after_0 = 2
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * pause_after_0  # Empty scene after dissolve
+    else:
+        frames += [draw_scene(0, 1.0)] * pause_after_0
+    
+    # Blink inServ before Step 1: Workload Intent from inServ to inOrch-TMF-Proxy
+    add_blink_frames("inServ", -1, 0.0)
     # Step 1: Workload Intent from inServ to inOrch-TMF-Proxy
     for i in range(18):
         frames.append(draw_scene(1, i/17))
-    # Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
-    frames += [draw_scene(1, 1.0)] * 30
-    # Step 2: Parsing
-    frames += [draw_scene(2, 0.0)] * 100
+    add_fancy_frames(1)
+    # Pause (reduced by 2 seconds if blinking)
+    pause_after_1 = 30 - (28 if args.redBlink else 0)
+    if pause_after_1 < 0:
+        pause_after_1 = 2
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * pause_after_1  # Empty scene after dissolve
+    else:
+        frames += [draw_scene(1, 1.0)] * pause_after_1
+    
+    # Blink inOrch-TMF-Proxy before Step 2: Parsing
+    add_blink_frames("inOrch-TMF-Proxy", -1, 0.0)
+    # Step 2: Parsing (no fancy animation for this static step)
+    pause_after_2 = 100 - (28 if args.redBlink else 0)
+    if pause_after_2 < 0:
+        pause_after_2 = 2
+    frames += [draw_scene(2, 0.0)] * pause_after_2
+    
+    # Blink inOrch-TMF-Proxy before Step 3: Deploy (Helm)
+    add_blink_frames("inOrch-TMF-Proxy", 2, 0.0)
     # Step 3: Deployment to Workload namespaces
     for i in range(18):
         frames.append(draw_scene(3, i/17))
-    # Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
-    frames += [draw_scene(3, 1.0)] * 142
+    add_fancy_frames(3)
+    # Pause for 10 seconds after deployment completes (reduced if blinking/fancy)
+    pause_after_3 = 142 - (28 if args.redBlink else 0) - (48 if args.fancyAnimation else 0)
+    if pause_after_3 < 2:
+        pause_after_3 = 2
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * pause_after_3  # Empty scene after dissolve
+    else:
+        frames += [draw_scene(3, 1.0)] * pause_after_3
+    
+    # Blink inOrch-TMF-Proxy before Step 4: Transform to IDO CRDs
+    add_blink_frames("inOrch-TMF-Proxy", -1, 0.0)
     # Step 4: Transform to IDO CRDs
     for i in range(18):
         frames.append(draw_scene(4, i/17))
-    frames += [draw_scene(4, 1.0)] * 50
+    add_fancy_frames(4)
+    # Pause (reduced if blinking/fancy)
+    pause_after_4 = 50 - (28 if args.redBlink else 0) - (48 if args.fancyAnimation else 0)
+    if pause_after_4 < 0:
+        pause_after_4 = 2
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * pause_after_4  # Empty scene after dissolve
+    else:
+        frames += [draw_scene(4, 1.0)] * pause_after_4
+    
+    # Blink Intel IDO before Step 5: Deploy workload planner
+    add_blink_frames("Intel IDO", -1, 0.0)
     # Step 5: Deploy workload planner
     for i in range(18):
         frames.append(draw_scene(5, i/17))
-    frames += [draw_scene(5, 1.0)] * 50
+    add_fancy_frames(5)
+    # Pause (reduced if blinking/fancy)
+    pause_after_5 = 50 - (28 if args.redBlink else 0) - (48 if args.fancyAnimation else 0)
+    if pause_after_5 < 0:
+        pause_after_5 = 2
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * pause_after_5  # Empty scene after dissolve
+    else:
+        frames += [draw_scene(5, 1.0)] * pause_after_5
+    
+    # Blink Prometheus before Step 6: Metrics Observations
+    add_blink_frames("Prometheus", -1, 0.0)
     # Step 6: Metrics Observations (parallel: Prometheus to inGraph and Prometheus to Planner)
     for i in range(18):
         frames.append(draw_scene(6, i/17))
-    frames += [draw_scene(6, 1.0)] * 142
+    add_fancy_frames(6)
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * 142  # Empty scene after dissolve
+    else:
+        frames += [draw_scene(6, 1.0)] * 142
 
 gif_path = "inOrch_animation.gif"
 frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=70, loop=0, disposal=2)

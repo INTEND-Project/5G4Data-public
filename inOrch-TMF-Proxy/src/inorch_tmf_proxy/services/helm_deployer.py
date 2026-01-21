@@ -2130,7 +2130,7 @@ class HelmDeployer:
                     ido_intent_name
                 )
                 # Still extract KPIProfiles
-                return self._extract_kpi_profiles_from_namespace(namespace)
+                return self.extract_kpi_profiles_from_namespace(namespace)
             
             # Match objectives by name and update values
             updated_count = 0
@@ -2172,7 +2172,7 @@ class HelmDeployer:
                     list(tmf_objectives.keys())
                 )
                 # Still extract KPIProfiles even if no objectives matched
-                return self._extract_kpi_profiles_from_namespace(namespace)
+                return self.extract_kpi_profiles_from_namespace(namespace)
             
             # Patch the Intent with updated objectives
             existing_intent["spec"]["objectives"] = ido_objectives
@@ -2206,7 +2206,7 @@ class HelmDeployer:
                 exc,
             )
             # Still try to extract KPIProfiles even if Intent update failed
-            return self._extract_kpi_profiles_from_namespace(namespace)
+            return self.extract_kpi_profiles_from_namespace(namespace)
         except Exception as exc:
             self._logger.warning(
                 "Could not update IDO Intent for namespace %s (intent_id=%s): %s",
@@ -2215,7 +2215,7 @@ class HelmDeployer:
                 exc,
             )
             # Still try to extract KPIProfiles even if Intent update failed
-            return self._extract_kpi_profiles_from_namespace(namespace)
+            return self.extract_kpi_profiles_from_namespace(namespace)
 
     def _log_service_access_info(
         self, namespace: str, release_name: str, intent_id: Optional[str] = None

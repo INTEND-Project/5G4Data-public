@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional, Tuple, Dict, Any
 from rdflib import Graph, URIRef, Literal
 from rdflib.namespace import RDF
@@ -224,22 +225,32 @@ class TurtleParser:
         Extract the local name from a property URI.
         
         Example: http://5g4data.eu/5g4data#p99-token-target -> p99-token-target
+        Example: http://5g4data.eu/5g4data#p99-token-target_CO13eec8c4d408476b8ce799c1a44dc15b -> p99-token-target
+        
+        Strips UUID suffixes (pattern: _CO[0-9a-f]{32}) that are condition IDs appended to objective names.
         """
         uri_str = str(property_uri)
+        objective_name = None
         
         # Try to extract from data5g namespace
         if uri_str.startswith(self.DATA5G_NS):
-            return uri_str[len(self.DATA5G_NS):]
-        
+            objective_name = uri_str[len(self.DATA5G_NS):]
         # Try to extract from hash fragment
-        if "#" in uri_str:
-            return uri_str.split("#")[-1]
-        
+        elif "#" in uri_str:
+            objective_name = uri_str.split("#")[-1]
         # Try to extract from last slash
-        if "/" in uri_str:
-            return uri_str.split("/")[-1]
+        elif "/" in uri_str:
+            objective_name = uri_str.split("/")[-1]
+        else:
+            return None
         
-        return None
+        # Strip UUID suffix pattern: _CO followed by 32 hexadecimal characters
+        # This pattern is used for condition IDs in TMF Intent observations
+        # but should be removed when matching with IDO Intent objectives
+        uuid_pattern = r'_CO[0-9a-f]{32}$'
+        objective_name = re.sub(uuid_pattern, '', objective_name, flags=re.IGNORECASE)
+        
+        return objective_name
 
     def parse_deployment_expectation_objectives(self, turtle_data: str) -> Dict[str, Dict[str, Any]]:
         """

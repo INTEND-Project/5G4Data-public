@@ -538,14 +538,14 @@ def draw_scene(step, t=0.0):
 
 # Frames
 frames = []
-# Initial pause: 5 seconds before any animation (5000ms / 70ms per frame ≈ 71 frames)
+# Initial pause: 2.5 seconds before any animation (5000ms / 70ms per frame ≈ 35 frames)
 # Use a static scene with no animated packets (we'll use step -1 or step 0 at t=0 without drawing packets)
-frames += [draw_scene(-1, 0.0)] * 71
+frames += [draw_scene(-1, 0.0)] * 35
 # Step 0: KG flows to inChat (all three) AND to inServ (infrastructure and workload) in parallel
 for i in range(18):
     frames.append(draw_scene(0, i/17))
-# Pause for 4 seconds after KG flow completes (4000ms / 70ms per frame ≈ 57 frames)
-frames += [draw_scene(0, 1.0)] * 57
+# Pause for 8 seconds after KG flow completes (4000ms / 70ms per frame ≈ 114 frames)
+frames += [draw_scene(0, 1.0)] * 114
 frames += [draw_scene(1, 0.0)] * 10
 for i in range(18):
     frames.append(draw_scene(2, i/17))
@@ -556,12 +556,16 @@ for i in range(18):
     frames.append(draw_scene(4, i/17))
 frames += [draw_scene(4, 1.0)] * 6
 frames += [draw_scene(5, 0.0)] * 14
+# Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
+frames += [draw_scene(5, 1.0)] * 142
 for i in range(18):
     frames.append(draw_scene(6, i/17))
 frames += [draw_scene(6, 1.0)] * 8
+# Pause for 7 seconds after KG flow completes (7000ms / 70ms per frame ≈ 100 frames)
+frames += [draw_scene(6, 1.0)] * 150
 for i in range(18):
     frames.append(draw_scene(7, i/17))
-frames += [draw_scene(7, 1.0)] * 14
+frames += [draw_scene(7, 1.0)] * 40
 
 gif_path = "inServ_intent_animation.gif"
 frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=70, loop=0, disposal=2)

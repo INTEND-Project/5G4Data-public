@@ -596,6 +596,9 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
             # Prometheus is an oval, draw box around it
             bx = (prom_circle_x - prom_radius_x - blink_padding, prom_circle_y - prom_radius_y - blink_padding,
                   prom_circle_x + prom_radius_x + blink_padding, prom_circle_y + prom_radius_y + blink_padding)
+        elif blink_target == "inOrch":
+            bx = (boxes["inOrch"][0] - blink_padding, boxes["inOrch"][1] - blink_padding,
+                  boxes["inOrch"][2] + blink_padding, boxes["inOrch"][3] + blink_padding)
         else:
             bx = None
         if bx:
@@ -638,6 +641,13 @@ else:
             return True
         return False
     
+    # Timed blink events: (start_frame, duration_frames, target)
+    # 0.5 seconds = 7 frames, 2 seconds = 28 frames, 22 seconds = 314 frames
+    timed_blinks = [
+        (7, 28, "inOrch"),           # 0.5s into video, blink inOrch for 2s
+        (314, 28, "inOrch-TMF-Proxy"),  # 22s into video, blink inOrch-TMF-Proxy for 2s
+    ]
+    
     # Full animation
     # Initial pause: 16 seconds before any animation (reduced by 2 seconds if blinking)
     initial_pause = 230 - (28 if args.redBlink else 0)
@@ -677,7 +687,8 @@ else:
     # Blink inOrch-TMF-Proxy before Step 2: Parsing
     add_blink_frames("inOrch-TMF-Proxy", -1, 0.0)
     # Step 2: Parsing (no fancy animation for this static step)
-    pause_after_2 = 100 - (28 if args.redBlink else 0)
+    # Reduced by 57 frames (4 seconds) from original 100
+    pause_after_2 = 43 - (28 if args.redBlink else 0)
     if pause_after_2 < 0:
         pause_after_2 = 2
     frames += [draw_scene(2, 0.0)] * pause_after_2
@@ -733,10 +744,22 @@ else:
     for i in range(18):
         frames.append(draw_scene(6, i/17))
     add_fancy_frames(6)
+    # Pause for 4 seconds after Metrics Observations (57 frames)
     if args.fancyAnimation:
-        frames += [draw_scene(-1, 0.0)] * 142  # Empty scene after dissolve
+        frames += [draw_scene(-1, 0.0)] * 57  # Empty scene after dissolve
     else:
-        frames += [draw_scene(6, 1.0)] * 142
+        frames += [draw_scene(6, 1.0)] * 57
+    
+    # Apply timed blinks by redrawing affected frames with blink overlay
+    # This is independent of the --redBlink flag and always applied
+    for start_frame, duration, target in timed_blinks:
+        for i in range(duration):
+            frame_idx = start_frame + i
+            if frame_idx < len(frames):
+                blink_on = (i // 4) % 2 == 0  # Toggle every 4 frames
+                # Redraw the frame with blink overlay
+                # We need to recreate the frame with blink - use step -1 for static frames
+                frames[frame_idx] = draw_scene(-1, 0.0, blink_target=target, blink_on=blink_on)
 
 gif_path = "inOrch_animation.gif"
 frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=70, loop=0, disposal=2)

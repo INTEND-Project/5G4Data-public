@@ -1,5 +1,12 @@
+import argparse
 import math, os, shutil, subprocess
 from PIL import Image, ImageDraw, ImageFont
+
+parser = argparse.ArgumentParser(description='Generate inServ intent handling animation')
+parser.add_argument('--layoutOnly', action='store_true', help='Only create the first frame for layout preview')
+parser.add_argument('--redBlink', action='store_true', help='Add red blinking boxes before animations')
+parser.add_argument('--fancyAnimation', action='store_true', help='Add dissolve effect: packets move to target center and shrink')
+args = parser.parse_args()
 
 W, H = 1280, 820  # increased height to expand view area
 
@@ -129,7 +136,7 @@ boxes = {
 # Width expanded from 800 to 830 to fit longer text lines
 split_box = (480, 120, 830, 725)
 
-def draw_scene(step, t=0.0):
+def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fancy_t=0.0):
     img = Image.new("RGB", (W,H), (255,255,255))
     d = ImageDraw.Draw(img)
 
@@ -401,14 +408,43 @@ def draw_scene(step, t=0.0):
     fit_and_draw_text(d, (boxes["inNet"][0], boxes["inNet"][1]+44, boxes["inNet"][2], boxes["inNet"][3]),
                       ["• Create/adjust slice", "• Monitor QoS"], FONT_SMALL, padding=16, line_gap=6)
 
+    # Red blinking box around target component
+    if blink_target and blink_on:
+        blink_margin = 6
+        if blink_target == "inGraph":
+            bx = boxes["inGraph"]
+        elif blink_target == "inChat":
+            bx = boxes["inChat"]
+        elif blink_target == "inServ":
+            bx = boxes["inServ"]
+        elif blink_target == "Split":
+            bx = split_box
+        else:
+            bx = None
+        if bx:
+            d.rounded_rectangle(
+                [bx[0] - blink_margin, bx[1] - blink_margin, bx[2] + blink_margin, bx[3] + blink_margin],
+                radius=14,
+                outline=(255, 0, 0),
+                width=5
+            )
+
     # Packet
-    def draw_packet(x, y, label, fill=(255, 245, 210)):
-        pw, ph = 190, 46
+    def draw_packet(x, y, label, fill=(255, 245, 210), scale=1.0):
+        if scale <= 0:
+            return  # Don't draw if fully shrunk
+        pw, ph = int(190 * scale), int(46 * scale)
+        if pw < 4 or ph < 4:
+            return  # Too small to draw
         rr = (x-pw//2, y-ph//2, x+pw//2, y+ph//2)
-        d.rounded_rectangle(rr, radius=12, fill=fill, outline=(80,80,80), width=2)
-        lines = wrap_lines([label], FONT_MICRO, pw-24)
+        d.rounded_rectangle(rr, radius=max(2, int(12*scale)), fill=fill, outline=(80,80,80), width=max(1, int(2*scale)))
+        if scale < 0.3:
+            return  # Don't draw text if too small
+        scaled_font_size = max(8, int(13 * scale))
+        scaled_font = load_font(scaled_font_size)
+        lines = wrap_lines([label], scaled_font, pw-24)
         if len(lines) > 1:
-            f = load_font(12)
+            f = load_font(max(8, int(12 * scale)))
             lines = wrap_lines([label], f, pw-24)
             total_h = len(lines)* (f.size+2) - 2
             yy = y - total_h//2
@@ -416,7 +452,7 @@ def draw_scene(step, t=0.0):
                 d.text((x, yy + f.size//2), ln, font=f, fill=(20,20,20), anchor="mm")
                 yy += f.size+2
         else:
-            d.text((x, y), label, font=FONT_MICRO, fill=(20,20,20), anchor="mm")
+            d.text((x, y), label, font=scaled_font, fill=(20,20,20), anchor="mm")
 
     # steps = {
     #     0: "0) Knowledge graphs flow from inGraph to inChat (Infrastructure, Workload, Polygons), to inServ (Infrastructure, Workload), and to Split Result (Infrastructure) in parallel.",
@@ -482,90 +518,234 @@ def draw_scene(step, t=0.0):
     p4s = (split_box[2]-10, 580)  # Moved up
     p4e = (boxes["inNet"][0]+10, 580)  # Moved up
 
+    # Target centers for fancy animation
+    inChat_center = ((boxes["inChat"][0]+boxes["inChat"][2])//2, (boxes["inChat"][1]+boxes["inChat"][3])//2)
+    inServ_center = ((boxes["inServ"][0]+boxes["inServ"][2])//2, (boxes["inServ"][1]+boxes["inServ"][3])//2)
+    split_center = ((split_box[0]+split_box[2])//2, (split_box[1]+split_box[3])//2)
+    inOrch_center = ((boxes["inOrch"][0]+boxes["inOrch"][2])//2, (boxes["inOrch"][1]+boxes["inOrch"][3])//2)
+    inNet_center = ((boxes["inNet"][0]+boxes["inNet"][2])//2, (boxes["inNet"][1]+boxes["inNet"][3])//2)
+
+    # Helper for fancy animation position and scale
+    def get_fancy_pos_scale(end_pos, target_center):
+        if fancy_phase == 0:
+            return end_pos, 1.0
+        elif fancy_phase == 1:
+            # Move from end_pos to target_center
+            x = end_pos[0] + (target_center[0] - end_pos[0]) * fancy_t
+            y = end_pos[1] + (target_center[1] - end_pos[1]) * fancy_t
+            return (x, y), 1.0
+        else:  # fancy_phase == 2
+            # Shrink at target_center
+            return target_center, 1.0 - fancy_t
+
     if step == 0:
         # Flow from all three KGs to inChat AND from infrastructure and workload KG to inServ AND infrastructure KG to Split Result (parallel)
         # Vertical offsets to stack packets and avoid overlap (offset applied during middle of animation)
         v_offset = 55  # vertical spacing between stacked packets
         
-        # To inChat - stacked vertically with offsets
-        x1 = kg_to_chat_s[0] + (kg_to_chat_e[0]-kg_to_chat_s[0]) * t
-        y1 = kg_to_chat_s[1] + (kg_to_chat_e[1]-kg_to_chat_s[1]) * t - v_offset
-        x2 = kg_wl_to_chat_s[0] + (kg_wl_to_chat_e[0]-kg_wl_to_chat_s[0]) * t
-        y2 = kg_wl_to_chat_s[1] + (kg_wl_to_chat_e[1]-kg_wl_to_chat_s[1]) * t
-        x3 = kg_poly_to_chat_s[0] + (kg_poly_to_chat_e[0]-kg_poly_to_chat_s[0]) * t
-        y3 = kg_poly_to_chat_s[1] + (kg_poly_to_chat_e[1]-kg_poly_to_chat_s[1]) * t + v_offset
-        draw_packet(x1, y1, "Infra KG", fill=(100,150,255))
-        draw_packet(x2, y2, "Workload KG", fill=(100,200,100))
-        draw_packet(x3, y3, "Polygons KG", fill=(255,180,100))
-        # To inServ (parallel) - stacked vertically with offsets
-        x4 = kg_to_serv_s[0] + (kg_to_serv_e[0]-kg_to_serv_s[0]) * t
-        y4 = kg_to_serv_s[1] + (kg_to_serv_e[1]-kg_to_serv_s[1]) * t - v_offset // 2
-        x5 = kg_wl_to_serv_s[0] + (kg_wl_to_serv_e[0]-kg_wl_to_serv_s[0]) * t
-        y5 = kg_wl_to_serv_s[1] + (kg_wl_to_serv_e[1]-kg_wl_to_serv_s[1]) * t + v_offset // 2
-        draw_packet(x4, y4, "Infra KG", fill=(100,150,255))
-        draw_packet(x5, y5, "Workload KG", fill=(100,200,100))
-        # To Split Result (parallel)
-        x6 = kg_to_split_s[0] + (kg_to_split_e[0]-kg_to_split_s[0]) * t
-        y6 = kg_to_split_s[1] + (kg_to_split_e[1]-kg_to_split_s[1]) * t
-        draw_packet(x6, y6, "Infra KG", fill=(100,150,255))
+        # Calculate base positions
+        if fancy_phase > 0:
+            # For fancy animation, use end positions
+            # To inChat
+            (x1, y1), scale1 = get_fancy_pos_scale((kg_to_chat_e[0], kg_to_chat_e[1] - v_offset), inChat_center)
+            (x2, y2), scale2 = get_fancy_pos_scale(kg_wl_to_chat_e, inChat_center)
+            (x3, y3), scale3 = get_fancy_pos_scale((kg_poly_to_chat_e[0], kg_poly_to_chat_e[1] + v_offset), inChat_center)
+            # To inServ
+            (x4, y4), scale4 = get_fancy_pos_scale((kg_to_serv_e[0], kg_to_serv_e[1] - v_offset // 2), inServ_center)
+            (x5, y5), scale5 = get_fancy_pos_scale((kg_wl_to_serv_e[0], kg_wl_to_serv_e[1] + v_offset // 2), inServ_center)
+            # To Split Result
+            (x6, y6), scale6 = get_fancy_pos_scale(kg_to_split_e, split_center)
+        else:
+            # To inChat - stacked vertically with offsets
+            x1 = kg_to_chat_s[0] + (kg_to_chat_e[0]-kg_to_chat_s[0]) * t
+            y1 = kg_to_chat_s[1] + (kg_to_chat_e[1]-kg_to_chat_s[1]) * t - v_offset
+            x2 = kg_wl_to_chat_s[0] + (kg_wl_to_chat_e[0]-kg_wl_to_chat_s[0]) * t
+            y2 = kg_wl_to_chat_s[1] + (kg_wl_to_chat_e[1]-kg_wl_to_chat_s[1]) * t
+            x3 = kg_poly_to_chat_s[0] + (kg_poly_to_chat_e[0]-kg_poly_to_chat_s[0]) * t
+            y3 = kg_poly_to_chat_s[1] + (kg_poly_to_chat_e[1]-kg_poly_to_chat_s[1]) * t + v_offset
+            # To inServ (parallel) - stacked vertically with offsets
+            x4 = kg_to_serv_s[0] + (kg_to_serv_e[0]-kg_to_serv_s[0]) * t
+            y4 = kg_to_serv_s[1] + (kg_to_serv_e[1]-kg_to_serv_s[1]) * t - v_offset // 2
+            x5 = kg_wl_to_serv_s[0] + (kg_wl_to_serv_e[0]-kg_wl_to_serv_s[0]) * t
+            y5 = kg_wl_to_serv_s[1] + (kg_wl_to_serv_e[1]-kg_wl_to_serv_s[1]) * t + v_offset // 2
+            # To Split Result (parallel)
+            x6 = kg_to_split_s[0] + (kg_to_split_e[0]-kg_to_split_s[0]) * t
+            y6 = kg_to_split_s[1] + (kg_to_split_e[1]-kg_to_split_s[1]) * t
+            scale1 = scale2 = scale3 = scale4 = scale5 = scale6 = 1.0
+        
+        draw_packet(x1, y1, "Infra KG", fill=(100,150,255), scale=scale1)
+        draw_packet(x2, y2, "Workload KG", fill=(100,200,100), scale=scale2)
+        draw_packet(x3, y3, "Polygons KG", fill=(255,180,100), scale=scale3)
+        draw_packet(x4, y4, "Infra KG", fill=(100,150,255), scale=scale4)
+        draw_packet(x5, y5, "Workload KG", fill=(100,200,100), scale=scale5)
+        draw_packet(x6, y6, "Infra KG", fill=(100,150,255), scale=scale6)
     elif step == 1:
-        draw_packet((boxes["inChat"][0]+boxes["inChat"][2])//2, (boxes["inChat"][1]+boxes["inChat"][3])//2, "Combined Intent")
+        # Combined Intent animation from inChat to inServ
+        if fancy_phase > 0:
+            (x, y), scale = get_fancy_pos_scale(p1e, inServ_center)
+        else:
+            x = p1s[0] + (p1e[0]-p1s[0]) * t
+            y = p1s[1] + (p1e[1]-p1s[1]) * t
+            scale = 1.0
+        draw_packet(x, y, "Combined Intent", scale=scale)
     elif step == 2:
-        x = p1s[0] + (p1e[0]-p1s[0]) * t
-        y = p1s[1] + (p1e[1]-p1s[1]) * t
-        draw_packet(x, y, "Turtle Intent")
-    elif step == 3:
         inServ_center_y = (boxes["inServ"][1] + boxes["inServ"][3]) // 2
         draw_packet((boxes["inServ"][0]+boxes["inServ"][2])//2, inServ_center_y, "Parse + Detect")
-    elif step == 4:
+    elif step == 3:
         # Split animation: packet moving from inServ to Split Result
-        x = p2s[0] + (p2e[0]-p2s[0]) * t
-        y = p2s[1] + (p2e[1]-p2s[1]) * t
-        draw_packet(x, y, "Split", fill=(255, 220, 180))
-    elif step == 5:
+        if fancy_phase > 0:
+            (x, y), scale = get_fancy_pos_scale(p2e, split_center)
+        else:
+            x = p2s[0] + (p2e[0]-p2s[0]) * t
+            y = p2s[1] + (p2e[1]-p2s[1]) * t
+            scale = 1.0
+        draw_packet(x, y, "Split", fill=(255, 220, 180), scale=scale)
+    elif step == 4:
         draw_packet((split_box[0]+split_box[2])//2, 330, "Workload Intent", fill=(230,250,230))  # Moved up
         draw_packet((split_box[0]+split_box[2])//2, 580, "Network Intent", fill=(230,230,255))  # Moved up
+    elif step == 5:
+        if fancy_phase > 0:
+            (x, y), scale = get_fancy_pos_scale(p3e, inOrch_center)
+        else:
+            x = p3s[0] + (p3e[0]-p3s[0]) * t
+            y = p3s[1] + (p3e[1]-p3s[1]) * t
+            scale = 1.0
+        draw_packet(x, y, "Workload Intent", fill=(230,250,230), scale=scale)
     elif step == 6:
-        x = p3s[0] + (p3e[0]-p3s[0]) * t
-        y = p3s[1] + (p3e[1]-p3s[1]) * t
-        draw_packet(x, y, "Workload Intent", fill=(230,250,230))
-    elif step == 7:
-        x = p4s[0] + (p4e[0]-p4s[0]) * t
-        y = p4s[1] + (p4e[1]-p4s[1]) * t
-        draw_packet(x, y, "Network Intent", fill=(230,230,255))
+        if fancy_phase > 0:
+            (x, y), scale = get_fancy_pos_scale(p4e, inNet_center)
+        else:
+            x = p4s[0] + (p4e[0]-p4s[0]) * t
+            y = p4s[1] + (p4e[1]-p4s[1]) * t
+            scale = 1.0
+        draw_packet(x, y, "Network Intent", fill=(230,230,255), scale=scale)
 
     return img
 
+# Helper function to add blink frames
+def add_blink_frames(target, step, t, duration_frames=28):
+    if args.redBlink:
+        for i in range(duration_frames):
+            blink_on = (i // 4) % 2 == 0  # Toggle every 4 frames
+            frames.append(draw_scene(step, t, blink_target=target, blink_on=blink_on))
+
+# Helper function to add fancy animation frames (pause + move to center + shrink)
+# 28 frames pause (2 seconds), 10 frames for move to center, 10 frames for shrink
+def add_fancy_frames(step):
+    if args.fancyAnimation:
+        # Phase 0: Pause at arrow end for 2 seconds (28 frames)
+        for i in range(28):
+            frames.append(draw_scene(step, 1.0, fancy_phase=1, fancy_t=0.0))
+        # Phase 1: Move to target center (10 frames)
+        for i in range(10):
+            frames.append(draw_scene(step, 1.0, fancy_phase=1, fancy_t=i/9))
+        # Phase 2: Shrink/dissolve (10 frames)
+        for i in range(10):
+            frames.append(draw_scene(step, 1.0, fancy_phase=2, fancy_t=i/9))
+        return True
+    return False
+
 # Frames
 frames = []
-# Initial pause: 2.5 seconds before any animation (5000ms / 70ms per frame ≈ 35 frames)
-# Use a static scene with no animated packets (we'll use step -1 or step 0 at t=0 without drawing packets)
-frames += [draw_scene(-1, 0.0)] * 35
-# Step 0: KG flows to inChat (all three) AND to inServ (infrastructure and workload) in parallel
-for i in range(18):
-    frames.append(draw_scene(0, i/17))
-# Pause for 8 seconds after KG flow completes (4000ms / 70ms per frame ≈ 114 frames)
-frames += [draw_scene(0, 1.0)] * 114
-frames += [draw_scene(1, 0.0)] * 10
-for i in range(18):
-    frames.append(draw_scene(2, i/17))
-frames += [draw_scene(2, 1.0)] * 6
-frames += [draw_scene(3, 0.0)] * 12
-# Step 4: Split animation
-for i in range(18):
-    frames.append(draw_scene(4, i/17))
-frames += [draw_scene(4, 1.0)] * 6
-frames += [draw_scene(5, 0.0)] * 14
-# Pause for 10 seconds after KG flow completes (10000ms / 70ms per frame ≈ 142 frames)
-frames += [draw_scene(5, 1.0)] * 142
-for i in range(18):
-    frames.append(draw_scene(6, i/17))
-frames += [draw_scene(6, 1.0)] * 8
-# Pause for 7 seconds after KG flow completes (7000ms / 70ms per frame ≈ 100 frames)
-frames += [draw_scene(6, 1.0)] * 150
-for i in range(18):
-    frames.append(draw_scene(7, i/17))
-frames += [draw_scene(7, 1.0)] * 40
+
+if args.layoutOnly:
+    frames = [draw_scene(-1, 0.0)]
+else:
+    # Initial pause: 0.5 seconds (7 frames)
+    frames += [draw_scene(-1, 0.0)] * 7
+    
+    # Blink inChat for 1 second (14 frames) at the start
+    add_blink_frames("inChat", -1, 0.0, duration_frames=14)
+    
+    # Pause before inGraph blink (remaining time to make ~2 seconds total before KG animation)
+    frames += [draw_scene(-1, 0.0)] * 7
+    
+    # Blink inGraph for 2 seconds before KG animation
+    add_blink_frames("inGraph", -1, 0.0)
+    
+    # Step 0: KG flows to inChat (all three) AND to inServ (infrastructure and workload) in parallel
+    for i in range(18):
+        frames.append(draw_scene(0, i/17))
+    add_fancy_frames(0)
+    # Pause for 8 seconds after KG flow completes (reduced if fancy)
+    pause_after_0 = 114 - (48 if args.fancyAnimation else 0)
+    if pause_after_0 < 2:
+        pause_after_0 = 2
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * pause_after_0  # Empty scene after dissolve
+    else:
+        frames += [draw_scene(0, 1.0)] * pause_after_0
+    
+    # 2-second pause before Combined Intent blink
+    frames += [draw_scene(-1, 0.0)] * 28
+    
+    # Blink inChat before Combined Intent animation
+    add_blink_frames("inChat", -1, 0.0)
+    
+    # 8-second pause before Combined Intent animation
+    frames += [draw_scene(-1, 0.0)] * 112
+    
+    # Step 1: Combined Intent animation from inChat to inServ
+    for i in range(18):
+        frames.append(draw_scene(1, i/17))
+    add_fancy_frames(1)
+    
+    pause_after_1 = 6 - (48 if args.fancyAnimation else 0)
+    if pause_after_1 < 2:
+        pause_after_1 = 2
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * pause_after_1
+    else:
+        frames += [draw_scene(1, 1.0)] * pause_after_1
+    
+    frames += [draw_scene(2, 0.0)] * 12
+    
+    # Blink inServ before Split animation
+    add_blink_frames("inServ", 2, 0.0)
+    
+    # 3-second pause before Split animation
+    frames += [draw_scene(2, 0.0)] * 42
+    
+    # Step 3: Split animation
+    for i in range(18):
+        frames.append(draw_scene(3, i/17))
+    add_fancy_frames(3)
+    
+    pause_after_3 = 6 - (48 if args.fancyAnimation else 0)
+    if pause_after_3 < 2:
+        pause_after_3 = 2
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * pause_after_3
+    else:
+        frames += [draw_scene(3, 1.0)] * pause_after_3
+    
+    # Blink Split box before showing the intent cards
+    add_blink_frames("Split", -1, 0.0)
+    
+    frames += [draw_scene(4, 0.0)] * 14
+    # Pause for 4 seconds after intent cards shown (4000ms / 70ms per frame ≈ 58 frames)
+    frames += [draw_scene(4, 1.0)] * 58
+    
+    # Step 5: Workload Intent animation
+    for i in range(18):
+        frames.append(draw_scene(5, i/17))
+    add_fancy_frames(5)
+    
+    # Pause for ~4.5 seconds after Workload Intent animation (66 frames)
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * 66  # Empty scene after dissolve
+    else:
+        frames += [draw_scene(5, 1.0)] * 66
+    
+    # Step 6: Network Intent animation
+    for i in range(18):
+        frames.append(draw_scene(6, i/17))
+    add_fancy_frames(6)
+    
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * 40
+    else:
+        frames += [draw_scene(6, 1.0)] * 40
 
 gif_path = "inServ_intent_animation.gif"
 frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=70, loop=0, disposal=2)
@@ -576,5 +756,12 @@ if ffmpeg:
     subprocess.run([ffmpeg, "-y", "-i", gif_path, "-movflags", "faststart", "-pix_fmt", "yuv420p", mp4_path],
                    check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-(gif_path, mp4_path if os.path.exists(mp4_path) and os.path.getsize(mp4_path)>0 else None)
+if args.layoutOnly:
+    print(f"Layout preview saved to: {gif_path}")
+    if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+        print(f"Layout preview saved to: {mp4_path}")
+else:
+    print(f"Animation saved to: {gif_path}")
+    if os.path.exists(mp4_path) and os.path.getsize(mp4_path) > 0:
+        print(f"Animation saved to: {mp4_path}")
 

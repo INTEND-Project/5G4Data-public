@@ -254,17 +254,45 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
             else:
                 d.text((cx, xy[1]+12), name, font=FONT, fill=(10,10,10), anchor="ma")
 
-    rounded_rectangle(d, split_box, fill=(250,250,250))
-    # Draw colored background for "inServ Split Result" header (same color as inServ)
+    # Draw colored background for "inServ" / "Split Result Example" header (same color as inServ)
+    initial_split_box = (480, 120, 830, 725)  # initial split box (same as module-level split_box)
     split_text_height = FONT.size
-    # Move colored area down with 8px top margin, center text in colored area
-    split_header_top = split_box[1] + 8
-    split_header_bottom = split_header_top + split_text_height + 10  # 5px padding top and bottom
+    line_gap = 4
+    colored_header_h = 2 * split_text_height + line_gap + 10  # 5px padding top and bottom
+    gap_below_header = 12
+    gap_between_cards = 12
+    # Deployment Intent: snug header + body
+    wl_header_h = 8 + FONT_SMALL.size + 8
+    wl_body_h = 7 * (FONT_TINY.size + 4) - 4 + 12
+    wl_rect_h = wl_header_h + wl_body_h
+    # Network Intent: snug header + body (9 lines)
+    nw_header_h = wl_header_h
+    nw_body_h = 9 * (FONT_TINY.size + 4) - 4 + 12
+    nw_rect_h = nw_header_h + nw_body_h
+    # Center the whole block (colored header + both cards) vertically in split_box
+    total_content_h = 8 + colored_header_h + gap_below_header + wl_rect_h + gap_between_cards + nw_rect_h
+    top_margin = max(0, (initial_split_box[3] - initial_split_box[1] - total_content_h) // 2)
+    split_header_top = initial_split_box[1] + 8 + top_margin
+    split_header_bottom = split_header_top + colored_header_h
+    wl_rect_top = split_header_bottom + gap_below_header
+    nw_rect_top = wl_rect_top + wl_rect_h + gap_between_cards
+    wl_rect = (initial_split_box[0]+18, wl_rect_top, initial_split_box[2]-18, wl_rect_top + wl_rect_h)
+    nw_rect = (initial_split_box[0]+18, nw_rect_top, initial_split_box[2]-18, nw_rect_top + nw_rect_h)
+    wl_rect_center_y = (wl_rect[1] + wl_rect[3]) // 2
+    nw_rect_center_y = (nw_rect[1] + nw_rect[3]) // 2
+
+    # Snug encapsulating rectangle around content (8px top already in total_content_h, 8px bottom padding)
+    split_box = (initial_split_box[0], initial_split_box[1] + top_margin, initial_split_box[2], initial_split_box[1] + top_margin + total_content_h + 8)
+    rounded_rectangle(d, split_box, fill=(250,250,250))
+
     split_header_bg = (split_box[0]+10, split_header_top, split_box[2]-10, split_header_bottom)
     d.rounded_rectangle(split_header_bg, radius=10, fill=(230,210,150))  # inServ color
-    # Center text in the colored area
-    split_text_y = (split_header_top + split_header_bottom) // 2
-    d.text(((split_box[0]+split_box[2])//2, split_text_y), "inServ Split Result", font=FONT, fill=(10,10,10), anchor="mm")
+    # Two lines of text centered in the colored area
+    split_cx = (split_box[0]+split_box[2])//2
+    line1_y = split_header_top + 5 + split_text_height // 2
+    line2_y = split_header_top + 5 + split_text_height + line_gap + split_text_height // 2
+    d.text((split_cx, line1_y), "inServ", font=FONT, fill=(10,10,10), anchor="mm")
+    d.text((split_cx, line2_y), "Split Result Example", font=FONT, fill=(10,10,10), anchor="mm")
 
     # Legend at bottom
     legend_y = H - 45
@@ -303,10 +331,10 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
     # inServ to Split Result: horizontal from right side of inServ to center of left side of Split Result
     inServ_center_y = (boxes["inServ"][1] + boxes["inServ"][3]) // 2
     arrow(d, (boxes["inServ"][2], inServ_center_y), (split_box[0], split_box_center_y))
-    # Split Result to inOrch: horizontal at y=330 (moved up)
-    arrow(d, (split_box[2], 330), (boxes["inOrch"][0], 330))
-    # Split Result to inNet: horizontal at y=580 (moved up)
-    arrow(d, (split_box[2], 580), (boxes["inNet"][0], 580))
+    # Split Result to inOrch: horizontal at center of Deployment Intent rect
+    arrow(d, (split_box[2], wl_rect_center_y), (boxes["inOrch"][0], wl_rect_center_y))
+    # Split Result to inNet: horizontal at center of Network Intent rect
+    arrow(d, (split_box[2], nw_rect_center_y), (boxes["inNet"][0], nw_rect_center_y))
 
     # Wrapped text inside main boxes
     intent_id = "data5g:I7475…aab6"
@@ -337,18 +365,13 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
         padding=16, line_gap=6
     )
 
-    # Split cards sized to new split_box - Network Intent sized to fit text
-    # Deployment Intent rectangle - expanded height to fit extra line (7 lines now)
-    # header (34px) + body (7 lines * 19px + padding 32px) = 34 + 133 + 32 = 199px, use 210px
-    wl_rect = (split_box[0]+18, split_box[1]+60, split_box[2]-18, split_box[1]+340)
-    # Network Intent rectangle sized to fit text: header (34px) + body (9 lines * 19px + padding 32px) ≈ 240px
-    nw_rect = (split_box[0]+18, split_box[1]+360, split_box[2]-18, split_box[1]+600)
+    # Split cards: Deployment Intent and Network Intent (both snug, nw just below wl)
     rounded_rectangle(d, wl_rect, r=14, fill=(245,250,245))
     rounded_rectangle(d, nw_rect, r=14, fill=(245,245,250))
 
-    d.text((wl_rect[0]+14, wl_rect[1]+10), "Deployment Intent (to inOrch)", font=FONT_SMALL, fill=(20,60,20))
+    d.text((wl_rect[0]+14, wl_rect[1]+8), "Deployment Intent (to inOrch)", font=FONT_SMALL, fill=(20,60,20))
     # Draw body with bold for Expectation lines
-    wl_body_y = wl_rect[1] + 34 + 16  # Start y position (box top + header + padding)
+    wl_body_y = wl_rect[1] + wl_header_h  # Start y position (box top + header)
     line_gap = 4
     # DeploymentExpectation (bold)
     d.text((wl_rect[0]+16, wl_body_y), "DeploymentExpectation", font=FONT_TINY_BOLD, fill=(40,40,40))
@@ -369,9 +392,9 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
     # Deployment metrics as bullet point (capital D)
     d.text((wl_rect[0]+16, wl_body_y), "• Deployment metrics", font=FONT_TINY, fill=(40,40,40))
 
-    d.text((nw_rect[0]+14, nw_rect[1]+10), "Network Intent (to inNet)", font=FONT_SMALL, fill=(20,20,70))
+    d.text((nw_rect[0]+14, nw_rect[1]+8), "Network Intent (to inNet)", font=FONT_SMALL, fill=(20,20,70))
     # Draw body with bold for specific lines
-    nw_body_y = nw_rect[1] + 34 + 16  # Start y position (box top + header + padding)
+    nw_body_y = nw_rect[1] + nw_header_h  # Start y position (box top + header)
     nw_line_gap = 4
     # NetworkExpectation (QoS slice): (bold)
     d.text((nw_rect[0]+16, nw_body_y), "NetworkExpectation (QoS slice):", font=FONT_TINY_BOLD, fill=(40,40,40))
@@ -513,10 +536,10 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
     split_box_center_y = (split_box[1] + split_box[3]) // 2
     p2s = (boxes["inServ"][2]-10, inServ_center_y)
     p2e = (split_box[0]+10, split_box_center_y)
-    p3s = (split_box[2]-10, 330)  # Moved up
-    p3e = (boxes["inOrch"][0]+10, 330)  # Moved up
-    p4s = (split_box[2]-10, 580)  # Moved up
-    p4e = (boxes["inNet"][0]+10, 580)  # Moved up
+    p3s = (split_box[2]-10, wl_rect_center_y)
+    p3e = (boxes["inOrch"][0]+10, wl_rect_center_y)
+    p4s = (split_box[2]-10, nw_rect_center_y)
+    p4e = (boxes["inNet"][0]+10, nw_rect_center_y)
 
     # Target centers for fancy animation
     inChat_center = ((boxes["inChat"][0]+boxes["inChat"][2])//2, (boxes["inChat"][1]+boxes["inChat"][3])//2)
@@ -601,8 +624,8 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
             scale = 1.0
         draw_packet(x, y, "Split", fill=(255, 220, 180), scale=scale)
     elif step == 4:
-        draw_packet((split_box[0]+split_box[2])//2, 330, "Workload Intent", fill=(230,250,230))  # Moved up
-        draw_packet((split_box[0]+split_box[2])//2, 580, "Network Intent", fill=(230,230,255))  # Moved up
+        draw_packet((split_box[0]+split_box[2])//2, wl_rect_center_y, "Workload Intent", fill=(230,250,230))
+        draw_packet((split_box[0]+split_box[2])//2, nw_rect_center_y, "Network Intent", fill=(230,230,255))
     elif step == 5:
         if fancy_phase > 0:
             (x, y), scale = get_fancy_pos_scale(p3e, inOrch_center)

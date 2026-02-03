@@ -5,7 +5,8 @@ from PIL import Image, ImageDraw, ImageFont
 parser = argparse.ArgumentParser(description='Generate inServ intent handling animation')
 parser.add_argument('--layoutOnly', action='store_true', help='Only create the first frame for layout preview')
 parser.add_argument('--redBlink', action='store_true', help='Add red blinking boxes before animations')
-parser.add_argument('--fancyAnimation', action='store_true', help='Add dissolve effect: packets move to target center and shrink')
+parser.add_argument('--fancyAnimation', action='store_true', default=True, help='Add dissolve effect: packets move to target center and shrink (default: on)')
+parser.add_argument('--noFancyAnimation', dest='fancyAnimation', action='store_false', help='Disable dissolve effect')
 args = parser.parse_args()
 
 W, H = 1280, 820  # increased height to expand view area
@@ -122,14 +123,21 @@ def fit_and_draw_text(draw, box, lines, font, fill=(40,40,40), padding=14, line_
         draw.text((x1+padding, y), line, font=used_font, fill=fill)
         y += used_font.size + line_gap
 
-# Layout - moved up 35px to give more space at the bottom
+# Align inChat top with inOrch top, inGraph top with inNet top; same size (290x150) for inChat and inGraph
+INGRAPH_CIRCLE_RADIUS = 20
+INGRAPH_CIRCLES_TOP_OFFSET = 18  # Move circles down from header (used in drawing and packet paths)
+inOrch_top = 250
+inNet_top = 500
+box_height = 150
+box_width = 290
+inChat_rect = (70, inOrch_top, 70 + box_width, inOrch_top + box_height)
+inGraph_rect = (70, inNet_top, 70 + box_width, inNet_top + box_height)
 boxes = {
-    # inGraph: header(30) + row1(24) + spacing(8) + row2(24) + padding(10) = 96px height
-    "inGraph": (300, 345, 430, 441),  # Snug fit for 2 rows of circles
-    "inChat": (70, 150, 360, 300),
-    "inServ": (70, 490, 360, 660),  # Moved up
-    "inOrch": (940, 250, 1210, 410),  # Adjusted to align with horizontal arrow at y=330
-    "inNet":  (940, 500, 1210, 660),  # Adjusted to align with horizontal arrow at y=580
+    "inGraph": inGraph_rect,
+    "inChat": inChat_rect,
+    "inServ": (70, 490, 360, 660),
+    "inOrch": (940, inOrch_top, 1210, 410),
+    "inNet":  (940, inNet_top, 1210, 660),
 }
 # Split box sized to fit snugly around subrectangles - moved up
 # Top at 120, bottom at 725 (expanded to fit content)
@@ -144,31 +152,65 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
     d.text((40, 28), title, font=FONT_TITLE, fill=(15,15,15))
     d.line([40, 78, W-40, 78], fill=(200,200,200), width=2)
 
+    # Layout: inServ box inside split box at top, then colored header, then Deployment/Network Intent cards
+    initial_split_box = (480, 120, 830, 725)
+    inServ_height = boxes["inServ"][3] - boxes["inServ"][1]
+    gap_after_inServ = 12
+    split_text_height = FONT.size
+    line_gap = 4
+    colored_header_h = split_text_height + 10  # single line: text height + 5px padding top/bottom
+    gap_below_header = 12
+    gap_between_cards = 12
+    wl_header_h = 8 + FONT_SMALL.size + 8
+    wl_body_h = 7 * (FONT_TINY.size + 4) - 4 + 12
+    wl_rect_h = wl_header_h + wl_body_h
+    nw_header_h = wl_header_h
+    nw_body_h = 9 * (FONT_TINY.size + 4) - 4 + 12
+    nw_rect_h = nw_header_h + nw_body_h
+    total_content_h = 8 + inServ_height + gap_after_inServ + colored_header_h + gap_below_header + wl_rect_h + gap_between_cards + nw_rect_h + 8
+    # Position so bottom fits in view (above legend at H-45); move block up a bit
+    max_bottom = H - 50
+    min_top = 90
+    move_up = 45  # pixels to shift encapsulating rectangle and content up
+    split_box_top = max(min_top, max_bottom - total_content_h - move_up)
+    split_box = (initial_split_box[0], split_box_top, initial_split_box[2], split_box_top + total_content_h)
+    inServ_rect = (split_box[0]+18, split_box[1]+8, split_box[2]-18, split_box[1]+8+inServ_height)
+    split_header_top = split_box[1] + 8 + inServ_height + gap_after_inServ
+    split_header_bottom = split_header_top + colored_header_h
+    wl_rect_top = split_header_bottom + gap_below_header
+    nw_rect_top = wl_rect_top + wl_rect_h + gap_between_cards
+    wl_rect = (split_box[0]+18, wl_rect_top, split_box[2]-18, wl_rect_top + wl_rect_h)
+    nw_rect = (split_box[0]+18, nw_rect_top, split_box[2]-18, nw_rect_top + nw_rect_h)
+    wl_rect_center_y = (wl_rect[1] + wl_rect[3]) // 2
+    nw_rect_center_y = (nw_rect[1] + nw_rect[3]) // 2
+
     for name, xy in boxes.items():
+        if name == "inServ":
+            continue  # inServ is drawn inside the split box
         if name == "inGraph":
             # Draw inGraph with five circles in 2 rows: I, W, P on row 1; IO, IN on row 2
             rounded_rectangle(d, xy, r=12, fill=(245,245,245))
             box_cx = (xy[0]+xy[2])//2
-            # Draw colored background for header text (same style as other boxes)
-            text_height = FONT_SMALL.size
+            # Draw colored background for header text (same size as inChat: FONT)
+            text_height = FONT.size
             header_top = xy[1] + 6
-            header_bottom = header_top + text_height + 8
+            header_bottom = header_top + text_height + 10
             header_bg = (xy[0]+10, header_top, xy[2]-10, header_bottom)
             d.rounded_rectangle(header_bg, radius=8, fill=(200,210,230))  # Light gray-blue for inGraph
             # Center text in the colored area
             text_y = (header_top + header_bottom) // 2
-            d.text((box_cx, text_y), name, font=FONT_SMALL, fill=(10,10,10), anchor="mm")
+            d.text((box_cx, text_y), name, font=FONT, fill=(10,10,10), anchor="mm")
             
             header_height = 30
             available_width = (xy[2] - xy[0]) - 20  # Leave padding on sides
             available_height = (xy[3] - xy[1]) - header_height - 10  # Leave padding at bottom
-            circle_radius = 12
-            row_spacing = 8  # Vertical gap between rows
+            circle_radius = INGRAPH_CIRCLE_RADIUS
+            row_spacing = 12  # Vertical gap between rows
             
             # Row 1: 3 circles (I, W, P)
             row1_circles = 3
             row1_spacing = (available_width - row1_circles * circle_radius * 2) // (row1_circles + 1)
-            row1_y = xy[1] + header_height + circle_radius + 5
+            row1_y = xy[1] + header_height + circle_radius + INGRAPH_CIRCLES_TOP_OFFSET
             row1_x_start = xy[0] + 10 + circle_radius + row1_spacing
             
             # Infrastructure KG (blue) - "I"
@@ -254,45 +296,28 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
             else:
                 d.text((cx, xy[1]+12), name, font=FONT, fill=(10,10,10), anchor="ma")
 
-    # Draw colored background for "inServ" / "Split Result Example" header (same color as inServ)
-    initial_split_box = (480, 120, 830, 725)  # initial split box (same as module-level split_box)
-    split_text_height = FONT.size
-    line_gap = 4
-    colored_header_h = 2 * split_text_height + line_gap + 10  # 5px padding top and bottom
-    gap_below_header = 12
-    gap_between_cards = 12
-    # Deployment Intent: snug header + body
-    wl_header_h = 8 + FONT_SMALL.size + 8
-    wl_body_h = 7 * (FONT_TINY.size + 4) - 4 + 12
-    wl_rect_h = wl_header_h + wl_body_h
-    # Network Intent: snug header + body (9 lines)
-    nw_header_h = wl_header_h
-    nw_body_h = 9 * (FONT_TINY.size + 4) - 4 + 12
-    nw_rect_h = nw_header_h + nw_body_h
-    # Center the whole block (colored header + both cards) vertically in split_box
-    total_content_h = 8 + colored_header_h + gap_below_header + wl_rect_h + gap_between_cards + nw_rect_h
-    top_margin = max(0, (initial_split_box[3] - initial_split_box[1] - total_content_h) // 2)
-    split_header_top = initial_split_box[1] + 8 + top_margin
-    split_header_bottom = split_header_top + colored_header_h
-    wl_rect_top = split_header_bottom + gap_below_header
-    nw_rect_top = wl_rect_top + wl_rect_h + gap_between_cards
-    wl_rect = (initial_split_box[0]+18, wl_rect_top, initial_split_box[2]-18, wl_rect_top + wl_rect_h)
-    nw_rect = (initial_split_box[0]+18, nw_rect_top, initial_split_box[2]-18, nw_rect_top + nw_rect_h)
-    wl_rect_center_y = (wl_rect[1] + wl_rect[3]) // 2
-    nw_rect_center_y = (nw_rect[1] + nw_rect[3]) // 2
-
-    # Snug encapsulating rectangle around content (8px top already in total_content_h, 8px bottom padding)
-    split_box = (initial_split_box[0], initial_split_box[1] + top_margin, initial_split_box[2], initial_split_box[1] + top_margin + total_content_h + 8)
+    # Draw encapsulating rectangle and content: inServ box at top, then colored header, then cards
     rounded_rectangle(d, split_box, fill=(250,250,250))
-
+    # inServ box inside split box (just above the colored header)
+    rounded_rectangle(d, inServ_rect, r=14, fill=(245,250,245))
+    inServ_header_top = inServ_rect[1] + 8
+    inServ_header_bottom = inServ_header_top + FONT.size + 10
+    inServ_header_bg = (inServ_rect[0]+10, inServ_header_top, inServ_rect[2]-10, inServ_header_bottom)
+    d.rounded_rectangle(inServ_header_bg, radius=10, fill=(230,210,150))
+    d.text(((inServ_rect[0]+inServ_rect[2])//2, (inServ_header_top+inServ_header_bottom)//2), "inServ", font=FONT, fill=(10,10,10), anchor="mm")
+    fit_and_draw_text(
+        d,
+        (inServ_rect[0], inServ_rect[1]+44, inServ_rect[2], inServ_rect[3]),
+        ["• Receives intent from inChat", "• Parses turtle", "• Detects combined intent", "• Splits by expectations"],
+        FONT_SMALL,
+        padding=16, line_gap=6
+    )
+    # Colored "inServ Split Result" header (single line)
     split_header_bg = (split_box[0]+10, split_header_top, split_box[2]-10, split_header_bottom)
     d.rounded_rectangle(split_header_bg, radius=10, fill=(230,210,150))  # inServ color
-    # Two lines of text centered in the colored area
     split_cx = (split_box[0]+split_box[2])//2
-    line1_y = split_header_top + 5 + split_text_height // 2
-    line2_y = split_header_top + 5 + split_text_height + line_gap + split_text_height // 2
-    d.text((split_cx, line1_y), "inServ", font=FONT, fill=(10,10,10), anchor="mm")
-    d.text((split_cx, line2_y), "Split Result Example", font=FONT, fill=(10,10,10), anchor="mm")
+    split_header_text_y = (split_header_top + split_header_bottom) // 2
+    d.text((split_cx, split_header_text_y), "inServ Split Result", font=FONT, fill=(10,10,10), anchor="mm")
 
     # Legend at bottom
     legend_y = H - 45
@@ -318,23 +343,27 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
         legend_x += circle_r * 2 + 10 + int(text_width(FONT_TINY, label)) + 25
 
     # Arrows
-    # inGraph to inChat: from top left of inGraph to bottom center of inChat
-    arrow(d, (boxes["inGraph"][0], boxes["inGraph"][1]), ((boxes["inChat"][0]+boxes["inChat"][2])//2, boxes["inChat"][3]))
-    # inGraph to inServ: from bottom left of inGraph to top center of inServ
-    arrow(d, (boxes["inGraph"][0], boxes["inGraph"][3]), ((boxes["inServ"][0]+boxes["inServ"][2])//2, boxes["inServ"][1]))
-    # inGraph to Split Result: from center right of inGraph to center of left side of Split Result
+    # inGraph to inChat: from center top of inGraph to bottom center of inChat
+    inGraph_top_center_x = (boxes["inGraph"][0] + boxes["inGraph"][2]) // 2
+    arrow(d, (inGraph_top_center_x, boxes["inGraph"][1]), ((boxes["inChat"][0]+boxes["inChat"][2])//2, boxes["inChat"][3]))
+    # inGraph to inServ: from right side of inGraph to left center of inServ (inside split box)
+    inGraph_center_x = (boxes["inGraph"][0] + boxes["inGraph"][2]) // 2
     inGraph_center_y = (boxes["inGraph"][1] + boxes["inGraph"][3]) // 2
-    split_box_center_y = (split_box[1] + split_box[3]) // 2
-    arrow(d, (boxes["inGraph"][2], inGraph_center_y), (split_box[0], split_box_center_y))
-    # inChat to inServ: vertical arrow from bottom of inChat to top of inServ
-    arrow(d, ((boxes["inChat"][0]+boxes["inChat"][2])//2, boxes["inChat"][3]), ((boxes["inServ"][0]+boxes["inServ"][2])//2, boxes["inServ"][1]))
-    # inServ to Split Result: horizontal from right side of inServ to center of left side of Split Result
-    inServ_center_y = (boxes["inServ"][1] + boxes["inServ"][3]) // 2
-    arrow(d, (boxes["inServ"][2], inServ_center_y), (split_box[0], split_box_center_y))
-    # Split Result to inOrch: horizontal at center of Deployment Intent rect
-    arrow(d, (split_box[2], wl_rect_center_y), (boxes["inOrch"][0], wl_rect_center_y))
-    # Split Result to inNet: horizontal at center of Network Intent rect
-    arrow(d, (split_box[2], nw_rect_center_y), (boxes["inNet"][0], nw_rect_center_y))
+    inServ_center_y = (inServ_rect[1] + inServ_rect[3]) // 2
+    arrow(d, (boxes["inGraph"][2], inGraph_center_y), (inServ_rect[0], inServ_center_y))
+    # inChat to inServ: arrow from right side of inChat to left side of inServ
+    inChat_center_y = (boxes["inChat"][1] + boxes["inChat"][3]) // 2
+    arrow(d, (boxes["inChat"][2], inChat_center_y), (inServ_rect[0], inServ_center_y))
+    # inServ to Split Result: from bottom of inServ to top of "inServ Split Result" colored rounded box
+    inServ_center_x = (inServ_rect[0] + inServ_rect[2]) // 2
+    split_header_center_x = (split_box[0] + split_box[2]) // 2
+    arrow(d, (inServ_center_x, inServ_rect[3]), (split_header_center_x, split_header_top))
+    # Split Result to inOrch: from right edge of enclosing split box, horizontal to left center of inOrch
+    inOrch_center_y = (boxes["inOrch"][1] + boxes["inOrch"][3]) // 2
+    inNet_center_y = (boxes["inNet"][1] + boxes["inNet"][3]) // 2
+    arrow(d, (split_box[2], inOrch_center_y), (boxes["inOrch"][0], inOrch_center_y))
+    # Split Result to inNet: from right edge of enclosing split box, horizontal to left center of inNet
+    arrow(d, (split_box[2], inNet_center_y), (boxes["inNet"][0], inNet_center_y))
 
     # Wrapped text inside main boxes
     intent_id = "data5g:I7475…aab6"
@@ -353,14 +382,6 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
         d,
         (boxes["inChat"][0], inchat_text_y - 16, boxes["inChat"][2], boxes["inChat"][3]),
         [combined_desc],
-        FONT_SMALL,
-        padding=16, line_gap=6
-    )
-
-    fit_and_draw_text(
-        d,
-        (boxes["inServ"][0], boxes["inServ"][1]+44, boxes["inServ"][2], boxes["inServ"][3]),
-        ["• Receives intent from inChat", "• Parses turtle", "• Detects combined intent", "• Splits by expectations"],
         FONT_SMALL,
         padding=16, line_gap=6
     )
@@ -439,7 +460,7 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
         elif blink_target == "inChat":
             bx = boxes["inChat"]
         elif blink_target == "inServ":
-            bx = boxes["inServ"]
+            bx = inServ_rect
         elif blink_target == "Split":
             bx = split_box
         else:
@@ -495,15 +516,15 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
     # KG positions in inGraph (circles) - match the horizontal distribution in drawing code
     header_height = 30
     available_width = (boxes["inGraph"][2] - boxes["inGraph"][0]) - 20  # Leave padding on sides
-    circle_radius = 12
+    circle_radius = INGRAPH_CIRCLE_RADIUS
     # Calculate spacing to distribute three circles evenly horizontally (same as drawing code)
     kg_spacing = (available_width - 3 * circle_radius * 2) // 4
     kg_inf_x = boxes["inGraph"][0] + 10 + circle_radius + kg_spacing  # Infrastructure KG x position
     kg_wl_x = kg_inf_x + circle_radius * 2 + kg_spacing  # Workload KG x position
     kg_poly_x = kg_wl_x + circle_radius * 2 + kg_spacing  # Polygons KG x position
-    # All circles at same y position (centered vertically)
+    # All circles at same y (match drawing: offset down from header)
     available_height = (boxes["inGraph"][3] - boxes["inGraph"][1]) - header_height
-    kg_y = boxes["inGraph"][1] + header_height + available_height // 2  # All KGs at same y
+    kg_y = boxes["inGraph"][1] + header_height + INGRAPH_CIRCLES_TOP_OFFSET + circle_radius  # Row 1 circle center y
     
     # Paths for KG flows to inChat (all three) - spread horizontally to avoid overlap
     chat_center_x = (boxes["inChat"][0] + boxes["inChat"][2]) // 2
@@ -516,34 +537,31 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
     kg_poly_to_chat_e = (chat_center_x + chat_spread, boxes["inChat"][3] - 10)  # Right position
     
     # Paths for KG flows to inServ (infrastructure and workload only) - spread horizontally
-    serv_center_x = (boxes["inServ"][0] + boxes["inServ"][2]) // 2
+    serv_center_x = (inServ_rect[0] + inServ_rect[2]) // 2
     serv_spread = 50  # horizontal spread between packet endpoints
     kg_to_serv_s = (kg_inf_x - circle_radius - 5, kg_y)
-    kg_to_serv_e = (serv_center_x - serv_spread, boxes["inServ"][1] + 10)  # Left position
+    kg_to_serv_e = (serv_center_x - serv_spread, inServ_rect[1] + 10)  # Left position
     kg_wl_to_serv_s = (kg_wl_x - circle_radius - 5, kg_y)
-    kg_wl_to_serv_e = (serv_center_x + serv_spread, boxes["inServ"][1] + 10)  # Right position
-    
-    # Path for infrastructure KG flow to Split Result (from right side of inGraph)
-    split_box_center_y = (split_box[1] + split_box[3]) // 2
-    kg_to_split_s = (boxes["inGraph"][2] - 10, kg_y)
-    kg_to_split_e = (split_box[0] + 10, split_box_center_y)
+    kg_wl_to_serv_e = (serv_center_x + serv_spread, inServ_rect[1] + 10)  # Right position
     
     # Original paths (renumbered)
-    p1s = ((boxes["inChat"][0]+boxes["inChat"][2])//2, boxes["inChat"][3]-10)
-    p1e = ((boxes["inServ"][0]+boxes["inServ"][2])//2, boxes["inServ"][1]+10)
-    # Path for split animation: from inServ to Split Result (center of left side)
-    inServ_center_y = (boxes["inServ"][1] + boxes["inServ"][3]) // 2
-    split_box_center_y = (split_box[1] + split_box[3]) // 2
-    p2s = (boxes["inServ"][2]-10, inServ_center_y)
-    p2e = (split_box[0]+10, split_box_center_y)
-    p3s = (split_box[2]-10, wl_rect_center_y)
-    p3e = (boxes["inOrch"][0]+10, wl_rect_center_y)
-    p4s = (split_box[2]-10, nw_rect_center_y)
-    p4e = (boxes["inNet"][0]+10, nw_rect_center_y)
+    p1s = (boxes["inChat"][2]-10, inChat_center_y)
+    p1e = (inServ_rect[0]+10, inServ_center_y)
+    # Path for split animation: from inServ to both Deployment Intent and Network Intent cards
+    inServ_center_y = (inServ_rect[1] + inServ_rect[3]) // 2
+    p2s = (inServ_center_x, inServ_rect[3]-10)
+    wl_rect_center = ((wl_rect[0]+wl_rect[2])//2, wl_rect_center_y)
+    nw_rect_center = ((nw_rect[0]+nw_rect[2])//2, nw_rect_center_y)
+    p2a_e = wl_rect_center  # Deployment Intent (to inOrch) card center
+    p2b_e = nw_rect_center  # Network Intent (to inNet) card center
+    p3s = (split_box[2]-10, inOrch_center_y)
+    p3e = (boxes["inOrch"][0]+10, inOrch_center_y)
+    p4s = (split_box[2]-10, inNet_center_y)
+    p4e = (boxes["inNet"][0]+10, inNet_center_y)
 
     # Target centers for fancy animation
     inChat_center = ((boxes["inChat"][0]+boxes["inChat"][2])//2, (boxes["inChat"][1]+boxes["inChat"][3])//2)
-    inServ_center = ((boxes["inServ"][0]+boxes["inServ"][2])//2, (boxes["inServ"][1]+boxes["inServ"][3])//2)
+    inServ_center = ((inServ_rect[0]+inServ_rect[2])//2, (inServ_rect[1]+inServ_rect[3])//2)
     split_center = ((split_box[0]+split_box[2])//2, (split_box[1]+split_box[3])//2)
     inOrch_center = ((boxes["inOrch"][0]+boxes["inOrch"][2])//2, (boxes["inOrch"][1]+boxes["inOrch"][3])//2)
     inNet_center = ((boxes["inNet"][0]+boxes["inNet"][2])//2, (boxes["inNet"][1]+boxes["inNet"][3])//2)
@@ -562,46 +580,33 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
             return target_center, 1.0 - fancy_t
 
     if step == 0:
-        # Flow from all three KGs to inChat AND from infrastructure and workload KG to inServ AND infrastructure KG to Split Result (parallel)
-        # Vertical offsets to stack packets and avoid overlap (offset applied during middle of animation)
+        # Flow from all three KGs to inChat AND from infrastructure and workload KG to inServ (parallel)
         v_offset = 55  # vertical spacing between stacked packets
         
-        # Calculate base positions
         if fancy_phase > 0:
-            # For fancy animation, use end positions
-            # To inChat
             (x1, y1), scale1 = get_fancy_pos_scale((kg_to_chat_e[0], kg_to_chat_e[1] - v_offset), inChat_center)
             (x2, y2), scale2 = get_fancy_pos_scale(kg_wl_to_chat_e, inChat_center)
             (x3, y3), scale3 = get_fancy_pos_scale((kg_poly_to_chat_e[0], kg_poly_to_chat_e[1] + v_offset), inChat_center)
-            # To inServ
             (x4, y4), scale4 = get_fancy_pos_scale((kg_to_serv_e[0], kg_to_serv_e[1] - v_offset // 2), inServ_center)
             (x5, y5), scale5 = get_fancy_pos_scale((kg_wl_to_serv_e[0], kg_wl_to_serv_e[1] + v_offset // 2), inServ_center)
-            # To Split Result
-            (x6, y6), scale6 = get_fancy_pos_scale(kg_to_split_e, split_center)
         else:
-            # To inChat - stacked vertically with offsets
             x1 = kg_to_chat_s[0] + (kg_to_chat_e[0]-kg_to_chat_s[0]) * t
             y1 = kg_to_chat_s[1] + (kg_to_chat_e[1]-kg_to_chat_s[1]) * t - v_offset
             x2 = kg_wl_to_chat_s[0] + (kg_wl_to_chat_e[0]-kg_wl_to_chat_s[0]) * t
             y2 = kg_wl_to_chat_s[1] + (kg_wl_to_chat_e[1]-kg_wl_to_chat_s[1]) * t
             x3 = kg_poly_to_chat_s[0] + (kg_poly_to_chat_e[0]-kg_poly_to_chat_s[0]) * t
             y3 = kg_poly_to_chat_s[1] + (kg_poly_to_chat_e[1]-kg_poly_to_chat_s[1]) * t + v_offset
-            # To inServ (parallel) - stacked vertically with offsets
             x4 = kg_to_serv_s[0] + (kg_to_serv_e[0]-kg_to_serv_s[0]) * t
             y4 = kg_to_serv_s[1] + (kg_to_serv_e[1]-kg_to_serv_s[1]) * t - v_offset // 2
             x5 = kg_wl_to_serv_s[0] + (kg_wl_to_serv_e[0]-kg_wl_to_serv_s[0]) * t
             y5 = kg_wl_to_serv_s[1] + (kg_wl_to_serv_e[1]-kg_wl_to_serv_s[1]) * t + v_offset // 2
-            # To Split Result (parallel)
-            x6 = kg_to_split_s[0] + (kg_to_split_e[0]-kg_to_split_s[0]) * t
-            y6 = kg_to_split_s[1] + (kg_to_split_e[1]-kg_to_split_s[1]) * t
-            scale1 = scale2 = scale3 = scale4 = scale5 = scale6 = 1.0
+            scale1 = scale2 = scale3 = scale4 = scale5 = 1.0
         
         draw_packet(x1, y1, "Infra KG", fill=(100,150,255), scale=scale1)
         draw_packet(x2, y2, "Workload KG", fill=(100,200,100), scale=scale2)
         draw_packet(x3, y3, "Polygons KG", fill=(255,180,100), scale=scale3)
         draw_packet(x4, y4, "Infra KG", fill=(100,150,255), scale=scale4)
         draw_packet(x5, y5, "Workload KG", fill=(100,200,100), scale=scale5)
-        draw_packet(x6, y6, "Infra KG", fill=(100,150,255), scale=scale6)
     elif step == 1:
         # Combined Intent animation from inChat to inServ
         if fancy_phase > 0:
@@ -612,36 +617,37 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
             scale = 1.0
         draw_packet(x, y, "Combined Intent", scale=scale)
     elif step == 2:
-        inServ_center_y = (boxes["inServ"][1] + boxes["inServ"][3]) // 2
-        draw_packet((boxes["inServ"][0]+boxes["inServ"][2])//2, inServ_center_y, "Parse + Detect")
+        inServ_center_y = (inServ_rect[1] + inServ_rect[3]) // 2
+        draw_packet((inServ_rect[0]+inServ_rect[2])//2, inServ_center_y, "Parse + Detect")
     elif step == 3:
-        # Split animation: packet moving from inServ to Split Result
+        # Split animation: two packets from inServ to Deployment Intent and Network Intent cards
         if fancy_phase > 0:
-            (x, y), scale = get_fancy_pos_scale(p2e, split_center)
+            (xa, ya), scale_a = get_fancy_pos_scale(p2a_e, wl_rect_center)
+            (xb, yb), scale_b = get_fancy_pos_scale(p2b_e, nw_rect_center)
         else:
-            x = p2s[0] + (p2e[0]-p2s[0]) * t
-            y = p2s[1] + (p2e[1]-p2s[1]) * t
-            scale = 1.0
-        draw_packet(x, y, "Split", fill=(255, 220, 180), scale=scale)
+            xa = p2s[0] + (p2a_e[0]-p2s[0]) * t
+            ya = p2s[1] + (p2a_e[1]-p2s[1]) * t
+            xb = p2s[0] + (p2b_e[0]-p2s[0]) * t
+            yb = p2s[1] + (p2b_e[1]-p2s[1]) * t
+            scale_a = scale_b = 1.0
+        draw_packet(xa, ya, "Deployment Intent", fill=(230,250,230), scale=scale_a)
+        draw_packet(xb, yb, "Network Intent", fill=(230,230,255), scale=scale_b)
     elif step == 4:
-        draw_packet((split_box[0]+split_box[2])//2, wl_rect_center_y, "Workload Intent", fill=(230,250,230))
-        draw_packet((split_box[0]+split_box[2])//2, nw_rect_center_y, "Network Intent", fill=(230,230,255))
+        draw_packet(split_box[2]-20, inOrch_center_y, "Workload Intent", fill=(230,250,230))
+        draw_packet(split_box[2]-20, inNet_center_y, "Network Intent", fill=(230,230,255))
     elif step == 5:
+        # Workload Intent to inOrch and Network Intent to inNet (same time)
         if fancy_phase > 0:
-            (x, y), scale = get_fancy_pos_scale(p3e, inOrch_center)
+            (x_wl, y_wl), scale_wl = get_fancy_pos_scale(p3e, inOrch_center)
+            (x_nw, y_nw), scale_nw = get_fancy_pos_scale(p4e, inNet_center)
         else:
-            x = p3s[0] + (p3e[0]-p3s[0]) * t
-            y = p3s[1] + (p3e[1]-p3s[1]) * t
-            scale = 1.0
-        draw_packet(x, y, "Workload Intent", fill=(230,250,230), scale=scale)
-    elif step == 6:
-        if fancy_phase > 0:
-            (x, y), scale = get_fancy_pos_scale(p4e, inNet_center)
-        else:
-            x = p4s[0] + (p4e[0]-p4s[0]) * t
-            y = p4s[1] + (p4e[1]-p4s[1]) * t
-            scale = 1.0
-        draw_packet(x, y, "Network Intent", fill=(230,230,255), scale=scale)
+            x_wl = p3s[0] + (p3e[0]-p3s[0]) * t
+            y_wl = p3s[1] + (p3e[1]-p3s[1]) * t
+            x_nw = p4s[0] + (p4e[0]-p4s[0]) * t
+            y_nw = p4s[1] + (p4e[1]-p4s[1]) * t
+            scale_wl = scale_nw = 1.0
+        draw_packet(x_wl, y_wl, "Workload Intent", fill=(230,250,230), scale=scale_wl)
+        draw_packet(x_nw, y_nw, "Network Intent", fill=(230,230,255), scale=scale_nw)
 
     return img
 
@@ -749,26 +755,15 @@ else:
     # Pause for 4 seconds after intent cards shown (4000ms / 70ms per frame ≈ 58 frames)
     frames += [draw_scene(4, 1.0)] * 58
     
-    # Step 5: Workload Intent animation
+    # Step 5: Workload Intent to inOrch and Network Intent to inNet (same time)
     for i in range(18):
         frames.append(draw_scene(5, i/17))
     add_fancy_frames(5)
     
-    # Pause for ~4.5 seconds after Workload Intent animation (66 frames)
-    if args.fancyAnimation:
-        frames += [draw_scene(-1, 0.0)] * 66  # Empty scene after dissolve
-    else:
-        frames += [draw_scene(5, 1.0)] * 66
-    
-    # Step 6: Network Intent animation
-    for i in range(18):
-        frames.append(draw_scene(6, i/17))
-    add_fancy_frames(6)
-    
     if args.fancyAnimation:
         frames += [draw_scene(-1, 0.0)] * 40
     else:
-        frames += [draw_scene(6, 1.0)] * 40
+        frames += [draw_scene(5, 1.0)] * 40
 
 gif_path = "inServ_intent_animation.gif"
 frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=70, loop=0, disposal=2)

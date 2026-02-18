@@ -50,6 +50,12 @@ def arrow(draw, start, end, width=5):
 def text_width(font, s):
     return font.getlength(s)
 
+def snug_width(header_text, body_lines, font_header, font_body, header_pad=10, body_pad=12):
+    """Return width needed to snugly fit header and body lines (single column)."""
+    w_header = text_width(font_header, header_text) + 2 * header_pad
+    w_body = max((text_width(font_body, line) for line in body_lines), default=0) + 2 * body_pad
+    return int(math.ceil(max(w_header, w_body))) + 8  # +8 for outline/rounding
+
 def wrap_lines(lines, font, max_w):
     out = []
     for line in lines:
@@ -126,38 +132,133 @@ def fit_and_draw_text(draw, box, lines, font, fill=(40,40,40), padding=14, line_
         draw.text((x1+padding+indent, y), stripped, font=used_font, fill=fill)
         y += used_font.size + line_gap
 
-# Layout
-# Moved inServ and inOrch left, reduced gap to 2/3 (from 120px to 80px)
-# inGraph moved to right side of inOrch
-boxes = {
-    "inServ": (30, 320, 320, 470),  # Moved up by 35px
-    "inGraph": (1150, 320, 1250, 470),  # Right side of inOrch, vertically centered with inServ
-    "inOrch": (370, 100, 1130, 760),  # Expanded left by 30px
-}
-
-# Kubernetes cluster box inside inOrch - moved down to avoid covering "inOrch" text
-# Text "Kubernetes Cluster" at top needs ~40px space (12px offset + 18px font + 10px extra)
-k8s_cluster = (390, 145, 1110, 750)  # Expanded left to match inOrch
-
-# Components inside Kubernetes cluster - more vertical spacing
-# Workload namespaces taller to accommodate Prometheus oval inside
-# Centered horizontally in Kubernetes cluster (k8s center x = 750)
-workload_namespaces = (550, 180, 950, 250)  # 400px wide, 70px tall, re-centered
-
-# inOrch-TMF-Proxy is now outside inOrch namespace, below Workload namespaces
-# Same width as inOrch namespace rectangle
-inorch_tmf_proxy = (410, 290, 1095, 390)  # Extended right for scheduler gap
-
-# Components inside inOrch namespace (now only Intel IDO and Planner)
-# More vertical spacing between components
+# Layout — snug widths for content
+# 1) inServ: snug to header + body
+_inserv_w = snug_width("inServ", ["Sends workload intent", "to inOrch"], FONT, FONT_SMALL, header_pad=10, body_pad=16)
+# 2) inOrch-TMF-Proxy: snug to header + two columns (left and right text)
+_proxy_left_col = ["• Receives & parses intents", "• Identify workload", "• Retrieve helm chart URL from inGraph"]
+_proxy_right_col = ["• Deploy workload to k8s namespace", "• Transform to IDO CRDs"]
+_proxy_left_w = max(text_width(FONT_MICRO, s) for s in _proxy_left_col) + 12 + 8  # padding + gap to center
+_proxy_right_w = max(text_width(FONT_MICRO, s) for s in _proxy_right_col) + 12 + 8
+_proxy_header_w = text_width(FONT_TINY, "inOrch-TMF-Proxy") + 16
+_proxy_w = int(math.ceil(max(_proxy_left_w + _proxy_right_w, _proxy_header_w))) + 8
+# 3) Intel IDO and Planner: snug to header + body
+_ido_w = snug_width("Intel IDO", ["• Intent CRD orchestration", "• Intent lifecycle management"], FONT_TINY, FONT_MICRO, header_pad=8, body_pad=12)
+_planner_w = snug_width("Planner", ["• Workload optimization", "• Decision making"], FONT_TINY, FONT_MICRO, header_pad=8, body_pad=12)
+_gap_ido_planner = 30
+_ns_inner_margin = 10  # margin from inOrch namespace rect to components
+# 4) inOrch namespace width (snug to IDO + gap + Planner)
+_ns_width = _ido_w + _gap_ido_planner + _planner_w + 2 * _ns_inner_margin
+# 5) Kubernetes Cluster: snug to widest of Workload namespaces, proxy, inOrch namespace
+_workload_ns_width = 400  # fixed width for "Workload namespaces" box
+_k8s_margin = 20  # horizontal margin inside k8s cluster
+_k8s_width = max(_workload_ns_width, _proxy_w, _ns_width) + 2 * _k8s_margin
+_k8s_left = 340  # gap from inServ increased
+k8s_cluster = (_k8s_left, 145, _k8s_left + _k8s_width, 750)
+_k8s_center_x = _k8s_left + _k8s_width / 2
+# Center Workload namespaces, inOrch-TMF-Proxy, and inOrch namespace inside Kubernetes Cluster
+workload_namespaces = (
+    int(_k8s_center_x - _workload_ns_width / 2), 180,
+    int(_k8s_center_x + _workload_ns_width / 2), 250
+)
+inorch_tmf_proxy = (
+    int(_k8s_center_x - _proxy_w / 2), 290,
+    int(_k8s_center_x + _proxy_w / 2), 390
+)
+_proxy_center_y = (inorch_tmf_proxy[1] + inorch_tmf_proxy[3]) // 2
+_ns_left = int(_k8s_center_x - _ns_width / 2)
+_ns_right = _ns_left + _ns_width
+inorch_ns_rect = (_ns_left, 430, _ns_right, 740)
+# Components positioned inside inOrch namespace (fixed margin from ns left)
+_ido_left = _ns_left + _ns_inner_margin
+_planner_left = _ido_left + _ido_w + _gap_ido_planner
 components = {
-    "Intel IDO": (420, 500, 720, 615),  # Expanded left
-    "Planner": (770, 500, 1070, 615),  # Gap to right edge
+    "Intel IDO": (_ido_left, 500, _ido_left + _ido_w, 615),
+    "Planner": (_planner_left, 500, _planner_left + _planner_w, 615),
+}
+scheduler_rect = (_ido_left, 655, _planner_left + _planner_w, 710)
+# inOrch outer rectangle
+_inorch_right = max(k8s_cluster[2], _ns_right) + 20
+
+# inOrch left edge (gap from inServ)
+_inorch_left = 320
+
+# inGraph: snug box, bigger text and circles; center aligned with gap between Workload namespaces and inOrch-TMF-Proxy
+_ingraph_font = FONT_TITLE  # "inGraph" text (larger)
+_ingraph_circle_r = 24  # circle radius (bigger)
+_ingraph_circle_spacing = 14
+_ingraph_pad = 14
+_ingraph_header_top_pad = 6
+_ingraph_header_h = _ingraph_font.size + 8
+_ingraph_circle_to_header = 10
+_ingraph_bottom_pad = 10
+_ingraph_w = 2 * _ingraph_pad + 4 * _ingraph_circle_r + _ingraph_circle_spacing
+_ingraph_h = _ingraph_header_top_pad + _ingraph_header_h + _ingraph_circle_to_header + 2 * _ingraph_circle_r + _ingraph_bottom_pad
+# inGraph and images: right of inOrch; column position
+_col_left = _inorch_right + 30  # gap after inOrch
+_ingraph_center_x = _col_left + _ingraph_w
+_ingraph_left = _ingraph_center_x - _ingraph_w // 2
+_ingraph_right = _ingraph_center_x + _ingraph_w // 2
+
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_workload_cat_gap = 20
+_github_gap = 32
+_top_slot_center_y = (250 + 290) // 2 - 25  # 245, top slot (GitHub here after swap)
+
+# GitHub container registry image: at TOP slot (swapped with inGraph)
+_github_rect = None
+_github_paste = None
+_github_path = os.path.join(_script_dir, "github-container-registry.png")
+if os.path.exists(_github_path):
+    try:
+        _gh_im = Image.open(_github_path)
+        _gh_orig_w, _gh_orig_h = _gh_im.size
+        _gh_tw = _ingraph_w
+        _gh_th = int(_gh_orig_h * _gh_tw / _gh_orig_w) if _gh_orig_w else 0
+        _gh_im = _gh_im.resize((_gh_tw, _gh_th), Image.Resampling.LANCZOS)
+        if _gh_im.mode == "RGBA":
+            _github_paste = _gh_im
+        else:
+            _github_paste = _gh_im.convert("RGBA")
+        _gh_left = _ingraph_center_x - _gh_tw // 2
+        _gh_top = _top_slot_center_y - _gh_th // 2  # centered in top slot
+        _github_rect = (_gh_left, _gh_top, _gh_left + _gh_tw, _gh_top + _gh_th)
+    except Exception:
+        _github_rect = None
+        _github_paste = None
+
+# inGraph: below GitHub (swapped)
+_ingraph_top = (_github_rect[3] + _workload_cat_gap) if _github_rect is not None else (_top_slot_center_y + 20)
+_ingraph_bottom = _ingraph_top + _ingraph_h
+_ingraph_center_y = (_ingraph_top + _ingraph_bottom) // 2
+
+boxes = {
+    "inServ": (30, 320, 30 + _inserv_w, 470),
+    "inGraph": (_ingraph_left, _ingraph_top, _ingraph_right, _ingraph_bottom),
+    "inOrch": (_inorch_left, 100, _inorch_right, 760),
 }
 
-# Scheduler stacked rectangles below Intel IDO and Planner
-# With stacked offset of 5*2=10px, rightmost edge will be at 1080, leaving 30px gap to k8s (1110)
-scheduler_rect = (420, 655, 1070, 710)  # Gap to right side of k8s cluster
+# Workload catalogue: under GitHub (bottom); centered, width a bit smaller than 2*inGraph
+_workload_cat_rect = None  # (left, top, right, bottom)
+_workload_cat_paste = None  # resized RGB or RGBA image for paste
+_workload_cat_path = os.path.join(_script_dir, "workload-catalogue.png")
+if os.path.exists(_workload_cat_path):
+    try:
+        _wc_im = Image.open(_workload_cat_path)
+        _wc_orig_w, _wc_orig_h = _wc_im.size
+        _wc_tw = int(2 * _ingraph_w * 0.85)  # a bit smaller than 2*inGraph
+        _wc_th = int(_wc_orig_h * _wc_tw / _wc_orig_w) if _wc_orig_w else 0
+        _wc_im = _wc_im.resize((_wc_tw, _wc_th), Image.Resampling.LANCZOS)
+        if _wc_im.mode == "RGBA":
+            _workload_cat_paste = _wc_im
+        else:
+            _workload_cat_paste = _wc_im.convert("RGBA")
+        _wc_left = _ingraph_center_x - _wc_tw // 2  # centered under inGraph
+        _wc_top = _ingraph_bottom + _workload_cat_gap  # below inGraph
+        _workload_cat_rect = (_wc_left, _wc_top, _wc_left + _wc_tw, _wc_top + _wc_th)
+    except Exception:
+        _workload_cat_rect = None
+        _workload_cat_paste = None
 
 def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fancy_t=0.0):
     # fancy_phase: 0=normal animation, 1=move to center, 2=shrink/dissolve
@@ -184,32 +285,48 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
     fit_and_draw_text(d, (boxes["inServ"][0], boxes["inServ"][1]+44, boxes["inServ"][2], boxes["inServ"][3]),
                       ["Sends workload intent", "to inOrch"], FONT_SMALL, padding=16, line_gap=6)
 
-    # Draw inGraph
+    # GitHub container registry (top slot): rounded rect + image before inGraph
+    _cat_pad = 8
+    if _github_rect is not None:
+        g1, g2, g3, g4 = _github_rect
+        rounded_rectangle(d, (g1 - _cat_pad, g2 - _cat_pad, g3 + _cat_pad, g4 + _cat_pad), r=12, fill=(250,250,250), outline=(80,80,80), width=2)
+    if _github_rect is not None and _github_paste is not None:
+        gx1, gy1, gx2, gy2 = _github_rect
+        img.paste(_github_paste, (gx1, gy1), _github_paste)
+
+    # Draw inGraph (below GitHub)
     rounded_rectangle(d, boxes["inGraph"], r=12, fill=(245,245,245))
-    cx_graph = (boxes["inGraph"][0] + boxes["inGraph"][2]) // 2
-    # Draw colored background for header text
-    inGraph_text_height = FONT_SMALL.size
-    inGraph_header_top = boxes["inGraph"][1] + 6
-    inGraph_header_bottom = inGraph_header_top + inGraph_text_height + 8
-    inGraph_header_bg = (boxes["inGraph"][0]+10, inGraph_header_top, boxes["inGraph"][2]-10, inGraph_header_bottom)
+    ig_left, ig_top, ig_right, ig_bottom = boxes["inGraph"]
+    cx_graph = (ig_left + ig_right) // 2
+    inGraph_header_top = ig_top + _ingraph_header_top_pad
+    inGraph_header_bottom = inGraph_header_top + _ingraph_header_h
+    inGraph_header_bg = (ig_left + 10, inGraph_header_top, ig_right - 10, inGraph_header_bottom)
     d.rounded_rectangle(inGraph_header_bg, radius=8, fill=(200,210,230))  # Light gray-blue for inGraph
-    # Center text in the colored area
     inGraph_text_y = (inGraph_header_top + inGraph_header_bottom) // 2
-    d.text((cx_graph, inGraph_text_y), "inGraph", font=FONT_SMALL, fill=(10,10,10), anchor="mm")
-    # Draw two circles stacked vertically: Workload KG (W) and Intent Observations (IO)
-    # Position circles below the header background
-    circle_radius = 12
-    circle_spacing = 10
-    # Workload KG circle (top)
-    w_circle_y = inGraph_header_bottom + circle_radius + 12
-    d.ellipse([cx_graph-circle_radius, w_circle_y-circle_radius, cx_graph+circle_radius, w_circle_y+circle_radius], 
-             fill=(100,200,100), outline=(40,40,40), width=2)
-    d.text((cx_graph, w_circle_y), "W", font=FONT_MICRO, fill=(255,255,255), anchor="mm")
-    # Intent Observations circle (bottom) - purple color matching create_inServ_animation.py
-    io_circle_y = w_circle_y + circle_radius * 2 + circle_spacing
-    d.ellipse([cx_graph-circle_radius, io_circle_y-circle_radius, cx_graph+circle_radius, io_circle_y+circle_radius], 
-             fill=(180,100,200), outline=(40,40,40), width=2)
-    d.text((cx_graph, io_circle_y), "IO", font=load_font(10), fill=(255,255,255), anchor="mm")
+    d.text((cx_graph, inGraph_text_y), "inGraph", font=_ingraph_font, fill=(10,10,10), anchor="mm")
+    # Two circles horizontally (use module-level radius and spacing)
+    circles_center_y = inGraph_header_bottom + _ingraph_circle_to_header + _ingraph_circle_r
+    w_circle_x = ig_left + _ingraph_pad + _ingraph_circle_r
+    w_circle_y = circles_center_y
+    d.ellipse([w_circle_x - _ingraph_circle_r, w_circle_y - _ingraph_circle_r,
+               w_circle_x + _ingraph_circle_r, w_circle_y + _ingraph_circle_r],
+              fill=(100,200,100), outline=(40,40,40), width=2)
+    d.text((w_circle_x, w_circle_y), "W", font=FONT_SMALL, fill=(255,255,255), anchor="mm")
+    io_circle_x = w_circle_x + 2 * _ingraph_circle_r + _ingraph_circle_spacing
+    io_circle_y = circles_center_y
+    d.ellipse([io_circle_x - _ingraph_circle_r, io_circle_y - _ingraph_circle_r,
+               io_circle_x + _ingraph_circle_r, io_circle_y + _ingraph_circle_r],
+              fill=(180,100,200), outline=(40,40,40), width=2)
+    d.text((io_circle_x, io_circle_y), "IO", font=FONT_SMALL, fill=(255,255,255), anchor="mm")
+
+    # Rounded rectangle + image for workload-catalogue (bottom)
+    if _workload_cat_rect is not None:
+        w1, w2, w3, w4 = _workload_cat_rect
+        rounded_rectangle(d, (w1 - _cat_pad, w2 - _cat_pad, w3 + _cat_pad, w4 + _cat_pad), r=12, fill=(250,250,250), outline=(80,80,80), width=2)
+    # Workload catalogue image
+    if _workload_cat_rect is not None and _workload_cat_paste is not None:
+        wx1, wy1, wx2, wy2 = _workload_cat_rect
+        img.paste(_workload_cat_paste, (wx1, wy1), _workload_cat_paste)
 
     # Draw inOrch main box
     rounded_rectangle(d, boxes["inOrch"], fill=(250,250,250))
@@ -317,8 +434,6 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
                       proxy_desc_right, FONT_MICRO, padding=12, line_gap=2)
 
     # Draw inOrch namespace rectangle surrounding Intel IDO, Planner, and Scheduler
-    # Components span: left=420, right=1070, top=500, bottom=710 (including scheduler)
-    inorch_ns_rect = (410, 430, 1095, 740)  # Extended right for scheduler gap
     rounded_rectangle(d, inorch_ns_rect, r=12, fill=(248,252,248), outline=(80,80,80), width=2)
     # Draw header background (same color as component headers - light mint/seafoam green)
     inorch_ns_text_height = FONT_TINY.size
@@ -376,15 +491,27 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
     # inServ to inOrch-TMF-Proxy (horizontal, connects at right edge of inServ to left edge of proxy)
     inServ_center_y = (boxes["inServ"][1] + boxes["inServ"][3]) // 2
     proxy_center_y = (inorch_tmf_proxy[1] + inorch_tmf_proxy[3]) // 2
+    # Workload namespaces geometry (for arrows ending at right side)
+    namespaces_right = workload_namespaces[2] + 7 * 2  # right edge of front stacked rect
+    namespaces_center_y = (workload_namespaces[1] + workload_namespaces[3]) // 2 + 7
     arrow(d, (boxes["inServ"][2], inServ_center_y), (inorch_tmf_proxy[0], proxy_center_y))
     
     # inGraph to inOrch-TMF-Proxy (workload info) - from left of inGraph to right of proxy
-    # Parallel to Prometheus to inGraph arrow
+    # Endpoint fixed at proxy center so it does not move when inGraph moves
     graph_left = boxes["inGraph"][0]
     graph_lower_y = boxes["inGraph"][1] + (boxes["inGraph"][3] - boxes["inGraph"][1]) * 3 // 4  # 3/4 down on inGraph
     proxy_right_edge = inorch_tmf_proxy[2]
-    proxy_arrow_y = graph_lower_y - 40  # Moved up ~1cm to hit inOrch-TMF-Proxy
-    arrow(d, (graph_left, graph_lower_y), (proxy_right_edge, proxy_arrow_y))
+    arrow(d, (graph_left, graph_lower_y), (proxy_right_edge, _proxy_center_y))
+
+    # Workload catalogue to inOrch-TMF-Proxy: left center of image -> right of proxy (same endpoint as inGraph)
+    if _workload_cat_rect is not None:
+        wc_cy = (_workload_cat_rect[1] + _workload_cat_rect[3]) // 2
+        arrow(d, (_workload_cat_rect[0], wc_cy), (proxy_right_edge, _proxy_center_y))
+
+    # GitHub container registry to Workload namespaces (right side); "Get container" animation follows this arrow
+    if _github_rect is not None:
+        gh_cy = (_github_rect[1] + _github_rect[3]) // 2
+        arrow(d, (_github_rect[0], gh_cy), (namespaces_right + 5, namespaces_center_y))
 
     # Internal arrows within Kubernetes cluster - connect at edges
     proxy_right = inorch_tmf_proxy[2]
@@ -459,13 +586,12 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
                 d.text((x, y), label, font=f, fill=(20,20,20), anchor="mm")
 
     # Animation paths
-    # Step 0: Workload Info (from inGraph to inOrch-TMF-Proxy - parallel to Prometheus arrow)
+    # Step 0: Workload Info (from inGraph to inOrch-TMF-Proxy); endpoint fixed at proxy center
     graph_left_anim = boxes["inGraph"][0]
     graph_lower_y_anim = boxes["inGraph"][1] + (boxes["inGraph"][3] - boxes["inGraph"][1]) * 3 // 4
     proxy_right_anim = inorch_tmf_proxy[2]
-    proxy_arrow_y_anim = graph_lower_y_anim - 40  # Moved up ~1cm to hit inOrch-TMF-Proxy
     p0s = (graph_left_anim-10, graph_lower_y_anim)
-    p0e = (proxy_right_anim+10, proxy_arrow_y_anim)
+    p0e = (proxy_right_anim+10, _proxy_center_y)
     
     # Step 1: Workload Intent (from inServ to inOrch-TMF-Proxy)
     p1s = (boxes["inServ"][2]-10, inServ_center_y)
@@ -497,7 +623,24 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
     p6b_target = (planner_center_x, planner_center_y)  # Center of Planner
     
     # Also define target for step 0
-    p0_target = (proxy_center_x, proxy_center_y)  # Center of inOrch-TMF-Proxy
+    p0_target = (proxy_center_x, _proxy_center_y)  # Center of inOrch-TMF-Proxy (fixed)
+
+    # Step 7: Workload catalogue to inOrch-TMF-Proxy (before Deploy Helm)
+    if _workload_cat_rect is not None:
+        p7s = (_workload_cat_rect[0] - 10, (_workload_cat_rect[1] + _workload_cat_rect[3]) // 2)
+        p7e = (proxy_right_anim + 10, _proxy_center_y)
+        p7_target = (proxy_center_x, _proxy_center_y)
+    else:
+        p7s = p7e = p7_target = (0, 0)
+
+    # Step 8: Github Container Registry to Workload namespaces (arrow ends at right side of namespaces)
+    if _github_rect is not None:
+        p8s = (_github_rect[0] - 10, (_github_rect[1] + _github_rect[3]) // 2)
+        p8e = (namespaces_right + 5, namespaces_center_y)  # right side of Workload namespaces
+        p8_target = (namespaces_right, namespaces_center_y)  # dissolve at right side too
+    else:
+        p8s = p8e = p8_target = (0, 0)  # dummy when no github rect
+
 
     # Helper to compute fancy animation position and scale
     def get_fancy_pos_scale(end_pos, target_pos):
@@ -535,6 +678,15 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
         # Parsing and analysis
         draw_packet((inorch_tmf_proxy[0]+inorch_tmf_proxy[2])//2, proxy_center_y, 
                    "Parse & Analyze", fill=(255, 220, 180))
+    elif step == 7 and _workload_cat_rect is not None:
+        # Workload catalogue to inOrch-TMF-Proxy (before Deploy Helm)
+        x = p7s[0] + (p7e[0]-p7s[0]) * t
+        y = p7s[1] + (p7e[1]-p7s[1]) * t
+        if fancy_phase > 0:
+            (x, y), scale = get_fancy_pos_scale(p7e, p7_target)
+            draw_packet(x, y, "Get Helm chart", fill=(255, 235, 200), scale=scale)
+        else:
+            draw_packet(x, y, "Get Helm chart", fill=(255, 235, 200))
     elif step == 3:
         # Deployment to Kubernetes (Workload namespaces)
         x = p3s[0] + (p3e[0]-p3s[0]) * t
@@ -544,6 +696,15 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
             draw_packet(x, y, "Deploy (Helm)", fill=(200,230,255), scale=scale)
         else:
             draw_packet(x, y, "Deploy (Helm)", fill=(200,230,255))
+    elif step == 8 and _github_rect is not None:
+        # Get container: Github Container Registry to Workload namespaces
+        x = p8s[0] + (p8e[0]-p8s[0]) * t
+        y = p8s[1] + (p8e[1]-p8s[1]) * t
+        if fancy_phase > 0:
+            (x, y), scale = get_fancy_pos_scale(p8e, p8_target)
+            draw_packet(x, y, "Get container", fill=(220, 240, 255), scale=scale)
+        else:
+            draw_packet(x, y, "Get container", fill=(220, 240, 255))
     elif step == 4:
         # Transform to IDO CRDs
         x = p4s[0] + (p4e[0]-p4s[0]) * t
@@ -599,6 +760,12 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
         elif blink_target == "inOrch":
             bx = (boxes["inOrch"][0] - blink_padding, boxes["inOrch"][1] - blink_padding,
                   boxes["inOrch"][2] + blink_padding, boxes["inOrch"][3] + blink_padding)
+        elif blink_target == "Workload catalogue" and _workload_cat_rect is not None:
+            w1, w2, w3, w4 = _workload_cat_rect
+            bx = (w1 - blink_padding, w2 - blink_padding, w3 + blink_padding, w4 + blink_padding)
+        elif blink_target == "Github Container Registry" and _github_rect is not None:
+            g1, g2, g3, g4 = _github_rect
+            bx = (g1 - blink_padding, g2 - blink_padding, g3 + blink_padding, g4 + blink_padding)
         else:
             bx = None
         if bx:
@@ -693,20 +860,48 @@ else:
         pause_after_2 = 2
     frames += [draw_scene(2, 0.0)] * pause_after_2
     
+    # Blink Workload catalogue, then animate Workload catalogue -> inOrch-TMF-Proxy, then Step 3: Deploy (Helm)
+    add_blink_frames("Workload catalogue", -1, 0.0)
+    for i in range(18):
+        frames.append(draw_scene(7, i/17))
+    add_fancy_frames(7)
+    # Short pause after workload catalogue flow (reduced if fancy)
+    pause_after_7 = 15 - (48 if args.fancyAnimation else 0)
+    if pause_after_7 < 2:
+        pause_after_7 = 2
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * pause_after_7
+    else:
+        frames += [draw_scene(7, 1.0)] * pause_after_7
     # Blink inOrch-TMF-Proxy before Step 3: Deploy (Helm)
     add_blink_frames("inOrch-TMF-Proxy", 2, 0.0)
     # Step 3: Deployment to Workload namespaces
     for i in range(18):
         frames.append(draw_scene(3, i/17))
     add_fancy_frames(3)
-    # Pause for 10 seconds after deployment completes (reduced if blinking/fancy)
-    pause_after_3 = 142 - (28 if args.redBlink else 0) - (48 if args.fancyAnimation else 0)
+    # Pause after Deploy Helm (reduced if blinking/fancy)
+    pause_after_3 = 15 - (48 if args.fancyAnimation else 0)
     if pause_after_3 < 2:
         pause_after_3 = 2
     if args.fancyAnimation:
-        frames += [draw_scene(-1, 0.0)] * pause_after_3  # Empty scene after dissolve
+        frames += [draw_scene(-1, 0.0)] * pause_after_3
     else:
         frames += [draw_scene(3, 1.0)] * pause_after_3
+    # Blink Github Container Registry, then animate Get container (GitHub -> Workload namespaces)
+    add_blink_frames("Github Container Registry", -1, 0.0)
+    for i in range(18):
+        frames.append(draw_scene(8, i/17))
+    add_fancy_frames(8)
+    pause_after_8 = 15 - (48 if args.fancyAnimation else 0)
+    if pause_after_8 < 2:
+        pause_after_8 = 2
+    if args.fancyAnimation:
+        frames += [draw_scene(-1, 0.0)] * pause_after_8
+    else:
+        frames += [draw_scene(8, 1.0)] * pause_after_8
+    # Pause before Step 4
+    pause_before_4 = 20
+    frames += [draw_scene(-1, 0.0)] * pause_before_4
     
     # Blink inOrch-TMF-Proxy before Step 4: Transform to IDO CRDs
     add_blink_frames("inOrch-TMF-Proxy", -1, 0.0)
@@ -760,6 +955,12 @@ else:
                 # Redraw the frame with blink overlay
                 # We need to recreate the frame with blink - use step -1 for static frames
                 frames[frame_idx] = draw_scene(-1, 0.0, blink_target=target, blink_on=blink_on)
+
+    # Add 15 seconds of the final frame at the end of the animation
+    # 15 seconds ≈ 15,000ms / 70ms per frame ≈ 214 frames
+    if frames:
+        extra_tail_frames = 214
+        frames += [frames[-1]] * extra_tail_frames
 
 gif_path = "inOrch_animation.gif"
 frames[0].save(gif_path, save_all=True, append_images=frames[1:], duration=70, loop=0, disposal=2)

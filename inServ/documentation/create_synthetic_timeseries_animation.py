@@ -1,8 +1,11 @@
 import argparse
 import math
 import os
+import random
 import shutil
 import subprocess
+from dataclasses import dataclass
+from typing import List, Literal, Optional
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -64,6 +67,334 @@ FONT_SMALL = load_font(18)
 FONT_TINY = load_font(15)
 FONT_TINY_BOLD = load_bold_font(15)
 FONT_MICRO = load_font(13)
+
+
+# ---------------------------------------------------------------------------
+# Generic timeline specification & rendering (for generating many variations)
+# ---------------------------------------------------------------------------
+
+StatusColor = Literal["yellow", "green", "red"]
+
+
+@dataclass
+class StatusSegment:
+    """One status rectangle plus the number of observation dashes before it."""
+    obs_count: int
+    status: StatusColor
+
+
+@dataclass
+class ConflictSpec:
+    """Where to place a conflict circle along a sequence of segments."""
+    # Index of the segment after which to place the conflict (0-based)
+    after_segment_index: int
+
+
+@dataclass
+class ForkSpec:
+    """A forked branch timeline starting from the conflict point."""
+    segments: List[StatusSegment]
+    conflict: Optional[ConflictSpec] = None
+
+
+@dataclass
+class TimelineSpec:
+    """Complete description of one timeline: original + optional forks."""
+    orig_segments: List[StatusSegment]
+    orig_conflict: Optional[ConflictSpec] = None
+    forks: Optional[List[ForkSpec]] = None  # None or empty => no forks
+    # Blue dashes drawn between the last segment and the conflict circle (main timeline only).
+    trailing_dashes_before_conflict: int = 3
+
+    yellow_color: tuple = (230, 210, 80)
+    green_color: tuple = (60, 150, 80)
+    red_color: tuple = (210, 40, 40)
+    conflict_color: tuple = (220, 0, 0)
+
+
+# Specification approximating the current main timeline (original line + simple forks)
+MAIN_TIMELINE_SPEC = TimelineSpec(
+    orig_segments=[
+        StatusSegment(obs_count=0, status="yellow"),  # first Received
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="red"),
+        StatusSegment(obs_count=3, status="red"),
+        StatusSegment(obs_count=3, status="red"),
+    ],
+    orig_conflict=ConflictSpec(after_segment_index=6),
+    forks=[
+        ForkSpec(
+            segments=[
+                StatusSegment(obs_count=0, status="yellow"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+            ]
+        ),
+        ForkSpec(
+            segments=[
+                StatusSegment(obs_count=0, status="yellow"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+            ]
+        ),
+        ForkSpec(
+            segments=[
+                StatusSegment(obs_count=0, status="yellow"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+            ]
+        ),
+    ],
+)
+
+# Five additional specs for finale variety (only specs with red can have conflict/forks).
+# 1) No forks: has red but no conflict/forks; longer original.
+NO_FORKS_SPEC = TimelineSpec(
+    orig_segments=[
+        StatusSegment(obs_count=0, status="yellow"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="red"),
+        StatusSegment(obs_count=3, status="red"),
+    ],
+    orig_conflict=None,
+    forks=None,
+)
+
+# 2) Multiple forks: 5 branches after conflict.
+MULTIPLE_FORKS_SPEC = TimelineSpec(
+    orig_segments=[
+        StatusSegment(obs_count=0, status="yellow"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="red"),
+        StatusSegment(obs_count=3, status="red"),
+    ],
+    orig_conflict=ConflictSpec(after_segment_index=4),
+    trailing_dashes_before_conflict=3,
+    forks=[
+        ForkSpec(segments=[StatusSegment(obs_count=0, status="yellow"), StatusSegment(obs_count=3, status="green"), StatusSegment(obs_count=3, status="green")]),
+        ForkSpec(segments=[StatusSegment(obs_count=0, status="yellow"), StatusSegment(obs_count=3, status="green"), StatusSegment(obs_count=3, status="green")]),
+        ForkSpec(segments=[StatusSegment(obs_count=0, status="yellow"), StatusSegment(obs_count=3, status="green"), StatusSegment(obs_count=3, status="green")]),
+        ForkSpec(segments=[StatusSegment(obs_count=0, status="yellow"), StatusSegment(obs_count=3, status="green"), StatusSegment(obs_count=3, status="green")]),
+        ForkSpec(segments=[StatusSegment(obs_count=0, status="yellow"), StatusSegment(obs_count=3, status="green"), StatusSegment(obs_count=3, status="green")]),
+    ],
+)
+
+# 3) Short original: minimal line then one fork.
+SHORT_ORIGINAL_SPEC = TimelineSpec(
+    orig_segments=[
+        StatusSegment(obs_count=0, status="yellow"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="red"),
+    ],
+    orig_conflict=ConflictSpec(after_segment_index=2),
+    trailing_dashes_before_conflict=3,
+    forks=[
+        ForkSpec(
+            segments=[
+                StatusSegment(obs_count=0, status="yellow"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+            ]
+        ),
+    ],
+)
+
+# 4) Long original and long forks.
+LONG_ORIGINAL_SPEC = TimelineSpec(
+    orig_segments=[
+        StatusSegment(obs_count=0, status="yellow"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="red"),
+        StatusSegment(obs_count=3, status="red"),
+        StatusSegment(obs_count=3, status="red"),
+    ],
+    orig_conflict=ConflictSpec(after_segment_index=8),
+    trailing_dashes_before_conflict=3,
+    forks=[
+        ForkSpec(
+            segments=[
+                StatusSegment(obs_count=0, status="yellow"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+            ]
+        ),
+        ForkSpec(
+            segments=[
+                StatusSegment(obs_count=0, status="yellow"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+            ]
+        ),
+    ],
+)
+
+# 5) Two forks, medium length.
+TWO_FORKS_SPEC = TimelineSpec(
+    orig_segments=[
+        StatusSegment(obs_count=0, status="yellow"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="green"),
+        StatusSegment(obs_count=3, status="red"),
+        StatusSegment(obs_count=3, status="red"),
+    ],
+    orig_conflict=ConflictSpec(after_segment_index=4),
+    trailing_dashes_before_conflict=3,
+    forks=[
+        ForkSpec(
+            segments=[
+                StatusSegment(obs_count=0, status="yellow"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+            ]
+        ),
+        ForkSpec(
+            segments=[
+                StatusSegment(obs_count=0, status="yellow"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+                StatusSegment(obs_count=3, status="green"),
+            ]
+        ),
+    ],
+)
+
+# All specs used in finale (mix of no forks, multiple forks, varying lengths).
+FINALE_SPECS = [
+    MAIN_TIMELINE_SPEC,
+    NO_FORKS_SPEC,
+    MULTIPLE_FORKS_SPEC,
+    SHORT_ORIGINAL_SPEC,
+    LONG_ORIGINAL_SPEC,
+    TWO_FORKS_SPEC,
+]
+NUM_FINALE_SPECS = len(FINALE_SPECS)
+
+
+def draw_timeline_from_spec(
+    d: ImageDraw.ImageDraw,
+    spec: TimelineSpec,
+    origin_x: int,
+    origin_y: int,
+    rect_w: int = 10,
+    rect_h: int = 6,
+    dash_len: int = 12,
+    gap_len: int = 4,
+    with_forks: bool = True,
+):
+    """
+    Draw a single timeline described by TimelineSpec.
+
+    - The original part starts at (origin_x, origin_y).
+    - Each StatusSegment defines obs_count blue dashes BEFORE its status rectangle.
+    - If orig_conflict is set, a conflict circle is drawn after the chosen segment.
+    - If forks is set and with_forks is True, branches are drawn from the conflict point.
+    """
+    color_map = {
+        "yellow": spec.yellow_color,
+        "green": spec.green_color,
+        "red": spec.red_color,
+    }
+
+    blue_line = (60, 110, 220)
+
+    def draw_status_rect(cx, cy, status: StatusColor):
+        rx0 = int(cx - rect_w // 2)
+        ry0 = int(cy - rect_h // 2)
+        d.rectangle(
+            (rx0, ry0, rx0 + rect_w, ry0 + rect_h),
+            fill=color_map[status],
+            outline=(40, 40, 40),
+            width=1,
+        )
+
+    def draw_obs_dashes(x0, y, count):
+        x = x0
+        for _ in range(count):
+            d.line([x, y, x + dash_len, y], fill=blue_line, width=3)
+            x += dash_len + gap_len
+        return x
+
+    if not spec.orig_segments:
+        return
+
+    x = origin_x
+    y = origin_y
+
+    # First segment: draw status at start_x
+    first_seg = spec.orig_segments[0]
+    draw_status_rect(x, y, first_seg.status)
+    x += rect_w // 2 + 20
+
+    # Remaining segments: obs dashes then status; after each status rect add spacing (match main timeline)
+    for idx, seg in enumerate(spec.orig_segments[1:], start=1):
+        x = draw_obs_dashes(x, y, seg.obs_count)
+        x += 10
+        draw_status_rect(x, y, seg.status)
+        x += rect_w // 2 + 20
+
+    conflict_x = None
+    conflict_r = 7
+    if spec.orig_conflict is not None:
+        if spec.trailing_dashes_before_conflict > 0:
+            x = draw_obs_dashes(x, y, spec.trailing_dashes_before_conflict)
+        conflict_x = x + 22
+        d.ellipse(
+            [conflict_x - conflict_r, y - conflict_r, conflict_x + conflict_r, y + conflict_r],
+            fill=spec.conflict_color,
+            outline=(120, 0, 0),
+            width=2,
+        )
+
+    # Forks
+    if with_forks and spec.forks and conflict_x is not None:
+        branch_start_x = conflict_x + 24
+        # Connector from conflict to vertical branch line
+        d.line([conflict_x + conflict_r + 6, y, branch_start_x, y], fill=(150, 150, 150), width=1)
+
+        gap = 40
+        for i, fork_spec in enumerate(spec.forks):
+            # Position forks above/below the main line
+            branch_y = y + (i - (len(spec.forks) - 1) / 2.0) * gap
+            # Vertical line from main to branch_y
+            d.line([branch_start_x, y, branch_start_x, branch_y], fill=(0, 0, 0), width=2)
+            bx = branch_start_x + 20
+            # First fork status
+            first_fork_seg = fork_spec.segments[0]
+            draw_status_rect(bx, branch_y, first_fork_seg.status)
+            bx += rect_w // 2 + 20
+
+            for seg in fork_spec.segments[1:]:
+                bx = draw_obs_dashes(bx, branch_y, seg.obs_count)
+                bx += 10
+                draw_status_rect(bx, branch_y, seg.status)
+                bx += rect_w // 2 + 20
+
+            if fork_spec.conflict is not None:
+                cfx = bx + 22
+                d.ellipse(
+                    [cfx - conflict_r, branch_y - conflict_r, cfx + conflict_r, branch_y + conflict_r],
+                    fill=spec.conflict_color,
+                    outline=(120, 0, 0),
+                    width=2,
+                )
 
 
 def rounded_rectangle(draw, xy, r=18, outline=(30, 30, 30), width=3, fill=(245, 245, 245)):
@@ -209,6 +540,10 @@ def draw_scene(
     timeline_reveal=-1,
     intent_to_b_t=0.0,
     timeline_b_reveal=0,
+    skip_intent_owner=False,
+    skip_incoord=False,
+    skip_title=False,
+    skip_legend=False,
 ):
     """
     timeline_phase: 0 = only Intent owner + first yellow
@@ -218,14 +553,16 @@ def draw_scene(
                     4 = same (0.5s pause)
                     5 = same + send intent from inCoord to B first yellow (intent_to_b_t 0..1)
                     6 = same + animate timeline B (timeline_b_reveal)
+    skip_intent_owner / skip_incoord: used for finale (no boxes, timeline only).
+    skip_title / skip_legend: used for finale base (timeline only); header and legend drawn separately in finale.
     """
     img = Image.new("RGB", (W, H), (255, 255, 255))
     d = ImageDraw.Draw(img)
 
-    # Title
-    title = "Synthetic Intent Timeseries — Single Intent with Forked Futures"
-    d.text((40, 48), title, font=FONT_TITLE, fill=(15, 15, 15))
-    d.line([40, 90, W - 40, 90], fill=(200, 200, 200), width=2)
+    if not skip_title:
+        title = "Synthetic Intent Timeseries — Single Intent with Forked Futures"
+        d.text((40, 48), title, font=FONT_TITLE, fill=(15, 15, 15))
+        d.line([40, 90, W - 40, 90], fill=(200, 200, 200), width=2)
 
     # Geometry
     timeline_y = 480
@@ -309,35 +646,35 @@ def draw_scene(
     first_yellow_a_center = (branch_start_x_val + 20, branch_a_y)
 
     # --- Intent owner box (above the timeline, inChat style) ---
-    # ~2 cm above timeline, center-aligned with first yellow rectangle (start_x); snug fit to content
-    gap_above_timeline = 76   # ~2 cm at 96 DPI
-    intent_owner_label = "Intent owner"
-    padding_h = 14
+    gap_above_timeline = 76
+    text_height = FONT.size
     padding_v_top = 8
     padding_v_bottom = 8
-    text_height = FONT.size
     header_inner_v = 10
-    intent_owner_w = int(text_width(FONT, intent_owner_label)) + 2 * padding_h
-    intent_owner_h = padding_v_top + text_height + header_inner_v + padding_v_bottom
-    intent_owner_x1 = start_x - intent_owner_w // 2
-    intent_owner_x2 = start_x + intent_owner_w // 2
-    intent_owner_box = (
-        intent_owner_x1,
-        timeline_y - gap_above_timeline - intent_owner_h,
-        intent_owner_x2,
-        timeline_y - gap_above_timeline,
-    )
-    rounded_rectangle(d, intent_owner_box, r=18, outline=(30, 30, 30), width=3, fill=(245, 245, 245))
-    # Header like inChat: light cyan/teal
-    header_colors_inchat = (150, 220, 220)
-    header_top = intent_owner_box[1] + padding_v_top
-    header_bottom = header_top + text_height + header_inner_v
-    header_bg = (intent_owner_box[0] + 10, header_top, intent_owner_box[2] - 10, header_bottom)
-    d.rounded_rectangle(header_bg, radius=10, fill=header_colors_inchat)
-    box_cx = (intent_owner_box[0] + intent_owner_box[2]) / 2
-    text_y = (header_top + header_bottom) / 2
-    d.text((box_cx, text_y), intent_owner_label, font=FONT, fill=(10, 10, 10), anchor="mm")
-    intent_owner_center = (start_x, timeline_y - gap_above_timeline - intent_owner_h // 2)
+    intent_owner_center = (start_x, timeline_y - gap_above_timeline - 24)
+    if not skip_intent_owner:
+        intent_owner_label = "Intent owner"
+        padding_h = 14
+        intent_owner_w = int(text_width(FONT, intent_owner_label)) + 2 * padding_h
+        intent_owner_h = padding_v_top + text_height + header_inner_v + padding_v_bottom
+        intent_owner_x1 = start_x - intent_owner_w // 2
+        intent_owner_x2 = start_x + intent_owner_w // 2
+        intent_owner_box = (
+            intent_owner_x1,
+            timeline_y - gap_above_timeline - intent_owner_h,
+            intent_owner_x2,
+            timeline_y - gap_above_timeline,
+        )
+        rounded_rectangle(d, intent_owner_box, r=18, outline=(30, 30, 30), width=3, fill=(245, 245, 245))
+        header_colors_inchat = (150, 220, 220)
+        header_top = intent_owner_box[1] + padding_v_top
+        header_bottom = header_top + text_height + header_inner_v
+        header_bg = (intent_owner_box[0] + 10, header_top, intent_owner_box[2] - 10, header_bottom)
+        d.rounded_rectangle(header_bg, radius=10, fill=header_colors_inchat)
+        box_cx = (intent_owner_box[0] + intent_owner_box[2]) / 2
+        text_y = (header_top + header_bottom) / 2
+        d.text((box_cx, text_y), intent_owner_label, font=FONT, fill=(10, 10, 10), anchor="mm")
+        intent_owner_center = (start_x, timeline_y - gap_above_timeline - intent_owner_h // 2)
 
     # 1) First yellow rectangle (Received) — always visible
     draw_status_rect(start_x, timeline_y, yellow_status)
@@ -367,66 +704,65 @@ def draw_scene(
                 )
     # inCoord box (phase >= 3): above conflict, dark green header; body: "Select action" then "A...X"
     if timeline_phase >= 3:
-        incoord_label = "inCoord"
-        incoord_pad_h = 14
-        incoord_pad_v_top = 8
-        incoord_pad_v_bottom = 8
-        incoord_header_h = text_height + 10
-        line_gap = 4
-        line1_h = FONT_SMALL.size
-        line2_h = FONT_SMALL.size
-        incoord_body_h = line1_h + line_gap + line2_h + 8  # two lines + padding
-        # Second line "A...X": A, three dots (centered between A and X), X
-        w_a = text_width(FONT_SMALL, "A")
-        w_x = text_width(FONT_SMALL, "X")
-        incoord_dot_r = 1.5
-        incoord_dot_gap = 3
-        incoord_dots_w = 2 * incoord_dot_r + incoord_dot_gap + 2 * incoord_dot_r + incoord_dot_gap + 2 * incoord_dot_r
-        incoord_gap_ax = 6
-        line2_w = w_a + incoord_gap_ax + incoord_dots_w + incoord_gap_ax + w_x
-        line1_w = text_width(FONT_SMALL, "Select action")
-        incoord_w = int(max(text_width(FONT, incoord_label), line1_w, line2_w) + 2 * incoord_pad_h)
-        incoord_h = incoord_pad_v_top + incoord_header_h + incoord_body_h + incoord_pad_v_bottom
-        # Place above conflict; fork top is timeline_y-40=440, so inCoord bottom at 400
-        incoord_bottom = 400
-        incoord_top = incoord_bottom - incoord_h
-        incoord_cx = conflict_x_val
-        incoord_box = (
-            incoord_cx - incoord_w // 2,
-            incoord_top,
-            incoord_cx + incoord_w // 2,
-            incoord_bottom,
-        )
-        rounded_rectangle(d, incoord_box, r=18, outline=(30, 30, 30), width=3, fill=(245, 245, 245))
-        incoord_header_color = (40, 100, 60)  # dark green
-        incoord_header_top = incoord_box[1] + incoord_pad_v_top
-        incoord_header_bottom = incoord_header_top + incoord_header_h
-        incoord_header_bg = (incoord_box[0] + 10, incoord_header_top, incoord_box[2] - 10, incoord_header_bottom)
-        d.rounded_rectangle(incoord_header_bg, radius=10, fill=incoord_header_color)
-        d.text(
-            (incoord_cx, (incoord_header_top + incoord_header_bottom) / 2),
-            incoord_label,
-            font=FONT,
-            fill=(255, 255, 255),
-            anchor="mm",
-        )
-        body_top = incoord_header_bottom + 6
-        d.text((incoord_cx, body_top + line1_h / 2), "Select action", font=FONT_SMALL, fill=(40, 40, 40), anchor="mm")
-        line2_y = body_top + line1_h + line_gap + line2_h / 2
-        line2_start_x = incoord_cx - line2_w / 2
-        d.text((line2_start_x + w_a / 2, line2_y), "A", font=FONT_SMALL, fill=(40, 40, 40), anchor="mm")
-        dots_center_x = line2_start_x + w_a + incoord_gap_ax + incoord_dots_w / 2
-        dot_step = 2 * incoord_dot_r + incoord_dot_gap
-        for i in range(3):
-            dot_x = dots_center_x + (i - 1) * dot_step
-            d.ellipse(
-                [dot_x - incoord_dot_r, line2_y - incoord_dot_r, dot_x + incoord_dot_r, line2_y + incoord_dot_r],
-                fill=(60, 60, 60),
-                outline=None,
+        incoord_bottom_center = (conflict_x_val, 400)
+        if not skip_incoord:
+            incoord_label = "inCoord"
+            incoord_pad_h = 14
+            incoord_pad_v_top = 8
+            incoord_pad_v_bottom = 8
+            incoord_header_h = text_height + 10
+            line_gap = 4
+            line1_h = FONT_SMALL.size
+            line2_h = FONT_SMALL.size
+            incoord_body_h = line1_h + line_gap + line2_h + 8  # two lines + padding
+            w_a = text_width(FONT_SMALL, "A")
+            w_x = text_width(FONT_SMALL, "X")
+            incoord_dot_r = 1.5
+            incoord_dot_gap = 3
+            incoord_dots_w = 2 * incoord_dot_r + incoord_dot_gap + 2 * incoord_dot_r + incoord_dot_gap + 2 * incoord_dot_r
+            incoord_gap_ax = 6
+            line2_w = w_a + incoord_gap_ax + incoord_dots_w + incoord_gap_ax + w_x
+            line1_w = text_width(FONT_SMALL, "Select action")
+            incoord_w = int(max(text_width(FONT, incoord_label), line1_w, line2_w) + 2 * incoord_pad_h)
+            incoord_h = incoord_pad_v_top + incoord_header_h + incoord_body_h + incoord_pad_v_bottom
+            incoord_bottom = 400
+            incoord_top = incoord_bottom - incoord_h
+            incoord_cx = conflict_x_val
+            incoord_box = (
+                incoord_cx - incoord_w // 2,
+                incoord_top,
+                incoord_cx + incoord_w // 2,
+                incoord_bottom,
             )
-        d.text((line2_start_x + w_a + incoord_gap_ax + incoord_dots_w + incoord_gap_ax + w_x / 2, line2_y), "X", font=FONT_SMALL, fill=(40, 40, 40), anchor="mm")
-        incoord_center = (incoord_cx, (incoord_top + incoord_bottom) / 2)
-        incoord_bottom_center = (incoord_cx, incoord_bottom)
+            rounded_rectangle(d, incoord_box, r=18, outline=(30, 30, 30), width=3, fill=(245, 245, 245))
+            incoord_header_color = (40, 100, 60)
+            incoord_header_top = incoord_box[1] + incoord_pad_v_top
+            incoord_header_bottom = incoord_header_top + incoord_header_h
+            incoord_header_bg = (incoord_box[0] + 10, incoord_header_top, incoord_box[2] - 10, incoord_header_bottom)
+            d.rounded_rectangle(incoord_header_bg, radius=10, fill=incoord_header_color)
+            d.text(
+                (incoord_cx, (incoord_header_top + incoord_header_bottom) / 2),
+                incoord_label,
+                font=FONT,
+                fill=(255, 255, 255),
+                anchor="mm",
+            )
+            body_top = incoord_header_bottom + 6
+            d.text((incoord_cx, body_top + line1_h / 2), "Select action", font=FONT_SMALL, fill=(40, 40, 40), anchor="mm")
+            line2_y = body_top + line1_h + line_gap + line2_h / 2
+            line2_start_x = incoord_cx - line2_w / 2
+            d.text((line2_start_x + w_a / 2, line2_y), "A", font=FONT_SMALL, fill=(40, 40, 40), anchor="mm")
+            dots_center_x = line2_start_x + w_a + incoord_gap_ax + incoord_dots_w / 2
+            dot_step = 2 * incoord_dot_r + incoord_dot_gap
+            for i in range(3):
+                dot_x = dots_center_x + (i - 1) * dot_step
+                d.ellipse(
+                    [dot_x - incoord_dot_r, line2_y - incoord_dot_r, dot_x + incoord_dot_r, line2_y + incoord_dot_r],
+                    fill=(60, 60, 60),
+                    outline=None,
+                )
+            d.text((line2_start_x + w_a + incoord_gap_ax + incoord_dots_w + incoord_gap_ax + w_x / 2, line2_y), "X", font=FONT_SMALL, fill=(40, 40, 40), anchor="mm")
+            incoord_bottom_center = (incoord_cx, incoord_bottom)
         # Black vertical line of fork (single segment, integer coordinates for perfectly vertical line)
         fork_x = int(branch_start_x_val)
         fork_y_top = int(min(branch_ys_list))
@@ -471,7 +807,7 @@ def draw_scene(
                 outline=None,
             )
         # Send intent from inCoord to first yellow on Timeline A (phase 5)
-        if timeline_phase == 5 and 0 <= intent_to_b_t <= 1:
+        if not skip_incoord and timeline_phase == 5 and 0 <= intent_to_b_t <= 1:
             ix = incoord_bottom_center[0] + intent_to_b_t * (first_yellow_a_center[0] - incoord_bottom_center[0])
             iy = incoord_bottom_center[1] + intent_to_b_t * (first_yellow_a_center[1] - incoord_bottom_center[1])
             intent_r = 8
@@ -541,89 +877,125 @@ def draw_scene(
             cy = first_y + i * dot_gap
             d.ellipse([dots_x - dot_r, cy - dot_r, dots_x + dot_r, cy + dot_r], fill=(60, 60, 60), outline=None)
 
-    # --- Legend at the bottom, laid out horizontally on a single line ---
-    # Place legend close to the bottom of the drawing area
+    if not skip_legend:
+        base_y = H - 40
+        col_gap = 70
+        col1_x = 40
+        label_obs = "Observation reports:"
+        d.text(
+            (col1_x, base_y),
+            label_obs,
+            font=FONT_TINY_BOLD,
+            fill=(40, 40, 40),
+            anchor="lm",
+        )
+        line_x0 = col1_x + text_width(FONT_TINY_BOLD, label_obs) + 6
+        x = line_x0
+        sample_len = 70
+        while x < line_x0 + sample_len:
+            d.line([x, base_y, min(x + dash_len, line_x0 + sample_len), base_y], fill=blue_line, width=2)
+            x += dash_len + gap_len
+        col2_x = line_x0 + sample_len + col_gap
+        label_status = "Status reports:"
+        d.text(
+            (col2_x, base_y),
+            label_status,
+            font=FONT_TINY_BOLD,
+            fill=(40, 40, 40),
+            anchor="lm",
+        )
+        sx = col2_x + text_width(FONT_TINY_BOLD, label_status) + 6
+        sy = base_y - rect_h // 2
+        status_samples = [
+            ("Received", yellow_status),
+            ("Compliant", green_status),
+            ("Degraded", red_status),
+        ]
+        for label, color in status_samples:
+            rx0 = int(sx)
+            ry0 = int(sy)
+            d.rectangle(
+                (rx0, ry0, rx0 + rect_w, ry0 + rect_h),
+                fill=color,
+                outline=(40, 40, 40),
+                width=1,
+            )
+            sx = rx0 + rect_w + 4
+            d.text(
+                (sx, base_y),
+                label,
+                font=FONT_MICRO,
+                fill=(40, 40, 40),
+                anchor="lm",
+            )
+            sx += text_width(FONT_MICRO, label) + 16
+        col3_x = sx + col_gap
+        label_conflict = "Conflict detected:"
+        d.text(
+            (col3_x, base_y),
+            label_conflict,
+            font=FONT_TINY_BOLD,
+            fill=(40, 40, 40),
+            anchor="lm",
+        )
+        cx = col3_x + text_width(FONT_TINY_BOLD, label_conflict) + 8
+        cy = base_y
+        d.ellipse(
+            [
+                cx - conflict_r,
+                cy - conflict_r,
+                cx + conflict_r,
+                cy + conflict_r,
+            ],
+            fill=conflict_color,
+            outline=(120, 0, 0),
+            width=1,
+        )
+
+    return img
+
+
+def draw_title_and_legend_on(d):
+    """Draw header and legend only (for finale frame). Uses same layout as draw_scene."""
+    title = "Synthetic Intent Timeseries — Single Intent with Forked Futures"
+    d.text((40, 48), title, font=FONT_TITLE, fill=(15, 15, 15))
+    d.line([40, 90, W - 40, 90], fill=(200, 200, 200), width=2)
     base_y = H - 40
     col_gap = 70
-
-    # Column 1: "Observation reports:" with dashed blue line
+    rect_w, rect_h = 10, 6
+    dash_len, gap_len = 12, 4
+    blue_line = (60, 110, 220)
+    yellow_status = (230, 210, 80)
+    green_status = (60, 150, 80)
+    red_status = (210, 40, 40)
+    conflict_r = 7
+    conflict_color = (220, 0, 0)
     col1_x = 40
     label_obs = "Observation reports:"
-    d.text(
-        (col1_x, base_y),
-        label_obs,
-        font=FONT_TINY_BOLD,
-        fill=(40, 40, 40),
-        anchor="lm",
-    )
+    d.text((col1_x, base_y), label_obs, font=FONT_TINY_BOLD, fill=(40, 40, 40), anchor="lm")
     line_x0 = col1_x + text_width(FONT_TINY_BOLD, label_obs) + 6
     x = line_x0
     sample_len = 70
     while x < line_x0 + sample_len:
         d.line([x, base_y, min(x + dash_len, line_x0 + sample_len), base_y], fill=blue_line, width=2)
         x += dash_len + gap_len
-
-    # Column 2: "Status reports:" with color-coded rectangles
     col2_x = line_x0 + sample_len + col_gap
     label_status = "Status reports:"
-    d.text(
-        (col2_x, base_y),
-        label_status,
-        font=FONT_TINY_BOLD,
-        fill=(40, 40, 40),
-        anchor="lm",
-    )
+    d.text((col2_x, base_y), label_status, font=FONT_TINY_BOLD, fill=(40, 40, 40), anchor="lm")
     sx = col2_x + text_width(FONT_TINY_BOLD, label_status) + 6
     sy = base_y - rect_h // 2
-    status_samples = [
-        ("Received", yellow_status),
-        ("Compliant", green_status),
-        ("Degraded", red_status),
-    ]
-    for label, color in status_samples:
+    for label, color in [("Received", yellow_status), ("Compliant", green_status), ("Degraded", red_status)]:
         rx0 = int(sx)
         ry0 = int(sy)
-        d.rectangle(
-            (rx0, ry0, rx0 + rect_w, ry0 + rect_h),
-            fill=color,
-            outline=(40, 40, 40),
-            width=1,
-        )
+        d.rectangle((rx0, ry0, rx0 + rect_w, ry0 + rect_h), fill=color, outline=(40, 40, 40), width=1)
         sx = rx0 + rect_w + 4
-        d.text(
-            (sx, base_y),
-            label,
-            font=FONT_MICRO,
-            fill=(40, 40, 40),
-            anchor="lm",
-        )
+        d.text((sx, base_y), label, font=FONT_MICRO, fill=(40, 40, 40), anchor="lm")
         sx += text_width(FONT_MICRO, label) + 16
-
-    # Column 3: "Conflict detected:" with red circle
     col3_x = sx + col_gap
     label_conflict = "Conflict detected:"
-    d.text(
-        (col3_x, base_y),
-        label_conflict,
-        font=FONT_TINY_BOLD,
-        fill=(40, 40, 40),
-        anchor="lm",
-    )
+    d.text((col3_x, base_y), label_conflict, font=FONT_TINY_BOLD, fill=(40, 40, 40), anchor="lm")
     cx = col3_x + text_width(FONT_TINY_BOLD, label_conflict) + 8
-    cy = base_y
-    d.ellipse(
-        [
-            cx - conflict_r,
-            cy - conflict_r,
-            cx + conflict_r,
-            cy + conflict_r,
-        ],
-        fill=conflict_color,
-        outline=(120, 0, 0),
-        width=1,
-    )
-
-    return img
+    d.ellipse([cx - conflict_r, base_y - conflict_r, cx + conflict_r, base_y + conflict_r], fill=conflict_color, outline=(120, 0, 0), width=1)
 
 
 frames = []
@@ -657,6 +1029,192 @@ NUM_TIMELINE_ELEMENTS = 28   # must match len(timeline_elements())
 NUM_TIMELINE_ELEMENTS_B = 15
 FRAMES_PER_HALF_SECOND = 7   # 0.5s at 70 ms/frame
 
+# --- Grand finale: per-spec sprite cache, logo, and draw function ---
+# For the finale we want compact sprites tightly wrapped around a single timeline,
+# to avoid large transparent margins that cause excessive overlap when many
+# instances are composited.
+FINALE_SPRITE_W = 560
+FINALE_SPRITE_H = 140
+_finale_sprite_cache: List[Optional[Image.Image]] = [None] * NUM_FINALE_SPECS
+_base_finale_image: Optional[Image.Image] = None
+
+
+def _make_finale_sprite(spec: TimelineSpec) -> Image.Image:
+    """Create a small sprite containing just one timeline from the given spec."""
+    img = Image.new("RGB", (FINALE_SPRITE_W, FINALE_SPRITE_H), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    # Center the timeline vertically in the small sprite, with some left padding.
+    timeline_y = FINALE_SPRITE_H // 2
+    start_x = 40
+    draw_timeline_from_spec(
+        d,
+        spec,
+        origin_x=start_x,
+        origin_y=timeline_y,
+        rect_w=10,
+        rect_h=6,
+        dash_len=12,
+        gap_len=4,
+        with_forks=spec.forks is not None and len(spec.forks) > 0,
+    )
+    return img
+
+
+def get_finale_sprite(spec_index: int) -> Image.Image:
+    """Return cached compact sprite for FINALE_SPECS[spec_index] used in grand finale."""
+    global _finale_sprite_cache
+    if spec_index < 0 or spec_index >= len(FINALE_SPECS):
+        spec_index = 0
+    if _finale_sprite_cache[spec_index] is None:
+        _finale_sprite_cache[spec_index] = _make_finale_sprite(FINALE_SPECS[spec_index])
+    return _finale_sprite_cache[spec_index]
+
+
+def get_base_finale_image() -> Image.Image:
+    """
+    Single, full-canvas timeline image (MAIN_TIMELINE_SPEC) used for the short
+    pause before the grand finale. This keeps the original layout (timeline
+    near the bottom, sized for the full 1280x720 canvas).
+    """
+    global _base_finale_image
+    if _base_finale_image is None:
+        img = Image.new("RGB", (W, H), (255, 255, 255))
+        d = ImageDraw.Draw(img)
+        timeline_y = 480
+        start_x = 120
+        draw_timeline_from_spec(
+            d,
+            MAIN_TIMELINE_SPEC,
+            origin_x=start_x,
+            origin_y=timeline_y,
+            rect_w=10,
+            rect_h=6,
+            dash_len=12,
+            gap_len=4,
+            with_forks=True,
+        )
+        _base_finale_image = img
+    return _base_finale_image
+
+
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+LOGO_PATH = os.path.join(_script_dir, "Ontotext_GraphDB_Logo.png")
+_logo_image = None
+
+
+def get_logo_image():
+    global _logo_image
+    if _logo_image is None and os.path.exists(LOGO_PATH):
+        _logo_image = Image.open(LOGO_PATH).convert("RGBA")
+    return _logo_image
+
+
+# Finale: origins on an ellipse that touches the corners of the drawing area (just outside).
+# Radius from center to corner = sqrt((W/2)^2 + (H/2)^2); add a small margin so timelines start just outside.
+_cx_finale = W / 2.0
+_cy_finale = H / 2.0
+_finale_radius = math.sqrt(_cx_finale ** 2 + _cy_finale ** 2) + 18
+_random_finale = random.Random(42)
+
+# Instance 0 is the main timeline (MAIN_TIMELINE_SPEC) starting from its original position (120, 480),
+# then moving straight toward the center while shrinking.
+_MAIN_TIMELINE_START_X = 120  # same as get_base_finale_image
+_MAIN_TIMELINE_Y = 480
+FINALe_OFFSETS: List[tuple[float, float]] = []
+FINALe_OFFSETS.append((_MAIN_TIMELINE_START_X - _cx_finale, _MAIN_TIMELINE_Y - _cy_finale))
+
+# Remaining instances originate on the ellipse around the canvas.
+NUM_FINALE_RING_INSTANCES = 300  # additional timelines on the ellipse (> 50 total including main)
+for i in range(NUM_FINALE_RING_INSTANCES):
+    angle = 2.0 * math.pi * i / NUM_FINALE_RING_INSTANCES + _random_finale.uniform(-0.08, 0.08)
+    dx = _finale_radius * math.cos(angle)
+    dy = _finale_radius * math.sin(angle)
+    FINALe_OFFSETS.append((dx, dy))
+
+# Random appear time per instance (reproducible) so introduction order is not patterned.
+# Main timeline (index 0) appears immediately; others appear at random times.
+FINALE_APPEAR_TIMES: List[float] = [0.0]
+for _ in range(NUM_FINALE_RING_INSTANCES):
+    FINALE_APPEAR_TIMES.append(_random_finale.uniform(0.0, 0.82))
+
+# Assign each instance to one of the 6 timeline specs (deterministic mix).
+FINALE_SPEC_INDICES = [i % NUM_FINALE_SPECS for i in range(len(FINALe_OFFSETS))]
+
+# Semi-transparency for timeline sprites in the finale (0–255). Reduces overlap chaos.
+FINALE_TIMELINE_ALPHA = 140
+
+
+def draw_finale_frame(finale_t):
+    """Grand finale: timeline instances originate on an ellipse just outside the canvas and move toward center; random appear times. Timelines are semi-transparent."""
+    img = Image.new("RGBA", (W, H), (255, 255, 255, 255))
+    cx, cy = W / 2, H / 2
+    N = len(FINALe_OFFSETS)
+    instances_with_dist = []
+    for i in range(N):
+        t_appear = FINALE_APPEAR_TIMES[i]
+        if finale_t < t_appear:
+            continue
+        # local_t: 0 at first appearance, 1 when finale_t reaches 1
+        duration = 1.0 - t_appear
+        local_t = min(1.0, (finale_t - t_appear) / duration) if duration > 0 else 1.0
+        move = 1.0 - local_t  # 1 at origin, 0 at center
+        scale = max(0.03, 1.0 - 0.97 * local_t)
+        dx, dy = FINALe_OFFSETS[i]
+        px = cx + dx * move
+        py = cy + dy * move
+        dist = math.sqrt((px - cx) ** 2 + (py - cy) ** 2)
+        instances_with_dist.append((i, dist, scale, move))
+    instances_with_dist.sort(key=lambda x: -x[1])
+    for i, _, scale, move in instances_with_dist:
+        spec_idx = FINALE_SPEC_INDICES[i]
+        # Instance 0 is the main timeline: use full base image (with forks) so it matches the pre-finale frame.
+        if i == 0:
+            base = get_base_finale_image()
+        else:
+            base = get_finale_sprite(spec_idx)
+        bw, bh = base.size
+        dx, dy = FINALe_OFFSETS[i]
+        px = cx + dx * move
+        py = cy + dy * move
+        sw = int(bw * scale)
+        sh = int(bh * scale)
+        if sw < 2 or sh < 2:
+            continue
+        scaled = base.resize((sw, sh), Image.Resampling.LANCZOS)
+        scaled_rgba = scaled.convert("RGBA")
+        # Apply uniform semi-transparency so overlapping timelines blend instead of occluding
+        r, g, b, a = scaled_rgba.split()
+        a = a.point(lambda x: (x * FINALE_TIMELINE_ALPHA) // 255)
+        scaled_rgba = Image.merge("RGBA", (r, g, b, a))
+        # Main timeline: paste so (120, 480) in base image stays at (px, py) — no jump from pre-finale frame.
+        if i == 0:
+            anchor_x = 120 * sw / bw
+            anchor_y = 480 * sh / bh
+            paste_x = int(px - anchor_x)
+            paste_y = int(py - anchor_y)
+        else:
+            paste_x = int(px - sw / 2)
+            paste_y = int(py - sh / 2)
+        img.paste(scaled_rgba, (paste_x, paste_y), scaled_rgba)
+    logo = get_logo_image()
+    if logo is not None and finale_t >= 0.58:
+        logo_alpha = (finale_t - 0.58) / 0.42
+        logo_scale = min(1.0, logo_alpha * 1.2)
+        lw, lh = logo.size
+        target_size = int(min(W, H) * 0.55 * logo_scale)
+        if target_size >= 8:
+            lsw = max(8, int(lw * target_size / max(lw, lh)))
+            lsh = max(8, int(lh * target_size / max(lw, lh)))
+            logo_resized = logo.resize((lsw, lsh), Image.Resampling.LANCZOS)
+            paste_x = int(cx - lsw / 2)
+            paste_y = int(cy - lsh / 2)
+            if logo_resized.mode == "RGBA":
+                img.paste(logo_resized, (paste_x, paste_y), logo_resized)
+            else:
+                img.paste(logo_resized, (paste_x, paste_y))
+    return img.convert("RGB")
+
+
 if args.layoutOnly:
     # Show full animation state: main timeline + inCoord + fork + timeline B built (B truncated)
     frames = [draw_scene(-1, 0.0, timeline_phase=6, timeline_reveal=NUM_TIMELINE_ELEMENTS, timeline_b_reveal=NUM_TIMELINE_ELEMENTS_B)]
@@ -686,6 +1244,13 @@ else:
             frames.append(draw_scene(-1, 0.0, timeline_phase=6, timeline_b_reveal=reveal))
     # Hold on final state
     frames += [draw_scene(-1, 0.0, timeline_phase=6, timeline_b_reveal=NUM_TIMELINE_ELEMENTS_B)] * 40
+    # Title and legend disappear: show timeline only (no header, no legend) for a short moment
+    frames += [get_base_finale_image()] * 15
+    # Grand finale: shrink timelines from edges (each starts full size), move to center, logo grows
+    NUM_FINALE_FRAMES = 220
+    for i in range(NUM_FINALE_FRAMES + 1):
+        finale_t = i / NUM_FINALE_FRAMES
+        frames.append(draw_finale_frame(finale_t))
 
 
 gif_path = "synthetic_timeseries_animation.gif"

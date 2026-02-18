@@ -312,12 +312,23 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
         FONT_SMALL,
         padding=16, line_gap=6
     )
-    # Colored "inServ Split Result" header (single line)
-    split_header_bg = (split_box[0]+10, split_header_top, split_box[2]-10, split_header_bottom)
-    d.rounded_rectangle(split_header_bg, radius=10, fill=(230,210,150))  # inServ color
-    split_cx = (split_box[0]+split_box[2])//2
+    # "Splitted intents" header and cards container: thin black rounded box outline
+    # Slightly wider than the inner intent rectangles to create small gaps
+    gap_x = 8  # horizontal gap between outer and inner rounded rectangles
+    container_left = wl_rect[0] - gap_x
+    container_right = wl_rect[2] + gap_x
+    padding_top = 6
+    padding_bottom = 8
+    split_header_bg = (
+        container_left,
+        split_header_top - padding_top,
+        container_right,
+        nw_rect[3] + padding_bottom,
+    )
+    d.rounded_rectangle(split_header_bg, radius=14, outline=(0, 0, 0), width=1, fill=(250, 250, 250))
+    split_cx = (container_left + container_right)//2
     split_header_text_y = (split_header_top + split_header_bottom) // 2
-    d.text((split_cx, split_header_text_y), "inServ Split Result", font=FONT, fill=(10,10,10), anchor="mm")
+    d.text((split_cx, split_header_text_y), "Splitted intents", font=FONT, fill=(10,10,10), anchor="mm")
 
     # Legend at bottom
     legend_y = H - 45
@@ -354,7 +365,7 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
     # inChat to inServ: arrow from right side of inChat to left side of inServ
     inChat_center_y = (boxes["inChat"][1] + boxes["inChat"][3]) // 2
     arrow(d, (boxes["inChat"][2], inChat_center_y), (inServ_rect[0], inServ_center_y))
-    # inServ to Split Result: from bottom of inServ to top of "inServ Split Result" colored rounded box
+    # inServ to Splitted intents: from bottom of inServ to top of "Splitted intents" rounded box
     inServ_center_x = (inServ_rect[0] + inServ_rect[2]) // 2
     split_header_center_x = (split_box[0] + split_box[2]) // 2
     arrow(d, (inServ_center_x, inServ_rect[3]), (split_header_center_x, split_header_top))

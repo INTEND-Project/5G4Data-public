@@ -198,47 +198,54 @@ boxes = {
 }
 
 
-def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fancy_t=0.0):
+def draw_scene(
+    step,
+    t=0.0,
+    blink_target=None,
+    blink_on=False,
+    fancy_phase=0,
+    fancy_t=0.0,
+    timeline_phase=0,
+    timeline_reveal=-1,
+    intent_to_b_t=0.0,
+    timeline_b_reveal=0,
+):
     """
-    Static layout of a single intent timeline with forked futures.
-    Animation parameters are ignored for now.
+    timeline_phase: 0 = only Intent owner + first yellow
+                    1 = same (used during intent fly)
+                    2 = build main timeline progressively (no fork)
+                    3 = full main + inCoord + fork vertical + 3 yellow rects on A,B,X
+                    4 = same (0.5s pause)
+                    5 = same + send intent from inCoord to B first yellow (intent_to_b_t 0..1)
+                    6 = same + animate timeline B (timeline_b_reveal)
     """
     img = Image.new("RGB", (W, H), (255, 255, 255))
     d = ImageDraw.Draw(img)
 
     # Title
     title = "Synthetic Intent Timeseries — Single Intent with Forked Futures"
-    # Draw title slightly further down so it is clearly visible
     d.text((40, 48), title, font=FONT_TITLE, fill=(15, 15, 15))
     d.line([40, 90, W - 40, 90], fill=(200, 200, 200), width=2)
 
-    # Geometry (move timelines slightly further down for clearer title area)
+    # Geometry
     timeline_y = 480
     start_x = 120
     fork_x = 640
     end_x = 1160
-
-    # Vertical offsets for forked timelines (A, B, X).
-    # Gap between A and B is g; between B and X is 1.5 * g (larger).
     g = 40
-    branch_offsets = [-g, 0, int(1.5 * g)]  # A (top), B (middle), X (bottom)
-
-    # Smaller visual elements
+    branch_offsets = [-g, 0, int(1.5 * g)]
     rect_w = 10
     rect_h = 6
     dash_len = 12
     gap_len = 4
-
-    # Colors
-    base_line = (150, 150, 150)     # light gray, used only for vertical segments
-    blue_line = (60, 110, 220)      # observations (blue dashed line)
-    # Received should be yellow in this visualization
-    yellow_status = (230, 210, 80)  # Received (yellow)
-    green_status = (60, 150, 80)    # Compliant
-    red_status = (210, 40, 40)      # Degraded
+    base_line = (150, 150, 150)
+    blue_line = (60, 110, 220)
+    yellow_status = (230, 210, 80)
+    green_status = (60, 150, 80)
+    red_status = (210, 40, 40)
     conflict_color = (220, 0, 0)
+    conflict_r = 7
 
-    # Helper to draw a small status rectangle
     def draw_status_rect(cx, cy, color, outline=(40, 40, 40)):
         rx0 = int(cx - rect_w // 2)
         ry0 = int(cy - rect_h // 2)
@@ -249,76 +256,69 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
             width=1,
         )
 
-    # Helper to draw N blue dashes starting from x0
-    def draw_dashes(x0, y, n):
-        x = x0
-        for _ in range(n):
-            d.line([x, y, x + dash_len, y], fill=blue_line, width=3)
+    def draw_one_dash(x0, y):
+        d.line([x0, y, x0 + dash_len, y], fill=blue_line, width=3)
+
+    # Build list of timeline elements after first yellow: (kind, x) for progressive reveal
+    def timeline_elements():
+        x = start_x + rect_w // 2 + 20
+        # 3 dashes
+        for _ in range(3):
+            yield ("dash", x)
             x += dash_len + gap_len
-        return x
+        x += 10
+        yield ("rect_green", x)
+        x += rect_w // 2 + 20
+        for _ in range(3):
+            yield ("dash", x)
+            x += dash_len + gap_len
+        x += 10
+        yield ("rect_green", x)
+        x += rect_w // 2 + 20
+        for _ in range(3):
+            yield ("dash", x)
+            x += dash_len + gap_len
+        x += 10
+        yield ("rect_green", x)
+        x += rect_w // 2 + 20
+        for _ in range(3):
+            yield ("dash", x)
+            x += dash_len + gap_len
+        x += 10
+        for i in range(3):
+            yield ("rect_red", x)
+            x += rect_w // 2 + 20
+            for _ in range(3):
+                yield ("dash", x)
+                x += dash_len + gap_len
+            if i < 2:
+                x += 10
+        yield ("conflict", x + 22)
 
-    # First yellow (Received) center for intent animation
+    elements = list(timeline_elements())
     first_yellow_center = (start_x, timeline_y)
-
-    # --- Main original timeline ---
-    # (No solid baseline; the blue dashed line itself is the visual indicator.)
-    x_cursor = start_x
-
-    # 1) Yellow rectangle (Received)
-    draw_status_rect(x_cursor, timeline_y, yellow_status)
-    x_cursor += rect_w // 2 + 20
-
-    # 2) Blue dashed line (three dashes)
-    x_cursor = draw_dashes(x_cursor, timeline_y, 3)
-
-    # 3) Green rectangle (Compliant)
-    x_cursor += 10
-    draw_status_rect(x_cursor, timeline_y, green_status)
-
-    # 4) Two more cycles: three blue dashes + green rectangle (twice)
-    for _ in range(2):
-        x_cursor = draw_dashes(x_cursor + rect_w // 2 + 20, timeline_y, 3)
-        x_cursor += 10
-        draw_status_rect(x_cursor, timeline_y, green_status)
-
-    # 5) Extra three blue dashes between last green and first red
-    x_cursor = draw_dashes(x_cursor + rect_w // 2 + 20, timeline_y, 3)
-
-    # 6) Three times: red rectangle (Degraded) followed by three blue dashes
-    x_cursor += 10
-    for i in range(3):
-        draw_status_rect(x_cursor, timeline_y, red_status, outline=(120, 0, 0))
-        x_cursor = draw_dashes(x_cursor + rect_w // 2 + 20, timeline_y, 3)
-        if i < 2:
-            x_cursor += 10
-
-    # 6) Red circle (conflict detected)
-    conflict_x = x_cursor + 22
-    conflict_r = 7
-    d.ellipse(
-        [
-            conflict_x - conflict_r,
-            timeline_y - conflict_r,
-            conflict_x + conflict_r,
-            timeline_y + conflict_r,
-        ],
-        fill=conflict_color,
-        outline=(120, 0, 0),
-        width=2,
-    )
-
-    # 7) Fork the timeline vertically for A, B, X
-    branch_start_x = conflict_x + 24
-    # Small connector from conflict circle to vertical branches (light gray)
-    d.line([conflict_x + conflict_r + 6, timeline_y, branch_start_x, timeline_y], fill=base_line, width=1)
-
-    branch_end_x = end_x
+    show_only_intent_and_yellow = timeline_phase in (0, 1)
+    # Fork geometry (from conflict position)
+    conflict_x_val = elements[-1][1] if elements and elements[-1][0] == "conflict" else (start_x + 200)
+    branch_start_x_val = conflict_x_val + 24
+    branch_end_x_val = end_x
+    branch_ys_list = [timeline_y + off for off in branch_offsets]
+    # Timeline B is the middle branch (index 1)
+    branch_a_y = branch_ys_list[0]
+    branch_b_y = branch_ys_list[1]
+    first_yellow_a_center = (branch_start_x_val + 20, branch_a_y)
 
     # --- Intent owner box (above the timeline, inChat style) ---
-    # ~2 cm above timeline, center-aligned with first yellow rectangle (start_x)
+    # ~2 cm above timeline, center-aligned with first yellow rectangle (start_x); snug fit to content
     gap_above_timeline = 76   # ~2 cm at 96 DPI
-    intent_owner_w = 160
-    intent_owner_h = 90
+    intent_owner_label = "Intent owner"
+    padding_h = 14
+    padding_v_top = 8
+    padding_v_bottom = 8
+    text_height = FONT.size
+    header_inner_v = 10
+    intent_owner_w = int(text_width(FONT, intent_owner_label)) + 2 * padding_h
+    intent_owner_h = padding_v_top + text_height + header_inner_v + padding_v_bottom
     intent_owner_x1 = start_x - intent_owner_w // 2
     intent_owner_x2 = start_x + intent_owner_w // 2
     intent_owner_box = (
@@ -330,19 +330,175 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
     rounded_rectangle(d, intent_owner_box, r=18, outline=(30, 30, 30), width=3, fill=(245, 245, 245))
     # Header like inChat: light cyan/teal
     header_colors_inchat = (150, 220, 220)
-    text_height = FONT.size
-    header_top = intent_owner_box[1] + 8
-    header_bottom = header_top + text_height + 10
+    header_top = intent_owner_box[1] + padding_v_top
+    header_bottom = header_top + text_height + header_inner_v
     header_bg = (intent_owner_box[0] + 10, header_top, intent_owner_box[2] - 10, header_bottom)
     d.rounded_rectangle(header_bg, radius=10, fill=header_colors_inchat)
     box_cx = (intent_owner_box[0] + intent_owner_box[2]) / 2
     text_y = (header_top + header_bottom) / 2
-    d.text((box_cx, text_y), "Intent owner", font=FONT, fill=(10, 10, 10), anchor="mm")
-    # Center of box (bottom-center for animation: intent goes down to first yellow)
+    d.text((box_cx, text_y), intent_owner_label, font=FONT, fill=(10, 10, 10), anchor="mm")
     intent_owner_center = (start_x, timeline_y - gap_above_timeline - intent_owner_h // 2)
 
-    # Animated intent: from Intent owner to first yellow (Received) when step == 0
-    if step == 0 and 0 <= t <= 1:
+    # 1) First yellow rectangle (Received) — always visible
+    draw_status_rect(start_x, timeline_y, yellow_status)
+
+    # 2) Rest of main timeline: phase 2 up to timeline_reveal, or phase >= 3 full
+    reveal_count = len(elements) if timeline_phase >= 3 else timeline_reveal
+    if (timeline_phase == 2 or timeline_phase >= 3) and reveal_count > 0:
+        for i in range(min(reveal_count, len(elements))):
+            kind, x = elements[i]
+            if kind == "dash":
+                draw_one_dash(x, timeline_y)
+            elif kind == "rect_green":
+                draw_status_rect(x, timeline_y, green_status)
+            elif kind == "rect_red":
+                draw_status_rect(x, timeline_y, red_status, outline=(120, 0, 0))
+            elif kind == "conflict":
+                d.ellipse(
+                    [
+                        x - conflict_r,
+                        timeline_y - conflict_r,
+                        x + conflict_r,
+                        timeline_y + conflict_r,
+                    ],
+                    fill=conflict_color,
+                    outline=(120, 0, 0),
+                    width=2,
+                )
+    # inCoord box (phase >= 3): above conflict, dark green header; body: "Select action" then "A...X"
+    if timeline_phase >= 3:
+        incoord_label = "inCoord"
+        incoord_pad_h = 14
+        incoord_pad_v_top = 8
+        incoord_pad_v_bottom = 8
+        incoord_header_h = text_height + 10
+        line_gap = 4
+        line1_h = FONT_SMALL.size
+        line2_h = FONT_SMALL.size
+        incoord_body_h = line1_h + line_gap + line2_h + 8  # two lines + padding
+        # Second line "A...X": A, three dots (centered between A and X), X
+        w_a = text_width(FONT_SMALL, "A")
+        w_x = text_width(FONT_SMALL, "X")
+        incoord_dot_r = 1.5
+        incoord_dot_gap = 3
+        incoord_dots_w = 2 * incoord_dot_r + incoord_dot_gap + 2 * incoord_dot_r + incoord_dot_gap + 2 * incoord_dot_r
+        incoord_gap_ax = 6
+        line2_w = w_a + incoord_gap_ax + incoord_dots_w + incoord_gap_ax + w_x
+        line1_w = text_width(FONT_SMALL, "Select action")
+        incoord_w = int(max(text_width(FONT, incoord_label), line1_w, line2_w) + 2 * incoord_pad_h)
+        incoord_h = incoord_pad_v_top + incoord_header_h + incoord_body_h + incoord_pad_v_bottom
+        # Place above conflict; fork top is timeline_y-40=440, so inCoord bottom at 400
+        incoord_bottom = 400
+        incoord_top = incoord_bottom - incoord_h
+        incoord_cx = conflict_x_val
+        incoord_box = (
+            incoord_cx - incoord_w // 2,
+            incoord_top,
+            incoord_cx + incoord_w // 2,
+            incoord_bottom,
+        )
+        rounded_rectangle(d, incoord_box, r=18, outline=(30, 30, 30), width=3, fill=(245, 245, 245))
+        incoord_header_color = (40, 100, 60)  # dark green
+        incoord_header_top = incoord_box[1] + incoord_pad_v_top
+        incoord_header_bottom = incoord_header_top + incoord_header_h
+        incoord_header_bg = (incoord_box[0] + 10, incoord_header_top, incoord_box[2] - 10, incoord_header_bottom)
+        d.rounded_rectangle(incoord_header_bg, radius=10, fill=incoord_header_color)
+        d.text(
+            (incoord_cx, (incoord_header_top + incoord_header_bottom) / 2),
+            incoord_label,
+            font=FONT,
+            fill=(255, 255, 255),
+            anchor="mm",
+        )
+        body_top = incoord_header_bottom + 6
+        d.text((incoord_cx, body_top + line1_h / 2), "Select action", font=FONT_SMALL, fill=(40, 40, 40), anchor="mm")
+        line2_y = body_top + line1_h + line_gap + line2_h / 2
+        line2_start_x = incoord_cx - line2_w / 2
+        d.text((line2_start_x + w_a / 2, line2_y), "A", font=FONT_SMALL, fill=(40, 40, 40), anchor="mm")
+        dots_center_x = line2_start_x + w_a + incoord_gap_ax + incoord_dots_w / 2
+        dot_step = 2 * incoord_dot_r + incoord_dot_gap
+        for i in range(3):
+            dot_x = dots_center_x + (i - 1) * dot_step
+            d.ellipse(
+                [dot_x - incoord_dot_r, line2_y - incoord_dot_r, dot_x + incoord_dot_r, line2_y + incoord_dot_r],
+                fill=(60, 60, 60),
+                outline=None,
+            )
+        d.text((line2_start_x + w_a + incoord_gap_ax + incoord_dots_w + incoord_gap_ax + w_x / 2, line2_y), "X", font=FONT_SMALL, fill=(40, 40, 40), anchor="mm")
+        incoord_center = (incoord_cx, (incoord_top + incoord_bottom) / 2)
+        incoord_bottom_center = (incoord_cx, incoord_bottom)
+        # Black vertical line of fork (single segment, integer coordinates for perfectly vertical line)
+        fork_x = int(branch_start_x_val)
+        fork_y_top = int(min(branch_ys_list))
+        fork_y_bot = int(max(branch_ys_list))
+        d.line([fork_x, fork_y_top, fork_x, fork_y_bot], fill=(0, 0, 0), width=2)
+        # First three yellow rectangles on forked timelines A, B, X
+        first_yellow_b_x = branch_start_x_val + 20
+        letter_offset = 8
+        for idx, by in enumerate(branch_ys_list):
+            draw_status_rect(first_yellow_b_x, by, yellow_status)
+            if idx == 0:
+                d.text((first_yellow_b_x, by - letter_offset), "A", font=FONT_SMALL, fill=(40, 40, 40), anchor="mb")
+            elif idx == 1:
+                d.text((first_yellow_b_x, by - letter_offset), "B", font=FONT_SMALL, fill=(40, 40, 40), anchor="mb")
+            else:
+                d.text((first_yellow_b_x, by + letter_offset), "X", font=FONT_SMALL, fill=(40, 40, 40), anchor="mt")
+        # Three dots between the second (B) and third (X) yellow rectangles
+        dot_r = 2
+        dot_gap = 7
+        mid_y_bx = (branch_ys_list[1] + branch_ys_list[2]) / 2
+        first_dot_y = mid_y_bx - dot_gap
+        for i in range(3):
+            cy = first_dot_y + i * dot_gap
+            d.ellipse(
+                [first_yellow_b_x - dot_r, cy - dot_r, first_yellow_b_x + dot_r, cy + dot_r],
+                fill=(60, 60, 60),
+                outline=None,
+            )
+        # Timeline A, B, X labels (to the right of the fork, within canvas)
+        branch_labels = ["A", "B", "X"]
+        label_x = int(branch_end_x_val) + 10
+        for label, by in zip(branch_labels, branch_ys_list):
+            d.text((label_x, int(by)), f"Timeline {label}", font=FONT_SMALL, fill=(40, 40, 40), anchor="lm")
+        # Three dots between the texts "Timeline B" and "Timeline X", centered on the text
+        timeline_text_w = text_width(FONT_SMALL, "Timeline B")
+        dots_label_x = label_x + timeline_text_w / 2
+        for i in range(3):
+            cy = first_dot_y + i * dot_gap
+            d.ellipse(
+                [dots_label_x - dot_r, cy - dot_r, dots_label_x + dot_r, cy + dot_r],
+                fill=(60, 60, 60),
+                outline=None,
+            )
+        # Send intent from inCoord to first yellow on Timeline A (phase 5)
+        if timeline_phase == 5 and 0 <= intent_to_b_t <= 1:
+            ix = incoord_bottom_center[0] + intent_to_b_t * (first_yellow_a_center[0] - incoord_bottom_center[0])
+            iy = incoord_bottom_center[1] + intent_to_b_t * (first_yellow_a_center[1] - incoord_bottom_center[1])
+            intent_r = 8
+            d.ellipse(
+                [ix - intent_r, iy - intent_r, ix + intent_r, iy + intent_r],
+                fill=(100, 80, 200),
+                outline=(60, 40, 120),
+                width=2,
+            )
+            if intent_to_b_t < 1:
+                d.text((ix, iy - intent_r - 4), "New or modified intent", font=FONT_MICRO, fill=(60, 40, 120), anchor="md")
+        # Timeline A progressive (phase 6): same as main but stop before first red (no reds, no conflict)
+        NUM_B_ELEMENTS = 15  # 3 dashes, green, 3 dashes, green, 3 dashes, green, 3 dashes (indices 0..14)
+        if timeline_phase == 6 and timeline_b_reveal > 0:
+            offset_b = (branch_start_x_val + 20) - start_x
+            for i in range(min(timeline_b_reveal, min(len(elements), NUM_B_ELEMENTS))):
+                kind, x = elements[i]
+                if kind in ("rect_red", "conflict"):
+                    break
+                x_b = x + offset_b
+                if kind == "dash":
+                    draw_one_dash(x_b, branch_a_y)
+                elif kind == "rect_green":
+                    draw_status_rect(x_b, branch_a_y, green_status)
+
+    # Animated intent: from Intent owner to first yellow when step == 0 (only in phase 0/1)
+    if show_only_intent_and_yellow and step == 0 and 0 <= t <= 1:
         ix = intent_owner_center[0] + t * (first_yellow_center[0] - intent_owner_center[0])
         iy = intent_owner_center[1] + t * (first_yellow_center[1] - intent_owner_center[1])
         intent_r = 8
@@ -355,54 +511,35 @@ def draw_scene(step, t=0.0, blink_target=None, blink_on=False, fancy_phase=0, fa
         if t < 1:
             d.text((ix, iy - intent_r - 4), "intent", font=FONT_MICRO, fill=(60, 40, 120), anchor="md")
 
-    # Top: A, middle: B, bottom: X
-    labels = ["A", "B", "X"]
-    branch_ys = [timeline_y + off for off in branch_offsets]
-
-    for label, by in zip(labels, branch_ys):
-        # vertical from branch_start_x to branch_y (only vertical baseline)
-        d.line([branch_start_x, timeline_y, branch_start_x, by], fill=base_line, width=1)
-
-        # 8) On each forked timeline: blue rect, 3 blue dashes, green rect, 3 dashes, green, etc.
-        x_b = branch_start_x + 20
-        # Blue rectangle at branch start
-        draw_status_rect(x_b, by, yellow_status)
-
-        # A few cycles of (3 dashes + green rect)
-        cycles = 3
-        for _ in range(cycles):
-            x_b = draw_dashes(x_b + rect_w // 2 + 20, by, 3)
-            x_b += 10
-            draw_status_rect(x_b, by, green_status)
-
-        # Branch label at the right-hand side
-        d.text(
-            (branch_end_x + 10, by),
-            f"Timeline {label}",
-            font=FONT_SMALL,
-            fill=(40, 40, 40),
-            anchor="lm",
-        )
-
-    # Three vertical dots between Timeline B and Timeline X, centered horizontally and vertically
-    y_A, y_B, y_X = branch_ys  # A (top), B (middle), X (bottom)
-    dots_x = (branch_start_x + branch_end_x) / 2
-    dot_r = 2
-    dot_gap = 7
-    mid_y = (y_B + y_X) / 2
-    first_y = mid_y - dot_gap
-    for i in range(3):
-        cy = first_y + i * dot_gap
-        d.ellipse(
-            [
-                dots_x - dot_r,
-                cy - dot_r,
-                dots_x + dot_r,
-                cy + dot_r,
-            ],
-            fill=(60, 60, 60),
-            outline=None,
-        )
+    # Fork and branches: legacy full fork (not used when phase 3+; we draw fork in phase 3+ block above)
+    if not show_only_intent_and_yellow and timeline_phase != 2 and timeline_phase < 3:
+        conflict_x = elements[-1][1] if elements else start_x + 22
+        branch_start_x = conflict_x + 24
+        d.line([conflict_x + conflict_r + 6, timeline_y, branch_start_x, timeline_y], fill=base_line, width=1)
+        branch_end_x = end_x
+        labels = ["A", "B", "X"]
+        branch_ys = [timeline_y + off for off in branch_offsets]
+        for label, by in zip(labels, branch_ys):
+            d.line([branch_start_x, timeline_y, branch_start_x, by], fill=base_line, width=1)
+            x_b = branch_start_x + 20
+            draw_status_rect(x_b, by, yellow_status)
+            for _ in range(3):
+                for _ in range(3):
+                    draw_one_dash(x_b, by)
+                    x_b += dash_len + gap_len
+                x_b += 10
+                draw_status_rect(x_b, by, green_status)
+                x_b += rect_w // 2 + 20
+            d.text((branch_end_x + 10, by), f"Timeline {label}", font=FONT_SMALL, fill=(40, 40, 40), anchor="lm")
+        y_A, y_B, y_X = branch_ys
+        dots_x = (branch_start_x + branch_end_x) / 2
+        dot_r = 2
+        dot_gap = 7
+        mid_y = (y_B + y_X) / 2
+        first_y = mid_y - dot_gap
+        for i in range(3):
+            cy = first_y + i * dot_gap
+            d.ellipse([dots_x - dot_r, cy - dot_r, dots_x + dot_r, cy + dot_r], fill=(60, 60, 60), outline=None)
 
     # --- Legend at the bottom, laid out horizontally on a single line ---
     # Place legend close to the bottom of the drawing area
@@ -514,46 +651,41 @@ def add_fancy_frames(step):
     return False
 
 
+# Number of timeline elements after first yellow (dashes, rects, conflict)
+NUM_TIMELINE_ELEMENTS = 28   # must match len(timeline_elements())
+# Timeline B stops before first red (indices 0..14: dashes and greens only)
+NUM_TIMELINE_ELEMENTS_B = 15
+FRAMES_PER_HALF_SECOND = 7   # 0.5s at 70 ms/frame
+
 if args.layoutOnly:
-    frames = [draw_scene(-1, 0.0)]
+    # Show full animation state: main timeline + inCoord + fork + timeline B built (B truncated)
+    frames = [draw_scene(-1, 0.0, timeline_phase=6, timeline_reveal=NUM_TIMELINE_ELEMENTS, timeline_b_reveal=NUM_TIMELINE_ELEMENTS_B)]
 else:
-    # Short initial pause
-    frames += [draw_scene(-1, 0.0)] * 10
-    # Blink IntentOwner, then step 0
-    add_blink_frames("IntentOwner", -1, 0.0, duration_frames=20)
+    # 1) Only Intent owner + first yellow rectangle
+    frames += [draw_scene(-1, 0.0, timeline_phase=0)] * 15
+    # 2) Animate intent from Intent owner to first yellow rectangle
     for i in range(18):
-        frames.append(draw_scene(0, i / 17))
-    add_fancy_frames(0)
-    frames += [draw_scene(-1, 0.0)] * 20
-
-    # Blink Monitoring and main reports area, then step 1
-    add_blink_frames("Monitoring", -1, 0.0, duration_frames=20)
-    add_blink_frames("reports_main", -1, 0.0, duration_frames=12)
+        frames.append(draw_scene(0, i / 17, timeline_phase=1))
+    # 3) Build main timeline: one element every 0.5 s (dashes, rects, conflict circle)
+    for reveal in range(1, NUM_TIMELINE_ELEMENTS + 1):
+        for _ in range(FRAMES_PER_HALF_SECOND):
+            frames.append(draw_scene(-1, 0.0, timeline_phase=2, timeline_reveal=reveal))
+    # Hold on conflict
+    frames += [draw_scene(-1, 0.0, timeline_phase=2, timeline_reveal=NUM_TIMELINE_ELEMENTS)] * 15
+    # 1a+1b) inCoord + black vertical fork + first 3 yellow rects on A, B, X
+    frames += [draw_scene(-1, 0.0, timeline_phase=3)] * 5
+    # 2) Wait 0.5 s
+    for _ in range(FRAMES_PER_HALF_SECOND):
+        frames.append(draw_scene(-1, 0.0, timeline_phase=4))
+    # 3) Send intent from inCoord to first yellow on timeline B
     for i in range(18):
-        frames.append(draw_scene(1, i / 17))
-    add_fancy_frames(1)
-    frames += [draw_scene(-1, 0.0)] * 20
-    # Blink inCoord / fork point, then step 2
-    add_blink_frames("inCoord", -1, 0.0, duration_frames=16)
-    add_blink_frames("fork", -1, 0.0, duration_frames=16)
-    for i in range(18):
-        frames.append(draw_scene(2, i / 17))
-    add_fancy_frames(2)
-    frames += [draw_scene(-1, 0.0)] * 20
-    # Blink branch A, then step 3
-    add_blink_frames("branch_A", -1, 0.0, duration_frames=20)
-    for i in range(18):
-        frames.append(draw_scene(3, i / 17))
-    add_fancy_frames(3)
-    frames += [draw_scene(-1, 0.0)] * 20
-    # Blink branch B, then step 4
-    add_blink_frames("branch_B", -1, 0.0, duration_frames=20)
-    for i in range(18):
-        frames.append(draw_scene(4, i / 17))
-    add_fancy_frames(4)
-
-    # Tail pause to read final state
-    frames += [draw_scene(-1, 0.0)] * 80
+        frames.append(draw_scene(-1, 0.0, timeline_phase=5, intent_to_b_t=i / 17))
+    # 4) Animate timeline B (same pacing; B stops before first red)
+    for reveal in range(1, NUM_TIMELINE_ELEMENTS_B + 1):
+        for _ in range(FRAMES_PER_HALF_SECOND):
+            frames.append(draw_scene(-1, 0.0, timeline_phase=6, timeline_b_reveal=reveal))
+    # Hold on final state
+    frames += [draw_scene(-1, 0.0, timeline_phase=6, timeline_b_reveal=NUM_TIMELINE_ELEMENTS_B)] * 40
 
 
 gif_path = "synthetic_timeseries_animation.gif"

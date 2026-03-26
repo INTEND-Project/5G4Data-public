@@ -4,7 +4,7 @@ We have created a tutorial that explains some of the decisions that the [INTEND 
 A running version of the tutorial can be viewed [here](https://start5g-1.cs.uit.no).
 
 ## Run with certificates over https
-This is the production setup where we use certificats to serve the tutorial using gunicorn and Caddy as security proxy. Certificates can be generated or updated when they expire using certbot:
+This is the production setup where we use certificates to serve the tutorial using gunicorn and Caddy as security proxy. Certificates are generated and renewed by certbot on the host, while the Caddy container reads the live certificate files directly from `/etc/letsencrypt`:
 ```
 # Requires that a proper DNS entry exists for the server
 # and that port 80 is open so that certbot can upload a
@@ -38,16 +38,18 @@ These files will be updated when the certificate renews.
 Certbot has set up a scheduled task to automatically renew this certificate in the background.
 ```
 
-Copy the generated certificates to ./certs folder. You can add automatic restart of the tutorial when the certificates are updated by adding a deploy-hook to certbot like this:
+The Docker Compose setup mounts `/etc/letsencrypt` read-only into the reverse proxy, so there is no need to copy the certificates into the repository. To make the running stack pick up renewed certificate files, add a deploy hook to certbot that restarts the reverse proxy after a successful renewal:
 ```
 sudo certbot renew --deploy-hook "/home/telco/arneme/INTEND-Project/5G4Data-public/5G4Data-Tutorial/certificate-deploy-hook.sh"
 ```
+
+For persistent automatic renewals, register the hook under `/etc/letsencrypt/renewal-hooks/deploy/` or add it as `deploy_hook` in `/etc/letsencrypt/renewal/start5g-1.cs.uit.no.conf`.
 
 To start the tutorial together with the workload catalog (with its chartmuseum backend), do this:
 ```
 docker compose up -d --build
 ```
-The tutorial is now running using https://start5g-1.cs.uit.no (or under the changed domain name).
+The tutorial is now running using https://start5g-1.cs.uit.no (or under the changed domain name). Keep port 80 reachable on the host for certbot's HTTP-01 standalone renewal flow.
 
 ## Run locally
 It is also possible to clone this repository and do this to start it on your local machine:

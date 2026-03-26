@@ -3,7 +3,7 @@
 }
 
 start5g-1.cs.uit.no:443 {
-    tls /etc/ssl/certs/fullchain.pem /etc/ssl/certs/privkey.pem
+    tls /etc/letsencrypt/live/start5g-1.cs.uit.no/fullchain.pem /etc/letsencrypt/live/start5g-1.cs.uit.no/privkey.pem
 
     # Main Flask app at root
     handle {

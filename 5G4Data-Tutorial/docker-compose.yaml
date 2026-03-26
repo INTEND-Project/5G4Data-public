@@ -12,7 +12,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
-      - ./certs:/etc/ssl/certs
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - flask-app
     networks:

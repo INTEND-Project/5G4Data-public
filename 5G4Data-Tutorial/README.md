@@ -4,52 +4,20 @@ We have created a tutorial that explains some of the decisions that the [INTEND 
 A running version of the tutorial can be viewed [here](https://start5g-1.cs.uit.no).
 
 ## Run with certificates over https
-This is the production setup where we use certificates to serve the tutorial using gunicorn and Caddy as security proxy. Certificates are generated and renewed by certbot on the host, while the Caddy container reads the live certificate files directly from `/etc/letsencrypt`:
+This is the production setup where we use Caddy as a security proxy in front of gunicorn. Caddy manages the HTTPS certificates itself using Let's Encrypt, so there is no need to run certbot on the host or copy certificate files into the repository.
+
+Prerequisites:
 ```
 # Requires that a proper DNS entry exists for the server
-# and that port 80 is open so that certbot can upload a
-# small server to answer the challenge.
+# and that ports 80 and 443 are reachable from the internet.
 # ⚠️ NOTE: Change the email and domain name to match your setup.
-
-sudo certbot certonly --standalone --preferred-challenges http --agree-tos --no-eff-email --email arne.munch-ellingsen@telenor.com -d start5g-1.cs.uit.no
 ```
-The output will look like this:
-```
-sudo certbot certonly --standalone --preferred-challenges http --agree-tos --no-eff-email --email arne.munch-ellingsen@telenor.com -d start5g-1.cs.uit.no
-Saving debug log to /var/log/letsencrypt/letsencrypt.log
-Certificate not yet due for renewal
-
-You have an existing certificate that has exactly the same domains or certificate name you requested and isn't close to expiry.
-(ref: /etc/letsencrypt/renewal/start5g-1.cs.uit.no.conf)
-
-What would you like to do?
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-1: Keep the existing certificate for now
-2: Renew & replace the certificate (may be subject to CA rate limits)
-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Select the appropriate number [1-2] then [enter] (press 'c' to cancel): 2
-Renewing an existing certificate for start5g-1.cs.uit.no
-
-Successfully received certificate.
-Certificate is saved at: /etc/letsencrypt/live/start5g-1.cs.uit.no/fullchain.pem
-Key is saved at:         /etc/letsencrypt/live/start5g-1.cs.uit.no/privkey.pem
-This certificate expires on 2026-02-10.
-These files will be updated when the certificate renews.
-Certbot has set up a scheduled task to automatically renew this certificate in the background.
-```
-
-The Docker Compose setup mounts `/etc/letsencrypt` read-only into the reverse proxy, so there is no need to copy the certificates into the repository. To make the running stack pick up renewed certificate files, add a deploy hook to certbot that restarts the reverse proxy after a successful renewal:
-```
-sudo certbot renew --deploy-hook "/home/telco/arneme/INTEND-Project/5G4Data-public/5G4Data-Tutorial/certificate-deploy-hook.sh"
-```
-
-For persistent automatic renewals, register the hook under `/etc/letsencrypt/renewal-hooks/deploy/` or add it as `deploy_hook` in `/etc/letsencrypt/renewal/start5g-1.cs.uit.no.conf`.
 
 To start the tutorial together with the workload catalog (with its chartmuseum backend), do this:
 ```
 docker compose up -d --build
 ```
-The tutorial is now running using https://start5g-1.cs.uit.no (or under the changed domain name). Keep port 80 reachable on the host for certbot's HTTP-01 standalone renewal flow.
+On first startup, Caddy will obtain the certificate automatically and store its ACME state in the Docker volumes `caddy_data` and `caddy_config`. The tutorial is then available using `https://start5g-1.cs.uit.no` (or under the changed domain name). Keep ports 80 and 443 reachable on the host so Caddy can complete ACME validation and renew the certificate automatically.
 
 ## Run locally
 It is also possible to clone this repository and do this to start it on your local machine:

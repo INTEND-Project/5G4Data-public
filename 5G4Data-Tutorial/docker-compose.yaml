@@ -9,10 +9,13 @@ services:
     image: caddy:latest
     restart: unless-stopped
     ports:
+      - "80:80"
       - "443:443"
+      - "443:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - flask-app
     networks:
@@ -44,3 +47,7 @@ services:
 networks:
   app-network:
     name: 5g4data-tutorial-app-network
+
+volumes:
+  caddy_data:
+  caddy_config:

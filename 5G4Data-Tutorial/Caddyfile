@@ -1,10 +1,8 @@
 {
-    auto_https off
+    email arne.munch-ellingsen@telenor.com
 }
 
-start5g-1.cs.uit.no:443 {
-    tls /etc/letsencrypt/live/start5g-1.cs.uit.no/fullchain.pem /etc/letsencrypt/live/start5g-1.cs.uit.no/privkey.pem
-
+start5g-1.cs.uit.no {
     # Main Flask app at root
     handle {
         reverse_proxy flask-app:5003

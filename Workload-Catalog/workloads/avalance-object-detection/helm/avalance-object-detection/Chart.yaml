@@ -1,0 +1,7 @@
+apiVersion: v2
+name: avalance-object-detection
+description: A Helm chart for detecting objects visible from the top of the avalanche. It can be used when doing search using drones
+type: application
+version: 0.1.4
+icon: icon.svg
+appVersion: "1.0.0"

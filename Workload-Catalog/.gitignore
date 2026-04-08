@@ -5,6 +5,8 @@ test/
 workloads/*
 # Exception: include ai-server workload
 !workloads/ai-server/
+# Exception: include avalance-object-detection workload
+!workloads/avalance-object-detection/
 # Python virtual environments
 venv/
 .venv/

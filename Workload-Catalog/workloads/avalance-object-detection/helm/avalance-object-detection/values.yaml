@@ -1,0 +1,6 @@
+intent:
+  objectives:
+    - name: detection-latency
+      value: "0.0"
+      tmf-value-hint: "5000"
+      measuredBy: intend/detectionlatency

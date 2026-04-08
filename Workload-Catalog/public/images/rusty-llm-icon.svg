@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <circle cx="100" cy="100" r="95" fill="#b7410e" stroke="#5c2206" stroke-width="3"/>
+  <rect x="55" y="70" width="90" height="70" rx="8" fill="#f4e4d7" stroke="#5c2206" stroke-width="2"/>
+  <path d="M75 95 L95 115 L125 85" fill="none" stroke="#2d5016" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="100" y="168" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#f4e4d7" text-anchor="middle">rusty-llm</text>
+</svg>

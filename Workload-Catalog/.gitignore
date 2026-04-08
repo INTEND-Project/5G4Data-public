@@ -1,0 +1,12 @@
+charts/
+# Extracted chart icons and manifest (runtime; created by the web app)
+public/chart-icons/
+test/
+workloads/*
+# Exception: include ai-server workload
+!workloads/ai-server/
+# Python virtual environments
+venv/
+.venv/
+env/
+workloads/ai-server/venv/

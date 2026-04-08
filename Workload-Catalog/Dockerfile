@@ -28,8 +28,8 @@ FROM alpine:latest
 # Create a non-root user (optional)
 RUN adduser -D appuser
 
-# Install CA certs for HTTPS
-RUN apk --no-cache add ca-certificates
+# su-exec: fix volume ownership then run server as non-root
+RUN apk --no-cache add ca-certificates su-exec
 
 WORKDIR /app
 
@@ -37,11 +37,10 @@ WORKDIR /app
 COPY --from=builder /app/server .
 COPY --from=builder /app/public ./public
 
-# Use non-root user
-USER appuser
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh && chown -R appuser:appuser /app/public
 
 # Expose the Fiber app port
 EXPOSE 3000
 
-# Set the default command
-CMD ["./server"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

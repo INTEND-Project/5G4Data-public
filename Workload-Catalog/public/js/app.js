@@ -1,35 +1,93 @@
 document.addEventListener("DOMContentLoaded", () => {
     const tbody = document.getElementById("chart-table-body");
+    if (!tbody) {
+        console.error("Missing #chart-table-body");
+        return;
+    }
     const chartInput = document.getElementById("chart-upload-input");
     const addChartBtn = document.getElementById("add-chart");
     const statusEl = document.getElementById("upload-status");
 
+    function clearChartTableBody(tableBody) {
+        tableBody.querySelectorAll("img[data-chart-blob]").forEach((el) => {
+            const u = el.getAttribute("data-chart-blob");
+            if (u) {
+                URL.revokeObjectURL(u);
+            }
+        });
+        tableBody.innerHTML = "";
+    }
+
+    function resolveAssetURL(iconPath) {
+        if (!iconPath) {
+            return "";
+        }
+        if (/^https?:\/\//i.test(iconPath)) {
+            return iconPath;
+        }
+        return new URL(iconPath, window.location.origin).href;
+    }
+
+    /** Load icon via fetch → blob URL so the table does not depend on <img> GET quirks (CSP, caching, proxies). */
+    function attachChartIcon(cell, iconPath) {
+        if (!iconPath) {
+            return;
+        }
+        const url = resolveAssetURL(iconPath);
+        const img = document.createElement("img");
+        img.className = "chart-icon";
+        img.alt = "icon";
+        img.decoding = "async";
+        img.loading = "lazy";
+        cell.appendChild(img);
+
+        fetch(url, { credentials: "same-origin" })
+            .then((r) => {
+                if (!r.ok) {
+                    throw new Error("icon " + r.status);
+                }
+                return r.blob();
+            })
+            .then((blob) => {
+                const objectUrl = URL.createObjectURL(blob);
+                img.src = objectUrl;
+                img.setAttribute("data-chart-blob", objectUrl);
+            })
+            .catch((err) => {
+                console.warn("Chart icon failed:", url, err);
+                img.remove();
+            });
+    }
+
     function showChartDetails(name) {
         const section = document.getElementById("chart-details");
         const title = document.getElementById("chart-details-name");
-        const tbody = document.getElementById("chart-versions-body");
+        const versionsBody = document.getElementById("chart-versions-body");
 
         title.textContent = name;
-        tbody.innerHTML = "";
+        versionsBody.innerHTML = "";
 
-        fetch(`/api/charts/${name}`)
-            .then(res => res.json())
-            .then(data => {
-                data.forEach(chart => {
+        fetch(`/api/charts/${encodeURIComponent(name)}`)
+            .then((res) => res.json())
+            .then((data) => {
+                data.forEach((chart) => {
                     const row = document.createElement("tr");
-                    row.innerHTML = `
-                        <td>${chart.version}</td>
-                        <td>${chart.description || "N/A"}</td>
-                        <td>${chart.type || "N/A"}</td>
-                        <td>${chart.appVersion || "N/A"}</td>
-                        <td>${new Date(chart.created).toLocaleString()}</td>
-                    `;
-                    tbody.appendChild(row);
+                    [chart.version, chart.description, chart.type, chart.appVersion].forEach((v) => {
+                        const td = document.createElement("td");
+                        td.textContent = v != null && v !== "" ? String(v) : "N/A";
+                        row.appendChild(td);
+                    });
+                    const tdCreated = document.createElement("td");
+                    tdCreated.textContent = chart.created ? new Date(chart.created).toLocaleString() : "N/A";
+                    row.appendChild(tdCreated);
+                    versionsBody.appendChild(row);
                 });
 
-                section.style.display = "block";
+                if (section) {
+                    section.style.display = "block";
+                }
             })
-            .catch(err => {
+            .catch((err) => {
                 console.error("Failed to load chart details:", err);
                 section.style.display = "none";
             });
@@ -42,24 +100,63 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function fetchTotalChartCount() {
         return fetch("/api/charts")
-            .then(res => res.json())
-            .then(data => {
+            .then((res) => res.json())
+            .then((data) => {
                 const chartNames = Object.keys(data);
                 totalCharts = chartNames.length;
                 totalPages = Math.max(1, Math.ceil(totalCharts / chartsPerPage));
             });
     }
 
+    function buildChartRow(chart) {
+        const row = document.createElement("tr");
+
+        const tdIcon = document.createElement("td");
+        attachChartIcon(tdIcon, chart.icon);
+        row.appendChild(tdIcon);
+
+        const tdName = document.createElement("td");
+        tdName.textContent = chart.name || "N/A";
+        row.appendChild(tdName);
+
+        const tdType = document.createElement("td");
+        tdType.textContent = chart.type || "N/A";
+        row.appendChild(tdType);
+
+        const tdDesc = document.createElement("td");
+        tdDesc.textContent = chart.description || "N/A";
+        row.appendChild(tdDesc);
+
+        const tdVer = document.createElement("td");
+        tdVer.textContent = chart.version || "N/A";
+        row.appendChild(tdVer);
+
+        const tdApp = document.createElement("td");
+        tdApp.textContent = chart.appVersion || "N/A";
+        row.appendChild(tdApp);
+
+        const tdDel = document.createElement("td");
+        const delBtn = document.createElement("button");
+        delBtn.className = "delete-btn";
+        delBtn.title = "Delete chart";
+        delBtn.textContent = "🗑️";
+        delBtn.dataset.name = chart.name || "";
+        delBtn.dataset.version = chart.version || "";
+        tdDel.appendChild(delBtn);
+        row.appendChild(tdDel);
+
+        return row;
+    }
+
     function loadChartTable(page = 1) {
-        const tbody = document.getElementById("chart-table-body");
         const pageInfo = document.getElementById("page-info");
-        tbody.innerHTML = "";
+        clearChartTableBody(tbody);
 
         const offset = (page - 1) * chartsPerPage;
 
         fetch(`/api/charts?offset=${offset}&limit=${chartsPerPage}`)
-            .then(response => response.json())
-            .then(data => {
+            .then((response) => response.json())
+            .then((data) => {
                 const chartEntries = Object.entries(data);
                 if (chartEntries.length === 0 && page > 1) {
                     currentPage--;
@@ -67,38 +164,19 @@ document.addEventListener("DOMContentLoaded", () => {
                     return;
                 }
 
-                chartEntries.forEach(([name, versions]) => {
-                    versions.forEach(chart => {
-                        const row = document.createElement("tr");
-
-                        row.innerHTML = `
-                            <td>
-                                ${chart.icon ? `<img src="${chart.icon}" alt="icon" class="chart-icon">` : ""}
-                            </td>
-                            <td>${chart.name || "N/A"}</td>
-                            <td>${chart.type || "N/A"}</td>
-                            <td>${chart.description || "N/A"}</td>
-                            <td>${chart.version}</td>
-                            <td>${chart.appVersion || "N/A"}</td>
-                            <td>
-                                <button class="delete-btn" data-name="${chart.name}" data-version="${chart.version}" title="Delete chart">
-                                    🗑️
-                                </button>
-                            </td>
-                        `;
-
-                        tbody.appendChild(row);
+                chartEntries.forEach(([, versions]) => {
+                    versions.forEach((chart) => {
+                        tbody.appendChild(buildChartRow(chart));
                     });
                 });
 
                 pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
             })
-            .catch(err => {
+            .catch((err) => {
                 console.error("Failed to load charts:", err);
             });
     }
 
-    // Initial table load (after getting total chart count)
     fetchTotalChartCount().then(() => {
         loadChartTable(currentPage);
     });
@@ -117,13 +195,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Handle chart upload
     addChartBtn.addEventListener("click", () => {
         chartInput.click();
     });
 
     chartInput.addEventListener("change", () => {
-        if (chartInput.files.length === 0) return;
+        if (chartInput.files.length === 0) {
+            return;
+        }
 
         const formData = new FormData();
         formData.append("chart", chartInput.files[0]);
@@ -134,16 +213,18 @@ document.addEventListener("DOMContentLoaded", () => {
             method: "POST",
             body: formData
         })
-            .then(async res => {
+            .then(async (res) => {
                 const text = await res.text();
-                if (!res.ok) throw new Error(text);
+                if (!res.ok) {
+                    throw new Error(text);
+                }
                 statusEl.textContent = "Upload successful!";
                 return fetchTotalChartCount();
             })
             .then(() => {
                 loadChartTable(currentPage);
             })
-            .catch(err => {
+            .catch((err) => {
                 console.error("Upload failed:", err);
                 statusEl.textContent = "Upload failed: " + err.message;
             })
@@ -152,40 +233,35 @@ document.addEventListener("DOMContentLoaded", () => {
             });
     });
 
-    // Handle delete clicks (event delegation)
-    if (tbody) {
-        tbody.addEventListener("click", function (e) {
-            if (e.target.classList.contains("delete-btn")) {
-                const button = e.target;
-                const name = button.dataset.name;
-                const version = button.dataset.version;
-
-                if (confirm(`Delete chart "${name}" version "${version}"?`)) {
-                    fetch(`/api/charts/${name}/${version}`, {
-                        method: "DELETE"
-                    })
-                        .then(res => {
-                            if (!res.ok) throw new Error("Failed to delete");
-                            return fetchTotalChartCount();
-                        })
-                        .then(() => {
-                            loadChartTable(currentPage);
-                        })
-                        .catch(err => {
-                            console.error("Delete error:", err);
-                            alert("Failed to delete chart.");
-                        });
-                }
-            }
-        });
-    }
-
-    // Handle clicks on chart name links
     tbody.addEventListener("click", function (e) {
+        if (e.target.classList.contains("delete-btn")) {
+            const button = e.target;
+            const name = button.dataset.name;
+            const version = button.dataset.version;
+
+            if (confirm(`Delete chart "${name}" version "${version}"?`)) {
+                fetch(`/api/charts/${encodeURIComponent(name)}/${encodeURIComponent(version)}`, {
+                    method: "DELETE"
+                })
+                    .then((res) => {
+                        if (!res.ok) {
+                            throw new Error("Failed to delete");
+                        }
+                        return fetchTotalChartCount();
+                    })
+                    .then(() => {
+                        loadChartTable(currentPage);
+                    })
+                    .catch((err) => {
+                        console.error("Delete error:", err);
+                        alert("Failed to delete chart.");
+                    });
+            }
+            return;
+        }
         if (e.target.classList.contains("chart-name")) {
             e.preventDefault();
-            const chartName = e.target.dataset.name;
-            showChartDetails(chartName);
+            showChartDetails(e.target.dataset.name);
         }
     });
 });

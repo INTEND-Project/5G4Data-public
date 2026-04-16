@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "standalone-python-agent"
+version = "0.1.0"
+description = "Standalone Python intent-authoring agent backed by OpenAI or Claude APIs"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.39.0",
+    "fastapi>=0.115.0",
+    "httpx>=0.27.0",
+    "openai>=1.54.0",
+    "pydantic>=2.9.0",
+    "pyyaml>=6.0.2",
+    "python-dotenv>=1.0.1",
+    "uvicorn>=0.32.0",
+]
+
+[project.scripts]
+standalone-python-agent-api = "main:main"
+standalone-python-agent-chat = "standalone_python_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["standalone_python_agent*"]

@@ -1,0 +1,91 @@
+PREFIX data5g: <http://5g4data.eu/5g4data#>
+PREFIX dct:     <http://purl.org/dc/terms/>
+PREFIX icm:     <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+PREFIX imo:     <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/>
+PREFIX log:     <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
+PREFIX quan:    <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
+PREFIX set:     <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>
+PREFIX geo:     <http://www.opengis.net/ont/geosparql#>
+PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+INSERT DATA {
+  data5g:I9c6d2b9f3a8a4f0c9b6d2e4a1f7c8b21 a icm:Intent ;
+      dct:description "Deploy avalanche victim detection with reliable 4K video streaming connectivity for a drone mission near Bodø." ;
+      imo:handler "inServ" ;
+      imo:owner "inChat" ;
+      log:allOf data5g:DE3a1b6c7d8e9f4021a5b6c7d8e9f4012,
+               data5g:NE7b2c4d5e6f708192a3b4c5d6e7f8091,
+               data5g:RE1a2b3c4d5e6f708192a3b4c5d6e7f80,
+               data5g:RE9f8e7d6c5b4a3210f1e2d3c4b5a6978 .
+
+  data5g:CO1a11b22c33d44e55f66a77b88c99d00 a icm:Condition ;
+      dct:description "detection-latency condition quan:smaller: 5000ms" ;
+      set:forAll [
+          icm:valuesOfTargetProperty data5g:detection-latency_1a11b22c33d44e55f66a77b88c99d00 ;
+          quan:smaller [
+              quan:unit  "ms" ;
+              rdf:value 5000
+          ]
+      ] .
+
+  data5g:CO2b22c33d44e55f66a77b88c99d00a11 a icm:Condition ;
+      dct:description "Bandwidth condition quan:larger: 30mbit/s" ;
+      set:forAll [
+          icm:valuesOfTargetProperty data5g:bandwidth_2b22c33d44e55f66a77b88c99d00a11 ;
+          quan:larger [
+              quan:unit  "mbit/s" ;
+              rdf:value 30
+          ]
+      ] .
+
+  data5g:CO3c33d44e55f66a77b88c99d00a11b22 a icm:Condition ;
+      dct:description "Latency condition quan:smaller: 50ms" ;
+      set:forAll [
+          icm:valuesOfTargetProperty data5g:networklatency_3c33d44e55f66a77b88c99d00a11b22 ;
+          quan:smaller [
+              quan:unit  "ms" ;
+              rdf:value 50
+          ]
+      ] .
+
+  data5g:CX4d44e55f66a77b88c99d00a11b22c33 a icm:Context ;
+      data5g:Application          "avalanche-object-detection" ;
+      data5g:DataCenter           data5g:EC_35 ;
+      data5g:DeploymentDescriptor "avalance-object-detection:0.1.4" .
+
+  data5g:CX5e55f66a77b88c99d00a11b22c33d44 a icm:Context ;
+      data5g:appliesToCustomer "drone-mission" ;
+      data5g:appliesToRegion   data5g:RG6f66a77b88c99d00a11b22c33d44e55 .
+
+  data5g:RG6f66a77b88c99d00a11b22c33d44e55 a geo:Feature ;
+      geo:hasGeometry [
+          a geo:Polygon ;
+          geo:asWKT "POLYGON((14.321750 67.224431,14.441750 67.224431,14.441750 67.344431,14.321750 67.344431,14.321750 67.224431))"^^geo:wktLiteral
+      ] .
+
+  data5g:DE3a1b6c7d8e9f4021a5b6c7d8e9f4012 a data5g:DeploymentExpectation,
+          icm:Expectation,
+          icm:IntentElement ;
+      dct:description "Deploy avalanche object detection close to mission area with bounded detection latency." ;
+      icm:target data5g:deployment ;
+      log:allOf data5g:CO1a11b22c33d44e55f66a77b88c99d00,
+                data5g:CX4d44e55f66a77b88c99d00a11b22c33 .
+
+  data5g:NE7b2c4d5e6f708192a3b4c5d6e7f8091 a data5g:NetworkExpectation,
+          icm:Expectation,
+          icm:IntentElement ;
+      dct:description "Ensure sufficient bandwidth and low latency for uninterrupted 4K video streaming." ;
+      icm:target data5g:network-slice ;
+      log:allOf data5g:CO2b22c33d44e55f66a77b88c99d00a11,
+                data5g:CO3c33d44e55f66a77b88c99d00a11b22,
+                data5g:CX5e55f66a77b88c99d00a11b22c33d44 .
+
+  data5g:RE1a2b3c4d5e6f708192a3b4c5d6e7f80 a icm:ReportingExpectation ;
+      dct:description "Report on deployment performance and detection latency." ;
+      icm:target data5g:deployment .
+
+  data5g:RE9f8e7d6c5b4a3210f1e2d3c4b5a6978 a icm:ReportingExpectation ;
+      dct:description "Report on network QoS metrics including bandwidth and latency." ;
+      icm:target data5g:network-slice .
+}
+

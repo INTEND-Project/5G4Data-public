@@ -3,6 +3,18 @@
 }
 
 start5g-1.cs.uit.no {
+    # Managed Agent routes for Workload-Catalog stack (non-tutorial)
+    # Host ports:
+    # - workload catalogue: 3040
+    # - associated chartmuseum: 8080
+    handle_path /wcatalog/* {
+        reverse_proxy http://start5g-1.cs.uit.no:3040
+    }
+
+    handle_path /wchartmuseum/* {
+        reverse_proxy http://start5g-1.cs.uit.no:8080
+    }
+
     # Main Flask app at root
     handle {
         reverse_proxy flask-app:5003

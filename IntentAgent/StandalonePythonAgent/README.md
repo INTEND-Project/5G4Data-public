@@ -19,7 +19,11 @@ The agent behavior is derived from the managed-agent skill and response policy:
   - GraphDB/SPARQL queries
   - ontology and example-intent file access
 
-## Project layout
+## Architecture
+
+See `StandalonePythonAgent/architecture.md` (from repo root), or `architecture.md` from this directory.
+
+## Project source code layout
 
 ```text
 StandalonePythonAgent/

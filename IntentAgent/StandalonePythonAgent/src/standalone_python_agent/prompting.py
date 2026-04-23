@@ -64,6 +64,8 @@ def request_implies_locality(user_text: str) -> bool:
     lowered = user_text.lower()
     signals = [
         "near ",
+        "close to",
+        "nearby",
         "closest",
         "location",
         "city",

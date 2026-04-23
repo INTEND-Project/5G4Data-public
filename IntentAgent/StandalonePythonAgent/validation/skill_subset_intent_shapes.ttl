@@ -1,0 +1,260 @@
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix geo: <http://www.opengis.net/ont/geosparql#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# SHACL profile for the 5G4Data SKILL.md subset used by StandalonePythonAgent.
+# This profile is intentionally strict for generated intents:
+# - allowed expectation classes only
+# - network target and condition metric restrictions
+# - deployment target/context restrictions
+# - reporting expectation coverage for included targets
+
+data5g:AllowedIntentMemberShape
+    a sh:NodeShape ;
+    sh:or (
+        [ sh:class data5g:DeploymentExpectation ]
+        [ sh:class data5g:NetworkExpectation ]
+        [ sh:class icm:ReportingExpectation ]
+    ) .
+
+data5g:IntentShape
+    a sh:NodeShape ;
+    sh:targetClass icm:Intent ;
+    sh:property [
+        sh:path dct:description ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path imo:handler ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path imo:owner ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path log:allOf ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path ( log:allOf [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ;
+        sh:minCount 1 ;
+        sh:node data5g:AllowedIntentMemberShape
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "When deployment expectation is present, a reporting expectation targeting data5g:deployment must also be present in intent log:allOf." ;
+        sh:select """
+            SELECT $this
+            WHERE {
+              $this log:allOf ?l .
+              ?l (rdf:rest*/rdf:first) ?de .
+              ?de a data5g:DeploymentExpectation .
+              FILTER NOT EXISTS {
+                ?l (rdf:rest*/rdf:first) ?re .
+                ?re a icm:ReportingExpectation ;
+                    icm:target data5g:deployment .
+              }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "When network expectation is present, a reporting expectation targeting data5g:network-slice must also be present in intent log:allOf." ;
+        sh:select """
+            SELECT $this
+            WHERE {
+              $this log:allOf ?l .
+              ?l (rdf:rest*/rdf:first) ?ne .
+              ?ne a data5g:NetworkExpectation .
+              FILTER NOT EXISTS {
+                ?l (rdf:rest*/rdf:first) ?re .
+                ?re a icm:ReportingExpectation ;
+                    icm:target data5g:network-slice .
+              }
+            }
+        """
+    ] .
+
+data5g:DeploymentExpectationShape
+    a sh:NodeShape ;
+    sh:targetClass data5g:DeploymentExpectation ;
+    sh:property [
+        sh:path icm:target ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue data5g:deployment
+    ] ;
+    sh:property [
+        sh:path log:allOf ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path ( log:allOf [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ;
+        sh:minCount 1 ;
+        sh:node data5g:DeploymentExpectationMemberShape
+    ] .
+
+data5g:DeploymentExpectationMemberShape
+    a sh:NodeShape ;
+    sh:or (
+        [ sh:class icm:Condition ]
+        [ sh:class icm:Context ]
+    ) .
+
+data5g:NetworkExpectationShape
+    a sh:NodeShape ;
+    sh:targetClass data5g:NetworkExpectation ;
+    sh:property [
+        sh:path icm:target ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue data5g:network-slice
+    ] ;
+    sh:property [
+        sh:path log:allOf ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path ( log:allOf [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ;
+        sh:minCount 2 ;
+        sh:node data5g:NetworkExpectationMemberShape
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "NetworkExpectation must include at least one referenced condition using a bandwidth metric property (data5g:bandwidth_*)." ;
+        sh:select """
+            SELECT $this
+            WHERE {
+              FILTER NOT EXISTS {
+                $this log:allOf ?l .
+                ?l (rdf:rest*/rdf:first) ?cond .
+                ?cond a icm:Condition ;
+                      set:forAll ?fa .
+                ?fa icm:valuesOfTargetProperty ?metric .
+                FILTER(STRSTARTS(STR(?metric), "http://5g4data.eu/5g4data#bandwidth_"))
+              }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "NetworkExpectation must include at least one referenced condition using a latency metric property (data5g:networklatency_* or data5g:latency_*)." ;
+        sh:select """
+            SELECT $this
+            WHERE {
+              FILTER NOT EXISTS {
+                $this log:allOf ?l .
+                ?l (rdf:rest*/rdf:first) ?cond .
+                ?cond a icm:Condition ;
+                      set:forAll ?fa .
+                ?fa icm:valuesOfTargetProperty ?metric .
+                FILTER(
+                  STRSTARTS(STR(?metric), "http://5g4data.eu/5g4data#networklatency_") ||
+                  STRSTARTS(STR(?metric), "http://5g4data.eu/5g4data#latency_")
+                )
+              }
+            }
+        """
+    ] .
+
+data5g:NetworkExpectationMemberShape
+    a sh:NodeShape ;
+    sh:or (
+        [ sh:class icm:Condition ]
+        [ sh:class icm:Context ]
+    ) .
+
+data5g:ReportingExpectationShape
+    a sh:NodeShape ;
+    sh:targetClass icm:ReportingExpectation ;
+    sh:property [
+        sh:path icm:target ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( data5g:deployment data5g:network-slice )
+    ] .
+
+data5g:ConditionShape
+    a sh:NodeShape ;
+    sh:targetClass icm:Condition ;
+    sh:property [
+        sh:path set:forAll ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path ( set:forAll icm:valuesOfTargetProperty ) ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:IRI
+    ] ;
+    sh:property [
+        sh:path ( set:forAll [ sh:alternativePath ( quan:smaller quan:larger quan:inRange ) ] ) ;
+        sh:minCount 1
+    ] .
+
+data5g:DeploymentContextShape
+    a sh:NodeShape ;
+    sh:targetClass icm:Context ;
+    sh:property [
+        sh:path data5g:DataCenter ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "A context with deployment semantics must include exactly one data5g:DataCenter and one data5g:DeploymentDescriptor." ;
+        sh:select """
+            SELECT $this
+            WHERE {
+              $this data5g:DeploymentDescriptor ?dd .
+              FILTER NOT EXISTS {
+                $this data5g:DataCenter ?dc .
+              }
+            }
+        """
+    ] .
+
+data5g:NetworkContextShape
+    a sh:NodeShape ;
+    sh:targetClass icm:Context ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "A context with appliesToRegion must also include appliesToCustomer." ;
+        sh:select """
+            SELECT $this
+            WHERE {
+              $this data5g:appliesToRegion ?region .
+              FILTER NOT EXISTS { $this data5g:appliesToCustomer ?cust . }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "data5g:appliesToRegion must point to a geo:Feature." ;
+        sh:select """
+            SELECT $this
+            WHERE {
+              $this data5g:appliesToRegion ?region .
+              FILTER NOT EXISTS { ?region a geo:Feature . }
+            }
+        """
+    ] .

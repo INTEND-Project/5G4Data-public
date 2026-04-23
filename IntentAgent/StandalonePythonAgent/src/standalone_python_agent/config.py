@@ -7,10 +7,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-def _maybe_path(value: str | None) -> Path | None:
+def _maybe_path(value: str | None, *, base_dir: Path | None = None) -> Path | None:
     if not value:
         return None
-    return Path(value).expanduser().resolve()
+    path = Path(value).expanduser()
+    if not path.is_absolute() and base_dir is not None:
+        path = base_dir / path
+    return path.resolve()
 
 
 def _normalized_base_url(value: str | None, default: str) -> str:
@@ -44,6 +47,8 @@ class AppConfig:
     example_intents_root: Path | None
     skill_file: Path
     system_prompt_file: Path
+    shacl_shapes_file: Path
+    shacl_max_retries: int
     llm_log_path: Path | None
 
     @classmethod
@@ -62,11 +67,30 @@ class AppConfig:
             raise EnvironmentError("LLM_PROVIDER must be either 'openai' or 'anthropic'.")
 
         intent_agent_root = Path(__file__).resolve().parents[3]
-        default_skill = intent_agent_root / "Antrophic Claude Managed Agent" / "SKILL.md"
+        default_skill = intent_agent_root / "SKILLs" / "SKILL.md"
         default_system = intent_agent_root / "Antrophic Claude Managed Agent" / "SYSTEM_PROMPT.md"
+        default_shacl_shapes = project_root / "validation" / "skill_subset_intent_shapes.ttl"
 
-        env_llm_log = _maybe_path(os.getenv("STANDALONE_AGENT_LLM_LOG"))
+        env_llm_log = _maybe_path(os.getenv("STANDALONE_AGENT_LLM_LOG"), base_dir=project_root)
         resolved_llm_log = llm_log_path or env_llm_log
+        configured_skill = _maybe_path(os.getenv("SKILL_FILE"), base_dir=project_root)
+        configured_system = _maybe_path(os.getenv("SYSTEM_PROMPT_FILE"), base_dir=project_root)
+        configured_shacl_shapes = _maybe_path(os.getenv("SHACL_SHAPES_FILE"), base_dir=project_root)
+
+        skill_file = configured_skill or default_skill
+        system_prompt_file = configured_system or default_system
+        shacl_shapes_file = configured_shacl_shapes or default_shacl_shapes
+
+        if not skill_file.exists():
+            raise EnvironmentError(
+                f"SKILL_FILE not found: {skill_file}. "
+                f"Use SKILL_FILE=../SKILLs/SKILL.md or remove SKILL_FILE to use the default."
+            )
+        if not system_prompt_file.exists():
+            raise EnvironmentError(
+                f"SYSTEM_PROMPT_FILE not found: {system_prompt_file}. "
+                "Set SYSTEM_PROMPT_FILE to a valid SYSTEM_PROMPT.md file."
+            )
 
         return cls(
             debug=os.getenv("STANDALONE_AGENT_DEBUG", "false").strip().lower() in {"1", "true", "yes", "on"},
@@ -97,15 +121,17 @@ class AppConfig:
                 "GRAPHDB_NAMED_GRAPH",
                 "http://intendproject.eu/telenor/infra",
             ),
-            graphdb_query_limit=max(1, int(os.getenv("GRAPHDB_QUERY_LIMIT", "50"))),
+            graphdb_query_limit=max(0, int(os.getenv("GRAPHDB_QUERY_LIMIT", "0"))),
             graphdb_context_limit=max(1, int(os.getenv("GRAPHDB_CONTEXT_LIMIT", "10"))),
             default_intent_handler=os.getenv("DEFAULT_INTENT_HANDLER", "inServ"),
             default_intent_owner=os.getenv("DEFAULT_INTENT_OWNER", "inChat"),
             auto_generate_description=os.getenv("AUTO_GENERATE_DESCRIPTION", "true").strip().lower()
             in {"1", "true", "yes", "on"},
-            ontology_root=_maybe_path(os.getenv("ONTOLOGY_ROOT")),
-            example_intents_root=_maybe_path(os.getenv("EXAMPLE_INTENTS_ROOT")),
-            skill_file=_maybe_path(os.getenv("SKILL_FILE")) or default_skill,
-            system_prompt_file=_maybe_path(os.getenv("SYSTEM_PROMPT_FILE")) or default_system,
+            ontology_root=_maybe_path(os.getenv("ONTOLOGY_ROOT"), base_dir=project_root),
+            example_intents_root=_maybe_path(os.getenv("EXAMPLE_INTENTS_ROOT"), base_dir=project_root),
+            skill_file=skill_file,
+            system_prompt_file=system_prompt_file,
+            shacl_shapes_file=shacl_shapes_file,
+            shacl_max_retries=max(0, int(os.getenv("SHACL_MAX_RETRIES", "2"))),
             llm_log_path=resolved_llm_log,
         )

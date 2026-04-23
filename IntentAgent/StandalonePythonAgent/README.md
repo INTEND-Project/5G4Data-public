@@ -6,7 +6,7 @@ Standalone Python implementation of the 5G4Data intent-authoring agent. It repla
 - a CLI chat client that talks to the local API
 
 The agent behavior is derived from the managed-agent skill and response policy:
-- `../Antrophic Claude Managed Agent/SKILL.md`
+- `../SKILLs/SKILL.md`
 - `../Antrophic Claude Managed Agent/SYSTEM_PROMPT.md`
 
 ## Features
@@ -92,8 +92,11 @@ Optional variables:
 - `WORKLOAD_CATALOG_BASE_URL`
 - `GRAPHDB_ENDPOINT`
 - `GRAPHDB_NAMED_GRAPH`
+- `GRAPHDB_QUERY_LIMIT` default: `0` (`0` means no SPARQL `LIMIT`, fetch all candidates)
 - `SKILL_FILE`
 - `SYSTEM_PROMPT_FILE`
+- `SHACL_SHAPES_FILE` (default: `validation/skill_subset_intent_shapes.ttl`)
+- `SHACL_MAX_RETRIES` (default: `2`)
 
 ## Run the API
 
@@ -154,5 +157,9 @@ curl -s -X POST http://127.0.0.1:8010/sessions/<session_id>/messages \
 - The first version keeps sessions in memory only.
 - The agent uses lightweight orchestration and explicit helper calls instead of a heavyweight framework.
 - Tool results are injected into the prompt as structured context.
+- For deployment intents, GraphDB candidate lookup is always executed to ground `data5g:DataCenter` in an existing identifier.
+- If deployment is requested without a geolocation hint, the agent asks whether to use a default candidate datacenter or a user-provided location hint before generating Turtle.
+- When the model produces a final Turtle intent, the agent validates it against the configured SHACL shapes.
+- If SHACL validation fails, the report is fed back to the model and it is asked to repair the intent (up to `SHACL_MAX_RETRIES`).
 - If a configured ontology or example path does not exist, the agent continues with reduced grounding and reports that in tool context.
 - The OpenAI and Anthropic backends share the same workflow spec and external data adapters, but output style may still vary somewhat by model.

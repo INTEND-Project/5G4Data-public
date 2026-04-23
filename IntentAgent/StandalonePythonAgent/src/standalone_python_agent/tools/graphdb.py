@@ -19,7 +19,6 @@ WHERE {{
     OPTIONAL {{ ?datacenter aeros:location ?location . }}
   }}
 }}
-LIMIT 20
 """.strip()
 
 
@@ -28,7 +27,7 @@ class GraphDBClient:
         self,
         endpoint: str,
         named_graph: str,
-        query_limit: int = 20,
+        query_limit: int = 0,
         timeout: float = 20.0,
     ) -> None:
         self.endpoint = endpoint
@@ -47,7 +46,7 @@ class GraphDBClient:
         return response.json()
 
     def nearest_edge_candidates(self) -> dict[str, Any]:
-        query = NEAREST_EDGE_DATACENTER_QUERY.replace("LIMIT 20", f"LIMIT {self.query_limit}").format(
-            graph=self.named_graph
-        )
+        query = NEAREST_EDGE_DATACENTER_QUERY.format(graph=self.named_graph)
+        if self.query_limit > 0:
+            query = f"{query}\nLIMIT {self.query_limit}"
         return self.run_select(query)

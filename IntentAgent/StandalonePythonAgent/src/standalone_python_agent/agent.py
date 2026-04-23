@@ -20,6 +20,7 @@ from standalone_python_agent.prompting import (
     request_implies_locality,
 )
 from standalone_python_agent.llm_transcript import LLMTranscriptLogger
+from standalone_python_agent.shacl_validation import validate_turtle_with_shapes
 from standalone_python_agent.tools.catalogue import WorkloadCatalogueClient
 from standalone_python_agent.tools.graphdb import GraphDBClient
 from standalone_python_agent.tools.ontology import OntologyReader
@@ -54,6 +55,7 @@ class AgentCore:
         self.skill_text = read_text_file(config.skill_file)
         self.system_prompt_text = read_text_file(config.system_prompt_file)
         self.system_prompt = build_system_prompt(self.system_prompt_text, self.skill_text)
+        self.shacl_shapes_available = self.config.shacl_shapes_file.exists()
         self._llm_logger = LLMTranscriptLogger(config.llm_log_path) if config.llm_log_path else None
 
     def _log_llm(self, phase: str, request: dict[str, object], response: object) -> None:
@@ -179,7 +181,9 @@ class AgentCore:
         graphdb_summary = "GraphDB lookup not required for this turn."
         locality_needed = request_implies_locality(user_text)
         debug.append(f"locality_needed={locality_needed}")
-        if locality_needed:
+        graphdb_needed = deployment_needed or locality_needed
+        debug.append(f"graphdb_needed={graphdb_needed}")
+        if graphdb_needed:
             try:
                 payload = self.graphdb.nearest_edge_candidates()
                 all_bindings = payload.get("results", {}).get("bindings", [])
@@ -189,7 +193,6 @@ class AgentCore:
                     place_query = self._extract_locality_phrase(user_text)
                     geocoded_anchor: tuple[float, float] | None = None
                     selected_candidate_label = ""
-                    selected_candidate_ref = ""
                     if place_query:
                         geocoded_anchor = self._geocode_place(place_query)
                         if geocoded_anchor:
@@ -213,10 +216,18 @@ class AgentCore:
                                 best_cluster = best.get("clusterId", {}).get("value", "")
                                 best_location = best.get("location", {}).get("value", "")
                                 selected_candidate_label = best_cluster or best_location
-                                selected_candidate_ref = f"data5g:{best_cluster}" if best_cluster else ""
                                 debug.append(
                                     f"graphdb_selected_nearest={selected_candidate_label or '<unknown>'}"
                                 )
+                    if not selected_candidate_label and deployment_needed:
+                        first = bindings[0]
+                        first_cluster = first.get("clusterId", {}).get("value", "")
+                        first_location = first.get("location", {}).get("value", "")
+                        first_datacenter = first.get("datacenter", {}).get("value", "")
+                        selected_candidate_label = first_cluster or first_location or first_datacenter
+                        debug.append(
+                            f"graphdb_selected_default_candidate={selected_candidate_label or '<unknown>'}"
+                        )
                     bindings = bindings[: self.config.graphdb_context_limit]
 
                     formatted = []
@@ -236,19 +247,28 @@ class AgentCore:
                     graphdb_summary = (
                         f"{recommendation}Candidate edge data centers from GraphDB:\n" + "\n".join(formatted)
                     )
-                    if selected_candidate_ref:
+                    if selected_candidate_label:
                         graphdb_summary += (
                             "\n\n[Deployment locality binding]\n"
                             f"For any locality-aware DeploymentExpectation in this turn, use exactly "
-                            f"`data5g:DataCenter {selected_candidate_ref} .`\n"
-                            "Do not invent or substitute free-text labels such as city names or edge-node aliases."
+                            f"`data5g:DataCenter \"{selected_candidate_label}\" .`\n"
+                            "Use the nearest-edge datacenter name from GraphDB exactly as shown."
+                        )
+                    if deployment_needed and not place_query and selected_candidate_label:
+                        graphdb_summary += (
+                            "\n\n[Deployment datacenter clarification required]\n"
+                            "Deployment is requested but the user gave no geolocation hint.\n"
+                            f"Before generating Turtle, ask exactly one concise question asking whether to:\n"
+                            f"- use default datacenter \"{selected_candidate_label}\", or\n"
+                            "- provide a geolocation hint (city/region/place name).\n"
+                            "Do not generate Turtle until the user answers this question."
                         )
                     if place_query and geocoded_anchor:
                         place_lat, place_lon = geocoded_anchor
                         region_wkt = self._bbox_polygon_wkt(place_lat, place_lon)
                         graphdb_summary += (
                             "\n\n[Network expectation geographic context]\n"
-                            "Per SKILL.md: when you emit data5g:NetworkExpectation and the user intent is tied to a "
+                            "Per SKILLs/SKILL.md: when you emit data5g:NetworkExpectation and the user intent is tied to a "
                             "geographic area, add a dedicated icm:Context (separate from deployment context) linked "
                             "from the NetworkExpectation's log:allOf list with:\n"
                             "- data5g:appliesToRegion data5g:RG<unique-id>\n"
@@ -261,6 +281,11 @@ class AgentCore:
                         )
                 else:
                     graphdb_summary = "GraphDB query returned no candidate data centers."
+                    if deployment_needed:
+                        graphdb_summary += (
+                            "\nDeployment requires an existing data center identifier. "
+                            "Ask the user for a geolocation hint and do not generate Turtle until a candidate is resolved."
+                        )
             except Exception as exc:  # noqa: BLE001
                 graphdb_summary = f"GraphDB lookup failed: {exc}"
                 warnings.append("GraphDB lookup failed.")
@@ -319,10 +344,18 @@ class AgentCore:
 
     @staticmethod
     def _extract_locality_phrase(user_text: str) -> str | None:
-        match = re.search(r"\bnear\s+([^,\n]+)", user_text, re.IGNORECASE)
-        if not match:
+        patterns = [
+            r"\bnear\s+([^,\n]+)",
+            r"\bclose to\s+([^,\n]+)",
+        ]
+        phrase: str | None = None
+        for pattern in patterns:
+            match = re.search(pattern, user_text, re.IGNORECASE)
+            if match:
+                phrase = match.group(1).strip()
+                break
+        if not phrase:
             return None
-        phrase = match.group(1).strip()
         phrase = phrase.split("/")[0].strip()
         return phrase or None
 
@@ -580,6 +613,11 @@ class AgentCore:
             issues.append("Contains narration/progress text or placeholder markers.")
 
         if "@prefix" in text or "icm:Intent" in text:
+            if "[deployment datacenter clarification required]" in runtime_lowered:
+                issues.append(
+                    "Deployment without geolocation hint requires a clarification question "
+                    "(default datacenter vs geolocation hint) before generating Turtle."
+                )
             subject_defs = re.findall(r"(?m)^(data5g:[A-Za-z0-9_\-]+)\s+a\s+", text)
             duplicates = sorted({s for s in subject_defs if subject_defs.count(s) > 1})
             if duplicates:
@@ -607,12 +645,12 @@ class AgentCore:
                 issues.append("Missing data5g:DataCenter in deployment context for locality-aware deployment.")
             required_datacenter_match = re.search(
                 r"For any locality-aware DeploymentExpectation in this turn, use exactly "
-                r"`data5g:DataCenter (data5g:[A-Za-z0-9_\-]+)`",
+                r"`data5g:DataCenter \"([^\"]+)\"`",
                 runtime_context,
             )
             if required_datacenter_match and "data5g:DeploymentExpectation" in text:
                 required_datacenter = required_datacenter_match.group(1)
-                datacenter_values = re.findall(r"data5g:DataCenter\s+([^ ;]+)\s*\.", text)
+                datacenter_values = re.findall(r'data5g:DataCenter\s+"([^"]+)"\s*\.', text)
                 if not datacenter_values:
                     issues.append(
                         f"Missing required deployment datacenter binding `{required_datacenter}` from GraphDB selection."
@@ -623,11 +661,6 @@ class AgentCore:
                             f"Deployment datacenter must use GraphDB-selected value `{required_datacenter}`, "
                             f"not {', '.join(datacenter_values[:3])}."
                         )
-                    invalid_free_text = [value for value in datacenter_values if value.startswith("\"")]
-                    if invalid_free_text:
-                        issues.append(
-                            "Deployment datacenter must be a data5g resource reference, not a free-text string."
-                        )
 
             if (
                 "data5g:NetworkExpectation" in text
@@ -637,7 +670,7 @@ class AgentCore:
                 if "data5g:appliesToRegion" not in text:
                     issues.append(
                         "NetworkExpectation with geographic user intent must include icm:Context with "
-                        "data5g:appliesToRegion pointing to a geo:Feature (see SKILL.md)."
+                        "data5g:appliesToRegion pointing to a geo:Feature (see SKILLs/SKILL.md)."
                     )
                 if "geo:Feature" not in text or "geo:asWKT" not in text:
                     issues.append(
@@ -692,6 +725,156 @@ class AgentCore:
                     )
 
         return issues
+
+    @staticmethod
+    def _looks_like_turtle_intent(text: str) -> bool:
+        return "@prefix" in text and "icm:Intent" in text
+
+    def _validate_output_with_shacl(self, text: str) -> tuple[bool, str]:
+        if not self.shacl_shapes_available:
+            return False, f"SHACL shapes file not found: {self.config.shacl_shapes_file}"
+        try:
+            result = validate_turtle_with_shapes(
+                text,
+                shapes_file=self.config.shacl_shapes_file,
+            )
+            return result.conforms, result.report_text
+        except Exception as exc:  # noqa: BLE001
+            return False, f"SHACL validation execution failed: {type(exc).__name__}: {exc}"
+
+    def _repair_from_shacl_report(
+        self,
+        text: str,
+        runtime_context: str,
+        openai_messages: list[dict[str, str]],
+        provider_messages: list[dict[str, str]],
+        shacl_report: str,
+    ) -> str:
+        repair_instruction = (
+            "You previously returned a Turtle intent that failed SHACL validation.\n"
+            "Update only what is needed to satisfy validation while preserving user intent.\n"
+            "Return only corrected Turtle, with no prose.\n\n"
+            "SHACL validation report:\n"
+            f"{shacl_report}\n\n"
+            "Previously generated Turtle:\n"
+            f"{text}"
+        )
+        if self.config.llm_provider == "anthropic":
+            repair_request = {
+                "model": self.config.anthropic_model,
+                "max_tokens": 2500,
+                "temperature": 0.0,
+                "system": (
+                    f"{self.system_prompt}\n\n"
+                    f"{self._output_policy_instruction()}\n\n"
+                    f"{self._fixed_defaults_instruction()}\n\n"
+                    "User already confirmed generation. Return only final Turtle.\n\n"
+                    "Use runtime context below.\n\n"
+                    f"{runtime_context}"
+                ),
+                "messages": [*provider_messages, {"role": "user", "content": repair_instruction}],
+            }
+            repaired = self.anthropic_client.messages.create(**repair_request)
+            self._log_llm("repair_shacl_anthropic", repair_request, repaired)
+            text_parts = []
+            for block in repaired.content:
+                if getattr(block, "type", "") == "text":
+                    text_parts.append(getattr(block, "text", ""))
+            return "".join(text_parts).strip()
+
+        repair_kwargs: dict[str, object] = {
+            "model": self.config.openai_model,
+            "messages": [
+                *openai_messages,
+                {
+                    "role": "system",
+                    "content": "User already confirmed generation. Return only final Turtle.",
+                },
+                {"role": "user", "content": repair_instruction},
+            ],
+        }
+        model_id = self.config.openai_model
+        if not (model_id.startswith("o") or model_id.startswith("gpt-5")):
+            repair_kwargs["temperature"] = 0.0
+        repaired = self.openai_client.chat.completions.create(**repair_kwargs)
+        self._log_llm("repair_shacl_openai", {"kwargs": repair_kwargs}, repaired)
+        return repaired.choices[0].message.content or ""
+
+    def _validate_and_repair_with_shacl(
+        self,
+        text: str,
+        runtime_context: str,
+        openai_messages: list[dict[str, str]],
+        provider_messages: list[dict[str, str]],
+        user_text: str,
+        debug: list[str],
+        warnings: list[str],
+    ) -> str:
+        if not self._looks_like_turtle_intent(text):
+            return text
+        if not self.shacl_shapes_available:
+            warnings.append(
+                f"SHACL validation skipped because shapes file was not found: {self.config.shacl_shapes_file}"
+            )
+            debug.append("shacl_validation_skipped_shapes_missing=true")
+            return text
+
+        current_text = text
+        had_failures = False
+        initial_report: str | None = None
+        for attempt in range(self.config.shacl_max_retries + 1):
+            conforms, report = self._validate_output_with_shacl(current_text)
+            debug.append(f"shacl_attempt={attempt + 1} conforms={conforms}")
+            if initial_report is None:
+                initial_report = report
+                debug.append("shacl_initial_report_captured=true")
+            if conforms:
+                semantic_issues = self._collect_output_issues(
+                    text=current_text,
+                    user_text=user_text,
+                    runtime_context=runtime_context,
+                )
+                if semantic_issues:
+                    had_failures = True
+                    issues_block = "\n".join(f"- {issue}" for issue in semantic_issues)
+                    debug.append("semantic_validation_after_shacl_failed=true")
+                    debug.append(f"semantic_issue_count={len(semantic_issues)}")
+                    current_text = self._repair_from_shacl_report(
+                        current_text,
+                        runtime_context,
+                        openai_messages,
+                        provider_messages,
+                        "Post-SHACL semantic policy failures:\n" + issues_block,
+                    )
+                    continue
+                if had_failures:
+                    warnings.append("SHACL validation initially failed but passed after automatic repair.")
+                    if initial_report:
+                        report_excerpt = initial_report[:1200].replace("\n", " | ")
+                        warnings.append(f"Initial SHACL report: {report_excerpt}")
+                else:
+                    warnings.append("SHACL validation passed.")
+                return current_text
+            had_failures = True
+            debug.append(f"shacl_report_excerpt={report[:500].replace(chr(10), ' | ')}")
+            if attempt >= self.config.shacl_max_retries:
+                warnings.append("Final intent did not pass SHACL validation after retry attempts.")
+                debug.append("shacl_repair_exhausted=true")
+                snippet = report[:4000]
+                return (
+                    f"{current_text}\n\n"
+                    "# SHACL validation result\n"
+                    "# Non-conformant after repair attempts. Relevant report excerpt:\n"
+                    + "\n".join(f"# {line}" for line in snippet.splitlines())
+                )
+            current_text = self._repair_from_shacl_report(
+                current_text,
+                runtime_context,
+                openai_messages,
+                provider_messages,
+                report,
+            )
+        return current_text
 
     def run_turn(self, session: ChatSession, user_text: str) -> AgentTurnResult:
         confirmation_ack = self._is_confirmation_text(user_text) and self._assistant_requested_confirmation(session)
@@ -755,6 +938,15 @@ class AgentCore:
             provider_messages=provider_messages,
             debug=debug,
             user_text=effective_user_text,
+        )
+        text = self._validate_and_repair_with_shacl(
+            text=text,
+            runtime_context=runtime_context,
+            openai_messages=openai_messages,
+            provider_messages=provider_messages,
+            user_text=effective_user_text,
+            debug=debug,
+            warnings=warnings,
         )
 
         session.messages.append(ChatMessage(role="assistant", text=text))

@@ -1,0 +1,26 @@
+{
+  "name": "openclaw-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenClaw-native 5G4Data intent authoring agent",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test dist/tests/*.test.js",
+    "test:dev": "tsx --test src/tests/*.test.ts"
+  },
+  "dependencies": {
+    "n3": "^1.17.4",
+    "rdf-validate-shacl": "^0.6.5",
+    "uuid": "^11.0.3",
+    "yaml": "^2.6.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/n3": "^1.16.5",
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

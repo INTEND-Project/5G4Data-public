@@ -19,6 +19,46 @@ export interface AgentTurnResult {
   response: string;
   warnings: string[];
   debug: string[];
+  intentUsageSummary?: IntentUsageSummary;
+}
+
+export interface LlmCallUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
+export interface LlmCallRecord {
+  stage: string;
+  provider: "openai" | "anthropic";
+  model: string;
+  usage: LlmCallUsage;
+  latencyMs: number;
+  requestId?: string;
+  usageKnown: boolean;
+}
+
+export interface IntentCostSummary {
+  currency: "USD";
+  estimatedTotalCostUsd?: number;
+  pricingVersion: string;
+  pricingAvailable: boolean;
+}
+
+export interface IntentUsageSummary {
+  provider: "openai" | "anthropic";
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  callCount: number;
+  calls: LlmCallRecord[];
+  cost: IntentCostSummary;
+}
+
+export interface ModelInvocationResult {
+  text: string;
+  call: LlmCallRecord;
 }
 
 export const catalogueChartSchema = z.object({

@@ -1,0 +1,13 @@
+{
+  "confirmation": {
+    "acceptedUserInputs": ["ok"],
+    "assistantMarkers": ["confirm"],
+    "forceGenerateInstruction": "User confirmed. Generate final output now."
+  },
+  "stages": [
+    {
+      "id": "base",
+      "includeModules": ["base"]
+    }
+  ]
+}

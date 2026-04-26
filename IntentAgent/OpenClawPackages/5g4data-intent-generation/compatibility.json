@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "1.0.0",
+  "openClawAgentPackageApi": "1.x",
+  "node": ">=22",
+  "notes": "Compatibility metadata for package loading."
+}

@@ -1,0 +1,13 @@
+.DS_Store
+Thumbs.db
+
+*.log
+*.tmp
+*.temp
+*.swp
+
+dist/
+build/
+tmp/
+
+*.tgz

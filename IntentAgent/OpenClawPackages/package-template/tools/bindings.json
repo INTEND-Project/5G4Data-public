@@ -1,0 +1,5 @@
+{
+  "capabilities": {
+    "ontology_summary": { "adapter": "ontology.summary" }
+  }
+}

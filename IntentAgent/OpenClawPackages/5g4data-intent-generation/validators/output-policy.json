@@ -1,0 +1,41 @@
+{
+  "forbiddenPhrases": [
+    "<uuid4>",
+    "<same-uuid4>",
+    "<condition-id>",
+    "i will proceed",
+    "please hold on",
+    "now i will create"
+  ],
+  "requiredTokens": [
+    "icm:Intent",
+    "icm:ReportingExpectation",
+    "imo:handler \"inServ\"",
+    "imo:owner \"inChat\""
+  ],
+  "clarificationTag": "[deployment datacenter clarification required]",
+  "conditionalRequirements": [
+    {
+      "intentFlag": "deployment",
+      "requiresAnyTokens": ["data5g:DeploymentExpectation"],
+      "error": "Deployment intent requires data5g:DeploymentExpectation."
+    },
+    {
+      "intentFlag": "networkQos",
+      "requiresAnyTokens": ["data5g:NetworkExpectation"],
+      "error": "Network QoS intent requires data5g:NetworkExpectation."
+    },
+    {
+      "intentFlag": "locality",
+      "requiresAnyTokens": ["data5g:DataCenter", "data5g:appliesToRegion"],
+      "error": "Locality intent requires data center or region grounding."
+    }
+  ],
+  "identifierRules": [
+    {
+      "regex": "\\bdata5g:(I|CO|CX|DE|NE|RE|RG)([A-Za-z0-9_-]+)\\b",
+      "validateAsUuid4Suffix": true,
+      "error": "Identifier local names must be UUIDv4-derived (32 hex, version=4, variant=8|9|a|b)."
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "schemaVersion": "1.0.0",
+  "openClawAgentPackageApi": "1.x",
+  "node": ">=22"
+}

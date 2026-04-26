@@ -1,0 +1,40 @@
+{
+  "confirmation": {
+    "acceptedUserInputs": ["ok"],
+    "assistantMarkers": [
+      "type ok to confirm generation of turtle",
+      "type ok to confirm",
+      "confirm to generate final turtle",
+      "please confirm",
+      "confirm or"
+    ],
+    "forceGenerateInstruction": "The user has explicitly confirmed. Do not ask for confirmation again. Generate the final Turtle intent now."
+  },
+  "stages": [
+    {
+      "id": "base",
+      "includeModules": ["base", "defaults", "review"],
+      "confirmationRequired": false
+    },
+    {
+      "id": "deployment",
+      "includeModules": ["deployment"],
+      "whenIntentFlags": ["deployment"]
+    },
+    {
+      "id": "locality",
+      "includeModules": ["locality"],
+      "whenIntentFlags": ["locality"]
+    },
+    {
+      "id": "network",
+      "includeModules": ["network"],
+      "whenIntentFlags": ["networkQos"]
+    },
+    {
+      "id": "repair",
+      "includeModules": ["repair"],
+      "confirmationRequired": false
+    }
+  ]
+}

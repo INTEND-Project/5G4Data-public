@@ -1,0 +1,7 @@
+{
+  "intentFlags": {
+    "deployment": ["deploy"],
+    "locality": ["near"],
+    "networkQos": ["latency"]
+  }
+}

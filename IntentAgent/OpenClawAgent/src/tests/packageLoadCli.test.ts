@@ -31,6 +31,9 @@ test("CLI package load installs package and creates agent clone", () => {
   const cloneDir = join(root, clone as string);
   assert.ok(existsSync(join(cloneDir, ".env")));
   const clonedEnv = readFileSync(join(cloneDir, ".env"), "utf8");
-  assert.match(clonedEnv, /DOMAIN_PACKAGE_DIR=\.\.\/OpenClawPackages\/package-template/);
-  assert.match(clonedEnv, /SKILL_FILE=\.\.\/OpenClawPackages\/package-template\/skills\/SKILL\.md/);
+  assert.match(clonedEnv, /DOMAIN_PACKAGE_DIR=\.\/\n/);
+  assert.match(clonedEnv, /SKILL_FILE=\.\/skills\/SKILL\.md/);
+  assert.ok(existsSync(join(cloneDir, "manifest.json")));
+  assert.ok(existsSync(join(cloneDir, "prompt_modules", "base.md")));
+  assert.ok(existsSync(join(cloneDir, "rules", "classification.json")));
 });

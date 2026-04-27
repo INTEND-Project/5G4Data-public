@@ -9,6 +9,7 @@ import { loadDomainPackage } from "./core/packageLoader.js";
 import { installPackageFromPath } from "./core/packageInstaller.js";
 import { cloneAgentForPackage } from "./core/agentCloneManager.js";
 import { updateEnvFile } from "./core/envConfigWriter.js";
+import { deployPackageToClone } from "./core/packageCloneDeployer.js";
 import { deployPackageToolsToClone } from "./core/packageToolDeployer.js";
 import type { AgentTurnResult, ChatSession } from "./models.js";
 
@@ -79,12 +80,17 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
     baselineAgentDir,
     packageName: installed.packageName
   });
-  const deployedTools = deployPackageToolsToClone({
+  const deployedPackage = deployPackageToClone({
     packageDir: installed.packageDir,
     cloneDir: cloned.cloneDir
   });
-  const domainPackageValue = normalizeEnvPath(relative(cloned.cloneDir, installed.packageDir));
-  const skillFileValue = normalizeEnvPath(relative(cloned.cloneDir, installed.skillPath));
+  const deployedTools = deployPackageToolsToClone({
+    packageDir: deployedPackage.deployedPackageDir,
+    cloneDir: cloned.cloneDir
+  });
+  const domainPackageValue = "./";
+  const deployedSkillPath = join(cloned.cloneDir, "skills", "SKILL.md");
+  const skillFileValue = normalizeEnvPath(relative(cloned.cloneDir, deployedSkillPath));
   updateEnvFile(join(cloned.cloneDir, ".env"), [
     { key: "DOMAIN_PACKAGE_DIR", value: domainPackageValue },
     { key: "SKILL_FILE", value: skillFileValue }
@@ -94,6 +100,7 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   process.stdout.write(`Package directory: ${installed.packageDir}\n`);
   process.stdout.write(`Agent clone: ${cloned.cloneDir}\n`);
   process.stdout.write(`Clone version: ${cloned.version}\n`);
+  process.stdout.write(`Cloned package copy: ${cloned.cloneDir}\n`);
   if (deployedTools.copiedToolFiles.length > 0) {
     process.stdout.write(`Copied package tools: ${deployedTools.copiedToolFiles.join(", ")}\n`);
   }

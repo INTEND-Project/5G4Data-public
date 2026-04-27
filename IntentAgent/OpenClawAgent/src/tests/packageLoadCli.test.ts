@@ -33,7 +33,20 @@ test("CLI package load installs package and creates agent clone", () => {
   const clonedEnv = readFileSync(join(cloneDir, ".env"), "utf8");
   assert.match(clonedEnv, /DOMAIN_PACKAGE_DIR=\.\/\n/);
   assert.match(clonedEnv, /SKILL_FILE=\.\/skills\/SKILL\.md/);
+  assert.match(clonedEnv, /ENABLE_PACKAGE_LOAD=false/);
   assert.ok(existsSync(join(cloneDir, "manifest.json")));
   assert.ok(existsSync(join(cloneDir, "prompt_modules", "base.md")));
   assert.ok(existsSync(join(cloneDir, "rules", "classification.json")));
+  assert.ok(!existsSync(join(cloneDir, "scripts", "create-package-tgz.mjs")));
+  assert.ok(!existsSync(join(cloneDir, "src", "core", "packageInstaller.ts")));
+
+  assert.throws(
+    () =>
+      execFileSync(process.execPath, [builtCliPath, "package", "load", archivePath], {
+        cwd: cloneDir,
+        encoding: "utf8",
+        stdio: "pipe"
+      }),
+    /Package load is disabled in this cloned agent/
+  );
 });

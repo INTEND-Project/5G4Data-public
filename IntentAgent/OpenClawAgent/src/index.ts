@@ -6,11 +6,6 @@ import { loadConfig } from "./config.js";
 import { createOpenClawModelInvoker } from "./adapters/openclaw.js";
 import { createSession, TurnOrchestrator } from "./core/turnOrchestrator.js";
 import { loadDomainPackage } from "./core/packageLoader.js";
-import { installPackageFromPath } from "./core/packageInstaller.js";
-import { cloneAgentForPackage } from "./core/agentCloneManager.js";
-import { updateEnvFile } from "./core/envConfigWriter.js";
-import { deployPackageToClone } from "./core/packageCloneDeployer.js";
-import { deployPackageToolsToClone } from "./core/packageToolDeployer.js";
 import type { AgentTurnResult, ChatSession } from "./models.js";
 
 export function createAgentRuntime() {
@@ -66,9 +61,42 @@ function parsePackageLoadCommand(argv: string[]): { archivePath: string } | null
   return { archivePath };
 }
 
+function packageLoadEnabled(): boolean {
+  const raw = process.env.ENABLE_PACKAGE_LOAD ?? readDotEnvValue("ENABLE_PACKAGE_LOAD");
+  if (raw === undefined) return true;
+  const normalized = raw.trim().toLowerCase();
+  return !["0", "false", "no", "off"].includes(normalized);
+}
+
+function readDotEnvValue(key: string): string | undefined {
+  const envPath = resolve(process.cwd(), ".env");
+  if (!existsSync(envPath)) return undefined;
+  const text = readFileSync(envPath, "utf8");
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq <= 0) continue;
+    const parsedKey = line.slice(0, eq).trim();
+    if (parsedKey !== key) continue;
+    return line.slice(eq + 1).trim();
+  }
+  return undefined;
+}
+
 async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   const command = parsePackageLoadCommand(argv);
   if (!command) return false;
+  if (!packageLoadEnabled()) {
+    throw new Error("Package load is disabled in this cloned agent.");
+  }
+
+  const { installPackageFromPath } = await import("./core/packageInstaller.js");
+  const { cloneAgentForPackage } = await import("./core/agentCloneManager.js");
+  const { updateEnvFile } = await import("./core/envConfigWriter.js");
+  const { deployPackageToClone } = await import("./core/packageCloneDeployer.js");
+  const { deployPackageToolsToClone } = await import("./core/packageToolDeployer.js");
+  const { pruneClonePackagingArtifacts } = await import("./core/cloneRuntimePruner.js");
 
   const baselineAgentDir = process.cwd();
   const packagesRoot = resolve(baselineAgentDir, "../OpenClawPackages");
@@ -93,8 +121,10 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   const skillFileValue = normalizeEnvPath(relative(cloned.cloneDir, deployedSkillPath));
   updateEnvFile(join(cloned.cloneDir, ".env"), [
     { key: "DOMAIN_PACKAGE_DIR", value: domainPackageValue },
-    { key: "SKILL_FILE", value: skillFileValue }
+    { key: "SKILL_FILE", value: skillFileValue },
+    { key: "ENABLE_PACKAGE_LOAD", value: "false" }
   ]);
+  pruneClonePackagingArtifacts(cloned.cloneDir);
 
   process.stdout.write(`Package installed: ${installed.packageName}\n`);
   process.stdout.write(`Package directory: ${installed.packageDir}\n`);

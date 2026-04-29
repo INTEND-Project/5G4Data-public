@@ -22,6 +22,8 @@ data5g:SEb0aab5e8633046aa9634dc1594671850 a data5g:SustainabilityExpectation,
         data5g:CX2f4d6697a0dd4630aaf1327741f6c55b .
     # The conditions will express the exact metrics to be monitored
 ```
+The current OpenClawPackages/5g4data-intent-generation packages includes a tool that will use the Workload catalogue API to find workloads that matches the natural language representation of the intent. The helm chart for the matching workload is opened and the values.yaml file is extracted. The ***intent/objectives*** part of the values.yaml file is used to add Conditions for metrics that the deployment of the workload is supposed to meet. This IDO/inOrch pattern can be used for SustainabilityExpectations as well.
+
 ## Add sustainability objectives to the workload Helm chart
 
 We can also use the IDO/inOrch pattern to add sustainability objectives (conditions) to intents. In the IDO/inOrch pattern, objectives that the IDO/inOrch should handle are expressed in the values.yaml file in the Helm chart for the workload. We could also add sustainability objectives to the values.yaml file of the workload. The sustainability objectives can match metrics that Kepler can collect from the workload when it is deployed in a Kubernetes cluster (e.g. container metrics like kepler_container_cpu_joules_total and kepler_container_cpu_watts). If the value that should be met is undefined, we could use the tmf-value-hint to set a default value that is large. Example entries in values.yaml:

@@ -6,9 +6,11 @@ TypeScript-first OpenClaw kernel for package-based intent agents.
 The actual runnable agents are the cloned instances created as `../OpenClawAgent-<package-name>` (or versioned variants such as `-v2`).
 
 Related guide:
+
 - Package authoring and structure: `../OpenClawPackages/README.md`
 
 ## What is implemented
+
 - Domain package kernel with declarative package loading (`src/core/packageLoader.ts`, `src/core/workflowEngine.ts`)
 - Package-driven orchestration (`src/core/turnOrchestrator.ts`)
 - Package-provided domain tools loaded at runtime from the active package
@@ -17,6 +19,7 @@ Related guide:
 - OpenAI/Anthropic integration adapter (`src/adapters/openclaw.ts`)
 
 ## Install
+
 ```bash
 cd OpenClawAgent
 npm install
@@ -31,6 +34,7 @@ npm install
 In normal usage, you create/update agents from this kernel, then run the cloned agent instance.
 
 ## Create `OpenClawAgent-<package-name>` instances
+
 ```bash
 # 1) install deps in kernel
 cd OpenClawAgent
@@ -58,13 +62,14 @@ From a cloned agent directory (`OpenClawAgent-<package-name>`):
 
 ```bash
 # one-shot
-npx tsx src/index.ts "I need at least 300 Mbit/s and under 80ms for drone video near Tromso."
+npx tsx src/index.ts "I want to experiment with a small llm in a datacenter near Tromsø/Norway"
 
 # interactive debug mode
 npx tsx src/index.ts --debug
 ```
 
 ## Debug mode (in cloned agent)
+
 Enable debug logging for full per-turn diagnostics (including generated Turtle candidates, validation issues, and SHACL reports):
 
 ```bash
@@ -72,16 +77,18 @@ Enable debug logging for full per-turn diagnostics (including generated Turtle c
 npx tsx src/index.ts --debug
 
 # One-shot with debug
-npx tsx src/index.ts --debug "Generate deployment intent near Tromso"
+npx tsx src/index.ts --debug "I am going to use a drone to search for skiers that might have been caught in an avalange near Bodø/Norway. I need an object detection model deployed locally and good network connection for sending 4K video to the model in near realtime."
 
 # Custom debug log path
 npx tsx src/index.ts --debug logs/my-debug.jsonl
 ```
 
 Default debug log file:
+
 - `logs/openclaw-agent-debug.jsonl`
 
 ## Environment variables
+
 - `LLM_PROVIDER`: `openai` or `anthropic`
 - `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`
 - `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_BASE_URL`
@@ -95,6 +102,7 @@ Default debug log file:
 - `SHACL_SHAPES_FILE`, `SHACL_MAX_RETRIES`
 
 ## Package wiring guide
+
 1. Keep this project as your agent workspace implementation package.
 2. Packages live outside baseline agent in `../OpenClawPackages/<package-name>`.
 3. Keep kernel generic; switch domain behavior by swapping package directory only.
@@ -111,6 +119,7 @@ npx tsx src/index.ts package load ../OpenClawPackages/my-package
 ```
 
 What it does:
+
 - Extracts and validates the package into `../OpenClawPackages/<package-name>`.
 - Clones baseline agent into `../OpenClawAgent-<package-name>` (or `-v2`, `-v3`, ... if needed).
 - Copies package-provided tool sources from `<package>/tools/*.ts` into cloned `src/tools/`.
@@ -131,6 +140,7 @@ npm run package:tgz -- ../OpenClawPackages/5g4data-intent-generation dist/packag
 ## Package contract (extended)
 
 Expected package layout (required + optional assets):
+
 - required core:
   - `manifest.json`, `workflow.dsl.json`, `rules/`, `validators/`, `tools/`, `prompts/`, `prompt_modules/`
   - `skills/SKILL.md`

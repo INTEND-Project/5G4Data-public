@@ -1,0 +1,91 @@
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+data5g:I973c6c1174844e0d9f2d41bb96b454b1 a icm:Intent ;
+    dct:description "Deploy a small LLM inference service near Tromsø with sustainable operation." ;
+    imo:handler "inServ" ;
+    imo:owner "inChat" ;
+    log:allOf data5g:DE0d1ce26a35b94f358117d671456b01e7,
+        data5g:SE5420c491e4fb435ab4f189c920811fbe,
+        data5g:RE97978a1a7e50424ebebfbed023838ba1,
+        data5g:REe334ce282b49454bb9bd0d9c67264d13 .
+
+data5g:COc5f7b82460cf4207a5a93ca4183ccbdf a icm:Condition ;
+    dct:description "p99-token-target condition quan:smaller: 400" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_COc5f7b82460cf4207a5a93ca4183ccbdf ;
+            quan:smaller [ rdf:value 400 ] ] .
+
+data5g:CO72a1524ea1904d429ecd23cc1c536d1c a icm:Condition ;
+    dct:description "kepler_container_cpu_joules_total condition quan:smaller: 10000" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:kepler_container_cpu_joules_total_CO72a1524ea1904d429ecd23cc1c536d1c ;
+            quan:smaller [ rdf:value 10000 ] ] .
+
+data5g:COe71bfa4e593b4de6b7272a43c020d23c a icm:Condition ;
+    dct:description "kepler_container_cpu_watts condition quan:smaller: 10000" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:kepler_container_cpu_watts_COe71bfa4e593b4de6b7272a43c020d23c ;
+            quan:smaller [ rdf:value 10000 ] ] .
+
+data5g:CX8c9a8c0dee4b41d8a02a6f64f2f37594 a icm:Context ;
+    data5g:Application "LLM inference" ;
+    data5g:DataCenter "EC_31" ;
+    data5g:DeploymentDescriptor "https://start5g-1.cs.uit.no/wchartmuseum/api/charts/rusty-llm/0.1.19" .
+
+data5g:DE0d1ce26a35b94f358117d671456b01e7 a data5g:DeploymentExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
+    dct:description "Deploy rusty-llm workload near Tromsø edge." ;
+    icm:target data5g:deployment ;
+    log:allOf data5g:COc5f7b82460cf4207a5a93ca4183ccbdf,
+        data5g:CX8c9a8c0dee4b41d8a02a6f64f2f37594 .
+
+data5g:SE5420c491e4fb435ab4f189c920811fbe a data5g:SustainabilityExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
+    dct:description "Ensure sustainable operation of LLM workload." ;
+    icm:target data5g:sustainability ;
+    log:allOf data5g:CO72a1524ea1904d429ecd23cc1c536d1c,
+        data5g:COe71bfa4e593b4de6b7272a43c020d23c,
+        data5g:CX8c9a8c0dee4b41d8a02a6f64f2f37594 .
+
+data5g:tenMinutesDeployment a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventDeployment a rdfs:Class ;
+    rdfs:subClassOf imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:tenMinutesDeployment ) ;
+    imo:eventFor data5g:DE0d1ce26a35b94f358117d671456b01e7 .
+
+data5g:RE97978a1a7e50424ebebfbed023838ba1 a icm:ObservationReportingExpectation ;
+    dct:description "Deployment observation reports every 10 minutes." ;
+    icm:target data5g:deployment ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventDeployment ] .
+
+data5g:tenMinutesSustainability a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventSustainability a rdfs:Class ;
+    rdfs:subClassOf imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:tenMinutesSustainability ) ;
+    imo:eventFor data5g:SE5420c491e4fb435ab4f189c920811fbe .
+
+data5g:REe334ce282b49454bb9bd0d9c67264d13 a icm:ObservationReportingExpectation ;
+    dct:description "Sustainability observation reports every 10 minutes." ;
+    icm:target data5g:sustainability ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventSustainability ] .

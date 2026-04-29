@@ -3,6 +3,12 @@ Human review policy:
 - If deployment is included, you MUST include an "Extracted deployment objectives" section.
 - In that section, list each objective from runtime context with exact objective name and numeric threshold value.
 - Use explicit bullets in the form: `- <objective-name>: threshold=<value> (source=<tmf-value-hint|value>)`.
+- If sustainability is included, you MUST include an "Extracted sustainability objectives" section.
+- In that section, list each sustainability metric from runtime context with exact metric name and numeric threshold value.
+- Confirm reporting uses `icm:ObservationReportingExpectation` (never `icm:ReportingExpectation`).
+- Confirm deployment/sustainability/network reporting each use separate TenMinute event resources when those expectations are present.
+- Confirm each event has `imo:eventFor` pointing to its respective expectation.
+- Confirm sustainability reuses the existing complete deployment context when applicable; do not add a duplicate partial `icm:Context`.
 - Do not use vague labels like "latency objective" without objective names and values.
 - End review text with: "Type OK to confirm generation of Turtle."
 - If input is not `OK`, treat it as adjustment and continue planning.

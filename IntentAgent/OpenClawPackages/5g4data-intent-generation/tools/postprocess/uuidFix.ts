@@ -32,7 +32,7 @@ export function applyPostprocessor(args: {
   };
 
   rewritten = rewritten.replace(
-    /\bdata5g:(I|CO|CX|DE|NE|RE|RG)(__ID_[A-Z0-9_]+__)\b/g,
+    /\bdata5g:(I|CO|CX|DE|NE|RE|RG|SE)(__ID_[A-Z0-9_]+__)\b/g,
     (_full, prefix, placeholder) => `data5g:${String(prefix)}${getOrCreateSuffix(String(placeholder))}`
   );
 

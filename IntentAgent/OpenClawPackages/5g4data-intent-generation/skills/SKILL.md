@@ -1,6 +1,6 @@
 ---
 name: tmf-intent-authoring
-description: Translate natural-language 5G4Data requirements into TM Forum ontology-based Turtle intents, using only workloads available in the workload catalogue. Use when creating, revising, validating, or explaining 5G4Data intents involving NetworkExpectation, DeploymentExpectation, ReportingExpectation, bandwidth, latency, workload-chart objectives, ChartMuseum workload lookup, or Turtle intent files.
+description: Translate natural-language 5G4Data requirements into TM Forum ontology-based Turtle intents, using only workloads available in the workload catalogue. Use when creating, revising, validating, or explaining 5G4Data intents involving NetworkExpectation, DeploymentExpectation, SustainabilityExpectation, ObservationReportingExpectation, bandwidth, latency, sustainability metrics, workload-chart objectives, ChartMuseum workload lookup, or Turtle intent files.
 ---
 
 # TM Forum Intent Authoring
@@ -32,14 +32,19 @@ Use this as a starting shape, then remove the blocks that are not needed when cr
 @prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
 @prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 data5g:I<uuid4> a icm:Intent ;
     dct:description "<intent description>" ;
     imo:handler "<handler>" ;
     imo:owner "<owner>" ;
     log:allOf data5g:DE<uuid4>,
+        data5g:SE<uuid4>,
         data5g:NE<uuid4>,
+        data5g:RE<uuid4>,
         data5g:RE<uuid4>,
         data5g:RE<uuid4> .
 
@@ -91,18 +96,69 @@ data5g:NE<uuid4> a data5g:NetworkExpectation,
         data5g:CO<latency-condition-uuid4>,
         data5g:CX<network-context-uuid4> .
 
-data5g:RE<uuid4> a icm:ReportingExpectation ;
-    dct:description "Report if expectation is met with reports including metrics related to expectations." ;
-    icm:target data5g:deployment .
+data5g:SE<uuid4> a data5g:SustainabilityExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
+    dct:description "<sustainability expectation description>" ;
+    icm:target data5g:sustainability ;
+    log:allOf data5g:CO<sustainability-condition-uuid4>,
+        data5g:CX<deployment-context-uuid4> .
 
-data5g:RE<uuid4> a icm:ReportingExpectation ;
-    dct:description "Report if expectation is met with reports including metrics related to expectations." ;
-    icm:target data5g:network-slice .
+data5g:tenMinutesDeployment a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventDeployment a rdfs:Class ;
+    rdfs:subClassOf imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:tenMinutesDeployment ) ;
+    imo:eventFor data5g:DE<uuid4> .
+
+data5g:RE<uuid4> a icm:ObservationReportingExpectation ;
+    dct:description "Deployment observation reports every 10 minutes." ;
+    icm:target data5g:deployment ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventDeployment ] .
+
+data5g:tenMinutesSustainability a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventSustainability a rdfs:Class ;
+    rdfs:subClassOf imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:tenMinutesSustainability ) ;
+    imo:eventFor data5g:SE<uuid4> .
+
+data5g:RE<uuid4> a icm:ObservationReportingExpectation ;
+    dct:description "Sustainability observation reports every 10 minutes." ;
+    icm:target data5g:sustainability ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventSustainability ] .
+
+data5g:tenMinutesNetwork a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventNetwork a rdfs:Class ;
+    rdfs:subClassOf imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:tenMinutesNetwork ) ;
+    imo:eventFor data5g:NE<uuid4> .
+
+data5g:RE<uuid4> a icm:ObservationReportingExpectation ;
+    dct:description "Network observation reports every 10 minutes." ;
+    icm:target data5g:network-slice ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventNetwork ] .
 ```
 
 ## Required Data Sources
 
-### Workload catalogue (mandatory for deployment)
+### Workload catalogue (mandatory for deployment and sustainability)
 
 - Base URL: `https://start5g-1.cs.uit.no/wchartmuseum`
 - API style: ChartMuseum
@@ -110,10 +166,12 @@ data5g:RE<uuid4> a icm:ReportingExpectation ;
 
 Rules:
 - `DeploymentExpectation` is allowed only if a suitable catalogue workload exists.
+- `SustainabilityExpectation` is allowed only if a suitable catalogue workload exists.
 - Never invent workload/chart/version/deployment descriptor values.
 - Retrieve selected chart and inspect `values.yaml`.
 - Deployment conditions must come from `values.yaml` `objectives`.
-- If no suitable workload exists, clearly state deployment is out of scope.
+- Sustainability conditions must come from `values.yaml` `sustainability`.
+- If no suitable workload exists, clearly state deployment/sustainability is out of scope.
 
 ### GraphDB/SPARQL lookup (mandatory when locality matters)
 
@@ -125,14 +183,15 @@ Rules:
 ## Required workflow
 
 1. Read ontology + examples first.
-2. Extract: business goal, locality, deployment need, network QoS need, thresholds.
-3. If deployment implied: do catalogue lookup before drafting deployment semantics.
+2. Extract: business goal, locality, deployment need, sustainability need, network QoS need, thresholds.
+3. If deployment or sustainability implied: do catalogue lookup before drafting conditions.
 4. If locality matters: geocode + SPARQL nearest-edge lookup.
-5. Choose expectation shape: deployment-only, network-only, or both.
+5. Choose expectation shape: deployment-only, network-only, sustainability-only, or combinations.
 6. Ask only missing critical fields:
    - `dct:description`, `imo:handler`, `imo:owner`
    - deployment workload/data center/descriptor/objective thresholds
-   - network bandwidth/latency thresholds
+  - network bandwidth/latency thresholds
+  - sustainability metric thresholds
 7. Output Turtle unless prose requested.
 8. Run validation checklist.
 
@@ -158,19 +217,45 @@ objectives:
 
 Use metric `data5g:p99-token-target_<condition-id>`.
 
+## Sustainability condition extraction from Helm charts
+
+Rules:
+- Read `sustainability` in selected chart `values.yaml`.
+- Create one sustainability condition per entry unless user narrows scope.
+- Metric stem is metric `name`, suffixed with `_<condition-id>`.
+- Use user-provided threshold when available; otherwise use `tmf-value-hint`, then `value`.
+- Preserve `measuredBy` from chart entries whenever present.
+- If no reliable sustainability metrics exist, ask follow-up or mark sustainability-condition generation out-of-scope.
+
+Example:
+
+```yaml
+sustainability:
+  - name: kepler_container_cpu_watts
+    value: 0.0
+    tmf-value-hint: 10000
+    measuredBy: intend/container_cpu_watts
+```
+
+Use metric `data5g:kepler_container_cpu_watts_<condition-id>`.
+
 ## Inference rules for expectation selection
 
 Heuristics:
 - Deployment expectation: placement/local inference/edge/proximity/privacy-through-locality.
+- Sustainability expectation: sustainability/energy/power/joules/watts/carbon/kepler monitoring goals.
 - Network expectation: latency/bandwidth/QoS/connectivity guarantees.
-- Use both when both placement and communication quality are required.
+- Use multiple expectations when placement, sustainability, and communication quality are all required.
 - If only placement cues exist -> deployment-only (state assumption).
+- If only sustainability cues exist -> sustainability-only.
 - If only communication cues exist -> network-only.
 - Keep deployment only if workload exists in catalogue.
+- Keep sustainability only if workload exists in catalogue.
 
 Cue mapping:
 - “local compute”, “edge”, “run close to me”, “keep data local” -> deployment
 - “private dialogue/prompts” -> deployment locality (privacy approximated via local execution)
+- “energy efficiency”, “power usage”, “joules”, “watts”, “Kepler metrics” -> sustainability
 - “low response time”, “fast replies” -> latency
 - “stable/predictable performance” -> likely network QoS (possibly plus locality)
 - “high throughput”, “many users”, “large transfer” -> bandwidth
@@ -180,25 +265,31 @@ Cue mapping:
 Allowed expectation classes only:
 - `data5g:NetworkExpectation`
 - `data5g:DeploymentExpectation`
-- `icm:ReportingExpectation`
+- `data5g:SustainabilityExpectation`
+- `icm:ObservationReportingExpectation`
 
 Legal combinations:
 - network-only
 - deployment-only
+- sustainability-only
 - network + deployment
+- deployment + sustainability
+- network + sustainability
+- network + deployment + sustainability
 
 Never introduce other expectation types.
 
 ## Condition restrictions
 
 - Deployment conditions: only from chart `values.yaml` `objectives`.
+- Sustainability conditions: only from chart `values.yaml` `sustainability`.
 - Network conditions: only bandwidth and latency.
 - Logistic behavior allowed only when user explicitly requests soft/non-linear semantics.
 - Default operators: `quan:smaller`, `quan:larger`, `quan:inRange`.
 
 ## Naming and identifier rules
 
-Use placeholder IDs during generation for intent, all conditions, contexts, expectations, reporting expectations, and extra region/helper resources. The package postprocessor will replace placeholders with strict UUIDv4 suffixes.
+Use placeholder IDs during generation for intent, all conditions, contexts, expectations, observation reporting expectations, and extra region/helper resources. The package postprocessor will replace placeholders with strict UUIDv4 suffixes.
 
 Naming style:
 - `data5g:I__ID_INTENT_1__`
@@ -206,6 +297,7 @@ Naming style:
 - `data5g:CX__ID_CONTEXT_<name>_1__`
 - `data5g:DE__ID_DEPLOYMENT_1__`
 - `data5g:NE__ID_NETWORK_1__`
+- `data5g:SE__ID_SUSTAINABILITY_1__`
 - `data5g:RE__ID_REPORT_<name>_1__`
 - `data5g:RG__ID_REGION_1__`
 
@@ -220,8 +312,10 @@ Rules:
 - Root resource is `icm:Intent`.
 - Root composition defaults to `log:allOf`; use other logical operators only when explicitly justified.
 - Each expectation has exactly one `icm:target`.
-- Targets: deployment -> `data5g:deployment`, network -> `data5g:network-slice`, reporting -> same target it reports on.
-- Include one reporting expectation per target by default.
+- Targets: deployment -> `data5g:deployment`, sustainability -> `data5g:sustainability`, network -> `data5g:network-slice`, observation reporting -> same target it reports on.
+- Include one observation reporting expectation per target by default.
+- Observation reporting must include `icm:reportDestinations` to `data5g:prometheus` and `icm:reportTriggers` with a target-specific TenMinute event.
+- Each TenMinute event must include `imo:eventFor` pointing to the corresponding expectation (`DE`, `SE`, or `NE`).
 
 ## Context guidance
 
@@ -231,6 +325,10 @@ Typical deployment context:
 - `data5g:Application`
 - `data5g:DataCenter`
 - `data5g:DeploymentDescriptor`
+
+Sustainability context guidance:
+- Reuse existing complete deployment context when sustainability applies to the same workload/deployment scope.
+- Do not create duplicate partial contexts that only repeat `Application`/`DataCenter` without adding required information.
 
 Typical network context:
 - `data5g:appliesToCustomer`
@@ -250,13 +348,16 @@ Do not invent unsupported context properties. `data5g:DeploymentDescriptor` must
 
 Before returning:
 - Root is `icm:Intent`.
-- Root `log:allOf` references only included expectations/reporting expectations.
+- Root `log:allOf` references only included expectations/observation reporting expectations.
 - Every referenced condition/context is defined exactly once.
+- Sustainability should reuse existing complete deployment context when applicable; avoid duplicate partial context resources.
 - Deployment conditions are from chart objectives.
+- Sustainability conditions are from chart sustainability entries.
 - Network conditions only use bandwidth/latency.
 - No unsupported expectation classes.
 - Expectation targets are correct.
-- Reporting expectations target the resource they report on.
+- Observation reporting expectations target the resource they report on.
+- Observation reporting uses target-specific TenMinute events with correct `imo:eventFor` mappings.
 - Deployment workload and descriptor come from catalogue.
 - `data5g:DataCenter` from coordinate + SPARQL nearest-edge process when locality used.
 - Units: latency `"ms"`, bandwidth `"mbit/s"` (unless chart objective defines differently).

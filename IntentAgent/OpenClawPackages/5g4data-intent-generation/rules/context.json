@@ -3,7 +3,8 @@
   "intentCapabilities": {
     "deployment": ["catalogue_summary", "selected_workload_objectives", "graphdb_candidates"],
     "locality": ["graphdb_candidates"],
-    "networkQos": ["graphdb_candidates"]
+    "networkQos": ["graphdb_candidates"],
+    "sustainability": ["catalogue_summary", "selected_workload_objectives"]
   },
   "prompts": {
     "runtimeContextHeader": "Runtime grounding context:",

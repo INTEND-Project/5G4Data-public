@@ -32,6 +32,11 @@
       "whenIntentFlags": ["networkQos"]
     },
     {
+      "id": "sustainability",
+      "includeModules": ["sustainability"],
+      "whenIntentFlags": ["sustainability"]
+    },
+    {
       "id": "repair",
       "includeModules": ["repair"],
       "confirmationRequired": false

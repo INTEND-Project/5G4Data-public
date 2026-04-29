@@ -5,11 +5,12 @@
     "<condition-id>",
     "i will proceed",
     "please hold on",
-    "now i will create"
+    "now i will create",
+    "icm:ReportingExpectation"
   ],
   "requiredTokens": [
     "icm:Intent",
-    "icm:ReportingExpectation",
+    "icm:ObservationReportingExpectation",
     "imo:handler \"inServ\"",
     "imo:owner \"inChat\""
   ],
@@ -29,11 +30,16 @@
       "intentFlag": "locality",
       "requiresAnyTokens": ["data5g:DataCenter", "data5g:appliesToRegion"],
       "error": "Locality intent requires data center or region grounding."
+    },
+    {
+      "intentFlag": "sustainability",
+      "requiresAnyTokens": ["data5g:SustainabilityExpectation"],
+      "error": "Sustainability intent requires data5g:SustainabilityExpectation."
     }
   ],
   "identifierRules": [
     {
-      "regex": "\\bdata5g:(I|CO|CX|DE|NE|RE|RG)([A-Za-z0-9_-]+)\\b",
+      "regex": "\\bdata5g:(I|CO|CX|DE|NE|RE|RG|SE)([A-Za-z0-9_-]+)\\b",
       "validateAsUuid4Suffix": true,
       "error": "Identifier local names must be UUIDv4-derived (32 hex, version=4, variant=8|9|a|b)."
     }

@@ -20,42 +20,57 @@ function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
-function extractObjectives(node: unknown): Objective[] {
+function extractArrayField(node: unknown, fieldName: string): Objective[] {
   if (Array.isArray(node)) {
     for (const child of node) {
-      const found = extractObjectives(child);
+      const found = extractArrayField(child, fieldName);
       if (found.length > 0) return found;
     }
     return [];
   }
   if (node && typeof node === "object") {
     const dict = node as Record<string, unknown>;
-    if (Array.isArray(dict.objectives) && dict.objectives.every((item) => typeof item === "object")) {
-      return dict.objectives as Objective[];
+    const candidate = dict[fieldName];
+    if (Array.isArray(candidate) && candidate.every((item) => typeof item === "object")) {
+      return candidate as Objective[];
     }
     for (const child of Object.values(dict)) {
-      const found = extractObjectives(child);
+      const found = extractArrayField(child, fieldName);
       if (found.length > 0) return found;
     }
   }
   return [];
 }
 
-function objectivesFromValuesPayload(values: unknown): Objective[] {
+function valuesPayloadToStructure(values: unknown): unknown {
   if (typeof values === "string") {
     const stripped = values.trim();
-    if (!stripped) return [];
+    if (!stripped) return null;
     try {
-      return extractObjectives(JSON.parse(stripped));
+      return JSON.parse(stripped);
     } catch {
       try {
-        return extractObjectives(parseYaml(stripped));
+        return parseYaml(stripped);
       } catch {
-        return [];
+        return null;
       }
     }
   }
-  return extractObjectives(values);
+  return values;
+}
+
+function extractMetricsFromValuesPayload(values: unknown, fieldName: "objectives" | "sustainability"): Objective[] {
+  const structured = valuesPayloadToStructure(values);
+  if (!structured) return [];
+  return extractArrayField(structured, fieldName);
+}
+
+function objectivesFromValuesPayload(values: unknown): Objective[] {
+  return extractMetricsFromValuesPayload(values, "objectives");
+}
+
+function sustainabilityFromValuesPayload(values: unknown): Objective[] {
+  return extractMetricsFromValuesPayload(values, "sustainability");
 }
 
 export class WorkloadCatalogueTool {
@@ -130,30 +145,50 @@ export class WorkloadCatalogueTool {
       const e = entry as Record<string, unknown>;
       const version = String(e.version ?? "<unknown>").trim() || "<unknown>";
       let objectives = objectivesFromValuesPayload(e.values);
-      if (objectives.length === 0 && Array.isArray(e.urls)) {
-        objectives = await this.objectivesFromArchiveUrls(
+      let sustainability = sustainabilityFromValuesPayload(e.values);
+      if ((objectives.length === 0 || sustainability.length === 0) && Array.isArray(e.urls)) {
+        const archiveMetrics = await this.metricsFromArchiveUrls(
           e.urls.filter((url): url is string => typeof url === "string")
         );
+        if (objectives.length === 0) objectives = archiveMetrics.objectives;
+        if (sustainability.length === 0) sustainability = archiveMetrics.sustainability;
       }
-      if (objectives.length === 0) continue;
-      const lines = [
-        `Selected chart: ${chartName} (version ${version})`,
-        "Deployment objective defaults from values.yaml objectives:"
-      ];
-      for (const objective of objectives) {
-        const name = String(objective.name ?? "<unnamed>").trim();
-        const hint = objective["tmf-value-hint"];
-        const measuredBy = String(objective.measuredBy ?? "").trim();
-        const threshold = hint !== undefined && String(hint).trim() !== "" ? String(hint).trim() : String(objective.value ?? "unspecified");
-        const source = hint !== undefined && String(hint).trim() !== "" ? "tmf-value-hint" : "value";
-        lines.push(`- ${name}: threshold=${threshold} (source=${source}${measuredBy ? `, measuredBy=${measuredBy}` : ""})`);
+      if (objectives.length === 0 && sustainability.length === 0) continue;
+      const lines = [`Selected chart: ${chartName} (version ${version})`];
+      if (objectives.length > 0) {
+        lines.push("Deployment objective defaults from values.yaml objectives:");
+        for (const objective of objectives) {
+          const name = String(objective.name ?? "<unnamed>").trim();
+          const hint = objective["tmf-value-hint"];
+          const measuredBy = String(objective.measuredBy ?? "").trim();
+          const threshold =
+            hint !== undefined && String(hint).trim() !== ""
+              ? String(hint).trim()
+              : String(objective.value ?? "unspecified");
+          const source = hint !== undefined && String(hint).trim() !== "" ? "tmf-value-hint" : "value";
+          lines.push(`- ${name}: threshold=${threshold} (source=${source}${measuredBy ? `, measuredBy=${measuredBy}` : ""})`);
+        }
+      }
+      if (sustainability.length > 0) {
+        lines.push("Sustainability objective defaults from values.yaml sustainability:");
+        for (const metric of sustainability) {
+          const name = String(metric.name ?? "<unnamed>").trim();
+          const hint = metric["tmf-value-hint"];
+          const measuredBy = String(metric.measuredBy ?? "").trim();
+          const threshold =
+            hint !== undefined && String(hint).trim() !== ""
+              ? String(hint).trim()
+              : String(metric.value ?? "unspecified");
+          const source = hint !== undefined && String(hint).trim() !== "" ? "tmf-value-hint" : "value";
+          lines.push(`- ${name}: threshold=${threshold} (source=${source}${measuredBy ? `, measuredBy=${measuredBy}` : ""})`);
+        }
       }
       return lines.join("\n");
     }
-    return `Selected chart: ${chartName}. Could not extract objectives from chart values.yaml. Ask for thresholds only if defaults cannot be retrieved.`;
+    return `Selected chart: ${chartName}. Could not extract deployment objectives or sustainability metrics from chart values.yaml. Ask for thresholds only if defaults cannot be retrieved.`;
   }
 
-  private async objectivesFromArchiveUrls(urls: string[]): Promise<Objective[]> {
+  private async metricsFromArchiveUrls(urls: string[]): Promise<{ objectives: Objective[]; sustainability: Objective[] }> {
     for (const url of urls) {
       try {
         const response = await fetch(url.startsWith("http") ? url : `${this.baseUrl}/${url.replace(/^\//, "")}`);
@@ -163,12 +198,13 @@ export class WorkloadCatalogueTool {
         const valuesContent = this.extractValuesYamlFromArchiveBytes(bytes);
         if (!valuesContent) continue;
         const objectives = objectivesFromValuesPayload(valuesContent);
-        if (objectives.length > 0) return objectives;
+        const sustainability = sustainabilityFromValuesPayload(valuesContent);
+        if (objectives.length > 0 || sustainability.length > 0) return { objectives, sustainability };
       } catch {
         continue;
       }
     }
-    return [];
+    return { objectives: [], sustainability: [] };
   }
 
   private extractValuesYamlFromArchiveBytes(archiveBytes: Buffer): string | null {

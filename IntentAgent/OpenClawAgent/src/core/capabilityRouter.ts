@@ -18,6 +18,7 @@ type CatalogueApi = {
 
 type GraphDbApi = {
   nearestEdgeCandidates: () => Promise<Array<Record<string, { value: string }>>>;
+  getIntentTurtle?: (intentId: string) => Promise<string | null>;
 };
 
 type OntologyApi = {
@@ -174,6 +175,31 @@ export class CapabilityRouter {
       }
     }
 
+    if (capabilities.has("intent_turtle")) {
+      const intentId = this.extractIntentId(userText);
+      if (!intentId) {
+        warnings.push("No intent_id found in input. Provide intent_id=<id> to load intent details.");
+      } else if (typeof graphdb.getIntentTurtle === "function") {
+        try {
+          const turtle = await graphdb.getIntentTurtle(intentId);
+          if (turtle && turtle.trim().length > 0) {
+            graphDbSummary = `${graphDbSummary}\n\n[Intent Turtle for ${intentId}]\n${turtle}`;
+            const metricSummary = await this.extractObservationMetricSummary(turtle);
+            if (metricSummary) {
+              graphDbSummary = `${graphDbSummary}\n\n[Observation Metrics]\n${metricSummary}`;
+            }
+            debug.push(`intent_turtle_loaded=true intent_id=${intentId}`);
+          } else {
+            warnings.push(`Could not retrieve Turtle for intent_id=${intentId}.`);
+            debug.push(`intent_turtle_loaded=false intent_id=${intentId}`);
+          }
+        } catch (error) {
+          warnings.push(`Intent lookup failed for intent_id=${intentId}.`);
+          debug.push(`intent_turtle_error=${String(error)}`);
+        }
+      }
+    }
+
     if (intentFlags.deployment && !intentFlags.locality) {
       workflowOverride =
         "Deployment request detected without explicit locality cue. Clarify default datacenter vs user geolocation hint before final Turtle.";
@@ -289,5 +315,24 @@ export class CapabilityRouter {
       return best.name;
     }
     return null;
+  }
+
+  private extractIntentId(userText: string): string | null {
+    const explicit = /intent[_\s-]*id\s*[:=]\s*([A-Za-z0-9_-]+)/i.exec(userText)?.[1];
+    if (explicit) return explicit;
+    const bare = /\b(I[a-fA-F0-9]{32})\b/.exec(userText)?.[1];
+    return bare ?? null;
+  }
+
+  private async extractObservationMetricSummary(intentTurtle: string): Promise<string | null> {
+    try {
+      const mod = await this.importToolModule("observationTool.ts");
+      const ToolCtor = mod.ObservationTool as new () => { metricsSummary: (ttl: string) => string };
+      if (!ToolCtor) return null;
+      const tool = new ToolCtor();
+      return tool.metricsSummary(intentTurtle);
+    } catch {
+      return null;
+    }
   }
 }

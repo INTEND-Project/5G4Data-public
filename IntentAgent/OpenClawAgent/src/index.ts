@@ -20,12 +20,14 @@ export function createAgentRuntime() {
 
 interface CliOptions {
   debug: boolean;
+  noGraphDB: boolean;
   debugLogPath: string;
   prompt: string;
 }
 
 function parseCliOptions(argv: string[]): CliOptions {
   let debug = false;
+  let noGraphDB = false;
   let debugLogPath = "logs/openclaw-agent-debug.jsonl";
   const promptParts: string[] = [];
   for (let i = 0; i < argv.length; i += 1) {
@@ -40,9 +42,13 @@ function parseCliOptions(argv: string[]): CliOptions {
       }
       continue;
     }
+    if (token === "--noGraphDB") {
+      noGraphDB = true;
+      continue;
+    }
     promptParts.push(token);
   }
-  return { debug, debugLogPath, prompt: promptParts.join(" ").trim() };
+  return { debug, noGraphDB, debugLogPath, prompt: promptParts.join(" ").trim() };
 }
 
 function normalizeEnvPath(value: string): string {
@@ -110,7 +116,8 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   });
   const deployedPackage = deployPackageToClone({
     packageDir: installed.packageDir,
-    cloneDir: cloned.cloneDir
+    cloneDir: cloned.cloneDir,
+    packageName: installed.packageName
   });
   const deployedTools = deployPackageToolsToClone({
     packageDir: deployedPackage.deployedPackageDir,
@@ -230,8 +237,12 @@ if (process.argv[1]?.endsWith("index.js") || process.argv[1]?.endsWith("index.ts
   const execution = (async () => {
     const handled = await runPackageLoadCommand(argv);
     if (handled) return;
-    const orchestrator = createAgentRuntime();
     const options = parseCliOptions(argv);
+    if (options.noGraphDB) {
+      process.env.NO_GRAPHDB = "true";
+      process.stdout.write("`--noGraphDB` mode acknowledged. GraphDB writes will be skipped and payloads printed.\n");
+    }
+    const orchestrator = createAgentRuntime();
     if (options.prompt) {
       await runOneShot(orchestrator, options.prompt, options.debug, options.debugLogPath);
       return;

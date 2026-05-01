@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import type { AppConfig } from "../config.js";
 import type {
   AgentTurnResult,
@@ -22,6 +25,7 @@ import { buildIntentUsageSummary } from "./usage.js";
 import { appendUsageLog } from "./usageLogger.js";
 
 type ModelMessage = { role: "system" | "user" | "assistant"; content: string };
+type GraphDbWriterApi = { insertTurtle: (turtle: string) => Promise<boolean> };
 
 export class TurnOrchestrator {
   private readonly contextBuilder: RuntimeContextBuilder;
@@ -122,6 +126,7 @@ export class TurnOrchestrator {
       debug,
       runtimeContext: context.runtimeContext
     });
+    await this.persistGeneratedIntentIfNeeded(text, warnings, debug);
 
     session.messages.push({ role: "assistant", text, createdAt: new Date().toISOString() });
     const intentUsageSummary = buildIntentUsageSummary(calls);
@@ -175,6 +180,55 @@ export class TurnOrchestrator {
       return fenced[1].trim();
     }
     return trimmed;
+  }
+
+  private resolveGraphDbToolPaths(): string[] {
+    const cloneToolPath = resolve(process.cwd(), "src", "tools", "graphdbTool.ts");
+    const packageToolPath = join(this.domainPackage.packageDir, "tools", "graphdbTool.ts");
+    return [cloneToolPath, packageToolPath];
+  }
+
+  private async createGraphDbWriterApi(): Promise<GraphDbWriterApi> {
+    for (const candidate of this.resolveGraphDbToolPaths()) {
+      if (!existsSync(candidate)) continue;
+      const mod = (await import(pathToFileURL(candidate).href)) as Record<string, unknown>;
+      const ToolCtor = mod.GraphDbTool as
+        | (new (endpoint: string, namedGraph: string, queryLimit: number) => GraphDbWriterApi)
+        | undefined;
+      if (!ToolCtor) continue;
+      return new ToolCtor(
+        this.config.graphDbEndpoint,
+        this.config.graphDbNamedGraph,
+        this.config.graphDbQueryLimit
+      );
+    }
+    throw new Error("graphdbTool.ts does not export GraphDbTool.");
+  }
+
+  private async persistGeneratedIntentIfNeeded(
+    text: string,
+    warnings: string[],
+    debug: string[]
+  ): Promise<void> {
+    if (!looksLikeTurtleIntent(text)) return;
+    if (warnings.some((w) => w.includes("did not pass SHACL validation"))) {
+      debug.push("graphdb_persist_skipped=nonconformant_turtle");
+      return;
+    }
+    const turtle = this.normalizeTurtleText(text);
+    try {
+      const graphDbWriter = await this.createGraphDbWriterApi();
+      const stored = await graphDbWriter.insertTurtle(turtle);
+      if (!stored) {
+        warnings.push("Generated intent could not be persisted to GraphDB.");
+        debug.push("graphdb_persist_ok=false");
+        return;
+      }
+      debug.push("graphdb_persist_ok=true");
+    } catch (error) {
+      warnings.push("Generated intent persistence to GraphDB failed.");
+      debug.push(`graphdb_persist_error=${String(error)}`);
+    }
   }
 
 }

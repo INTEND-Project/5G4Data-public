@@ -1,0 +1,49 @@
+{
+  "confirmation": {
+    "acceptedUserInputs": ["ok"],
+    "assistantMarkers": [
+      "type ok to confirm observation reporting plan",
+      "type ok to confirm",
+      "confirm to generate observation report output",
+      "please confirm"
+    ],
+    "forceGenerateInstruction": "The user has explicitly confirmed. Do not ask for confirmation again. Generate the final observation report output now."
+  },
+  "stages": [
+    {
+      "id": "base",
+      "includeModules": ["base", "defaults"],
+      "confirmationRequired": false
+    },
+    {
+      "id": "intent_fetch",
+      "includeModules": ["intent_fetch"],
+      "whenIntentFlags": ["observationReport"]
+    },
+    {
+      "id": "plan_reports",
+      "includeModules": ["plan_reports"],
+      "whenIntentFlags": ["observationReport"]
+    },
+    {
+      "id": "apply_overrides",
+      "includeModules": ["apply_overrides"],
+      "whenIntentFlags": ["instructionsProvided"]
+    },
+    {
+      "id": "emit_report",
+      "includeModules": ["emit_report"],
+      "whenIntentFlags": ["observationReport"]
+    },
+    {
+      "id": "persist",
+      "includeModules": ["persist"],
+      "whenIntentFlags": ["observationReport"]
+    },
+    {
+      "id": "review",
+      "includeModules": ["review"],
+      "confirmationRequired": false
+    }
+  ]
+}

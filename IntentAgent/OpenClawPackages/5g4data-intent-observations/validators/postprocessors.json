@@ -1,0 +1,9 @@
+{
+  "postprocessors": [
+    {
+      "id": "uuid-localname-fix",
+      "module": "tools/postprocess/uuidFix.ts",
+      "when": "always"
+    }
+  ]
+}

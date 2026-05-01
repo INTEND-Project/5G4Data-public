@@ -1,0 +1,24 @@
+{
+  "forbiddenPhrases": [
+    "i will proceed",
+    "please hold on",
+    "now i will create",
+    "TODO",
+    "<condition-id>",
+    "_:obs"
+  ],
+  "requiredTokens": [
+    "@prefix met:",
+    "met:Observation",
+    "met:observedMetric",
+    "met:observedValue",
+    "met:obtainedAt"
+  ],
+  "conditionalRequirements": [
+    {
+      "intentFlag": "observationReport",
+      "requiresAnyTokens": ["met:Observation", "met:observedMetric"],
+      "error": "Observation report responses must include TM Forum observation triples."
+    }
+  ]
+}

@@ -41,4 +41,14 @@ export class GraphDbTool {
     const payload = graphDbResponseSchema.parse(await response.json());
     return payload.results.bindings as Array<Record<string, { value: string }>>;
   }
+
+  async insertTurtle(turtle: string): Promise<boolean> {
+    const statementsUrl = this.endpoint.replace(/\/sparql$/, "").replace(/\/$/, "").concat("/statements");
+    const response = await fetch(statementsUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-turtle" },
+      body: turtle
+    });
+    return response.ok;
+  }
 }

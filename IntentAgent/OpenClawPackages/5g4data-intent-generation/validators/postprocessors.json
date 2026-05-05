@@ -4,6 +4,11 @@
       "id": "uuid-localname-fix",
       "module": "tools/postprocess/uuidFix.ts",
       "when": "always"
+    },
+    {
+      "id": "required-prefixes",
+      "module": "tools/postprocess/requiredPrefixes.ts",
+      "when": "always"
     }
   ]
 }

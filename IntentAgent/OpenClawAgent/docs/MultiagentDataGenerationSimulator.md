@@ -376,8 +376,7 @@ steps:
       creatorAgentId: "5g4data-intent-generation-agent"
     request:
       text: >
-        I want to deploy a small LLM inference service near Tromsø for
-        avalanche rescue experimentation, with low token latency.
+        I am going to use a drone to search for skiers that might have been caught in an avalange near Bodø/Norway. I need an object detection model deployed locally in a sustainable manner and good network connection for sending 4K video to the model in near realtime.
     onSuccess:
       persistBinding:
         key:

@@ -26,3 +26,17 @@ Generate TM Forum formatted observation payloads from an existing intent, includ
   3. baseline plan
 - Keep output in simulator-compatible TM Forum observation Turtle format.
 - If `--noGraphDB` mode is active, print report payloads and skip GraphDB writes.
+
+## Continuous streaming (REPL)
+
+When the package is loaded in an interactive clone, it supports package-owned `observe` commands:
+
+- `observe start intent_id=<id>`: starts continuous observation generation streams.
+- `observe status`: lists active streams for the session.
+- `observe stop`: stops all streams for the session.
+- `observe override metric=<metric_name> min=<n> max=<n>`: runtime span override.
+
+Debug logging behavior (`--debug`):
+
+- stream metadata: `logs/observations-stream.ndjson`
+- full Turtle per metric: `logs/observations-by-metric/<metric_name>.ttl`

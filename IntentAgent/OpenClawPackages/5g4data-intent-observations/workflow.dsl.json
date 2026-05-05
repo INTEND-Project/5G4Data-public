@@ -37,7 +37,7 @@
     },
     {
       "id": "persist",
-      "includeModules": ["persist"],
+      "includeModules": ["persist", "observe_stream"],
       "whenIntentFlags": ["observationReport"]
     },
     {

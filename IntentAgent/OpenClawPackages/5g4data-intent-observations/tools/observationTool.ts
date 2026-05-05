@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { DataFactory, Parser, Store, type Term } from "n3";
 
 export interface ObservationPayload {
   observationId: string;
@@ -22,102 +23,177 @@ export interface OverrideWindow {
   frequencySeconds?: number;
 }
 
+/** One scheduled stream: one ObservationReportingExpectation × one Condition metric. */
+export interface ReportableObservationStream {
+  reportingExpectationId: string;
+  targetLocalName: string;
+  conditionId: string;
+  targetProperty: string;
+  unit: string;
+  frequencySeconds: number;
+  minValue: number;
+  maxValue: number;
+}
+
+const RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+const RDF_TYPE = DataFactory.namedNode(`${RDF_NS}type`);
+const RDF_FIRST = DataFactory.namedNode(`${RDF_NS}first`);
+const RDF_REST = DataFactory.namedNode(`${RDF_NS}rest`);
+const RDF_NIL = DataFactory.namedNode(`${RDF_NS}nil`);
+
 export class ObservationTool {
-  private localName(token: string): string {
-    const cleaned = token.trim().replace(/[;,.]+$/, "");
-    if (cleaned.startsWith("data5g:")) return cleaned.replace("data5g:", "");
-    const hashIdx = cleaned.lastIndexOf("#");
-    const gtIdx = cleaned.lastIndexOf(">");
-    const cutIdx = Math.max(hashIdx, gtIdx);
-    if (cutIdx >= 0 && cutIdx < cleaned.length - 1) {
-      return cleaned.slice(cutIdx + 1).replace(/^</, "");
-    }
-    return cleaned.replace(/^</, "").replace(/>$/, "");
+  private parseStore(intentTurtle: string): Store {
+    return new Store(new Parser().parse(intentTurtle));
   }
 
-  parseConditionMetrics(intentTurtle: string): ConditionMetric[] {
-    const lines = intentTurtle.split(/\r?\n/);
-    const out: ConditionMetric[] = [];
-    let currentCondition: string | null = null;
-    let currentUnit = "NA";
-    for (const raw of lines) {
-      const line = raw.trim();
-      const conditionMatch =
-        /^data5g:([A-Za-z0-9_-]+)\s+a\s+icm:Condition/.exec(line) ||
-        /^<[^>]*#([A-Za-z0-9_-]+)>\s+a\s+icm:Condition/.exec(line);
-      if (conditionMatch) {
-        currentCondition = conditionMatch[1] ?? null;
-        currentUnit = "NA";
-        continue;
-      }
-      if (!currentCondition) continue;
-      const propertyMatch =
-        /icm:valuesOfTargetProperty\s+data5g:([A-Za-z0-9_-]+)/.exec(line) ||
-        /icm:valuesOfTargetProperty\s+<([^>]+)>/.exec(line);
-      if (propertyMatch) {
-        const prop = this.localName(propertyMatch[1] ?? "");
-        const normalized = prop.replace(new RegExp(`_${currentCondition}$`, "i"), "");
-        out.push({
-          conditionId: currentCondition,
-          targetProperty: normalized,
-          unit: currentUnit
-        });
-      }
-      const unitMatch = /quan:unit\s+"([^"]+)"/.exec(line);
-      if (unitMatch) {
-        currentUnit = unitMatch[1] ?? "NA";
-      }
+  private localName(token: string): string {
+    const cleaned = token.trim().replace(/[;,.]+$/, "").replace(/^</, "").replace(/>$/, "");
+    if (cleaned.startsWith("_:")) return cleaned;
+    const hashIdx = cleaned.lastIndexOf("#");
+    const slashIdx = cleaned.lastIndexOf("/");
+    const colonIdx = cleaned.lastIndexOf(":");
+    const cutIdx = Math.max(hashIdx, slashIdx, colonIdx);
+    return cutIdx >= 0 && cutIdx < cleaned.length - 1 ? cleaned.slice(cutIdx + 1) : cleaned;
+  }
+
+  private termLocal(term: Term | null | undefined): string {
+    if (!term) return "";
+    if (term.termType === "Literal") return term.value;
+    return this.localName(term.value);
+  }
+
+  private objectLocalsByPredicateLocal(store: Store, subject: Term, predicateLocal: string): string[] {
+    return store
+      .getQuads(subject, null, null, null)
+      .filter((q) => this.termLocal(q.predicate) === predicateLocal)
+      .map((q) => this.termLocal(q.object))
+      .filter((x) => x.length > 0);
+  }
+
+  private listMembers(store: Store, head: Term): Term[] {
+    const out: Term[] = [];
+    const seen = new Set<string>();
+    let cursor: Term | null = head;
+    while (cursor && cursor.termType !== "DefaultGraph" && cursor.value !== RDF_NIL.value) {
+      if (seen.has(cursor.value)) break;
+      seen.add(cursor.value);
+      const first = store.getQuads(cursor, RDF_FIRST, null, null)[0]?.object;
+      if (first) out.push(first);
+      const rest = store.getQuads(cursor, RDF_REST, null, null)[0]?.object;
+      if (!rest) break;
+      cursor = rest;
     }
     return out;
   }
 
-  parseReportableConditionMetrics(intentTurtle: string): ConditionMetric[] {
-    const lines = intentTurtle.split(/\r?\n/).map((l) => l.trim());
-    const allMetrics = this.parseConditionMetrics(intentTurtle);
-    const byCondition = new Map(allMetrics.map((m) => [m.conditionId, m]));
-    const expectationTargets = new Map<string, string>(); // expectation -> target
-    const expectationConditions = new Map<string, string[]>(); // expectation -> condition ids
-    const reportTargets = new Set<string>(); // reported targets
+  private subjectsWithTypeLocal(store: Store, local: string): Term[] {
+    const subjects = new Set<string>();
+    const out: Term[] = [];
+    for (const q of store.getQuads(null, RDF_TYPE, null, null)) {
+      if (this.termLocal(q.object) !== local) continue;
+      if (subjects.has(q.subject.value)) continue;
+      subjects.add(q.subject.value);
+      out.push(q.subject);
+    }
+    return out;
+  }
 
-    let currentExpectation: string | null = null;
-    let currentReportExpectation = false;
+  private findUnit(store: Store, node: Term): string {
+    const direct = this.objectLocalsByPredicateLocal(store, node, "unit")[0];
+    if (direct) return direct;
 
-    for (const line of lines) {
-      const expMatch =
-        /^data5g:([A-Za-z0-9_-]+)\s+a\s+data5g:[A-Za-z0-9_-]*Expectation/.exec(line) ||
-        /^<[^>]*#([A-Za-z0-9_-]+)>\s+a\s+data5g:[A-Za-z0-9_-]*Expectation/.exec(line);
-      if (expMatch) {
-        currentExpectation = expMatch[1] ?? null;
-        currentReportExpectation = /icm:ObservationReportingExpectation/.test(line);
+    for (const q of store.getQuads(node, null, null, null)) {
+      const child = q.object;
+      if (child.termType !== "BlankNode" && child.termType !== "NamedNode") continue;
+      const unit = this.objectLocalsByPredicateLocal(store, child, "unit")[0];
+      if (unit) return unit;
+    }
+    return "NA";
+  }
+
+  private collectConditionMetricsFromNode(
+    store: Store,
+    conditionId: string,
+    node: Term
+  ): Array<{ targetProperty: string; unit: string }> {
+    const targetProps = this.objectLocalsByPredicateLocal(store, node, "valuesOfTargetProperty");
+    if (targetProps.length === 0) return [];
+    const unit = this.findUnit(store, node);
+    return targetProps.map((prop) => ({
+      targetProperty: prop.replace(new RegExp(`_${conditionId}$`, "i"), ""),
+      unit
+    }));
+  }
+
+  private extractExpectationGraph(intentTurtle: string): {
+    expectationTargets: Map<string, string>;
+    expectationConditions: Map<string, string[]>;
+    reportTargets: Set<string>;
+  } {
+    const store = this.parseStore(intentTurtle);
+    const expectationTargets = new Map<string, string>();
+    const expectationConditions = new Map<string, string[]>();
+    const reportTargets = new Set<string>();
+
+    const typeMap = new Map<string, Set<string>>();
+    for (const q of store.getQuads(null, RDF_TYPE, null, null)) {
+      const s = q.subject.value;
+      const set = typeMap.get(s) ?? new Set<string>();
+      set.add(this.termLocal(q.object));
+      typeMap.set(s, set);
+    }
+
+    for (const [subjectValue, types] of typeMap.entries()) {
+      if (![...types].some((t) => t.endsWith("Expectation"))) continue;
+      const subj = DataFactory.namedNode(subjectValue);
+      const expId = this.termLocal(subj);
+      const target = this.objectLocalsByPredicateLocal(store, subj, "target")[0];
+      const conditionIds = this.objectLocalsByPredicateLocal(store, subj, "allOf").filter((x) =>
+        x.startsWith("CO")
+      );
+      if (target) {
+        if (types.has("ObservationReportingExpectation")) reportTargets.add(target);
+        else expectationTargets.set(expId, target);
       }
-      const repMatch =
-        /^data5g:([A-Za-z0-9_-]+)\s+a\s+icm:ObservationReportingExpectation/.exec(line) ||
-        /^<[^>]*#([A-Za-z0-9_-]+)>\s+a\s+icm:ObservationReportingExpectation/.exec(line);
-      if (repMatch) {
-        currentExpectation = repMatch[1] ?? null;
-        currentReportExpectation = true;
-      }
-
-      if (currentExpectation) {
-        const targetMatch = /icm:target\s+([^\s;]+)/.exec(line);
-        if (targetMatch) {
-          const target = this.localName(targetMatch[1] ?? "");
-          if (currentReportExpectation) reportTargets.add(target);
-          else expectationTargets.set(currentExpectation, target);
-        }
-        const allOfMatch = /data5g:(CO[A-Za-z0-9_-]+)/g;
-        const found: string[] = [];
-        let m: RegExpExecArray | null = allOfMatch.exec(line);
-        while (m) {
-          if (m[1]) found.push(m[1]);
-          m = allOfMatch.exec(line);
-        }
-        if (found.length > 0) {
-          const prev = expectationConditions.get(currentExpectation) ?? [];
-          expectationConditions.set(currentExpectation, [...prev, ...found]);
-        }
+      if (conditionIds.length > 0) {
+        expectationConditions.set(expId, [...new Set(conditionIds)]);
       }
     }
+
+    return { expectationTargets, expectationConditions, reportTargets };
+  }
+
+  parseConditionMetrics(intentTurtle: string): ConditionMetric[] {
+    const store = this.parseStore(intentTurtle);
+    const out = new Map<string, ConditionMetric>();
+
+    for (const condition of this.subjectsWithTypeLocal(store, "Condition")) {
+      const conditionId = this.termLocal(condition);
+      const constraintNodes = store
+        .getQuads(condition, null, null, null)
+        .filter((q) => this.termLocal(q.predicate) === "forAll")
+        .map((q) => q.object);
+      const metrics = [
+        ...this.collectConditionMetricsFromNode(store, conditionId, condition),
+        ...constraintNodes.flatMap((n) => this.collectConditionMetricsFromNode(store, conditionId, n))
+      ];
+      for (const metric of metrics) {
+        out.set(`${conditionId}|${metric.targetProperty}`, {
+          conditionId,
+          targetProperty: metric.targetProperty,
+          unit: metric.unit
+        });
+      }
+    }
+
+    return [...out.values()];
+  }
+
+  parseReportableConditionMetrics(intentTurtle: string): ConditionMetric[] {
+    const allMetrics = this.parseConditionMetrics(intentTurtle);
+    const byCondition = new Map(allMetrics.map((m) => [m.conditionId, m]));
+    const { expectationTargets, expectationConditions, reportTargets } =
+      this.extractExpectationGraph(intentTurtle);
 
     const reportableConditionIds = new Set<string>();
     for (const [expId, target] of expectationTargets.entries()) {
@@ -133,14 +209,140 @@ export class ObservationTool {
     return reportable.length > 0 ? reportable : allMetrics;
   }
 
+  parseDurationSecondsByLocalName(intentTurtle: string): Map<string, number> {
+    const store = this.parseStore(intentTurtle);
+    const map = new Map<string, number>();
+
+    for (const duration of this.subjectsWithTypeLocal(store, "DurationDescription")) {
+      const name = this.termLocal(duration);
+      const numericRaw = this.objectLocalsByPredicateLocal(store, duration, "numericDuration")[0];
+      const unitLocal = this.objectLocalsByPredicateLocal(store, duration, "unitType")[0];
+      const value = Number(numericRaw ?? "");
+      if (!Number.isFinite(value) || value <= 0) continue;
+      let sec = value;
+      if (unitLocal === "unitSecond") sec = value;
+      else if (unitLocal === "unitHour") sec = value * 3600;
+      else sec = value * 60;
+      map.set(name, sec);
+    }
+
+    return map;
+  }
+
+  parseEventClassToDurationLocal(intentTurtle: string): Map<string, string> {
+    const store = this.parseStore(intentTurtle);
+    const map = new Map<string, string>();
+
+    for (const ev of store.getQuads(null, null, null, null).map((q) => q.subject)) {
+      const delays = this.objectLocalsByPredicateLocal(store, ev, "delay");
+      if (delays.length > 0) {
+        const delayTerms = store
+          .getQuads(ev, null, null, null)
+          .filter((q) => this.termLocal(q.predicate) === "delay")
+          .map((q) => q.object);
+        for (const delay of delayTerms) {
+          const members = this.listMembers(store, delay);
+          if (members.length >= 2) {
+            map.set(this.termLocal(ev), this.termLocal(members[1]));
+            break;
+          }
+          if (members.length === 1) {
+            map.set(this.termLocal(ev), this.termLocal(members[0]));
+            break;
+          }
+        }
+      }
+    }
+
+    return map;
+  }
+
+  parseObservationReportingExpectations(intentTurtle: string): Array<{
+    id: string;
+    target: string;
+    triggerEvents: string[];
+  }> {
+    const store = this.parseStore(intentTurtle);
+    const out: Array<{ id: string; target: string; triggerEvents: string[] }> = [];
+
+    for (const subj of this.subjectsWithTypeLocal(store, "ObservationReportingExpectation")) {
+      const id = this.termLocal(subj);
+      const target = this.objectLocalsByPredicateLocal(store, subj, "target")[0] ?? "";
+      const triggerTerms = store
+        .getQuads(subj, null, null, null)
+        .filter((q) => this.termLocal(q.predicate) === "reportTriggers")
+        .map((q) => q.object);
+      const triggerEvents: string[] = [];
+      for (const trig of triggerTerms) {
+        const members = this.objectLocalsByPredicateLocal(store, trig, "member");
+        if (members.length > 0) triggerEvents.push(...members);
+        else triggerEvents.push(this.termLocal(trig));
+      }
+      out.push({ id, target, triggerEvents: [...new Set(triggerEvents)] });
+    }
+
+    return out;
+  }
+
+  parseReportableObservationStreams(intentTurtle: string): ReportableObservationStream[] {
+    const seededMetrics = this.parseReportableConditionMetrics(intentTurtle);
+    const { expectationTargets, expectationConditions, reportTargets } =
+      this.extractExpectationGraph(intentTurtle);
+
+    const conditionsByTarget = new Map<string, Set<string>>();
+    for (const [expId, target] of expectationTargets.entries()) {
+      if (!reportTargets.has(target)) continue;
+      const set = conditionsByTarget.get(target) ?? new Set<string>();
+      for (const cid of expectationConditions.get(expId) ?? []) {
+        set.add(cid);
+      }
+      conditionsByTarget.set(target, set);
+    }
+    const conditionToTarget = new Map<string, string>();
+    for (const [target, cids] of conditionsByTarget.entries()) {
+      for (const cid of cids) {
+        if (!conditionToTarget.has(cid)) conditionToTarget.set(cid, target);
+      }
+    }
+
+    const durationByName = this.parseDurationSecondsByLocalName(intentTurtle);
+    const eventToDur = this.parseEventClassToDurationLocal(intentTurtle);
+    const reporting = this.parseObservationReportingExpectations(intentTurtle);
+    const targetToReporting = new Map<string, { id: string; frequencySeconds: number }>();
+    for (const re of reporting) {
+      let frequencySeconds = 600;
+      for (const ev of re.triggerEvents) {
+        const durLocal = eventToDur.get(ev);
+        if (!durLocal) continue;
+        const sec = durationByName.get(durLocal);
+        if (sec !== undefined && sec > 0) {
+          frequencySeconds = sec;
+          break;
+        }
+      }
+      if (!targetToReporting.has(re.target)) {
+        targetToReporting.set(re.target, { id: re.id, frequencySeconds });
+      }
+    }
+
+    return seededMetrics.map((metric) => {
+      const target = conditionToTarget.get(metric.conditionId) ?? "unknown-target";
+      const rep = targetToReporting.get(target);
+      return {
+        reportingExpectationId: rep?.id ?? `RE_fallback_${target}`,
+        targetLocalName: target,
+        conditionId: metric.conditionId,
+        targetProperty: metric.targetProperty,
+        unit: metric.unit || "NA",
+        frequencySeconds: rep?.frequencySeconds ?? 600,
+        minValue: 10,
+        maxValue: 100
+      };
+    });
+  }
+
   resolveFrequencySeconds(intentTurtle: string, fallback = 600): number {
-    const numeric = /time:numericDuration\s+"([^"]+)"/.exec(intentTurtle)?.[1];
-    const unit = /time:unitType\s+time:(unitSecond|unitMinute|unitHour)/.exec(intentTurtle)?.[1];
-    const value = numeric ? Number(numeric) : NaN;
-    if (!Number.isFinite(value) || value <= 0) return fallback;
-    if (unit === "unitSecond") return value;
-    if (unit === "unitHour") return value * 3600;
-    return value * 60;
+    return [...this.parseDurationSecondsByLocalName(intentTurtle).values()][0] ?? fallback;
   }
 
   generateObservation(metric: ConditionMetric, value: number, whenIsoUtc: string): ObservationPayload {

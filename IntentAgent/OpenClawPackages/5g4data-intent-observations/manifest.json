@@ -13,5 +13,9 @@
   "postprocessors": "validators/postprocessors.json",
   "runtimePatches": {
     "cliNoGraphDbFlag": true
+  },
+  "runtimeHooks": {
+    "onPackageLoad": "tools/onPackageLoad.ts",
+    "replPreTurn": "tools/replObserveHook.ts"
   }
 }

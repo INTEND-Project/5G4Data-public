@@ -29,7 +29,15 @@
     },
     "validators": { "type": "string", "minLength": 1 },
     "toolBindings": { "type": "string", "minLength": 1 },
-    "postprocessors": { "type": "string", "minLength": 1 }
+    "postprocessors": { "type": "string", "minLength": 1 },
+    "runtimeHooks": {
+      "type": "object",
+      "properties": {
+        "replPreTurn": { "type": "string", "minLength": 1 },
+        "onPackageLoad": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }

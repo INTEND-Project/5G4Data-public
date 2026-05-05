@@ -14,7 +14,13 @@ const manifestSchema = z.object({
   }),
   validators: z.string().min(1),
   toolBindings: z.string().min(1),
-  postprocessors: z.string().min(1).optional()
+  postprocessors: z.string().min(1).optional(),
+  runtimeHooks: z
+    .object({
+      replPreTurn: z.string().min(1).optional(),
+      onPackageLoad: z.string().min(1).optional()
+    })
+    .optional()
 });
 
 const workflowSchema = z.object({

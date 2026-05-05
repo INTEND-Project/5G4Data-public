@@ -142,6 +142,14 @@ export class TurnOrchestrator {
     return { response: text, warnings, debug, intentUsageSummary };
   }
 
+  getDomainPackage(): LoadedDomainPackage {
+    return this.domainPackage;
+  }
+
+  getAppConfig(): AppConfig {
+    return this.config;
+  }
+
   private validateAndRepairWithShacl(args: {
     text: string;
     warnings: string[];
@@ -211,9 +219,13 @@ export class TurnOrchestrator {
     debug: string[]
   ): Promise<void> {
     if (!looksLikeTurtleIntent(text)) return;
-    if (warnings.some((w) => w.includes("did not pass SHACL validation"))) {
-      debug.push("graphdb_persist_skipped=nonconformant_turtle");
+    if (process.env.NO_GRAPHDB === "true") {
+      debug.push("graphdb_persist_skipped=no_graphdb");
       return;
+    }
+    const hadShaclFailure = warnings.some((w) => w.includes("did not pass SHACL validation"));
+    if (hadShaclFailure) {
+      debug.push("graphdb_persist_note=shacl_nonconformant_still_attempting_store");
     }
     const turtle = this.normalizeTurtleText(text);
     try {

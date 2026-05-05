@@ -6,6 +6,7 @@ import { loadConfig } from "./config.js";
 import { createOpenClawModelInvoker } from "./adapters/openclaw.js";
 import { createSession, TurnOrchestrator } from "./core/turnOrchestrator.js";
 import { loadDomainPackage } from "./core/packageLoader.js";
+import { shutdownObservationStreamsIfPresent, tryReplPackageHook } from "./core/replPackageHook.js";
 import type { AgentTurnResult, ChatSession } from "./models.js";
 
 export function createAgentRuntime() {
@@ -20,14 +21,12 @@ export function createAgentRuntime() {
 
 interface CliOptions {
   debug: boolean;
-  noGraphDB: boolean;
   debugLogPath: string;
   prompt: string;
 }
 
 function parseCliOptions(argv: string[]): CliOptions {
   let debug = false;
-  let noGraphDB = false;
   let debugLogPath = "logs/openclaw-agent-debug.jsonl";
   const promptParts: string[] = [];
   for (let i = 0; i < argv.length; i += 1) {
@@ -42,13 +41,9 @@ function parseCliOptions(argv: string[]): CliOptions {
       }
       continue;
     }
-    if (token === "--noGraphDB") {
-      noGraphDB = true;
-      continue;
-    }
     promptParts.push(token);
   }
-  return { debug, noGraphDB, debugLogPath, prompt: promptParts.join(" ").trim() };
+  return { debug, debugLogPath, prompt: promptParts.join(" ").trim() };
 }
 
 function normalizeEnvPath(value: string): string {
@@ -114,7 +109,7 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
     baselineAgentDir,
     packageName: installed.packageName
   });
-  const deployedPackage = deployPackageToClone({
+  const deployedPackage = await deployPackageToClone({
     packageDir: installed.packageDir,
     cloneDir: cloned.cloneDir,
     packageName: installed.packageName
@@ -211,6 +206,35 @@ async function runInteractive(
       if (userText.toLowerCase() === "exit" || userText.toLowerCase() === "quit") {
         break;
       }
+      const cfg = orchestrator.getAppConfig();
+      const hook = await tryReplPackageHook({
+        line: userText,
+        session,
+        domainPackage: orchestrator.getDomainPackage(),
+        debug,
+        debugLogPath,
+        graphDbEndpoint: cfg.graphDbEndpoint,
+        graphDbNamedGraph: cfg.graphDbNamedGraph,
+        graphDbQueryLimit: cfg.graphDbQueryLimit
+      });
+      if (hook.handled) {
+        const synthetic: AgentTurnResult = {
+          response: hook.assistantText ?? "",
+          warnings: [],
+          debug: ["repl_package_hook_handled=true"]
+        };
+        appendDebugLog(debug, debugLogPath, session, userText, synthetic);
+        session.messages.push({ role: "user", text: userText, createdAt: new Date().toISOString() });
+        if (hook.assistantText) {
+          session.messages.push({
+            role: "assistant",
+            text: hook.assistantText,
+            createdAt: new Date().toISOString()
+          });
+          process.stdout.write(`\nAssistant:\n${hook.assistantText}\n\n`);
+        }
+        continue;
+      }
       const result = await orchestrator.runTurn(session, userText);
       appendDebugLog(debug, debugLogPath, session, userText, result);
       process.stdout.write(`\nAssistant:\n${result.response}\n\n`);
@@ -228,6 +252,7 @@ async function runInteractive(
       }
     }
   } finally {
+    await shutdownObservationStreamsIfPresent(orchestrator.getDomainPackage().packageDir);
     rl.close();
   }
 }
@@ -238,10 +263,6 @@ if (process.argv[1]?.endsWith("index.js") || process.argv[1]?.endsWith("index.ts
     const handled = await runPackageLoadCommand(argv);
     if (handled) return;
     const options = parseCliOptions(argv);
-    if (options.noGraphDB) {
-      process.env.NO_GRAPHDB = "true";
-      process.stdout.write("`--noGraphDB` mode acknowledged. GraphDB writes will be skipped and payloads printed.\n");
-    }
     const orchestrator = createAgentRuntime();
     if (options.prompt) {
       await runOneShot(orchestrator, options.prompt, options.debug, options.debugLogPath);

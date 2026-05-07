@@ -1,0 +1,144 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: a2aregistry-migrate-{{ .Release.Revision }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: a2aregistry
+    component: migration
+  annotations:
+    "helm.sh/hook": pre-upgrade,pre-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: a2aregistry
+        component: migration
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+      - name: migrate
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}/{{ .Values.api.image.name }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for cloud-sql-proxy..."
+          for i in $(seq 1 30); do
+            if nc -z 127.0.0.1 {{ .Values.database.port }} 2>/dev/null; then
+              echo "Proxy ready."
+              break
+            fi
+            sleep 1
+          done
+          python3 << 'PYEOF'
+          import asyncio, asyncpg, os, glob, urllib.request
+
+          async def run():
+              conn = await asyncpg.connect(
+                  host=os.environ['DATABASE_HOST'],
+                  port=int(os.environ['DATABASE_PORT']),
+                  user=os.environ['DATABASE_USER'],
+                  password=os.environ['DB_PASSWORD'],
+                  database=os.environ['DATABASE_NAME'],
+              )
+              await conn.execute("""
+                  CREATE TABLE IF NOT EXISTS schema_migrations (
+                      filename TEXT PRIMARY KEY,
+                      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                  )
+              """)
+              # Seed schema_migrations for pre-existing tables so we don't re-run old migrations
+              agents_exists = await conn.fetchval(
+                  "SELECT 1 FROM information_schema.tables WHERE table_name = 'agents'"
+              )
+              if agents_exists:
+                  for pre in sorted(glob.glob('/app/migrations/versions/*.sql')):
+                      fn = os.path.basename(pre)
+                      already = await conn.fetchval(
+                          'SELECT 1 FROM schema_migrations WHERE filename = $1', fn
+                      )
+                      if not already:
+                          # Check if this migration's objects already exist by trying it
+                          sql = open(pre).read()
+                          try:
+                              await conn.execute(sql)
+                              print(f'  apply {fn}')
+                          except Exception as e:
+                              if 'already exists' in str(e) or 'duplicate' in str(e).lower():
+                                  print(f'  seed  {fn} (already applied)')
+                              else:
+                                  raise
+                          await conn.execute(
+                              'INSERT INTO schema_migrations (filename) VALUES ($1)', fn
+                          )
+                      else:
+                          print(f'  skip  {fn}')
+              else:
+                  migration_files = sorted(glob.glob('/app/migrations/versions/*.sql'))
+                  for path in migration_files:
+                      filename = os.path.basename(path)
+                      already_applied = await conn.fetchval(
+                          'SELECT 1 FROM schema_migrations WHERE filename = $1', filename
+                      )
+                      if already_applied:
+                          print(f'  skip  {filename}')
+                          continue
+                      sql = open(path).read()
+                      await conn.execute(sql)
+                      await conn.execute(
+                          'INSERT INTO schema_migrations (filename) VALUES ($1)', filename
+                      )
+                      print(f'  apply {filename}')
+              await conn.close()
+              print('Migrations complete.')
+              # Signal the cloud-sql-proxy sidecar to exit gracefully
+              try:
+                  req = urllib.request.Request('http://localhost:9091/quitquitquit', method='POST')
+                  urllib.request.urlopen(req, timeout=5)
+              except Exception:
+                  pass
+
+          asyncio.run(run())
+          PYEOF
+        env:
+        - name: DATABASE_HOST
+          value: "{{ .Values.database.host }}"
+        - name: DATABASE_PORT
+          value: "{{ .Values.database.port }}"
+        - name: DATABASE_NAME
+          value: "{{ .Values.database.name }}"
+        - name: DATABASE_USER
+          value: "{{ .Values.database.user }}"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.name }}
+              key: DB_PASSWORD
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+
+      {{- if .Values.cloudsql.enabled }}
+      - name: cloud-sql-proxy
+        image: {{ .Values.cloudsql.image }}
+        args:
+        - "--structured-logs"
+        - "--quitquitquit"
+        - "--port={{ .Values.database.port }}"
+        - "{{ .Values.database.connectionName }}"
+        securityContext:
+          runAsNonRoot: true
+        resources:
+          {{- toYaml .Values.cloudsql.resources | nindent 10 }}
+      {{- end }}

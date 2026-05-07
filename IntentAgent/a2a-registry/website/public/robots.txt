@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://a2aregistry.org/sitemap-index.xml
+
+# Allow all content for SEO
+Allow: /registry.json
+Allow: /favicon/
+Allow: /assets/
+
+# Optional: Crawl delay (uncomment if needed)
+# Crawl-delay: 1

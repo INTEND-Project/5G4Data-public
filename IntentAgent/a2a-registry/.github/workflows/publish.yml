@@ -1,0 +1,107 @@
+name: Publish Website
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'website/**'
+      - '.github/workflows/publish.yml'
+    tags:
+      - 'v*'  # Trigger on version tags like v0.1.0
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-website:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: website/package-lock.json
+    
+    - name: Install Node dependencies
+      working-directory: website
+      run: npm ci
+    
+    - name: Build React website
+      working-directory: website
+      run: |
+        echo "🔄 Building React website..."
+        npm run build
+        echo "✅ Website built successfully"
+    
+    - name: Upload Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: docs/
+
+  deploy-pages:
+    needs: build-website
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'  # Only deploy from main branch
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+  publish-client:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+    
+    - name: Update version from tag
+      if: startsWith(github.ref, 'refs/tags/v')
+      run: |
+        # Extract version from tag (remove 'v' prefix)
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "Setting version to $VERSION"
+        cd client-python
+        # Use --no-sync to avoid dependency resolution during CI
+        uv version $VERSION --no-sync
+    
+    - name: Build Python client
+      run: |
+        cd client-python
+        uv build
+    
+    - name: Publish to PyPI
+      if: startsWith(github.ref, 'refs/tags/v')
+      env:
+        UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        cd client-python
+        uv publish
+    
+    - name: Display package info
+      if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+      run: |
+        echo "📦 Python client package built successfully"
+        echo "📋 This is a dry run - package was not published"
+        echo "🏷️  To publish, create a tag: git tag v0.1.0 && git push --tags"
+        echo ""
+        ls -la client-python/dist/

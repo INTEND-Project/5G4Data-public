@@ -1,0 +1,223 @@
+# Default values for a2aregistry
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  projectId: baldmaninc
+  region: us-central1
+
+# Domain configuration
+domains:
+  - a2aregistry.org
+  - www.a2aregistry.org
+
+# Image configuration
+image:
+  registry: gcr.io
+  repository: baldmaninc
+  pullPolicy: Always
+  tag: "latest"
+
+# API deployment
+api:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    name: a2a-registry-api
+
+  # Cost optimization: Use Spot pods
+  nodeSelector:
+    cloud.google.com/gke-spot: "true"
+
+  tolerations:
+    - key: cloud.google.com/gke-spot
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    failureThreshold: 30
+    periodSeconds: 5
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+
+  # Horizontal Pod Autoscaler
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# Worker deployment
+worker:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    name: a2a-registry-worker
+
+  # Cost optimization: Use Spot pods
+  nodeSelector:
+    cloud.google.com/gke-spot: "true"
+
+  tolerations:
+    - key: cloud.google.com/gke-spot
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  # Right-size resources
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # Liveness probe: restart worker if heartbeat file is older than 2 cycles
+  healthCheckIntervalSeconds: 1800
+  livenessThresholdCycles: 2
+
+  # Horizontal Pod Autoscaler
+  autoscaling:
+    enabled: false  # Worker doesn't need autoscaling
+
+# Frontend deployment
+frontend:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    name: a2a-registry-frontend
+
+  # Cost optimization: Use Spot pods
+  nodeSelector:
+    cloud.google.com/gke-spot: "true"
+
+  tolerations:
+    - key: cloud.google.com/gke-spot
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  # Lightweight resources for nginx
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+
+  # Horizontal Pod Autoscaler
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+
+# Admin dashboard (internal only — access via kubectl port-forward)
+admin:
+  enabled: true
+
+# Database configuration (Cloud SQL)
+database:
+  # Cloud SQL instance connection name
+  connectionName: "baldmaninc:us-central1:clusterkit-db"
+  host: "127.0.0.1"  # Cloud SQL Proxy
+  port: 5432
+  name: a2aregistry
+  user: a2aregistry
+  # Password should be set in secrets
+
+# Cloud SQL Proxy sidecar configuration
+cloudsql:
+  enabled: true
+  image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.19.0
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# PostHog analytics configuration
+posthog:
+  enabled: false  # Disabled for beta
+  host: "https://eu.posthog.com"
+
+# Gateway API HTTPRoute configuration
+httproute:
+  enabled: true
+  namespace: clusterkit
+  gatewayName: clusterkit-gateway
+
+# ConfigMap for non-sensitive configuration
+config:
+  apiHost: "0.0.0.0"
+  apiPort: "8000"
+  apiReload: "false"
+  corsOrigins: '["https://a2aregistry.org", "https://www.a2aregistry.org"]'
+  healthCheckIntervalSeconds: "1800"
+  healthCheckTimeoutSeconds: "10"
+
+# Hello World agent
+helloWorld:
+  enabled: false
+  replicaCount: 0
+  hostname: hello.a2aregistry.org
+  agentUrl: https://hello.a2aregistry.org
+
+# Secrets are managed externally (not created by Helm)
+# Create secrets using:
+#   kubectl create secret generic a2aregistry-secrets -n a2aregistry \
+#     --from-literal=DB_PASSWORD="..." \
+#     --from-literal=POSTHOG_API_KEY="" \
+#     --from-literal=SECRET_KEY="..."
+secrets:
+  external: true
+  name: a2aregistry-secrets
+
+# Service Account (for Workload Identity)
+serviceAccount:
+  create: true
+  name: a2aregistry-sa
+  annotations:
+    iam.gke.io/gcp-service-account: cloudsql-proxy@baldmaninc.iam.gserviceaccount.com

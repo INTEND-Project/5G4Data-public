@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: a2a-registry-db
+    environment:
+      POSTGRES_DB: a2a_registry
+      POSTGRES_USER: a2a_user
+      POSTGRES_PASSWORD: a2a_password
+    ports:
+      - "17432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Only runs on empty volume; later migrations run at API/worker startup (see app/db_migrations.py).
+      - ./backend/migrations/versions/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U a2a_user -d a2a_registry"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: a2a-registry-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL_OVERRIDE: postgresql://a2a_user:a2a_password@postgres:5432/a2a_registry
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      API_RELOAD: "true"
+      CORS_ORIGINS: '["http://localhost:17173","http://localhost:5173","http://localhost:5174","http://localhost:3000","https://www.a2aregistry.org"]'
+      POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
+      POSTHOG_HOST: ${POSTHOG_HOST:-https://us.posthog.com}
+      POSTHOG_ENABLED: ${POSTHOG_ENABLED:-false}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      HEALTH_CHECK_INTERVAL_SECONDS: 300
+      HEALTH_CHECK_TIMEOUT_SECONDS: 10
+    ports:
+      - "17001:8000"
+    volumes:
+      - ./backend:/app
+      - ./agents:/agents
+    command: python run.py
+
+  # Health Check Worker
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: a2a-registry-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL_OVERRIDE: postgresql://a2a_user:a2a_password@postgres:5432/a2a_registry
+      HEALTH_CHECK_INTERVAL_SECONDS: 300
+      HEALTH_CHECK_TIMEOUT_SECONDS: 10
+    volumes:
+      - ./backend:/app
+    command: python worker.py
+
+  # Frontend (production-like static build served by nginx)
+  frontend:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+      args:
+        PUBLIC_SITE_BASE: /a2a-registry
+        PUBLIC_API_URL: https://start5g-1.cs.uit.no/a2a-registry/api
+        PUBLIC_POSTHOG_HOST: ${VITE_POSTHOG_HOST:-https://us.posthog.com}
+        PUBLIC_POSTHOG_KEY: ${VITE_POSTHOG_KEY:-}
+    container_name: a2a-registry-frontend
+    depends_on:
+      - api
+    ports:
+      - "17173:80"
+
+volumes:
+  postgres_data:

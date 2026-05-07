@@ -1,0 +1,697 @@
+"""Data access layer - repository pattern for database operations"""
+
+import json
+from datetime import datetime, timedelta
+from typing import Optional
+from uuid import UUID
+
+from .database import Database
+from .models import (
+    AgentCreate,
+    AgentFlagInDB,
+    AgentInDB,
+    AgentPublic,
+    HealthCheck,
+    HealthStatus,
+    RegistryStats,
+    UptimeMetrics,
+)
+
+
+class AgentRepository:
+    """Repository for agent CRUD operations"""
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    async def create(self, agent: AgentCreate) -> AgentInDB:
+        """Create a new agent"""
+        query = """
+            INSERT INTO agents (
+                protocol_version, name, description, author, well_known_uri,
+                url, version, provider, documentation_url, capabilities,
+                default_input_modes, default_output_modes, skills, conformance,
+                icon_url, supports_authenticated_extended_card, security_requirements, security_schemes
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            RETURNING *
+        """
+
+        row = await self.db.fetchrow(
+            query,
+            agent.protocolVersion,
+            agent.name,
+            agent.description,
+            agent.author,
+            str(agent.wellKnownURI),
+            str(agent.url),
+            agent.version,
+            json.dumps(agent.provider.model_dump(mode='json') if agent.provider else None),
+            str(agent.documentationUrl) if agent.documentationUrl else None,
+            json.dumps(agent.capabilities.model_dump(mode='json')),
+            json.dumps(agent.defaultInputModes),
+            json.dumps(agent.defaultOutputModes),
+            json.dumps([skill.model_dump(mode='json') for skill in agent.skills]),
+            agent.conformance,
+            str(agent.iconUrl) if agent.iconUrl else None,
+            agent.supportsAuthenticatedExtendedCard,
+            json.dumps(agent.security or []),
+            json.dumps(agent.securitySchemes or {}),
+        )
+
+        return self._row_to_agent(row)
+
+    @staticmethod
+    def compute_status_notes(
+        uptime_percentage: Optional[float],
+        last_5_worker_successes: Optional[list],
+        last_worker_error: Optional[str],
+        last_10_chat_errors: Optional[list],
+        conformance: Optional[bool],
+        conformance_errors: Optional[list[str]],
+        flag_count: int,
+    ) -> list[str]:
+        """Compute status notes from health data."""
+        notes = []
+        if uptime_percentage is not None:
+            pct = round(uptime_percentage)
+            if uptime_percentage < 50:
+                notes.append(f"Low uptime: {pct}% in the last 24h")
+            elif uptime_percentage < 80:
+                notes.append(f"Degraded uptime: {pct}% in the last 24h")
+        if last_5_worker_successes and not any(last_5_worker_successes):
+            if last_worker_error:
+                notes.append(f"Consistently failing health checks ({last_worker_error})")
+            else:
+                notes.append("Consistently unreachable during health checks")
+        if last_10_chat_errors:
+            for error_msg in last_10_chat_errors:
+                if error_msg:
+                    notes.append(f"Returning errors when contacted by users ({error_msg})")
+                    break
+        if conformance is False:
+            if conformance_errors:
+                for err in conformance_errors[:3]:
+                    notes.append(f"A2A conformance: {err}")
+            else:
+                notes.append("Non-conformant with A2A spec")
+        if flag_count >= 3:
+            notes.append(f"Flagged by {flag_count} users")
+        return notes
+
+    async def get_by_id(self, agent_id: UUID) -> Optional[AgentPublic]:
+        """Get agent by ID with health metrics"""
+        query = """
+            SELECT
+                a.*,
+                hm.uptime_percentage,
+                hm.avg_response_time_ms,
+                hm.last_health_check,
+                hm.is_healthy,
+                w5.worker_successes,
+                ce.chat_errors
+            FROM agents a
+            LEFT JOIN LATERAL (
+                SELECT
+                    COALESCE(
+                        COUNT(*) FILTER (WHERE success = true)::float / NULLIF(COUNT(*), 0) * 100,
+                        0
+                    ) as uptime_percentage,
+                    COALESCE(AVG(response_time_ms) FILTER (WHERE success = true)::int, 0) as avg_response_time_ms,
+                    MAX(checked_at) as last_health_check,
+                    (array_agg(success ORDER BY checked_at DESC))[1] as is_healthy
+                FROM health_checks hc
+                WHERE hc.agent_id = a.id
+                  AND hc.checked_at > NOW() - INTERVAL '24 hours'
+            ) hm ON true
+            LEFT JOIN LATERAL (
+                SELECT
+                    array_agg(success ORDER BY checked_at DESC) as worker_successes,
+                    (SELECT error_message FROM health_checks
+                     WHERE agent_id = a.id AND source = 'worker' AND success = false
+                     ORDER BY checked_at DESC LIMIT 1) as last_worker_error
+                FROM (
+                    SELECT success, checked_at FROM health_checks
+                    WHERE agent_id = a.id AND source = 'worker'
+                    ORDER BY checked_at DESC LIMIT 5
+                ) w
+            ) w5 ON true
+            LEFT JOIN LATERAL (
+                SELECT array_agg(error_message ORDER BY checked_at DESC) as chat_errors
+                FROM (
+                    SELECT error_message, checked_at FROM health_checks
+                    WHERE agent_id = a.id AND source = 'chat' AND success = false
+                    ORDER BY checked_at DESC LIMIT 10
+                ) ce
+            ) ce ON true
+            WHERE a.id = $1 AND a.hidden = false
+        """
+
+        row = await self.db.fetchrow(query, agent_id)
+        if not row:
+            return None
+
+        return self._row_to_agent_public(row)
+
+    async def get_by_well_known_uri(self, well_known_uri: str) -> Optional[AgentInDB]:
+        """Get agent by wellKnownURI"""
+        query = "SELECT * FROM agents WHERE well_known_uri = $1 AND hidden = false"
+        row = await self.db.fetchrow(query, well_known_uri)
+        if not row:
+            return None
+        return self._row_to_agent(row)
+
+    async def get_by_host(self, hostname: str) -> Optional[AgentInDB]:
+        """Get an existing agent whose wellKnownURI shares the same hostname."""
+        query = """
+            SELECT * FROM agents
+            WHERE well_known_uri ILIKE $1
+              AND hidden = false
+            LIMIT 1
+        """
+        # Match any URI containing this hostname (scheme://hostname/...)
+        pattern = f"%://{hostname}/%"
+        row = await self.db.fetchrow(query, pattern)
+        if not row:
+            return None
+        return self._row_to_agent(row)
+
+    async def get_by_name_and_author(self, name: str, author: str) -> Optional[AgentInDB]:
+        """Find an existing agent with the same (name, author) — case- and whitespace-insensitive.
+
+        Used to catch the same agent card being re-registered under different hostnames
+        (a common spam pattern: one card, many parked domains).
+        """
+        query = """
+            SELECT * FROM agents
+            WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
+              AND LOWER(TRIM(author)) = LOWER(TRIM($2))
+              AND hidden = false
+            LIMIT 1
+        """
+        row = await self.db.fetchrow(query, name, author)
+        if not row:
+            return None
+        return self._row_to_agent(row)
+
+    async def list_agents(
+        self,
+        skill: Optional[str] = None,
+        capability: Optional[str] = None,
+        author: Optional[str] = None,
+        search: Optional[str] = None,
+        conformance: Optional[str] = None,
+        healthy: Optional[bool] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[AgentPublic], int]:
+        """List agents with filtering and pagination"""
+
+        # Build WHERE clauses
+        where_clauses = ["a.hidden = false"]
+        params = []
+        param_idx = 1
+
+        if skill:
+            # Match agents where any skill has the given tag
+            where_clauses.append(
+                f"EXISTS (SELECT 1 FROM jsonb_array_elements(skills::jsonb) s WHERE s->'tags' @> ${param_idx}::jsonb)"
+            )
+            params.append(json.dumps([skill]))
+            param_idx += 1
+
+        if capability:
+            valid_capabilities = {"streaming", "pushNotifications", "stateTransitionHistory"}
+            if capability not in valid_capabilities:
+                return [], 0
+            where_clauses.append(f"capabilities::jsonb ->> ${param_idx} = 'true'")
+            params.append(capability)
+            param_idx += 1
+
+        if author:
+            where_clauses.append(f"author ILIKE ${param_idx}")
+            params.append(f"%{author}%")
+            param_idx += 1
+
+        if search:
+            where_clauses.append(
+                f"""(name ILIKE ${param_idx} OR description ILIKE ${param_idx} OR author ILIKE ${param_idx}
+                 OR EXISTS (
+                    SELECT 1 FROM jsonb_array_elements(skills::jsonb) s
+                    WHERE s->>'name' ILIKE ${param_idx}
+                       OR s->>'description' ILIKE ${param_idx}
+                       OR EXISTS (
+                          SELECT 1 FROM jsonb_array_elements_text(s->'tags') t
+                          WHERE t ILIKE ${param_idx}
+                       )
+                 ))"""
+            )
+            params.append(f"%{search}%")
+            param_idx += 1
+
+        if conformance == "standard":
+            where_clauses.append("conformance = true")
+        elif conformance == "non-standard":
+            where_clauses.append("conformance IS NOT TRUE")
+
+        # healthy filter uses a correlated subquery on the most recent health check
+        if healthy is not None:
+            healthy_subq = """
+            (SELECT success FROM health_checks hc_filt
+             WHERE hc_filt.agent_id = a.id
+               AND hc_filt.checked_at > NOW() - INTERVAL '24 hours'
+             ORDER BY hc_filt.checked_at DESC LIMIT 1)
+            """
+            if healthy:
+                where_clauses.append(f"{healthy_subq} = true")
+            else:
+                where_clauses.append(f"{healthy_subq} IS NOT TRUE")
+
+        where_clause = " AND ".join(where_clauses)
+
+        # Count total
+        count_query = f"SELECT COUNT(*) FROM agents a WHERE {where_clause}"
+        total = await self.db.fetchval(count_query, *params)
+
+        # Fetch paginated results with health metrics
+        query = f"""
+            SELECT
+                a.*,
+                hm.uptime_percentage,
+                hm.avg_response_time_ms,
+                hm.last_health_check,
+                hm.is_healthy
+            FROM agents a
+            LEFT JOIN LATERAL (
+                SELECT
+                    COALESCE(
+                        COUNT(*) FILTER (WHERE success = true)::float / NULLIF(COUNT(*), 0) * 100,
+                        0
+                    ) as uptime_percentage,
+                    COALESCE(AVG(response_time_ms) FILTER (WHERE success = true)::int, 0) as avg_response_time_ms,
+                    MAX(checked_at) as last_health_check,
+                    (array_agg(success ORDER BY checked_at DESC))[1] as is_healthy
+                FROM health_checks hc
+                WHERE hc.agent_id = a.id
+                  AND hc.checked_at > NOW() - INTERVAL '24 hours'
+            ) hm ON true
+            WHERE {where_clause}
+            ORDER BY
+                CASE WHEN a.maintainer_notes LIKE 'Verified working%%' THEN 0 ELSE 1 END ASC,
+                CASE
+                    WHEN hm.uptime_percentage < 50 THEN 2
+                    WHEN hm.uptime_percentage < 80 THEN 1
+                    ELSE 0
+                END ASC,
+                a.created_at DESC
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        """
+
+        params.extend([limit, offset])
+        rows = await self.db.fetch(query, *params)
+
+        agents = [self._row_to_agent_public(row) for row in rows]
+        return agents, total
+
+    async def update_conformance(
+        self, agent_id: UUID, conformance: Optional[bool], errors: Optional[list[str]] = None
+    ) -> None:
+        """Update the conformance status of an agent, optionally storing validation errors."""
+        error_json = json.dumps(errors[:10]) if errors else None
+        await self.db.execute(
+            "UPDATE agents SET conformance = $1, conformance_errors = $2, updated_at = NOW() WHERE id = $3",
+            conformance,
+            error_json,
+            agent_id,
+        )
+
+    async def update(self, agent_id: UUID, agent: AgentCreate) -> Optional[AgentInDB]:
+        """Update an existing agent's metadata from a re-fetched agent card"""
+        query = """
+            UPDATE agents SET
+                protocol_version = $1,
+                name = $2,
+                description = $3,
+                author = $4,
+                url = $5,
+                version = $6,
+                provider = $7,
+                documentation_url = $8,
+                capabilities = $9,
+                default_input_modes = $10,
+                default_output_modes = $11,
+                skills = $12,
+                icon_url = $13,
+                supports_authenticated_extended_card = $14,
+                security_requirements = $15,
+                security_schemes = $16,
+                updated_at = NOW()
+            WHERE id = $17 AND hidden = false
+            RETURNING *
+        """
+        row = await self.db.fetchrow(
+            query,
+            agent.protocolVersion,
+            agent.name,
+            agent.description,
+            agent.author,
+            str(agent.url),
+            agent.version,
+            json.dumps(agent.provider.model_dump(mode='json') if agent.provider else None),
+            str(agent.documentationUrl) if agent.documentationUrl else None,
+            json.dumps(agent.capabilities.model_dump(mode='json')),
+            json.dumps(agent.defaultInputModes),
+            json.dumps(agent.defaultOutputModes),
+            json.dumps([skill.model_dump(mode='json') for skill in agent.skills]),
+            str(agent.iconUrl) if agent.iconUrl else None,
+            agent.supportsAuthenticatedExtendedCard,
+            json.dumps(agent.security or []),
+            json.dumps(agent.securitySchemes or {}),
+            agent_id,
+        )
+        if not row:
+            return None
+        return self._row_to_agent(row)
+
+    async def delete(self, agent_id: UUID) -> bool:
+        """Delete an agent (soft delete by marking hidden)"""
+        query = "UPDATE agents SET hidden = true WHERE id = $1"
+        result = await self.db.execute(query, agent_id)
+        return result == "UPDATE 1"
+
+    async def update_maintainer_notes(self, agent_id: UUID, notes: str | None) -> bool:
+        """Set or clear maintainer notes for an agent."""
+        result = await self.db.execute(
+            "UPDATE agents SET maintainer_notes = $1, updated_at = NOW() WHERE id = $2",
+            notes,
+            agent_id,
+        )
+        return result == "UPDATE 1"
+
+    async def increment_flag_count(self, agent_id: UUID):
+        """Increment flag count for an agent"""
+        query = "UPDATE agents SET flag_count = flag_count + 1 WHERE id = $1"
+        await self.db.execute(query, agent_id)
+
+    def _row_to_agent(self, row) -> AgentInDB:
+        """Convert database row to AgentInDB model"""
+        return AgentInDB(
+            id=row["id"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            hidden=row["hidden"],
+            flag_count=row["flag_count"],
+            protocolVersion=row["protocol_version"],
+            name=row["name"],
+            description=row["description"],
+            author=row["author"],
+            wellKnownURI=row["well_known_uri"],
+            url=row["url"],
+            version=row["version"],
+            provider=json.loads(row["provider"]) if row["provider"] else None,
+            documentationUrl=row["documentation_url"],
+            iconUrl=row.get("icon_url"),
+            supportsAuthenticatedExtendedCard=row.get("supports_authenticated_extended_card"),
+            security=json.loads(row["security_requirements"]) if row.get("security_requirements") else [],
+            securitySchemes=json.loads(row["security_schemes"]) if row.get("security_schemes") else {},
+            capabilities=json.loads(row["capabilities"]),
+            defaultInputModes=json.loads(row["default_input_modes"]),
+            defaultOutputModes=json.loads(row["default_output_modes"]),
+            skills=json.loads(row["skills"]),
+            conformance=row["conformance"],
+            conformance_errors=json.loads(row["conformance_errors"]) if row.get("conformance_errors") else None,
+            maintainer_notes=row.get("maintainer_notes"),
+        )
+
+    def _row_to_agent_public(self, row) -> AgentPublic:
+        """Convert database row to AgentPublic model (includes health metrics)"""
+        agent = self._row_to_agent(row)
+        status_notes = self.compute_status_notes(
+            uptime_percentage=row.get("uptime_percentage"),
+            last_5_worker_successes=list(row.get("worker_successes") or []),
+            last_worker_error=row.get("last_worker_error"),
+            last_10_chat_errors=list(row.get("chat_errors") or []),
+            conformance=agent.conformance,
+            conformance_errors=agent.conformance_errors,
+            flag_count=agent.flag_count,
+        )
+        return AgentPublic(
+            **agent.model_dump(),
+            uptime_percentage=row.get("uptime_percentage"),
+            avg_response_time_ms=row.get("avg_response_time_ms"),
+            last_health_check=row.get("last_health_check"),
+            is_healthy=row.get("is_healthy"),
+            status_notes=status_notes,
+        )
+
+
+class HealthCheckRepository:
+    """Repository for health check operations"""
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    async def create(
+        self,
+        agent_id: UUID,
+        status_code: Optional[int],
+        response_time_ms: Optional[int],
+        success: bool,
+        error_message: Optional[str] = None,
+        source: str = 'worker',
+    ) -> HealthCheck:
+        """Record a health check"""
+        query = """
+            INSERT INTO health_checks (agent_id, status_code, response_time_ms, success, error_message, source)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+        """
+
+        row = await self.db.fetchrow(
+            query, agent_id, status_code, response_time_ms, success, error_message, source
+        )
+
+        return HealthCheck(
+            id=row["id"],
+            agent_id=row["agent_id"],
+            checked_at=row["checked_at"],
+            status_code=row["status_code"],
+            response_time_ms=row["response_time_ms"],
+            success=row["success"],
+            error_message=row["error_message"],
+        )
+
+    async def get_health_status(self, agent_id: UUID) -> Optional[HealthStatus]:
+        """Get current health status for an agent (last 24 hours)"""
+        query = """
+            SELECT
+                $1 as agent_id,
+                COUNT(*) FILTER (WHERE success = true) > 0 as is_healthy,
+                COALESCE(
+                    COUNT(*) FILTER (WHERE success = true)::float / NULLIF(COUNT(*), 0) * 100,
+                    0
+                ) as uptime_percentage,
+                COALESCE(
+                    AVG(response_time_ms) FILTER (WHERE success = true)::int,
+                    0
+                ) as avg_response_time_ms,
+                MAX(checked_at) as last_check,
+                COUNT(*) as total_checks,
+                COUNT(*) FILTER (WHERE success = true) as successful_checks
+            FROM health_checks
+            WHERE agent_id = $1
+              AND checked_at > NOW() - INTERVAL '24 hours'
+        """
+
+        row = await self.db.fetchrow(query, agent_id)
+        if not row or row["total_checks"] == 0:
+            return None
+
+        return HealthStatus(
+            agent_id=row["agent_id"],
+            is_healthy=row["is_healthy"],
+            uptime_percentage=row["uptime_percentage"],
+            avg_response_time_ms=row["avg_response_time_ms"],
+            last_check=row["last_check"],
+            total_checks=row["total_checks"],
+            successful_checks=row["successful_checks"],
+        )
+
+    async def get_uptime_metrics(
+        self, agent_id: UUID, period_days: int = 30
+    ) -> Optional[UptimeMetrics]:
+        """Get historical uptime metrics"""
+        cutoff = datetime.now() - timedelta(days=period_days)
+
+        # Get aggregate stats
+        stats_query = """
+            SELECT
+                COALESCE(
+                    COUNT(*) FILTER (WHERE success = true)::float / NULLIF(COUNT(*), 0) * 100,
+                    0
+                ) as uptime_percentage,
+                COALESCE(
+                    AVG(response_time_ms) FILTER (WHERE success = true)::int,
+                    0
+                ) as avg_response_time_ms,
+                COUNT(*) as total_checks,
+                COUNT(*) FILTER (WHERE success = true) as successful_checks,
+                COUNT(*) FILTER (WHERE success = false) as failed_checks,
+                MAX(checked_at) as last_check
+            FROM health_checks
+            WHERE agent_id = $1 AND checked_at > $2
+        """
+
+        stats_row = await self.db.fetchrow(stats_query, agent_id, cutoff)
+
+        if not stats_row or stats_row["total_checks"] == 0:
+            return None
+
+        # Get recent history (last 100 checks)
+        history_query = """
+            SELECT * FROM health_checks
+            WHERE agent_id = $1 AND checked_at > $2
+            ORDER BY checked_at DESC
+            LIMIT 100
+        """
+
+        history_rows = await self.db.fetch(history_query, agent_id, cutoff)
+        history = [
+            HealthCheck(
+                id=row["id"],
+                agent_id=row["agent_id"],
+                checked_at=row["checked_at"],
+                status_code=row["status_code"],
+                response_time_ms=row["response_time_ms"],
+                success=row["success"],
+                error_message=row["error_message"],
+            )
+            for row in history_rows
+        ]
+
+        return UptimeMetrics(
+            agent_id=agent_id,
+            period_days=period_days,
+            uptime_percentage=stats_row["uptime_percentage"],
+            avg_response_time_ms=stats_row["avg_response_time_ms"],
+            total_checks=stats_row["total_checks"],
+            successful_checks=stats_row["successful_checks"],
+            failed_checks=stats_row["failed_checks"],
+            last_check=stats_row["last_check"],
+            history=history,
+        )
+
+
+class StatsRepository:
+    """Repository for registry statistics"""
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    async def get_registry_stats(self) -> RegistryStats:
+        """Get registry-wide statistics"""
+
+        # Single query for agent counts (total, healthy, new this week/month)
+        basic_stats = await self.db.fetchrow("""
+            SELECT
+                COUNT(*) as total_agents,
+                COUNT(*) FILTER (
+                    WHERE id IN (
+                        SELECT DISTINCT agent_id
+                        FROM health_checks
+                        WHERE checked_at > NOW() - INTERVAL '1 hour'
+                          AND success = true
+                    )
+                ) as healthy_agents,
+                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as new_this_week,
+                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as new_this_month,
+                (SELECT COUNT(DISTINCT skill_id) FROM (
+                    SELECT jsonb_array_elements(a2.skills) ->> 'id' as skill_id
+                    FROM agents a2 WHERE a2.hidden = false
+                ) _sk) as total_skills,
+                (SELECT COALESCE(AVG(response_time_ms)::int, 0)
+                 FROM health_checks
+                 WHERE checked_at > NOW() - INTERVAL '24 hours' AND success = true
+                ) as avg_response_time
+            FROM agents
+            WHERE hidden = false
+        """)
+
+        total_agents = basic_stats["total_agents"]
+        healthy_agents = basic_stats["healthy_agents"]
+        health_percentage = (healthy_agents / total_agents * 100) if total_agents > 0 else 0
+        new_this_week = basic_stats["new_this_week"]
+        new_this_month = basic_stats["new_this_month"]
+        total_skills = basic_stats["total_skills"]
+        avg_response_time = basic_stats["avg_response_time"]
+
+        # Trending skills: top 10 skill IDs by agent count across all live agents
+        trending_rows = await self.db.fetch("""
+            SELECT
+                skill_id,
+                COUNT(*) as agent_count
+            FROM (
+                SELECT jsonb_array_elements(skills) ->> 'id' as skill_id
+                FROM agents
+                WHERE hidden = false
+                  AND skills != '[]'::jsonb
+            ) s
+            WHERE skill_id IS NOT NULL
+            GROUP BY skill_id
+            ORDER BY agent_count DESC
+            LIMIT 10
+        """)
+        trending_skills = [{"id": row["skill_id"], "count": row["agent_count"]} for row in trending_rows]
+
+        return RegistryStats(
+            total_agents=total_agents,
+            healthy_agents=healthy_agents,
+            health_percentage=health_percentage,
+            new_agents_this_week=new_this_week,
+            new_agents_this_month=new_this_month,
+            total_skills=total_skills,
+            trending_skills=trending_skills,
+            avg_response_time_ms=avg_response_time,
+            generated_at=datetime.now(),
+        )
+
+
+class FlagRepository:
+    """Repository for agent flags/reports"""
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    async def create_flag(
+        self, agent_id: UUID, reason: Optional[str], ip_address: Optional[str], details: Optional[str] = None
+    ):
+        """Record a community flag"""
+        query = """
+            INSERT INTO agent_flags (agent_id, reason, details, ip_address)
+            VALUES ($1, $2, $3, $4)
+            RETURNING *
+        """
+        await self.db.fetchrow(query, agent_id, reason, details, ip_address)
+
+    async def list_flags(self, limit: int = 100, offset: int = 0) -> list[AgentFlagInDB]:
+        """List all flags for admin review"""
+        query = """
+            SELECT f.*, a.name as agent_name
+            FROM agent_flags f
+            LEFT JOIN agents a ON a.id = f.agent_id
+            ORDER BY f.flagged_at DESC
+            LIMIT $1 OFFSET $2
+        """
+        rows = await self.db.fetch(query, limit, offset)
+        return [
+            AgentFlagInDB(
+                id=row["id"],
+                agent_id=row["agent_id"],
+                reason=row["reason"],
+                details=row.get("details"),
+                flagged_at=row["flagged_at"],
+                ip_address=str(row["ip_address"]) if row.get("ip_address") else None,
+                agent_name=row.get("agent_name"),
+            )
+            for row in rows
+        ]

@@ -1,0 +1,21 @@
+services:
+  # Reversible override: run frontend in dev/HMR mode.
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    environment:
+      PUBLIC_SITE_BASE: /a2a-registry
+      PUBLIC_API_URL: https://start5g-1.cs.uit.no/a2a-registry/api
+      VITE_API_URL: https://start5g-1.cs.uit.no/a2a-registry/api
+      VITE_POSTHOG_KEY: ${VITE_POSTHOG_KEY:-}
+      VITE_POSTHOG_HOST: ${VITE_POSTHOG_HOST:-https://us.posthog.com}
+      VITE_DEV_ORIGIN: https://start5g-1.cs.uit.no
+    ports:
+      - "17173:5173"
+    volumes:
+      - ./website:/app
+      - frontend_node_modules:/app/node_modules
+    command: sh -c "npm install && npm run dev -- --host --port 5173"
+
+volumes:
+  frontend_node_modules:

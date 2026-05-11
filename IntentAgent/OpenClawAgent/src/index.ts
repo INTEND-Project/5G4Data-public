@@ -1,12 +1,24 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { loadConfig } from "./config.js";
+import { loadConfig, type AppConfig } from "./config.js";
 import { createOpenClawModelInvoker } from "./adapters/openclaw.js";
 import { createSession, TurnOrchestrator } from "./core/turnOrchestrator.js";
 import { loadDomainPackage } from "./core/packageLoader.js";
 import { shutdownObservationStreamsIfPresent, tryReplPackageHook } from "./core/replPackageHook.js";
+import {
+  buildAgentCard,
+  persistAgentCard,
+  registerAgentCard,
+  type A2AConfig
+} from "./core/a2a/service.js";
+import { startOpenApiServer } from "./core/httpApiServer.js";
+import {
+  applyPackageMappingEnvDefaults,
+  readDotEnvKey,
+  updateEnvFile
+} from "./core/envConfigWriter.js";
 import type { AgentTurnResult, ChatSession } from "./models.js";
 
 export function createAgentRuntime() {
@@ -19,19 +31,161 @@ export function createAgentRuntime() {
   return new TurnOrchestrator(config, domainPackage, invokeModel);
 }
 
+function emitA2AResult(label: string, result: { ok: boolean; message: string; wellKnownURI?: string }): void {
+  if (result.ok) {
+    process.stdout.write(`[A2A] ${label}: ${result.message}\n`);
+    if (result.wellKnownURI) {
+      process.stdout.write(`[A2A] wellKnownURI=${result.wellKnownURI}\n`);
+    }
+    return;
+  }
+  process.stderr.write(`[A2A] ${label}: ${result.message}\n`);
+}
+
+function a2aSlice(config: AppConfig): A2AConfig {
+  return {
+    a2aEnabled: config.a2aEnabled,
+    a2aRegistryBaseUrl: config.a2aRegistryBaseUrl,
+    a2aAgentBaseUrl: config.a2aAgentBaseUrl,
+    a2aAgentCardPath: config.a2aAgentCardPath,
+    a2aAutoRegisterOnStartup: config.a2aAutoRegisterOnStartup
+  };
+}
+
+async function registerAgentCardAfterHttpListen(config: AppConfig, cardName: string): Promise<void> {
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const result = await registerAgentCard(a2aSlice(config), cardName);
+    if (result.ok) {
+      emitA2AResult("startup", result);
+      return;
+    }
+    if (attempt < maxAttempts) {
+      const delayMs = 250 * 2 ** (attempt - 1);
+      process.stderr.write(
+        `[A2A] startup: registration attempt ${attempt} failed; retrying in ${delayMs}ms...\n`
+      );
+      await new Promise((r) => setTimeout(r, delayMs));
+    } else {
+      emitA2AResult("startup", result);
+      if (/502|503|504|Bad Gateway|gateway/i.test(result.message)) {
+        const cardPath = config.a2aAgentCardPath;
+        process.stderr.write(
+          "[A2A] HTTP 5xx from the card URL usually means the reverse proxy cannot reach this process " +
+            `(listening on ${config.apiServerHost}:${config.apiServerPort}). On the agent host run ` +
+            `\`curl -sS -w "\\n%{http_code}\\n" http://127.0.0.1:${config.apiServerPort}${cardPath}\`. ` +
+            `From the Caddy container run \`curl -sS http://host.docker.internal:${config.apiServerPort}${cardPath}\`. ` +
+            "Use API_SERVER_HOST=0.0.0.0 (default) so Docker can reach the agent; reload Caddy after Caddyfile edits; " +
+            "ensure A2A_AGENT_BASE_URL matches the HTTPS path Caddy exposes.\n"
+        );
+      }
+    }
+  }
+}
+
+async function prepareAndRegisterA2A(
+  config: A2AConfig,
+  domainPackage: ReturnType<TurnOrchestrator["getDomainPackage"]>,
+  cwd: string,
+  reason: "startup" | "package_load",
+  opts?: { deferRegistryRegistration?: boolean }
+): Promise<void> {
+  if (!config.a2aEnabled) return;
+  const card = buildAgentCard(config, domainPackage);
+  persistAgentCard(cwd, card, config.a2aAgentCardPath);
+  if (reason === "package_load") {
+    process.stdout.write(
+      "[A2A] package_load: registration deferred until the cloned agent HTTP server is started.\n"
+    );
+    return;
+  }
+  if (opts?.deferRegistryRegistration) {
+    return;
+  }
+  if (reason === "startup" && !config.a2aAutoRegisterOnStartup) {
+    process.stdout.write("[A2A] startup auto-registration disabled.\n");
+    return;
+  }
+  const result = await registerAgentCard(config, card.name);
+  emitA2AResult(reason, result);
+}
+
+function boolLike(value: string | undefined, fallback: boolean): boolean {
+  if (!value) return fallback;
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+function loadA2AConfigFromEnv(): A2AConfig {
+  const rawEnabled = process.env.A2A_ENABLED ?? readDotEnvValue("A2A_ENABLED");
+  const rawRegistry = process.env.A2A_REGISTRY_BASE_URL ?? readDotEnvValue("A2A_REGISTRY_BASE_URL");
+  const rawAgentBase = process.env.A2A_AGENT_BASE_URL ?? readDotEnvValue("A2A_AGENT_BASE_URL");
+  const rawCardPath = process.env.A2A_AGENT_CARD_PATH ?? readDotEnvValue("A2A_AGENT_CARD_PATH");
+  const rawAuto =
+    process.env.A2A_AUTO_REGISTER_ON_STARTUP ?? readDotEnvValue("A2A_AUTO_REGISTER_ON_STARTUP");
+  return {
+    a2aEnabled: boolLike(rawEnabled, false),
+    a2aRegistryBaseUrl: rawRegistry?.trim() || "http://localhost:8000",
+    a2aAgentBaseUrl: rawAgentBase?.trim() || "http://localhost:3010",
+    a2aAgentCardPath: rawCardPath?.trim() || "/.well-known/agent-card.json",
+    a2aAutoRegisterOnStartup: boolLike(rawAuto, true)
+  };
+}
+
+/** Read A2A settings from `agentDir/.env` (used after `package load` when `process.cwd()` is still the baseline). */
+function loadA2AConfigFromDirectory(agentDir: string): A2AConfig {
+  const envPath = join(agentDir, ".env");
+  const pick = (key: string): string | undefined => {
+    const fileVal = readDotEnvKey(envPath, key);
+    if (fileVal !== undefined && fileVal !== "") return fileVal;
+    const procVal = process.env[key];
+    return procVal?.trim();
+  };
+  return {
+    a2aEnabled: boolLike(pick("A2A_ENABLED"), false),
+    a2aRegistryBaseUrl: pick("A2A_REGISTRY_BASE_URL")?.trim() || "http://localhost:8000",
+    a2aAgentBaseUrl: pick("A2A_AGENT_BASE_URL")?.trim() || "http://localhost:3010",
+    a2aAgentCardPath: pick("A2A_AGENT_CARD_PATH")?.trim() || "/.well-known/agent-card.json",
+    a2aAutoRegisterOnStartup: boolLike(pick("A2A_AUTO_REGISTER_ON_STARTUP"), true)
+  };
+}
+
 interface CliOptions {
   debug: boolean;
+  noGraphDB: boolean;
   debugLogPath: string;
+  /** When set, overrides `API_SERVER_PORT` from the environment before config load. */
+  apiServerPort?: number;
   prompt: string;
 }
 
 function parseCliOptions(argv: string[]): CliOptions {
   let debug = false;
+  let noGraphDB = false;
   let debugLogPath = "logs/openclaw-agent-debug.jsonl";
+  let apiServerPort: number | undefined;
   const promptParts: string[] = [];
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (!token) continue;
+    if (token === "--port" || token.startsWith("--port=")) {
+      let raw: string;
+      if (token.startsWith("--port=")) {
+        raw = token.slice("--port=".length).trim();
+      } else {
+        const next = argv[i + 1];
+        if (!next || next.startsWith("--")) {
+          throw new Error("Usage: --port <1-65535> (sets API_SERVER_PORT for the OpenAPI listener).");
+        }
+        raw = next.trim();
+        i += 1;
+      }
+      const parsed = Number.parseInt(raw, 10);
+      if (Number.isNaN(parsed) || parsed < 1 || parsed > 65535) {
+        throw new Error(`Invalid --port ${JSON.stringify(raw)}: expected an integer 1-65535.`);
+      }
+      apiServerPort = parsed;
+      continue;
+    }
     if (token === "--debug") {
       debug = true;
       const next = argv[i + 1];
@@ -41,9 +195,13 @@ function parseCliOptions(argv: string[]): CliOptions {
       }
       continue;
     }
+    if (token === "--noGraphDB") {
+      noGraphDB = true;
+      continue;
+    }
     promptParts.push(token);
   }
-  return { debug, debugLogPath, prompt: promptParts.join(" ").trim() };
+  return { debug, noGraphDB, debugLogPath, apiServerPort, prompt: promptParts.join(" ").trim() };
 }
 
 function normalizeEnvPath(value: string): string {
@@ -94,7 +252,6 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
 
   const { installPackageFromPath } = await import("./core/packageInstaller.js");
   const { cloneAgentForPackage } = await import("./core/agentCloneManager.js");
-  const { updateEnvFile } = await import("./core/envConfigWriter.js");
   const { deployPackageToClone } = await import("./core/packageCloneDeployer.js");
   const { deployPackageToolsToClone } = await import("./core/packageToolDeployer.js");
   const { pruneClonePackagingArtifacts } = await import("./core/cloneRuntimePruner.js");
@@ -105,9 +262,12 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
     sourcePath: command.archivePath,
     packagesRoot
   });
+  const installedPackage = loadDomainPackage(installed.packageDir);
+  const cloneFolderName = installedPackage.agentCardPartial?.name ?? installed.packageName;
   const cloned = cloneAgentForPackage({
     baselineAgentDir,
-    packageName: installed.packageName
+    packageName: installed.packageName,
+    folderName: cloneFolderName
   });
   const deployedPackage = await deployPackageToClone({
     packageDir: installed.packageDir,
@@ -121,11 +281,16 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   const domainPackageValue = "./";
   const deployedSkillPath = join(cloned.cloneDir, "skills", "SKILL.md");
   const skillFileValue = normalizeEnvPath(relative(cloned.cloneDir, deployedSkillPath));
-  updateEnvFile(join(cloned.cloneDir, ".env"), [
+  const cloneEnvPath = join(cloned.cloneDir, ".env");
+  updateEnvFile(cloneEnvPath, [
     { key: "DOMAIN_PACKAGE_DIR", value: domainPackageValue },
     { key: "SKILL_FILE", value: skillFileValue },
     { key: "ENABLE_PACKAGE_LOAD", value: "false" }
   ]);
+  applyPackageMappingEnvDefaults(cloneEnvPath, installed.packageDir);
+  const cloneConfig = loadA2AConfigFromDirectory(cloned.cloneDir);
+  const clonePackage = loadDomainPackage(cloned.cloneDir);
+  await prepareAndRegisterA2A(cloneConfig, clonePackage, cloned.cloneDir, "package_load");
   pruneClonePackagingArtifacts(cloned.cloneDir);
 
   process.stdout.write(`Package installed: ${installed.packageName}\n`);
@@ -167,15 +332,40 @@ function appendDebugLog(
   appendFileSync(absolutePath, `${JSON.stringify(entry)}\n`, "utf8");
 }
 
+function extractIntentTurtle(responseText: string): { intentId: string; turtle: string } | null {
+  const trimmed = responseText.trim();
+  const fenced = trimmed.match(/^```(?:turtle|ttl)?\s*([\s\S]*?)\s*```$/i);
+  const turtle = (fenced?.[1] ?? trimmed).trim();
+  if (!turtle.includes("icm:Intent")) return null;
+  const idMatch = turtle.match(/\bdata5g:(I[a-f0-9]{32}|I[a-f0-9-]{36})\b/i);
+  if (!idMatch?.[1]) return null;
+  return { intentId: idMatch[1], turtle };
+}
+
+function writeIntentTurtleDebugFile(debugLogPath: string, responseText: string): void {
+  const extracted = extractIntentTurtle(responseText);
+  if (!extracted) return;
+  const logsDir = dirname(debugLogPath);
+  if (!existsSync(logsDir)) {
+    mkdirSync(logsDir, { recursive: true });
+  }
+  const filePath = join(logsDir, `${extracted.intentId}.ttl`);
+  writeFileSync(filePath, `${extracted.turtle}\n`, "utf8");
+}
+
 async function runOneShot(
   orchestrator: TurnOrchestrator,
   prompt: string,
   debug: boolean,
-  debugLogPath: string
+  debugLogPath: string,
+  writeIntentTurtleDebug: boolean
 ): Promise<void> {
   const session = createSession();
   const result = await orchestrator.runTurn(session, prompt);
   appendDebugLog(debug, debugLogPath, session, prompt, result);
+  if (writeIntentTurtleDebug) {
+    writeIntentTurtleDebugFile(resolve(process.cwd(), debugLogPath), result.response);
+  }
   process.stdout.write(`${result.response}\n`);
   if (result.intentUsageSummary) {
     const usage = result.intentUsageSummary;
@@ -194,7 +384,8 @@ async function runOneShot(
 async function runInteractive(
   orchestrator: TurnOrchestrator,
   debug: boolean,
-  debugLogPath: string
+  debugLogPath: string,
+  writeIntentTurtleDebug: boolean
 ): Promise<void> {
   const session = createSession();
   const rl = readline.createInterface({ input, output });
@@ -237,6 +428,9 @@ async function runInteractive(
       }
       const result = await orchestrator.runTurn(session, userText);
       appendDebugLog(debug, debugLogPath, session, userText, result);
+      if (writeIntentTurtleDebug) {
+        writeIntentTurtleDebugFile(resolve(process.cwd(), debugLogPath), result.response);
+      }
       process.stdout.write(`\nAssistant:\n${result.response}\n\n`);
       if (result.intentUsageSummary) {
         const usage = result.intentUsageSummary;
@@ -263,12 +457,75 @@ if (process.argv[1]?.endsWith("index.js") || process.argv[1]?.endsWith("index.ts
     const handled = await runPackageLoadCommand(argv);
     if (handled) return;
     const options = parseCliOptions(argv);
+    if (options.apiServerPort !== undefined) {
+      process.env.API_SERVER_PORT = String(options.apiServerPort);
+    }
     const orchestrator = createAgentRuntime();
+    const runtimePatches = orchestrator.getDomainPackage().manifest.runtimePatches;
+    if (options.noGraphDB) {
+      if (runtimePatches?.cliNoGraphDbFlag) {
+        process.env.NO_GRAPHDB = "true";
+        process.stdout.write("`--noGraphDB` mode acknowledged. GraphDB writes will be skipped and payloads printed.\n");
+      } else {
+        process.stdout.write("`--noGraphDB` ignored because this package does not enable cliNoGraphDbFlag.\n");
+      }
+    }
+    const appConfig = orchestrator.getAppConfig();
+    await prepareAndRegisterA2A(
+      appConfig,
+      orchestrator.getDomainPackage(),
+      process.cwd(),
+      "startup",
+      {
+        deferRegistryRegistration: appConfig.apiServerEnabled && !options.prompt
+      }
+    );
     if (options.prompt) {
-      await runOneShot(orchestrator, options.prompt, options.debug, options.debugLogPath);
+      await runOneShot(
+        orchestrator,
+        options.prompt,
+        options.debug,
+        options.debugLogPath,
+        runtimePatches?.writeIntentTurtleDebugFile === true
+      );
       return;
     }
-    await runInteractive(orchestrator, options.debug, options.debugLogPath);
+    const config = orchestrator.getAppConfig();
+    if (config.apiServerEnabled) {
+      const card = buildAgentCard(config, orchestrator.getDomainPackage());
+      persistAgentCard(process.cwd(), card, config.a2aAgentCardPath);
+      const server = startOpenApiServer({
+        runtime: orchestrator,
+        host: config.apiServerHost,
+        port: config.apiServerPort,
+        agentCardPath: config.a2aAgentCardPath,
+        agentCard: card
+      });
+      const listening = await server.listen();
+      process.stdout.write(
+        `OpenAPI server running on http://${listening.host}:${listening.port} (openapi: /openapi.json)\n`
+      );
+      if (config.a2aEnabled) {
+        if (!config.a2aAutoRegisterOnStartup) {
+          process.stdout.write("[A2A] startup auto-registration disabled.\n");
+        } else {
+          await registerAgentCardAfterHttpListen(config, card.name);
+        }
+      }
+      const shutdown = async () => {
+        await server.close();
+        process.exit(0);
+      };
+      process.once("SIGINT", () => void shutdown());
+      process.once("SIGTERM", () => void shutdown());
+      return;
+    }
+    await runInteractive(
+      orchestrator,
+      options.debug,
+      options.debugLogPath,
+      runtimePatches?.writeIntentTurtleDebugFile === true
+    );
   })();
   execution.catch((error) => {
     process.stderr.write(`Error: ${String(error)}\n`);

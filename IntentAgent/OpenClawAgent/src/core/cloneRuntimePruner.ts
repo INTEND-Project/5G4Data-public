@@ -5,7 +5,6 @@ const CLONE_ONLY_REMOVE_PATHS = [
   "scripts/create-package-tgz.mjs",
   "src/core/packageInstaller.ts",
   "src/core/agentCloneManager.ts",
-  "src/core/envConfigWriter.ts",
   "src/core/packageCloneDeployer.ts",
   "src/core/packageToolDeployer.ts",
   "src/tests/packageLoadCli.test.ts",

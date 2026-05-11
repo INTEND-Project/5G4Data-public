@@ -13,6 +13,10 @@ test("loads 5g4data-intent-generation package", () => {
   assert.ok(domainPackage.workflow.stages.length > 0);
   assert.ok((domainPackage.promptModules.base ?? "").length > 0);
   assert.ok(domainPackage.postprocessors.length > 0);
+  assert.equal(domainPackage.manifest.runtimePatches?.writeIntentTurtleDebugFile, true);
+  assert.ok(domainPackage.agentCardPartial?.skills?.length);
+  assert.ok(domainPackage.controlApiExtension?.paths);
+  assert.ok(domainPackage.intentBindingMetadata?.intentIriField);
 });
 
 test("workflow modules resolve based on intent flags", () => {

@@ -24,3 +24,17 @@ test("cloneAgentForPackage creates versioned clone and excludes transient folder
   assert.equal(second.version, 2);
   assert.match(second.cloneDir, /-v2$/);
 });
+
+test("cloneAgentForPackage prefers provided folderName", () => {
+  const root = mkdtempSync(join(tmpdir(), "clone-manager-folder-name-"));
+  const baseline = join(root, "OpenClawAgent");
+  mkdirSync(baseline, { recursive: true });
+  writeFileSync(join(baseline, "README.md"), "baseline\n", "utf8");
+
+  const clone = cloneAgentForPackage({
+    baselineAgentDir: baseline,
+    packageName: "pkg-a",
+    folderName: "5g4data-intent-generating-agent"
+  });
+  assert.match(clone.cloneDir, /OpenClawAgent-5g4data-intent-generating-agent$/);
+});

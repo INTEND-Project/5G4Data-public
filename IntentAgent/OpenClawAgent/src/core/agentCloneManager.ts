@@ -31,6 +31,7 @@ function nextCloneDir(baseDir: string): { path: string; version: number } {
 export interface CloneAgentInput {
   baselineAgentDir: string;
   packageName: string;
+  folderName?: string;
 }
 
 export interface CloneAgentResult {
@@ -40,7 +41,7 @@ export interface CloneAgentResult {
 }
 
 export function cloneAgentForPackage(input: CloneAgentInput): CloneAgentResult {
-  const baseName = sanitizeForFolderName(input.packageName);
+  const baseName = sanitizeForFolderName(input.folderName ?? input.packageName);
   const baselineName = basename(input.baselineAgentDir);
   const siblingRoot = dirname(input.baselineAgentDir);
   const preferred = join(siblingRoot, `${baselineName}-${baseName}`);

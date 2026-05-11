@@ -24,7 +24,15 @@ const baseConfig: AppConfig = {
   skillFile: "",
   systemPromptFile: "",
   shaclShapesFile: "",
-  shaclMaxRetries: 0
+  shaclMaxRetries: 0,
+  a2aEnabled: false,
+  a2aRegistryBaseUrl: "http://localhost:8000",
+  a2aAgentBaseUrl: "http://localhost:3010",
+  a2aAgentCardPath: "/.well-known/agent-card.json",
+  a2aAutoRegisterOnStartup: true,
+  apiServerEnabled: false,
+  apiServerHost: "0.0.0.0",
+  apiServerPort: 3010
 };
 
 test("openai adapter captures usage fields", async () => {

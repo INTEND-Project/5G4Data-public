@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -32,7 +32,8 @@ export async function deployPackageToClone(
     "validation",
     "examples",
     "tests",
-    "mappings"
+    "mappings",
+    "metadata"
   ];
 
   mkdirSync(input.cloneDir, { recursive: true });
@@ -63,9 +64,26 @@ async function runPackageLoadHook(packageDir: string, cloneDir: string): Promise
     const absHookPath = join(packageDir, relHookPath);
     if (!existsSync(absHookPath)) return;
     const mod = (await import(pathToFileURL(absHookPath).href)) as {
-      applyOnPackageLoad?: (args: { cloneDir: string; packageDir: string }) => Promise<void> | void;
+      applyOnPackageLoad?: (args: {
+        cloneDir: string;
+        packageDir: string;
+      }) =>
+        | Promise<{ runtimePatches?: { cliNoGraphDbFlag?: boolean; writeIntentTurtleDebugFile?: boolean } } | void>
+        | { runtimePatches?: { cliNoGraphDbFlag?: boolean; writeIntentTurtleDebugFile?: boolean } }
+        | void;
     };
-    await mod.applyOnPackageLoad?.({ cloneDir, packageDir });
+    const contributions = await mod.applyOnPackageLoad?.({ cloneDir, packageDir });
+    if (!contributions?.runtimePatches) return;
+    const cloneManifestPath = join(cloneDir, "manifest.json");
+    if (!existsSync(cloneManifestPath)) return;
+    const cloneManifest = JSON.parse(readFileSync(cloneManifestPath, "utf8")) as {
+      runtimePatches?: { cliNoGraphDbFlag?: boolean; writeIntentTurtleDebugFile?: boolean };
+    };
+    cloneManifest.runtimePatches = {
+      ...(cloneManifest.runtimePatches ?? {}),
+      ...contributions.runtimePatches
+    };
+    writeFileSync(cloneManifestPath, `${JSON.stringify(cloneManifest, null, 2)}\n`, "utf8");
   } catch (error) {
     process.stderr.write(
       `[package load hook] onPackageLoad failed for ${packageDir}: ${error instanceof Error ? error.message : String(error)}\n`

@@ -100,6 +100,45 @@ Default debug log file:
 - `DEFAULT_INTENT_HANDLER`, `DEFAULT_INTENT_OWNER`, `AUTO_GENERATE_DESCRIPTION`
 - `SKILL_FILE`, `SYSTEM_PROMPT_FILE` (optional compatibility layer; package prompts are primary)
 - `SHACL_SHAPES_FILE`, `SHACL_MAX_RETRIES`
+- `API_SERVER_ENABLED`, `API_SERVER_HOST`, `API_SERVER_PORT` (overridden for this process by CLI `--port <n>` when given)
+- `A2A_ENABLED`, `A2A_REGISTRY_BASE_URL`, `A2A_AGENT_BASE_URL`, `A2A_AGENT_CARD_PATH`, `A2A_AUTO_REGISTER_ON_STARTUP`
+
+## Minimal OpenAPI control API
+
+Enable API mode with:
+
+```bash
+API_SERVER_ENABLED=true npx tsx src/index.ts
+```
+
+To run several agent clones on one host without port clashes, pass an explicit listener port (1–65535). This sets `API_SERVER_PORT` for that run and overrides `.env` for the same variable:
+
+```bash
+API_SERVER_ENABLED=true npx tsx src/index.ts --port 3012
+```
+
+Available routes:
+
+- `POST /v1/sessions`
+- `POST /v1/sessions/{sessionId}/turns`
+- `GET /health`
+- `GET /v1/agent/info`
+- `GET /openapi.json`
+- `GET /.well-known/agent-card.json`
+
+## A2A registration workflow
+
+When `A2A_ENABLED=true`, the kernel materializes an agent card and can register it against a registry API that matches `POST /api/agents/register` with `wellKnownURI`.
+
+Example:
+
+```bash
+A2A_ENABLED=true \
+A2A_REGISTRY_BASE_URL=https://start5g-1.cs.uit.no/a2a-registry \
+A2A_AGENT_BASE_URL=http://localhost:3010 \
+API_SERVER_ENABLED=true \
+npx tsx src/index.ts
+```
 
 ## Package wiring guide
 

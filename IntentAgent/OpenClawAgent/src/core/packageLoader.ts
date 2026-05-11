@@ -15,6 +15,19 @@ const manifestSchema = z.object({
   validators: z.string().min(1),
   toolBindings: z.string().min(1),
   postprocessors: z.string().min(1).optional(),
+  discovery: z
+    .object({
+      agentCardPartial: z.string().min(1).optional(),
+      controlApi: z.string().min(1).optional(),
+      intentBinding: z.string().min(1).optional()
+    })
+    .optional(),
+  runtimePatches: z
+    .object({
+      cliNoGraphDbFlag: z.boolean().optional(),
+      writeIntentTurtleDebugFile: z.boolean().optional()
+    })
+    .optional(),
   runtimeHooks: z
     .object({
       replPreTurn: z.string().min(1).optional(),
@@ -112,8 +125,46 @@ export interface LoadedDomainPackage {
   validatorRules: ValidatorRules;
   toolBindings: ToolBindings;
   postprocessors: PostprocessorConfig[];
+  agentCardPartial?: AgentCardPartial;
+  controlApiExtension?: ControlApiExtension;
+  intentBindingMetadata?: IntentBindingMetadata;
   systemPromptText: string;
   promptModules: Record<string, string>;
+}
+
+export interface AgentCardSkill {
+  id: string;
+  name: string;
+  description: string;
+  tags?: string[];
+  inputModes?: string[];
+  outputModes?: string[];
+}
+
+export interface AgentCardPartial {
+  protocolVersion?: string;
+  name?: string;
+  description?: string;
+  domain?: string;
+  version?: string;
+  capabilities?: {
+    streaming?: boolean;
+    pushNotifications?: boolean;
+    stateTransitionHistory?: boolean;
+  };
+  defaultInputModes?: string[];
+  defaultOutputModes?: string[];
+  skills?: AgentCardSkill[];
+}
+
+export interface ControlApiExtension {
+  paths?: Record<string, unknown>;
+}
+
+export interface IntentBindingMetadata {
+  intentLocalIdField?: string;
+  intentIriField?: string;
+  notes?: string;
 }
 
 function readJson(path: string): unknown {
@@ -145,6 +196,15 @@ export function loadDomainPackage(packageDirInput: string): LoadedDomainPackage 
   const postprocessors = manifest.postprocessors
     ? postprocessorsSchema.parse(readJson(join(packageDir, manifest.postprocessors))).postprocessors
     : [];
+  const agentCardPartial = manifest.discovery?.agentCardPartial
+    ? (readJson(join(packageDir, manifest.discovery.agentCardPartial)) as AgentCardPartial)
+    : undefined;
+  const controlApiExtension = manifest.discovery?.controlApi
+    ? (readJson(join(packageDir, manifest.discovery.controlApi)) as ControlApiExtension)
+    : undefined;
+  const intentBindingMetadata = manifest.discovery?.intentBinding
+    ? (readJson(join(packageDir, manifest.discovery.intentBinding)) as IntentBindingMetadata)
+    : undefined;
   const systemPromptText = readText(join(packageDir, manifest.systemPromptFile));
 
   const promptModulesDir = join(packageDir, manifest.promptModulesDir);
@@ -166,6 +226,9 @@ export function loadDomainPackage(packageDirInput: string): LoadedDomainPackage 
     validatorRules,
     toolBindings,
     postprocessors,
+    agentCardPartial,
+    controlApiExtension,
+    intentBindingMetadata,
     systemPromptText,
     promptModules
   };

@@ -30,6 +30,23 @@
     "validators": { "type": "string", "minLength": 1 },
     "toolBindings": { "type": "string", "minLength": 1 },
     "postprocessors": { "type": "string", "minLength": 1 },
+    "discovery": {
+      "type": "object",
+      "properties": {
+        "agentCardPartial": { "type": "string", "minLength": 1 },
+        "controlApi": { "type": "string", "minLength": 1 },
+        "intentBinding": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "runtimePatches": {
+      "type": "object",
+      "properties": {
+        "cliNoGraphDbFlag": { "type": "boolean" },
+        "writeIntentTurtleDebugFile": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
     "runtimeHooks": {
       "type": "object",
       "properties": {

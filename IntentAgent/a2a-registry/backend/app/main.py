@@ -180,7 +180,7 @@ async def health_check():
 
 
 @router.post("/agents/register", response_model=AgentPublic, status_code=201)
-@limiter.limit("10/hour")
+@limiter.limit("100/hour")
 async def register_agent_simple(registration: AgentRegister, request: Request):
     """
     Register an agent by its wellKnownURI.

@@ -129,3 +129,36 @@ Resolution:
 Result:
 
 - closing `INSPECT` now returns to `/a2a-registry/` when deployed under that prefix, while still working correctly for root (`/`) deployments.
+
+## Permanent delete script for all agent cards
+
+A utility script was added to permanently wipe all agent cards from the DB:
+
+- `scripts/purge_all_agent_cards.py`
+
+It performs a hard delete (`DELETE FROM agents`) and requires explicit confirmation via `--yes`.
+
+### Run from host (Docker Compose dev DB on port 17432)
+
+```bash
+cd backend
+uv run python ../scripts/purge_all_agent_cards.py \
+  --database-url postgresql://a2a_user:a2a_password@localhost:17432/a2a_registry \
+  --yes
+```
+
+### Run inside API container (DB service name `postgres`)
+
+```bash
+docker exec -it a2a-registry-api python ../scripts/purge_all_agent_cards.py \
+  --database-url postgresql://a2a_user:a2a_password@postgres:5432/a2a_registry \
+  --yes
+```
+
+### Verify purge
+
+```bash
+curl -sS http://localhost:17001/api/agents
+```
+
+Expected: empty `agents` list.

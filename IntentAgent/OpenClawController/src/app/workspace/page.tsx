@@ -1,0 +1,101 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
+import { WorkspaceShell } from "@/components/workspace/workspace-shell";
+import { getAuthenticatedUserFromCookies } from "@/lib/auth/guards";
+import { buildDraftContext } from "@/lib/assistant/build-draft-context";
+import { withAppBasePath } from "@/lib/app-paths";
+import { db } from "@/lib/db";
+import { buildCompletionContext } from "@/lib/dsl/analysis/build-completion-context";
+import { loadAppEnv } from "@/lib/env";
+import { listNormalizedAgents } from "@/lib/registry/client";
+import { deriveDomains } from "@/lib/registry/normalize";
+import { getRegistryConnectionStatus } from "@/lib/registry/status";
+import { listScriptsForUser } from "@/lib/scripts/repository";
+
+type WorkspacePageProps = {
+  searchParams?: Promise<{
+    domain?: string;
+  }>;
+};
+
+export default async function WorkspacePage({ searchParams }: WorkspacePageProps) {
+  const user = await getAuthenticatedUserFromCookies(await cookies());
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const normalizedAgents = await listNormalizedAgents();
+  const domains = deriveDomains(normalizedAgents);
+  const selectedDomain = resolvedSearchParams?.domain ?? domains[0] ?? "telenor.5g4data";
+  const agents = normalizedAgents.filter((agent) => agent.domain === selectedDomain);
+  const agentNames = agents.map((agent) => agent.name);
+  const agentsRefreshUrl = withAppBasePath(
+    `/api/agents?${new URLSearchParams({
+      domain: selectedDomain,
+      refresh: "1",
+    }).toString()}`,
+  );
+  const kgTargetsCreateUrl = withAppBasePath("/api/kg-targets");
+  const kgTargetsDeleteUrlBase = withAppBasePath("/api/kg-targets");
+  const registryConnected = await getRegistryConnectionStatus();
+  const scripts = await listScriptsForUser(user.id, selectedDomain);
+  const fallbackScript =
+    scripts[0]?.content ??
+    `discover intent-agent by domain ${selectedDomain} as intentGen
+create intent using intentGen prompt "Deploy avalanche object detection" as avalancheIntent
+extract metric-catalog for avalancheIntent as avalancheMetrics
+discover observation-agent by domain ${selectedDomain} as observationControl
+request observation-report using observationControl for avalancheIntent instructions "For metric bandwidth use daily variation and congestion spikes." as avalancheObservationSession`;
+  const extractedMetricCatalogs = {
+    avalancheMetrics: [
+      "bandwidth",
+      "detection-latency",
+      "networklatency",
+      "kepler_container_cpu_watts",
+    ],
+  };
+  const completionContext = buildCompletionContext({
+    script: fallbackScript,
+    extractedMetricCatalogs,
+  });
+  const assistantContext = buildDraftContext({
+    selectedDomain,
+    availableAgents: agentNames,
+    metricNames: completionContext.metricNames,
+    stage: completionContext.stage,
+    assistantModel: loadAppEnv(process.env).assistantModel,
+  });
+  const kgTargets = await db.knowledgeGraphTarget.findMany({
+    where: {
+      userId: user.id,
+      domain: selectedDomain,
+    },
+    select: {
+      id: true,
+      displayName: true,
+      repositoryId: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  return (
+    <WorkspaceShell
+      agents={agents}
+      agentsRefreshUrl={agentsRefreshUrl}
+      assistantContext={assistantContext}
+      domains={domains}
+      kgTargetsCreateUrl={kgTargetsCreateUrl}
+      kgTargetsDeleteUrlBase={kgTargetsDeleteUrlBase}
+      kgTargets={kgTargets}
+      registryConnected={registryConnected}
+      scripts={scripts}
+      selectedDomain={selectedDomain}
+      username={user.username}
+    />
+  );
+}

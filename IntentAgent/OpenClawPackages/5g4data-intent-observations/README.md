@@ -25,6 +25,16 @@ Domain package for generating TM Forum formatted observation report payloads fro
 5. Generate TM Forum observation report Turtle payloads.
 6. Persist to Prometheus + metadata in GraphDB, or print payloads when `--noGraphDB` is active in loaded clone runtime.
 
+## `--port` (clone runtime)
+
+When running the **cloned** agent (`OpenClawAgent-5g4data-intent-observations`) with the OpenAPI server enabled, you can set the HTTP listener port without editing `.env`:
+
+```bash
+API_SERVER_ENABLED=true npx tsx src/index.ts --port 3013
+```
+
+Equivalent to setting `API_SERVER_PORT` for that process; use a unique port per clone on the same host. Does not change `A2A_AGENT_BASE_URL`—keep that aligned with your reverse proxy or registry.
+
 ## `--noGraphDB`
 
 When `--noGraphDB` is enabled in the loaded clone runtime:

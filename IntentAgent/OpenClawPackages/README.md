@@ -97,6 +97,19 @@ This command:
 - copies package tools into cloned `src/tools/`
 - updates cloned `.env` to point to package `DOMAIN_PACKAGE_DIR` and `SKILL_FILE`
 
+## Running multiple clones on one server (HTTP port)
+
+Each clone’s OpenAPI listener uses `API_SERVER_PORT` from `.env` (default in the kernel is `3011`). To avoid collisions when several agents run on the same machine, pass **`--port <n>`** on the clone’s entrypoint (before any one-shot prompt). This overrides `API_SERVER_PORT` for that process only:
+
+```bash
+cd ../OpenClawAgent-5g4data-intent-observations
+API_SERVER_ENABLED=true npx tsx src/index.ts --port 3013
+```
+
+The same flag works for `5g4data-intent-generation` and other package clones created from this kernel. Reverse-proxy paths and `A2A_AGENT_BASE_URL` must still match how clients reach each agent.
+
+`mappings/env.defaults.json` in a package may list GraphDB and other settings for documentation; **`package load` only merges** `A2A_AGENT_BASE_URL`, `A2A_REGISTRY_BASE_URL`, and `API_SERVER_PORT` from that file into the new clone (so baseline `.env` is not overwritten for other keys).
+
 ## Current packages
 
 - `5g4data-intent-generation`: production package for TM Forum intent generation.

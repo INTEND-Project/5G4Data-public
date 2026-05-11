@@ -11,6 +11,14 @@
   "runtimeHooks": {
     "onPackageLoad": "tools/onPackageLoad.ts"
   },
+  "runtimePatches": {
+    "writeIntentTurtleDebugFile": true
+  },
+  "discovery": {
+    "agentCardPartial": "metadata/a2a.agent-card.partial.json",
+    "controlApi": "metadata/control-api.extensions.json",
+    "intentBinding": "metadata/intent-binding.json"
+  },
   "validators": "validators/output-policy.json",
   "toolBindings": "tools/bindings.json",
   "postprocessors": "validators/postprocessors.json"

@@ -6,6 +6,7 @@ import type { RegistryAgent, RegistryAgentRecord } from "@/lib/registry/types";
 const CACHE_TTL_MS = 5_000;
 
 let cachedAgents: RegistryAgent[] | null = null;
+let cachedRawRecords: RegistryAgentRecord[] | null = null;
 let cachedAt = 0;
 
 function unwrapRegistryPayload(payload: unknown): RegistryAgentRecord[] {
@@ -82,21 +83,36 @@ async function fetchRegistryList(baseUrl: string) {
   return [];
 }
 
-export async function listNormalizedAgents(options?: { forceRefresh?: boolean }) {
+async function loadRegistry(forceRefresh?: boolean): Promise<{
+  raw: RegistryAgentRecord[];
+  normalized: RegistryAgent[];
+}> {
   if (
-    !options?.forceRefresh &&
+    !forceRefresh &&
     cachedAgents !== null &&
+    cachedRawRecords !== null &&
     Date.now() - cachedAt < CACHE_TTL_MS
   ) {
-    return cachedAgents;
+    return { raw: cachedRawRecords, normalized: cachedAgents };
   }
 
   const env = loadAppEnv(process.env);
   const rawAgents = await fetchRegistryList(env.a2aRegistryBaseUrl);
   const normalizedAgents = normalizeRegistryAgents(rawAgents);
 
+  cachedRawRecords = rawAgents;
   cachedAgents = normalizedAgents;
   cachedAt = Date.now();
 
-  return normalizedAgents;
+  return { raw: rawAgents, normalized: normalizedAgents };
+}
+
+export async function listRegistryRecords(options?: { forceRefresh?: boolean }) {
+  const { raw } = await loadRegistry(options?.forceRefresh);
+  return raw;
+}
+
+export async function listNormalizedAgents(options?: { forceRefresh?: boolean }) {
+  const { normalized } = await loadRegistry(options?.forceRefresh);
+  return normalized;
 }

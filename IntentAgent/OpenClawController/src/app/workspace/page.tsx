@@ -41,15 +41,11 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   const kgTargetsCreateUrl = withAppBasePath("/api/kg-targets");
   const kgTargetsDeleteUrlBase = withAppBasePath("/api/kg-targets");
   const scriptsApiUrl = withAppBasePath("/api/scripts");
+  const discoverIntentAgentApiUrl = withAppBasePath("/api/registry/discover-intent-agent");
+  const a2aMessageSendUrl = withAppBasePath("/api/a2a/message-send");
   const registryConnected = await getRegistryConnectionStatus();
   const scripts = await listScriptsForUser(user.id, selectedDomain);
-  const fallbackScript =
-    scripts[0]?.content ??
-    `discover intent-agent by domain ${selectedDomain} as intentGen
-create intent using intentGen prompt "Deploy avalanche object detection" as avalancheIntent
-extract metric-catalog for avalancheIntent as avalancheMetrics
-discover observation-agent by domain ${selectedDomain} as observationControl
-request observation-report using observationControl for avalancheIntent instructions "For metric bandwidth use daily variation and congestion spikes." as avalancheObservationSession`;
+  const fallbackScript = "";
   const extractedMetricCatalogs = {
     avalancheMetrics: [
       "bandwidth",
@@ -94,6 +90,8 @@ request observation-report using observationControl for avalancheIntent instruct
       kgTargetsDeleteUrlBase={kgTargetsDeleteUrlBase}
       kgTargets={kgTargets}
       scriptsApiUrl={scriptsApiUrl}
+      discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
+      a2aMessageSendUrl={a2aMessageSendUrl}
       registryConnected={registryConnected}
       scripts={scripts}
       selectedDomain={selectedDomain}

@@ -51,4 +51,34 @@ describe("DSL foundation", () => {
       },
     ]);
   });
+
+  it("parses workspace domain discovery paired with implicit intentGen", async () => {
+    const parserModule = await import("../../src/lib/dsl/parser/parse-script");
+    const validatorModule = await import("../../src/lib/dsl/validator/validate-script");
+
+    const script = `discover intent-agent for domain as agentCardBinding
+create intent using intentGen prompt "Deploy avalanche object detection in Tromsø" as avalancheIntentAlias`;
+
+    const parsed = parserModule.parseScript(script);
+    const diagnostics = validatorModule.validateScript(parsed.statements);
+
+    expect(parsed.statements.map((statement) => statement.kind)).toEqual([
+      "discover-intent-workspace-domain",
+      "create-intent",
+    ]);
+    expect(diagnostics).toEqual([]);
+  });
+
+  it("reports intentGen misuse when no qualifying discovery preceded it", async () => {
+    const parserModule = await import("../../src/lib/dsl/parser/parse-script");
+    const validatorModule = await import("../../src/lib/dsl/validator/validate-script");
+
+    const parsed = parserModule.parseScript(
+      'create intent using intentGen prompt "Need help" as demoIntentAlias',
+    );
+    const diagnostics = validatorModule.validateScript(parsed.statements);
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]?.code).toEqual("UNKNOWN_AGENT_ALIAS");
+  });
 });

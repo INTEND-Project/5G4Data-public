@@ -13,6 +13,12 @@ export type DiscoverStatement = {
   alias: string;
 };
 
+export type DiscoverIntentWorkspaceDomainStatement = {
+  kind: "discover-intent-workspace-domain";
+  line: number;
+  alias: string;
+};
+
 export type CreateIntentStatement = {
   kind: "create-intent";
   line: number;
@@ -48,6 +54,7 @@ export type RequestObservationReportStatement = {
 
 export type DslStatement =
   | DiscoverStatement
+  | DiscoverIntentWorkspaceDomainStatement
   | CreateIntentStatement
   | ExtractMetricCatalogStatement
   | RequestStatusReportStatement

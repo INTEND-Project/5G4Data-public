@@ -1,5 +1,6 @@
 import type { DslStatement } from "@/lib/dsl/types";
 
+const discoverIntentWorkspacePattern = /^discover intent-agent for domain as ([^\s]+)$/;
 const discoverPattern =
   /^discover (intent-agent|status-agent|observation-agent) by domain ([^\s]+) as ([^\s]+)$/;
 const createIntentPattern =
@@ -18,6 +19,17 @@ export function parseScript(script: string): { statements: DslStatement[] } {
     const line = rawLine.trim();
 
     if (line.length === 0 || line.startsWith("#")) {
+      continue;
+    }
+
+    const discoverIntentWorkspaceMatch = line.match(discoverIntentWorkspacePattern);
+
+    if (discoverIntentWorkspaceMatch) {
+      statements.push({
+        kind: "discover-intent-workspace-domain",
+        line: index + 1,
+        alias: discoverIntentWorkspaceMatch[1],
+      });
       continue;
     }
 

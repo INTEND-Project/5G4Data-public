@@ -21,6 +21,8 @@ type WorkspaceShellProps = {
   kgTargetsCreateUrl: string;
   kgTargetsDeleteUrlBase: string;
   scriptsApiUrl: string;
+  discoverIntentAgentApiUrl: string;
+  a2aMessageSendUrl: string;
   registryConnected: boolean;
   kgTargets: Array<{
     id: string;
@@ -50,18 +52,16 @@ export function WorkspaceShell({
   kgTargetsCreateUrl,
   kgTargetsDeleteUrlBase,
   scriptsApiUrl,
+  discoverIntentAgentApiUrl,
+  a2aMessageSendUrl,
   registryConnected,
   kgTargets,
   assistantContext,
   scripts,
 }: WorkspaceShellProps) {
   const domainOptions = Array.from(new Set([selectedDomain, ...domains]));
-  const draftContent =
-    `discover intent-agent by domain ${selectedDomain} as intentGen
-create intent using intentGen prompt "Deploy avalanche object detection" as avalancheIntent
-extract metric-catalog for avalancheIntent as avalancheMetrics
-discover observation-agent by domain ${selectedDomain} as observationControl
-request observation-report using observationControl for avalancheIntent instructions "For metric bandwidth use daily variation and congestion spikes." as avalancheObservationSession`;
+  /** Empty until the user selects a script or types in the draft tab. */
+  const draftContent = "";
 
   const scriptsPayload = scripts.map((script) => ({
     id: script.id,
@@ -132,6 +132,8 @@ request observation-report using observationControl for avalancheIntent instruct
               </div>
             </div>
             <WorkspaceScriptRunner
+              a2aMessageSendUrl={a2aMessageSendUrl}
+              discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
               metricNames={assistantContext.metricNames}
               runTargetOptions={runTargetOptions}
               scriptsApiUrl={scriptsApiUrl}

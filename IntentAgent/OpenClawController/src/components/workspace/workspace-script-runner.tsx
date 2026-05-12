@@ -4,15 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ScriptEditor } from "@/components/editor/script-editor";
+import { IntentGenSessionDialog } from "@/components/workspace/intent-gen-session-dialog";
 import {
   defaultScriptName,
   useWorkspaceScriptSession,
 } from "@/components/workspace/workspace-script-session-context";
+import { analyzeScript } from "@/lib/dsl/analysis/analyze-script";
+import type { CreateIntentStatement } from "@/lib/dsl/types";
 
 type WorkspaceScriptRunnerProps = {
   metricNames: string[];
   scriptsApiUrl: string;
   runTargetOptions: string[];
+  discoverIntentAgentApiUrl: string;
+  a2aMessageSendUrl: string;
 };
 
 const EDITOR_HEIGHT_STORAGE_KEY = "openclaw-workspace-editor-height-px";
@@ -36,6 +41,8 @@ export function WorkspaceScriptRunner({
   metricNames,
   scriptsApiUrl,
   runTargetOptions,
+  discoverIntentAgentApiUrl,
+  a2aMessageSendUrl,
 }: WorkspaceScriptRunnerProps) {
   const router = useRouter();
   const {
@@ -301,6 +308,169 @@ export function WorkspaceScriptRunner({
   const kgTargetSelectOptions =
     runTargetOptions.length > 0 ? runTargetOptions : ["kg-avalanche-demo"];
 
+  const intentFinishRef = useRef<(() => void) | null>(null);
+  const [runnerLog, setRunnerLog] = useState<string[]>([]);
+  const [runBusy, setRunBusy] = useState(false);
+  const [intentSession, setIntentSession] = useState<{
+    wellKnownURI: string;
+    prompt: string;
+    intentArtifactLabel: string;
+  } | null>(null);
+
+  const appendRunnerLog = useCallback((entry: string) => {
+    setRunnerLog((lines) => [...lines, entry]);
+  }, []);
+
+  const handleRunScript = useCallback(async () => {
+    setRunnerLog([]);
+    appendRunnerLog("Run Script: analysing DSL…");
+
+    const { statements, diagnostics } = analyzeScript(activeContent);
+
+    for (const diagnostic of diagnostics.filter((diag) => diag.severity === "error")) {
+      appendRunnerLog(
+        `[line ${diagnostic.line}, ${diagnostic.code}] ${diagnostic.message}`,
+      );
+    }
+
+    if (diagnostics.some((diag) => diag.severity === "error")) {
+      appendRunnerLog("Stopping: resolve validation errors first.");
+      return;
+    }
+
+    const orderedStatements = [...statements].sort((a, b) => a.line - b.line);
+
+    appendRunnerLog("Run Script: executing supported statements in order.");
+
+    const bindings = new Map<string, string>();
+    let lastWorkspaceIntentWellKnownUri: string | null = null;
+    let memoizedIntentAgentWellKnownUri: string | undefined;
+
+    const lookupIntentGeneratingAgentUri = async (): Promise<string | null> => {
+      if (memoizedIntentAgentWellKnownUri) {
+        return memoizedIntentAgentWellKnownUri;
+      }
+
+      const response = await fetch(discoverIntentAgentApiUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ domain: selectedDomain }),
+      });
+
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        agent?: { wellKnownURI?: string };
+      };
+
+      const uriCandidate =
+        response.ok &&
+        typeof body.agent?.wellKnownURI === "string" &&
+        body.agent.wellKnownURI.length > 0
+          ? body.agent.wellKnownURI
+          : null;
+
+      if (!uriCandidate) {
+        appendRunnerLog(
+          typeof body.error === "string" && body.error.length > 0
+            ? body.error
+            : `Discovery request failed (${response.status}).`,
+        );
+        return null;
+      }
+
+      memoizedIntentAgentWellKnownUri = uriCandidate;
+
+      return uriCandidate;
+    };
+
+    for (const statement of orderedStatements) {
+      if (statement.kind === "discover-intent-workspace-domain") {
+        appendRunnerLog(`Line ${statement.line}: Searching registry…`);
+        const uri = await lookupIntentGeneratingAgentUri();
+        if (!uri) {
+          appendRunnerLog("Could not locate an intent-generating agent card for this domain.");
+          return;
+        }
+
+        bindings.set(statement.alias, uri);
+        lastWorkspaceIntentWellKnownUri = uri;
+
+        appendRunnerLog(`Line ${statement.line}: ${statement.alias} → ${uri}`);
+        continue;
+      }
+
+      if (statement.kind !== "create-intent") {
+        continue;
+      }
+
+      const stmt: CreateIntentStatement = statement;
+
+      let resolved =
+        bindings.get(stmt.agentAlias) ??
+        (stmt.agentAlias === "intentGen" ? lastWorkspaceIntentWellKnownUri : null);
+
+      if (!resolved && stmt.agentAlias === "intentGen") {
+        resolved = await lookupIntentGeneratingAgentUri();
+        if (!resolved) {
+          appendRunnerLog(
+            `Line ${statement.line}: intentGen shortcut needs a reachable intent-generating agent for ${selectedDomain}.`,
+          );
+          return;
+        }
+      }
+
+      if (!resolved) {
+        appendRunnerLog(
+          `Line ${statement.line}: Unable to bind agent card URI for "${stmt.agentAlias}".`,
+        );
+        return;
+      }
+
+      appendRunnerLog(`Line ${statement.line}: Opening A2A session for artifact "${stmt.intentAlias}".`);
+      appendRunnerLog(
+        `Conversation uses a single persistent task/context pair; reuse them as you iterate with Send.`,
+      );
+
+      await new Promise<void>((finish) => {
+        intentFinishRef.current = finish;
+        setIntentSession({
+          intentArtifactLabel: stmt.intentAlias,
+          prompt: stmt.prompt,
+          wellKnownURI: resolved,
+        });
+      });
+    }
+
+    appendRunnerLog("Run Script: finished scripted steps.");
+  }, [
+    activeContent,
+    appendRunnerLog,
+    discoverIntentAgentApiUrl,
+    selectedDomain,
+  ]);
+
+  const handleIntentDialogFinish = useCallback(() => {
+    intentFinishRef.current?.();
+    intentFinishRef.current = null;
+    setIntentSession(null);
+  }, []);
+
+  const kickOffRunScript = useCallback(() => {
+    if (runBusy) {
+      return;
+    }
+
+    void (async () => {
+      setRunBusy(true);
+      try {
+        await handleRunScript();
+      } finally {
+        setRunBusy(false);
+      }
+    })();
+  }, [handleRunScript, runBusy]);
+
   return (
     <>
       {openTabs.length >= 2 ? (
@@ -393,8 +563,13 @@ export function WorkspaceScriptRunner({
           </select>
         </div>
         <div className="workspace-runner-actions">
-          <button className="workspace-button workspace-runner-button" type="button">
-            Run Script
+          <button
+            className="workspace-button workspace-runner-button"
+            disabled={runBusy}
+            onClick={kickOffRunScript}
+            type="button"
+          >
+            {runBusy ? "Running…" : "Run Script"}
           </button>
           <button
             className="workspace-button workspace-runner-button"
@@ -405,6 +580,15 @@ export function WorkspaceScriptRunner({
             {saving ? "Saving…" : "Save As"}
           </button>
         </div>
+        {runnerLog.length > 0 ? (
+          <div aria-label="Run script output" className="workspace-runner-log" role="log">
+            {runnerLog.map((line, index) => (
+              <p className="workspace-runner-log-entry" key={`runner-${index}`}>
+                {line}
+              </p>
+            ))}
+          </div>
+        ) : null}
       </div>
       {saveError ? (
         <p className="workspace-save-error" role="alert">
@@ -480,6 +664,15 @@ export function WorkspaceScriptRunner({
           </div>
         </div>
       ) : null}
+
+      <IntentGenSessionDialog
+        a2aMessageSendUrl={a2aMessageSendUrl}
+        agentCardWellKnownURI={intentSession?.wellKnownURI ?? ""}
+        intentArtifactLabel={intentSession?.intentArtifactLabel ?? ""}
+        onFinished={handleIntentDialogFinish}
+        open={intentSession !== null}
+        seedPrompt={intentSession?.prompt ?? null}
+      />
     </>
   );
 }

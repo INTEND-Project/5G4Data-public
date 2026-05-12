@@ -61,25 +61,12 @@ const WorkspaceScriptSessionContext = createContext<WorkspaceScriptSessionContex
   null,
 );
 
-function buildInitialTabs(
-  scripts: ServerScript[],
-  draftBody: string,
-  domain: string,
-): Bundle {
+function buildInitialTabs(draftBody: string, domain: string): Bundle {
   const defaultName = defaultScriptName(domain);
-  if (scripts.length === 0) {
-    return {
-      openTabs: [{ tabKey: DRAFT_TAB_KEY, scriptId: null, name: defaultName }],
-      documents: { [DRAFT_TAB_KEY]: draftBody },
-      activeTabKey: DRAFT_TAB_KEY,
-    };
-  }
-  const first = scripts[0];
-  const key = tabKeyForScript(first.id);
   return {
-    openTabs: [{ tabKey: key, scriptId: first.id, name: first.name }],
-    documents: { [key]: first.content },
-    activeTabKey: key,
+    openTabs: [{ tabKey: DRAFT_TAB_KEY, scriptId: null, name: defaultName }],
+    documents: { [DRAFT_TAB_KEY]: draftBody },
+    activeTabKey: DRAFT_TAB_KEY,
   };
 }
 
@@ -95,7 +82,7 @@ export function WorkspaceScriptSessionProvider({
   draftContent: string;
 }) {
   const [bundle, setBundle] = useState<Bundle>(() =>
-    buildInitialTabs(scripts, draftContent, selectedDomain),
+    buildInitialTabs(draftContent, selectedDomain),
   );
   const dirtyKeysRef = useRef<Set<string>>(new Set());
 
@@ -104,9 +91,9 @@ export function WorkspaceScriptSessionProvider({
     if (prevDomainRef.current !== selectedDomain) {
       prevDomainRef.current = selectedDomain;
       dirtyKeysRef.current = new Set();
-      setBundle(buildInitialTabs(scripts, draftContent, selectedDomain));
+      setBundle(buildInitialTabs(draftContent, selectedDomain));
     }
-  }, [selectedDomain, scripts, draftContent]);
+  }, [selectedDomain, draftContent]);
 
   const serverById = useMemo(() => new Map(scripts.map((s) => [s.id, s])), [scripts]);
 
@@ -120,7 +107,7 @@ export function WorkspaceScriptSessionProvider({
 
       if (nextTabs.length === 0) {
         dirtyKeysRef.current = new Set();
-        return buildInitialTabs(scripts, draftContent, selectedDomain);
+        return buildInitialTabs(draftContent, selectedDomain);
       }
 
       nextTabs = nextTabs.map((tab) => {

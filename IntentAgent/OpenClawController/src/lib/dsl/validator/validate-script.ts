@@ -4,14 +4,33 @@ export function validateScript(statements: DslStatement[]): DslDiagnostic[] {
   const diagnostics: DslDiagnostic[] = [];
   const agentAliases = new Set<string>();
   const intentAliases = new Set<string>();
+  const workspaceIntentDiscoverLines = new Set<number>();
 
   for (const statement of statements) {
     switch (statement.kind) {
+      case "discover-intent-workspace-domain":
+        agentAliases.add(statement.alias);
+        workspaceIntentDiscoverLines.add(statement.line);
+        break;
       case "discover":
         agentAliases.add(statement.alias);
         break;
       case "create-intent":
-        if (!agentAliases.has(statement.agentAlias)) {
+        if (statement.agentAlias === "intentGen") {
+          const precededWorkspace = [...workspaceIntentDiscoverLines].some(
+            (ln) => ln < statement.line,
+          );
+          const legacyIntentGen = agentAliases.has("intentGen");
+          if (!precededWorkspace && !legacyIntentGen) {
+            diagnostics.push({
+              line: statement.line,
+              severity: "error",
+              code: "UNKNOWN_AGENT_ALIAS",
+              message:
+                'Unknown agent alias "intentGen". Add `discover intent-agent for domain as <alias>` before this line, or discover intent-agent … as intentGen.',
+            });
+          }
+        } else if (!agentAliases.has(statement.agentAlias)) {
           diagnostics.push({
             line: statement.line,
             severity: "error",

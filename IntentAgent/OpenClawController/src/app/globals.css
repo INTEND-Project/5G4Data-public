@@ -420,6 +420,171 @@ a {
   color: #ff9a9a;
 }
 
+.workspace-intent-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(4, 10, 18, 0.72);
+}
+
+.workspace-intent-dialog {
+  width: min(760px, 100%);
+  max-height: min(86vh, 960px);
+  padding: 22px 24px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  display: grid;
+  gap: 12px;
+}
+
+.workspace-intent-dialog h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.workspace-intent-dialog-meta {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.workspace-intent-transcript {
+  min-height: 200px;
+  max-height: 42vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.workspace-intent-transcript-quiet {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.workspace-intent-turn {
+  margin-bottom: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.workspace-intent-turn span {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.workspace-intent-turn pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.9rem;
+  line-height: 1.42;
+}
+
+@keyframes workspace-intent-hourglass-shift {
+  0% {
+    opacity: 0.92;
+    transform: rotate(-6deg);
+  }
+  50% {
+    opacity: 0.45;
+    transform: rotate(6deg);
+  }
+  100% {
+    opacity: 0.92;
+    transform: rotate(-6deg);
+  }
+}
+
+.workspace-intent-hourglass {
+  display: inline-block;
+  animation: workspace-intent-hourglass-shift 1.2s ease-in-out infinite;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.workspace-intent-compose {
+  display: grid;
+  gap: 8px;
+}
+
+.workspace-intent-compose-waiting {
+  margin: 0;
+}
+
+.workspace-intent-wait-under-you {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border-left: 2px solid rgba(125, 180, 255, 0.4);
+  background: rgba(125, 180, 255, 0.07);
+  font-size: 0.88rem;
+  font-style: italic;
+  line-height: 1.42;
+  color: rgba(200, 218, 240, 0.92);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.workspace-intent-dialog-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 96px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.workspace-intent-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.workspace-intent-dialog-error {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #ff9a9a;
+}
+
+.workspace-runner-log {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.14);
+  max-height: 160px;
+  overflow: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.workspace-runner-log-empty {
+  color: var(--muted);
+}
+
+.workspace-runner-log-entry {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .workspace-panel {
   padding: 16px 24px 24px;
   display: grid;

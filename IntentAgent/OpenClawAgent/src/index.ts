@@ -40,6 +40,11 @@ function emitA2AResult(label: string, result: { ok: boolean; message: string; we
     return;
   }
   process.stderr.write(`[A2A] ${label}: ${result.message}\n`);
+  if (result.wellKnownURI) {
+    process.stderr.write(
+      `[A2A] Registry agent card GET target (POST body wellKnownURI): ${result.wellKnownURI}\n`
+    );
+  }
 }
 
 function a2aSlice(config: AppConfig): A2AConfig {
@@ -62,8 +67,11 @@ async function registerAgentCardAfterHttpListen(config: AppConfig, cardName: str
     }
     if (attempt < maxAttempts) {
       const delayMs = 250 * 2 ** (attempt - 1);
+      const cardUrlNote = result.wellKnownURI
+        ? `; registry would fetch agent card from ${result.wellKnownURI}`
+        : "";
       process.stderr.write(
-        `[A2A] startup: registration attempt ${attempt} failed; retrying in ${delayMs}ms...\n`
+        `[A2A] startup: registration attempt ${attempt} failed${cardUrlNote}; retrying in ${delayMs}ms...\n`
       );
       await new Promise((r) => setTimeout(r, delayMs));
     } else {

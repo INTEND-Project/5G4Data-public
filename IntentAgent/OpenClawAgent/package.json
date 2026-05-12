@@ -9,7 +9,8 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "node --test dist/tests/*.test.js",
     "test:dev": "tsx --test src/tests/*.test.ts",
-    "package:tgz": "node scripts/create-package-tgz.mjs"
+    "package:tgz": "node scripts/create-package-tgz.mjs",
+    "a2a:chat": "node scripts/a2a-interactive.mjs"
   },
   "dependencies": {
     "n3": "^1.17.4",

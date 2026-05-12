@@ -63,6 +63,99 @@ test("OpenAPI server handles sessions, turns, and agent card", async () => {
     assert.equal(cardRes.status, 200);
     const card = (await cardRes.json()) as { name: string };
     assert.equal(card.name, "demo");
+
+    const a2aRpcPath = "/v1";
+    const a2aRes = await fetch(`${baseUrl}${a2aRpcPath}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 42,
+        method: "message/send",
+        params: {
+          message: {
+            role: "user",
+            parts: [{ kind: "text", text: "a2a" }]
+          }
+        }
+      })
+    });
+    assert.equal(a2aRes.status, 200);
+    const a2aBody = (await a2aRes.json()) as {
+      result?: { kind: string; artifacts?: Array<{ parts: Array<{ text: string }> }> };
+    };
+    assert.equal(a2aBody.result?.kind, "task");
+    assert.equal(a2aBody.result?.artifacts?.[0]?.parts?.[0]?.text, "ok");
+  } finally {
+    await server.close();
+  }
+});
+
+test("JSON-RPC listens on /v1 when advertised card.url pathname includes proxy prefix", async () => {
+  const runtime = {
+    async runTurn() {
+      return {
+        response: "proxy",
+        warnings: [],
+        debug: []
+      };
+    },
+    getDomainPackage() {
+      return { manifest: { name: "demo", version: "0.1.0" } };
+    },
+    getAppConfig() {
+      return { openClawModel: "demo-model" };
+    }
+  };
+  const agentCard: AgentCard = {
+    protocolVersion: "0.3.0",
+    name: "demo",
+    description: "demo",
+    url: "https://example/5g4data-intent-generating-agent/v1",
+    version: "0.1.0",
+    capabilities: { streaming: false, pushNotifications: false, stateTransitionHistory: false },
+    defaultInputModes: ["text/plain"],
+    defaultOutputModes: ["text/plain"],
+    skills: []
+  };
+  const server = startOpenApiServer({
+    runtime,
+    host: "127.0.0.1",
+    port: 0,
+    agentCardPath: "/.well-known/agent-card.json",
+    agentCard
+  });
+  const address = await server.listen();
+  try {
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const prefixed = `${baseUrl}/5g4data-intent-generating-agent/v1`;
+    const prefixedRes = await fetch(prefixed, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "message/send",
+        params: { message: { role: "user", parts: [{ kind: "text", text: "x" }] } }
+      })
+    });
+    assert.equal(prefixedRes.status, 404);
+
+    const rootV1Res = await fetch(`${baseUrl}/v1`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "message/send",
+        params: { message: { role: "user", parts: [{ kind: "text", text: "x" }] } }
+      })
+    });
+    assert.equal(rootV1Res.status, 200);
+    const body = (await rootV1Res.json()) as {
+      result?: { artifacts?: Array<{ parts: Array<{ text: string }> }> };
+    };
+    assert.equal(body.result?.artifacts?.[0]?.parts?.[0]?.text, "proxy");
   } finally {
     await server.close();
   }

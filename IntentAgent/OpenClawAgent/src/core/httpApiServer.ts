@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { A2AJsonRpcAdapter } from "./a2a/jsonRpcAdapter.js";
 import { createSession } from "./turnOrchestrator.js";
 import type { AgentCard } from "./a2a/service.js";
 import type { AgentTurnResult, ChatSession } from "../models.js";
@@ -35,6 +36,15 @@ function normalizePath(path: string): string {
   return `/${path}`;
 }
 
+/** Same path normalization for inbound requests and advertised routes (trailing slashes optional). */
+function normalizeHttpPath(pathname: string): string {
+  let p = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  if (p.length > 1) {
+    p = p.replace(/\/+$/, "");
+  }
+  return p;
+}
+
 async function readJsonBody<T>(request: AsyncIterable<Uint8Array>): Promise<T> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) {
@@ -47,11 +57,40 @@ async function readJsonBody<T>(request: AsyncIterable<Uint8Array>): Promise<T> {
   return JSON.parse(text) as T;
 }
 
+async function readUtf8Body(request: AsyncIterable<Uint8Array>): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+function pathnameFromAbsoluteUrl(candidate: string): string {
+  try {
+    const pathname = new URL(candidate).pathname;
+    return pathname.length > 0 ? pathname : "/v1";
+  } catch {
+    return "/v1";
+  }
+}
+
+/** Path-bound on this process’ HTTP listener. `agentCard.url` is an absolute discovery URL whose pathname often includes reverse-proxy prefixes; stripping upstream makes inbound JSON-RPC **`/v1`**, so bind RPC there whenever the pathname’s last segment is `v1`. */
+function internalJsonRpcListenPath(advertisedRpcUrl: string): string {
+  const pathname = pathnameFromAbsoluteUrl(advertisedRpcUrl);
+  const normalized = normalizeHttpPath(pathname);
+  const segments = normalized.split("/").filter(Boolean);
+  const last = segments.at(-1);
+  if (last === "v1") return normalizeHttpPath("/v1");
+  return normalized;
+}
+
 export function createOpenApiSpec(
   agentCardPath: string,
+  a2aRpcPath: string,
   extensionPaths?: Record<string, unknown>
 ): Record<string, unknown> {
-  const normalizedCardPath = normalizePath(agentCardPath);
+  const normalizedCardPath = normalizeHttpPath(normalizePath(agentCardPath));
+  const normalizedRpcPath = normalizeHttpPath(normalizePath(a2aRpcPath));
   const basePaths: Record<string, unknown> = {
     "/health": {
       get: {
@@ -108,6 +147,17 @@ export function createOpenApiSpec(
         }
       }
     },
+    [normalizedRpcPath]: {
+      post: {
+        operationId: "a2aJsonRpc",
+        responses: {
+          "200": {
+            description:
+              "A2A JSON-RPC 2.0 (v0.3-style message/send mapped to OpenClaw turn execution)"
+          }
+        }
+      }
+    },
     [normalizedCardPath]: {
       get: {
         operationId: "getAgentCard",
@@ -131,15 +181,24 @@ export function createOpenApiSpec(
 
 export function startOpenApiServer(options: OpenApiServerOptions) {
   const sessions = new Map<string, ChatSession>();
+  const a2aRpcPath = internalJsonRpcListenPath(options.agentCard.url);
   const openApiSpec = createOpenApiSpec(
     options.agentCardPath,
+    a2aRpcPath,
     options.runtime.getDomainPackage().controlApiExtension?.paths
   );
-  const normalizedCardPath = normalizePath(options.agentCardPath);
+  const normalizedCardPath = normalizeHttpPath(normalizePath(options.agentCardPath));
+  const normalizedA2ARpcPath = normalizeHttpPath(normalizePath(a2aRpcPath));
+  const a2aAdapter = new A2AJsonRpcAdapter({
+    runTurn(session, userText) {
+      return options.runtime.runTurn(session, userText);
+    }
+  });
+
   const server = createServer(async (request, response) => {
     const method = request.method ?? "GET";
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
-    const path = url.pathname;
+    const path = normalizeHttpPath(url.pathname);
     try {
       if (method === "GET" && path === "/health") {
         response.writeHead(200, jsonHeaders());
@@ -170,6 +229,14 @@ export function startOpenApiServer(options: OpenApiServerOptions) {
       if (method === "GET" && path === normalizedCardPath) {
         response.writeHead(200, jsonHeaders());
         response.end(JSON.stringify(options.agentCard));
+        return;
+      }
+
+      if (method === "POST" && path === normalizedA2ARpcPath) {
+        const rawBody = await readUtf8Body(request);
+        const rpc = await a2aAdapter.handleRawBodyAsync(rawBody);
+        response.writeHead(rpc.httpStatus, jsonHeaders());
+        response.end(rpc.body);
         return;
       }
 

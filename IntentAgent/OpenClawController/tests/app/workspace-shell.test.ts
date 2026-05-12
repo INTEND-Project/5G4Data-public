@@ -13,6 +13,10 @@ describe("workspace shell bootstrap", () => {
       resolve(process.cwd(), "src/components/workspace/workspace-shell.tsx"),
       "utf8",
     );
+    const scriptRunnerSource = readFileSync(
+      resolve(process.cwd(), "src/components/workspace/workspace-script-runner.tsx"),
+      "utf8",
+    );
     const agentListSource = readFileSync(
       resolve(process.cwd(), "src/components/workspace/agent-list.tsx"),
       "utf8",
@@ -36,6 +40,7 @@ describe("workspace shell bootstrap", () => {
     expect(workspaceSource).toContain("kgTargetsCreateUrl");
     expect(workspaceSource).toContain("kgTargetsDeleteUrlBase");
     expect(workspaceSource).toContain('withAppBasePath("/api/kg-targets")');
+    expect(workspaceSource).toContain('withAppBasePath("/api/scripts")');
     expect(shellSource).not.toContain("INTEND Controller");
     expect(shellSource).not.toContain("OpenClaw Workspace");
     expect(shellSource).toContain("registryConnected");
@@ -52,16 +57,21 @@ describe("workspace shell bootstrap", () => {
     expect(shellSource).toContain("workspace-panel-tight-stack");
     expect(shellSource).toContain("kgTargetsCreateUrl");
     expect(shellSource).toContain("kgTargetsDeleteUrlBase");
-    expect(shellSource).toContain("Run mode");
-    expect(shellSource).toContain("dry-run");
-    expect(shellSource).toContain("execute");
-    expect(shellSource).toContain("Knowledge graph target");
-    expect(shellSource).toContain("kg-avalanche-demo");
-    expect(shellSource).toContain("Run result policy");
-    expect(shellSource).toContain("stop on first error");
-    expect(shellSource).toContain("Run Script");
-    expect(shellSource).toContain("workspace-runner");
-    expect(shellSource).toContain("workspace-runner-modes");
+    expect(shellSource).toContain("scriptsApiUrl");
+    expect(shellSource).toContain("WorkspaceScriptSessionProvider");
+    expect(shellSource).toContain("WorkspaceLeftSidebarResizable");
+    expect(scriptRunnerSource).toContain("Run mode");
+    expect(scriptRunnerSource).toContain("dry-run");
+    expect(scriptRunnerSource).toContain("execute");
+    expect(scriptRunnerSource).toContain("Knowledge graph target");
+    expect(scriptRunnerSource).toContain("kg-avalanche-demo");
+    expect(scriptRunnerSource).toContain("Run result policy");
+    expect(scriptRunnerSource).toContain("stop on first error");
+    expect(scriptRunnerSource).toContain("Run Script");
+    expect(scriptRunnerSource).toContain("Save As");
+    expect(scriptRunnerSource).toContain("workspace-editor-height-resizer");
+    expect(scriptRunnerSource).toContain("workspace-editor-tabs");
+    expect(scriptRunnerSource).toContain("role=\"tablist\"");
     expect(workspaceSource).toContain("agentsRefreshUrl");
     expect(workspaceSource).toContain('refresh: "1"');
     expect(agentListSource).toContain("Available agents");
@@ -138,6 +148,11 @@ describe("workspace shell bootstrap", () => {
     expect(globalsSource).toContain(".workspace-runner-modes");
     expect(globalsSource).toContain(".workspace-runner-mode");
     expect(globalsSource).toContain(".workspace-runner-mode-active");
+    expect(globalsSource).toContain(".workspace-sidebar-column");
+    expect(globalsSource).toContain(".workspace-sidebar-resizer");
+    expect(globalsSource).toContain(".workspace-script-name");
+    expect(globalsSource).toContain(".workspace-editor-tab-active");
+    expect(globalsSource).toContain(".workspace-editor-height-resizer");
     expect(globalsSource).toContain("padding: 4px 24px 12px;");
     expect(globalsSource).toContain("padding: 16px 24px 24px;");
     expect(globalsSource).toContain("font-size: 2.3rem;");

@@ -2,10 +2,12 @@ import Image from "next/image";
 
 import { AgentList } from "@/components/workspace/agent-list";
 import { AssistantPanel } from "@/components/workspace/assistant-panel";
-import { ScriptEditor } from "@/components/editor/script-editor";
 import { DomainSelector } from "@/components/workspace/domain-selector";
 import { KgTargetPanel } from "@/components/workspace/kg-target-panel";
 import { ScriptList } from "@/components/workspace/script-list";
+import { WorkspaceLeftSidebarResizable } from "@/components/workspace/workspace-left-sidebar-resizable";
+import { WorkspaceScriptRunner } from "@/components/workspace/workspace-script-runner";
+import { WorkspaceScriptSessionProvider } from "@/components/workspace/workspace-script-session-context";
 
 type WorkspaceShellProps = {
   username: string;
@@ -18,6 +20,7 @@ type WorkspaceShellProps = {
   agentsRefreshUrl: string;
   kgTargetsCreateUrl: string;
   kgTargetsDeleteUrlBase: string;
+  scriptsApiUrl: string;
   registryConnected: boolean;
   kgTargets: Array<{
     id: string;
@@ -46,32 +49,28 @@ export function WorkspaceShell({
   agentsRefreshUrl,
   kgTargetsCreateUrl,
   kgTargetsDeleteUrlBase,
+  scriptsApiUrl,
   registryConnected,
   kgTargets,
   assistantContext,
   scripts,
 }: WorkspaceShellProps) {
   const domainOptions = Array.from(new Set([selectedDomain, ...domains]));
-  const scriptSummaries = scripts.map((script, index) => ({
-    name: script.name,
-    detail:
-      script.lastRunMode === null
-        ? "Never run • ready for stage 1 authoring"
-        : `Last run mode: ${script.lastRunMode}`,
-    active: index === 0,
-  }));
-  const activeScript = scripts[0];
-  const runTargetOptions =
-    kgTargets.length > 0
-      ? kgTargets.map((target) => target.displayName)
-      : ["kg-avalanche-demo"];
-  const editorValue =
-    activeScript?.content ??
+  const draftContent =
     `discover intent-agent by domain ${selectedDomain} as intentGen
 create intent using intentGen prompt "Deploy avalanche object detection" as avalancheIntent
 extract metric-catalog for avalancheIntent as avalancheMetrics
 discover observation-agent by domain ${selectedDomain} as observationControl
 request observation-report using observationControl for avalancheIntent instructions "For metric bandwidth use daily variation and congestion spikes." as avalancheObservationSession`;
+
+  const scriptsPayload = scripts.map((script) => ({
+    id: script.id,
+    name: script.name,
+    content: script.content,
+  }));
+
+  const runTargetOptions =
+    kgTargets.length > 0 ? kgTargets.map((target) => target.displayName) : [];
 
   return (
     <main className="workspace-shell">
@@ -108,93 +107,48 @@ request observation-report using observationControl for avalancheIntent instruct
         </div>
       </header>
 
-      <section className="workspace-grid">
-        <aside className="workspace-panel">
-          <div className="workspace-panel-tight-stack">
-            <DomainSelector domains={domainOptions} selectedDomain={selectedDomain} />
-            <ScriptList scripts={scriptSummaries} />
-          </div>
-          <AgentList agents={agents} refreshUrl={agentsRefreshUrl} />
-        </aside>
+      <WorkspaceScriptSessionProvider
+        draftContent={draftContent}
+        scripts={scriptsPayload}
+        selectedDomain={selectedDomain}
+      >
+        <section className="workspace-grid workspace-grid-with-resizable-sidebar">
+          <WorkspaceLeftSidebarResizable>
+            <aside className="workspace-panel">
+              <div className="workspace-panel-tight-stack">
+                <DomainSelector domains={domainOptions} selectedDomain={selectedDomain} />
+                <ScriptList scriptsApiUrl={scriptsApiUrl} />
+              </div>
+              <AgentList agents={agents} refreshUrl={agentsRefreshUrl} />
+            </aside>
+          </WorkspaceLeftSidebarResizable>
 
-        <section className="workspace-panel workspace-editor-panel">
-          <div className="workspace-heading-row">
-            <h2>Script editor</h2>
-            <div className="workspace-stage-row">
-              <span className="workspace-chip">Dry-run</span>
-              <span className="workspace-chip">Execute</span>
-            </div>
-          </div>
-          <div className="workspace-editor-stage">
-            <h3>Stage 1</h3>
-            <p>Discover domain agents, create the intent, and extract the metric catalog.</p>
-          </div>
-          <div className="workspace-editor-stage">
-            <h3>Stage 2</h3>
-            <p>
-              Request status and observation reports over all or selected metrics with
-              timing and shape constraints.
-            </p>
-          </div>
-          <ScriptEditor
-            metricNames={assistantContext.metricNames}
-            value={editorValue}
-          />
-          <div className="workspace-runner">
-            <div className="workspace-runner-field">
-              <label className="workspace-label">Run mode</label>
-              <div className="workspace-runner-modes">
-                <span className="workspace-runner-mode workspace-runner-mode-active">
-                  dry-run
-                </span>
-                <span className="workspace-runner-mode">execute</span>
+          <section className="workspace-panel workspace-editor-panel">
+            <div className="workspace-heading-row">
+              <h2>Script editor</h2>
+              <div className="workspace-stage-row">
+                <span className="workspace-chip">Dry-run</span>
+                <span className="workspace-chip">Execute</span>
               </div>
             </div>
-            <div className="workspace-runner-field">
-              <label className="workspace-label" htmlFor="runner-kg-target">
-                Knowledge graph target
-              </label>
-              <select
-                className="workspace-select workspace-runner-select"
-                defaultValue={runTargetOptions[0]}
-                id="runner-kg-target"
-              >
-                {runTargetOptions.map((targetName) => (
-                  <option key={targetName} value={targetName}>
-                    {targetName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="workspace-runner-field">
-              <label className="workspace-label" htmlFor="runner-result-policy">
-                Run result policy
-              </label>
-              <select
-                className="workspace-select workspace-runner-select"
-                defaultValue="stop on first error"
-                id="runner-result-policy"
-              >
-                <option value="stop on first error">stop on first error</option>
-                <option value="continue with warnings">continue with warnings</option>
-              </select>
-            </div>
-            <button className="workspace-button workspace-runner-button" type="button">
-              Run Script
-            </button>
-          </div>
-        </section>
+            <WorkspaceScriptRunner
+              metricNames={assistantContext.metricNames}
+              runTargetOptions={runTargetOptions}
+              scriptsApiUrl={scriptsApiUrl}
+            />
+          </section>
 
-        <aside className="workspace-panel">
-          <KgTargetPanel
-            createUrl={kgTargetsCreateUrl}
-            deleteUrlBase={kgTargetsDeleteUrlBase}
-            selectedDomain={selectedDomain}
-            targets={kgTargets}
-          />
-          <AssistantPanel assistantContext={assistantContext} />
-        </aside>
-      </section>
+          <aside className="workspace-panel">
+            <KgTargetPanel
+              createUrl={kgTargetsCreateUrl}
+              deleteUrlBase={kgTargetsDeleteUrlBase}
+              selectedDomain={selectedDomain}
+              targets={kgTargets}
+            />
+            <AssistantPanel assistantContext={assistantContext} />
+          </aside>
+        </section>
+      </WorkspaceScriptSessionProvider>
     </main>
   );
 }

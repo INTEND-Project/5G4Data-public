@@ -40,6 +40,7 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   );
   const kgTargetsCreateUrl = withAppBasePath("/api/kg-targets");
   const kgTargetsDeleteUrlBase = withAppBasePath("/api/kg-targets");
+  const scriptsApiUrl = withAppBasePath("/api/scripts");
   const registryConnected = await getRegistryConnectionStatus();
   const scripts = await listScriptsForUser(user.id, selectedDomain);
   const fallbackScript =
@@ -92,6 +93,7 @@ request observation-report using observationControl for avalancheIntent instruct
       kgTargetsCreateUrl={kgTargetsCreateUrl}
       kgTargetsDeleteUrlBase={kgTargetsDeleteUrlBase}
       kgTargets={kgTargets}
+      scriptsApiUrl={scriptsApiUrl}
       registryConnected={registryConnected}
       scripts={scripts}
       selectedDomain={selectedDomain}

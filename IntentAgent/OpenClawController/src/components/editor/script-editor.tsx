@@ -8,10 +8,24 @@ import { registerMetricCompletions } from "@/components/editor/register-completi
 type ScriptEditorProps = {
   value: string;
   metricNames: string[];
+  heightPx?: number;
+  onChange?: (value: string) => void;
+  onSave?: () => void;
 };
 
-export function ScriptEditor({ value, metricNames }: ScriptEditorProps) {
+const DEFAULT_EDITOR_HEIGHT_PX = 360;
+
+export function ScriptEditor({
+  value,
+  metricNames,
+  heightPx = DEFAULT_EDITOR_HEIGHT_PX,
+  onChange,
+  onSave,
+}: ScriptEditorProps) {
   const completionRegistrationRef = useRef<{ dispose(): void } | null>(null);
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+
   const dedupedMetricNames = useMemo(
     () => Array.from(new Set(metricNames)).sort(),
     [metricNames],
@@ -28,18 +42,22 @@ export function ScriptEditor({ value, metricNames }: ScriptEditorProps) {
     <div className="workspace-editor-container">
       <Editor
         defaultLanguage="plaintext"
-        height="360px"
+        height={`${heightPx}px`}
         options={{
           minimap: { enabled: false },
           scrollBeyondLastLine: false,
           wordWrap: "on",
         }}
-        onMount={(_editor, monaco) => {
+        onChange={(nextValue) => onChange?.(nextValue ?? "")}
+        onMount={(editor, monaco) => {
           completionRegistrationRef.current?.dispose();
           completionRegistrationRef.current = registerMetricCompletions(
             monaco,
             dedupedMetricNames,
           );
+          editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+            onSaveRef.current?.();
+          });
         }}
         theme="vs-dark"
         value={value}

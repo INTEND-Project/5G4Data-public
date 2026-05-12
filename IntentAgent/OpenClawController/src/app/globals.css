@@ -204,6 +204,222 @@ a {
   gap: 20px;
 }
 
+.workspace-grid.workspace-grid-with-resizable-sidebar {
+  grid-template-columns: auto 8px minmax(0, 1fr) minmax(280px, 360px);
+  align-items: start;
+}
+
+.workspace-sidebar-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.workspace-sidebar-column > .workspace-panel {
+  flex: 1;
+  min-width: 0;
+}
+
+.workspace-sidebar-resizer {
+  width: 8px;
+  margin: 0 -4px;
+  padding: 0 4px;
+  cursor: col-resize;
+  border-radius: 6px;
+  align-self: stretch;
+  min-height: 160px;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.workspace-sidebar-resizer:hover {
+  background: rgba(125, 180, 255, 0.14);
+}
+
+.workspace-sidebar-resizer:focus-visible {
+  outline: 2px solid rgba(125, 180, 255, 0.7);
+  outline-offset: 2px;
+}
+
+.workspace-card-script {
+  min-width: 0;
+}
+
+.workspace-script-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.workspace-script-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-script-open {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.workspace-script-open:focus-visible {
+  outline: 2px solid rgba(125, 180, 255, 0.75);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+.workspace-script-open .workspace-script-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.workspace-script-delete {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(5, 14, 26, 0.9);
+  color: rgba(255, 140, 140, 0.95);
+  cursor: pointer;
+}
+
+.workspace-script-delete:hover:not(:disabled) {
+  background: rgba(160, 48, 48, 0.35);
+  border-color: rgba(255, 140, 140, 0.45);
+}
+
+.workspace-script-delete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.workspace-script-delete-icon {
+  display: block;
+}
+
+.workspace-editor-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.workspace-editor-tab {
+  display: flex;
+  align-items: stretch;
+  max-width: min(240px, 100%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(5, 14, 26, 0.72);
+}
+
+.workspace-editor-tab-active {
+  border-color: rgba(125, 180, 255, 0.55);
+  background: rgba(125, 180, 255, 0.12);
+}
+
+.workspace-editor-tab-label {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.workspace-editor-tab-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-editor-tab-close {
+  flex-shrink: 0;
+  width: 34px;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.workspace-editor-tab-close:hover {
+  color: var(--foreground);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.workspace-save-name-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(4, 10, 18, 0.72);
+}
+
+.workspace-save-name-dialog {
+  width: min(420px, 100%);
+  padding: 22px 24px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  display: grid;
+  gap: 14px;
+}
+
+.workspace-save-name-dialog h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.workspace-save-as-dialog-hint {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.workspace-save-name-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.workspace-save-name-dialog-error {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #ff9a9a;
+}
+
 .workspace-panel {
   padding: 16px 24px 24px;
   display: grid;
@@ -330,10 +546,10 @@ a {
 .workspace-stack {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .workspace-card,
-.workspace-editor-stage,
 .workspace-agent {
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -342,8 +558,7 @@ a {
 }
 
 .workspace-card p,
-.workspace-hint,
-.workspace-editor-stage p {
+.workspace-hint {
   color: var(--muted);
 }
 
@@ -418,6 +633,30 @@ a {
   white-space: pre-wrap;
 }
 
+.workspace-editor-resize-block {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.workspace-editor-height-resizer {
+  height: 12px;
+  margin: 6px 0 10px;
+  cursor: ns-resize;
+  border-radius: 6px;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.workspace-editor-height-resizer:hover {
+  background: rgba(125, 180, 255, 0.12);
+}
+
+.workspace-editor-height-resizer:focus-visible {
+  outline: 2px solid rgba(125, 180, 255, 0.65);
+  outline-offset: 2px;
+}
+
 .workspace-editor-container {
   overflow: hidden;
   border: 1px solid var(--border);
@@ -471,6 +710,23 @@ a {
   align-self: end;
 }
 
+.workspace-runner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-self: end;
+}
+
+.workspace-save-error {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 120, 120, 0.45);
+  background: rgba(120, 24, 24, 0.35);
+  color: var(--foreground);
+  font-size: 0.9rem;
+}
+
 .workspace-metric-list {
   display: flex;
   flex-wrap: wrap;
@@ -481,6 +737,19 @@ a {
   .workspace-grid,
   .auth-grid {
     grid-template-columns: 1fr;
+  }
+
+  .workspace-grid.workspace-grid-with-resizable-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-grid.workspace-grid-with-resizable-sidebar .workspace-sidebar-resizer {
+    display: none;
+  }
+
+  .workspace-grid.workspace-grid-with-resizable-sidebar .workspace-sidebar-column {
+    width: 100% !important;
+    max-width: none !important;
   }
 
   .workspace-topbar {

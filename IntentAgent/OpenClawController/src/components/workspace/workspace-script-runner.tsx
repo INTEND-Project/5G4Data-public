@@ -10,7 +10,7 @@ import {
   useWorkspaceScriptSession,
 } from "@/components/workspace/workspace-script-session-context";
 import { analyzeScript } from "@/lib/dsl/analysis/analyze-script";
-import type { CreateIntentStatement } from "@/lib/dsl/types";
+import type { CreateIntentStatement, ExtractMetricCatalogStatement } from "@/lib/dsl/types";
 
 type WorkspaceScriptRunnerProps = {
   metricNames: string[];
@@ -367,12 +367,18 @@ export function WorkspaceScriptRunner({
       : null;
 
   const intentFinishRef = useRef<(() => void) | null>(null);
+  /** Maps DSL intent alias (`as` from create-intent) → canonical kg intent id (`I…`) after successful ingest. */
+  const intentIdByAliasRef = useRef(new Map<string, string>());
   const [runBusy, setRunBusy] = useState(false);
   const [intentSession, setIntentSession] = useState<{
     wellKnownURI: string;
     prompt: string;
     intentArtifactLabel: string;
   } | null>(null);
+
+  const handleKgIntentStored = useCallback((_dslAlias: string, canonicalIntentId: string) => {
+    intentIdByAliasRef.current.set(_dslAlias, canonicalIntentId);
+  }, []);
 
   const handleRunScript = useCallback(async () => {
     beginScriptRun(activeScriptName);
@@ -397,6 +403,9 @@ export function WorkspaceScriptRunner({
       const orderedStatements = [...statements].sort((a, b) => a.line - b.line);
 
       appendRunnerLog("Run Script: executing supported statements in order.");
+
+      intentIdByAliasRef.current.clear();
+      const catalogBindings = new Map<string, string[]>();
 
       const bindings = new Map<string, string>();
       let lastWorkspaceIntentWellKnownUri: string | null = null;
@@ -462,55 +471,116 @@ export function WorkspaceScriptRunner({
           continue;
         }
 
-        if (statement.kind !== "create-intent") {
-          continue;
-        }
+        if (statement.kind === "create-intent") {
+          const stmt: CreateIntentStatement = statement;
 
-        const stmt: CreateIntentStatement = statement;
+          let resolved =
+            bindings.get(stmt.agentAlias) ??
+            (stmt.agentAlias === "intentGen"
+              ? lastWorkspaceIntentWellKnownUri
+              : null);
 
-        let resolved =
-          bindings.get(stmt.agentAlias) ??
-          (stmt.agentAlias === "intentGen"
-            ? lastWorkspaceIntentWellKnownUri
-            : null);
+          if (!resolved && stmt.agentAlias === "intentGen") {
+            resolved = await lookupIntentGeneratingAgentUri();
+            if (!resolved) {
+              appendRunnerLog(
+                `Line ${statement.line}: intentGen shortcut needs a reachable intent-generating agent for ${selectedDomain}.`,
+              );
+              return;
+            }
+          }
 
-        if (!resolved && stmt.agentAlias === "intentGen") {
-          resolved = await lookupIntentGeneratingAgentUri();
           if (!resolved) {
             appendRunnerLog(
-              `Line ${statement.line}: intentGen shortcut needs a reachable intent-generating agent for ${selectedDomain}.`,
+              `Line ${statement.line}: Unable to bind agent card URI for "${stmt.agentAlias}".`,
             );
             return;
           }
-        }
 
-        if (!resolved) {
+          appendRunnerLog(`Run Script: create intent as "${stmt.intentAlias}".`);
           appendRunnerLog(
-            `Line ${statement.line}: Unable to bind agent card URI for "${stmt.agentAlias}".`,
+            `Line ${statement.line}: Opening A2A session for intent alias "${stmt.intentAlias}".`,
           );
-          return;
-        }
-
-        appendRunnerLog(
-          `Line ${statement.line}: Opening A2A session for artifact "${stmt.intentAlias}".`,
-        );
-        appendRunnerLog(
-          `Conversation uses a single persistent task/context pair; reuse them as you iterate with Send.`,
-        );
-        if (!persistIntentStoreUrl) {
           appendRunnerLog(
-            "Intent Turtle will not be stored: choose or create a knowledge graph target in the sidebar.",
+            `Conversation uses a single persistent task/context pair; reuse them as you iterate with Send.`,
           );
-        }
+          if (!persistIntentStoreUrl) {
+            appendRunnerLog(
+              "Intent Turtle will not be stored: choose or create a knowledge graph target in the sidebar.",
+            );
+          }
 
-        await new Promise<void>((finish) => {
-          intentFinishRef.current = finish;
-          setIntentSession({
-            intentArtifactLabel: stmt.intentAlias,
-            prompt: stmt.prompt,
-            wellKnownURI: resolved,
+          await new Promise<void>((finish) => {
+            intentFinishRef.current = finish;
+            setIntentSession({
+              intentArtifactLabel: stmt.intentAlias,
+              prompt: stmt.prompt,
+              wellKnownURI: resolved,
+            });
           });
-        });
+          continue;
+        }
+
+        if (statement.kind === "extract-metric-catalog") {
+          const stmt: ExtractMetricCatalogStatement = statement;
+
+          if (!selectedKgTargetId || !kgTargetsApiBaseUrl.trim()) {
+            appendRunnerLog(
+              `Line ${statement.line}: extract metric-catalog requires a knowledge graph target in the runner (same as intent storage).`,
+            );
+            return;
+          }
+
+          const canonicalId = intentIdByAliasRef.current.get(stmt.intentAlias);
+          if (!canonicalId) {
+            appendRunnerLog(
+              `Line ${statement.line}: No stored intent id for alias "${stmt.intentAlias}". Store intent Turtle to the selected knowledge graph target (wait for a successful ingest) before extracting the metric catalog.`,
+            );
+            return;
+          }
+
+          const base = kgTargetsApiBaseUrl.replace(/\/+$/, "");
+          const mcUrl = `${base}/${encodeURIComponent(selectedKgTargetId)}/metric-catalog`;
+
+          const response = await fetch(mcUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ intentLocalId: canonicalId }),
+          });
+
+          const data = (await response.json().catch(() => ({}))) as {
+            error?: string;
+            metricNames?: string[];
+          };
+
+          if (!response.ok) {
+            appendRunnerLog(
+              typeof data.error === "string" && data.error.length > 0
+                ? `Line ${statement.line}: metric-catalog request failed: ${data.error}`
+                : `Line ${statement.line}: metric-catalog request failed (${response.status}).`,
+            );
+            return;
+          }
+
+          const metricNames = Array.isArray(data.metricNames) ? data.metricNames : [];
+          catalogBindings.set(stmt.metricCatalogAlias, metricNames);
+
+          const preview =
+            metricNames.length <= 24
+              ? metricNames.join(", ")
+              : `${metricNames.slice(0, 24).join(", ")} … (+${metricNames.length - 24} more)`;
+          appendRunnerLog(
+            `Run Script: extract metric-catalog as "${stmt.metricCatalogAlias}" for intent ${canonicalId} (${metricNames.length} names): ${preview || "(none)"}`,
+          );
+          continue;
+        }
+      }
+
+      if (catalogBindings.size > 0) {
+        appendRunnerLog(
+          `Run Script: metric-catalog list aliases bound: ${Array.from(catalogBindings.keys()).join(", ")}.`,
+        );
       }
 
       appendRunnerLog("Run Script: finished scripted steps.");
@@ -524,8 +594,10 @@ export function WorkspaceScriptRunner({
     beginScriptRun,
     endActiveScriptRun,
     discoverIntentAgentApiUrl,
+    kgTargetsApiBaseUrl,
     persistIntentStoreUrl,
     selectedDomain,
+    selectedKgTargetId,
   ]);
 
   const handleIntentDialogFinish = useCallback(() => {
@@ -808,6 +880,7 @@ export function WorkspaceScriptRunner({
         intentArtifactLabel={intentSession?.intentArtifactLabel ?? ""}
         onFinished={handleIntentDialogFinish}
         onIntentPersistLog={appendRunnerLog}
+        onKgIntentStored={handleKgIntentStored}
         open={intentSession !== null}
         persistIntentStoreUrl={persistIntentStoreUrl}
         seedPrompt={intentSession?.prompt ?? null}

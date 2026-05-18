@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { ingestIntentTurtle } from "@/lib/graphdb/client";
-import { extractIntentUuidSuffixFromTurtle } from "@/lib/intent/extract-intent-turtle";
+import { extractIntentLocalIdFromTurtle } from "@/lib/intent/extract-intent-turtle";
 
 const bodySchema = z.object({
   turtle: z.string().min(1),
@@ -64,7 +64,7 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
-  const intentId = extractIntentUuidSuffixFromTurtle(body.turtle);
+  const intentId = extractIntentLocalIdFromTurtle(body.turtle);
 
   return NextResponse.json({
     ok: true,

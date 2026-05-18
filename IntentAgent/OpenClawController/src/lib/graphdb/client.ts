@@ -164,3 +164,52 @@ export async function ingestIntentTurtle(input: {
     throw new Error(await buildGraphDbErrorMessage(response, "intent ingest"));
   }
 }
+
+type SparqlJsonBinding = Record<string, { value: string; type?: string }>;
+
+type SparqlJsonResponse = {
+  results?: {
+    bindings?: SparqlJsonBinding[];
+  };
+};
+
+/** POST SELECT to RDF4J/GraphDB repository root; returns `bindings` rows. */
+export async function runRepositorySparqlSelect(input: {
+  repositoryId: string;
+  query: string;
+  timeoutMs?: number;
+}): Promise<SparqlJsonBinding[]> {
+  const base = normalizedGraphDbBaseUrl();
+  const url = `${base}repositories/${encodeURIComponent(input.repositoryId)}`;
+
+  const timeoutMs = input.timeoutMs ?? 60_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/sparql-results+json",
+        "Content-Type": "application/sparql-query",
+      },
+      body: input.query,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`GraphDB timed out after ${timeoutMs / 1000}s during SPARQL query`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    throw new Error(await buildGraphDbErrorMessage(response, "SPARQL query"));
+  }
+
+  const payload = (await response.json()) as SparqlJsonResponse;
+  return payload.results?.bindings ?? [];
+}

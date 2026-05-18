@@ -43,8 +43,34 @@ export function extractIntentTurtle(visibleText: string): string | null {
   return null;
 }
 
-/** Match Python graphdb_client intent id extraction (`data5g:I` + 32 hex). */
+/** Match Python graphdb_client intent uuid suffix only (32 hex after `data5g:I`). */
 export function extractIntentUuidSuffixFromTurtle(turtle: string): string | null {
   const m = turtle.match(/\bdata5g:I([a-f0-9]{32})\b/i);
   return m?.[1] ?? null;
+}
+
+/**
+ * Full intent local id (`I` + 32 hex), matching CURIE form `data5g:Ie4d6…` in Turtle payloads.
+ */
+export function extractIntentLocalIdFromTurtle(turtle: string): string | null {
+  const suffix = extractIntentUuidSuffixFromTurtle(turtle);
+  return suffix ? `I${suffix}` : null;
+}
+
+/** Normalizes store-intent API `intentId` to `I` + 32 hex (accepts legacy bare uuid). */
+export function normalizedIntentIdFromStoreResponse(
+  id: string | undefined | null,
+): string | null {
+  if (typeof id !== "string") {
+    return null;
+  }
+  const t = id.trim();
+  if (t.length === 0) {
+    return null;
+  }
+  const hex = t.replace(/^I/i, "");
+  if (/^[a-f0-9]{32}$/i.test(hex)) {
+    return `I${hex}`;
+  }
+  return t;
 }

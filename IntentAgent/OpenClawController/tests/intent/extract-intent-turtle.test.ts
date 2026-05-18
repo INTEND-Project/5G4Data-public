@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   extractIntentTurtle,
+  extractIntentLocalIdFromTurtle,
   extractIntentUuidSuffixFromTurtle,
+  normalizedIntentIdFromStoreResponse,
 } from "../../src/lib/intent/extract-intent-turtle";
 
 describe("extractIntentTurtle", () => {
@@ -21,6 +23,30 @@ describe("extractIntentTurtle", () => {
 
   it("returns null when prose has no RDF intent cues", () => {
     expect(extractIntentTurtle("still thinking…")).toBeNull();
+  });
+});
+
+describe("extractIntentLocalIdFromTurtle", () => {
+  it("returns I + 32 hex for data5g intent CURIE", () => {
+    expect(
+      extractIntentLocalIdFromTurtle(
+        "@prefix data5g: <http://5g4data.eu/5g4data#> .\ndata5g:Ie4d6d6c6bc414a5e9bd5c4b97b7c4e91 a owl:Thing .",
+      ),
+    ).toBe("Ie4d6d6c6bc414a5e9bd5c4b97b7c4e91");
+  });
+});
+
+describe("normalizedIntentIdFromStoreResponse", () => {
+  it("adds missing I prefix to bare uuid", () => {
+    expect(normalizedIntentIdFromStoreResponse("ebf6b23563a14494a136188776cb5f54")).toBe(
+      "Iebf6b23563a14494a136188776cb5f54",
+    );
+  });
+
+  it("passes through I-prefixed id", () => {
+    expect(normalizedIntentIdFromStoreResponse("Iebf6b23563a14494a136188776cb5f54")).toBe(
+      "Iebf6b23563a14494a136188776cb5f54",
+    );
   });
 });
 

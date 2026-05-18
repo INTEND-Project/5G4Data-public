@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { extractIntentTurtle } from "@/lib/intent/extract-intent-turtle";
+import {
+  extractIntentLocalIdFromTurtle,
+  extractIntentTurtle,
+  normalizedIntentIdFromStoreResponse,
+} from "@/lib/intent/extract-intent-turtle";
 
 type TranscriptTurn = {
   id: string;
@@ -20,6 +24,8 @@ export type IntentGenSessionDialogProps = {
   persistIntentStoreUrl?: string | null;
   /** Optional hook for correlating ingest with script run logs. */
   onIntentPersistLog?: (line: string) => void;
+  /** When Turtle is stored successfully, canonical intent id (`I…`) for DSL follow-up bindings. */
+  onKgIntentStored?: (dslAlias: string, canonicalIntentId: string) => void;
   /** Called once the user chooses to dismiss after the handshake is ready to continue outside the modal. */
   onFinished: () => void;
 };
@@ -32,6 +38,7 @@ export function IntentGenSessionDialog({
   seedPrompt,
   persistIntentStoreUrl,
   onIntentPersistLog,
+  onKgIntentStored,
   onFinished,
 }: IntentGenSessionDialogProps) {
   const taskBindingsRef = useRef<{ taskId?: string; contextId?: string }>({});
@@ -177,25 +184,43 @@ export function IntentGenSessionDialog({
               error?: string;
             };
             if (ingestResponse.ok) {
-              const idNote =
-                typeof ingestBody.intentId === "string" ? ingestBody.intentId : "unknown-id";
-              onIntentPersistLog?.(`Stored intent in knowledge graph (${idNote}).`);
+              const canonical =
+                normalizedIntentIdFromStoreResponse(ingestBody.intentId) ??
+                extractIntentLocalIdFromTurtle(turtlePayload);
+              const idNote = canonical ?? "unknown-id";
+              onIntentPersistLog?.(
+                `[${idNote}] Stored intent in knowledge graph (${idNote}).`,
+              );
+              if (canonical) {
+                onKgIntentStored?.(intentArtifactLabel, canonical);
+              }
             } else if (typeof ingestBody.error === "string" && ingestBody.error.length > 0) {
-              onIntentPersistLog?.(`Knowledge graph ingest failed: ${ingestBody.error}`);
+              onIntentPersistLog?.(
+                `[${intentArtifactLabel}] Knowledge graph ingest failed: ${ingestBody.error}`,
+              );
             } else {
               onIntentPersistLog?.(
-                `Knowledge graph ingest failed with HTTP ${ingestResponse.status}.`,
+                `[${intentArtifactLabel}] Knowledge graph ingest failed with HTTP ${ingestResponse.status}.`,
               );
             }
           } catch (err) {
-            onIntentPersistLog?.(`Knowledge graph ingest error: ${String(err)}`);
+            onIntentPersistLog?.(
+              `[${intentArtifactLabel}] Knowledge graph ingest error: ${String(err)}`,
+            );
           }
         }
       } finally {
         setSending(false);
       }
     },
-    [a2aMessageSendUrl, agentCardWellKnownURI, persistIntentStoreUrl, onIntentPersistLog],
+    [
+      a2aMessageSendUrl,
+      agentCardWellKnownURI,
+      persistIntentStoreUrl,
+      intentArtifactLabel,
+      onIntentPersistLog,
+      onKgIntentStored,
+    ],
   );
 
   useEffect(() => {

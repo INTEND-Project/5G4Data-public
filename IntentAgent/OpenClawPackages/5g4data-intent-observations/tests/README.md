@@ -23,3 +23,5 @@ Recommended test matrix:
 5. `--noGraphDB` mode behavior
    - GraphDB writes are skipped.
    - Payload is printed in interactive output with explicit skip marker.
+
+6. Automated parser tests (`tests/syntheticPrompt.test.ts`): from this package folder run `npm install` once, then `npx tsx --test tests/syntheticPrompt.test.ts`.

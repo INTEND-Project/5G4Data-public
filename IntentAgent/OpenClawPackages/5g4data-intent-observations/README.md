@@ -16,6 +16,16 @@ Domain package for generating TM Forum formatted observation report payloads fro
   - `eventRules`
   - `timeWindows`
 
+## LLM-coded synthetic observations (multi-metric)
+
+Structured prompts invoke an OpenAI-compatible model to synthesize JavaScript snippets that sample values per metric. Each metric runs in its **own spawned process** (`npx tsx tools/syntheticMetricWorker.ts`). Detection requires `intent_id=`, `mode=streaming|historic`, `frequency=…`, and one or more `metric=` clauses whose value matches `{targetProperty}_CO{32 hex}`.
+
+- **`mode=streaming`**: emits on wall-clock intervals (`frequency=60s` etc.).
+- **`mode=historic`**: requires `start` / `stop` as `dd.mm.yyyy hh:mm:ss` or **`dd.mm.yyyy hh.mm.ss`** (both interpreted as **UTC**) and emits as fast as possible across that simulated timeline.
+- **Env**: `SYNTH_OBS_OPENAI_API_KEY` (or `OPENAI_API_KEY`), `SYNTH_OBS_OPENAI_BASE_URL` (default `https://api.openai.com/v1`), `SYNTH_OBS_MODEL` (default `gpt-4o-mini`). Optional historic cap `SYNTH_OBS_HISTORIC_MAX_POINTS` (default 250000).
+
+These prompts are handled in the agent pre-turn hook (REPL **and** HTTP `/v1/sessions/…/turns`) or explicitly as `observe synthetic …`.
+
 ## Behavior
 
 1. Resolve the intent Turtle by `intent_id`.

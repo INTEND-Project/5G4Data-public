@@ -1,0 +1,9 @@
+{
+  "name": "5g4data-intent-observations",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "n3": "^1.17.4"
+  }
+}

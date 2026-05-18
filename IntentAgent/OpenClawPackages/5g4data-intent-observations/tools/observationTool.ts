@@ -355,6 +355,50 @@ export class ObservationTool {
     };
   }
 
+  /** Split `{targetProperty}_{conditionId}` where conditionId matches `CO` + 32 hex (case preserved). */
+  static parseMetricCompound(compound: string): { targetProperty: string; conditionId: string } | null {
+    const trimmed = compound.trim().replace(/^data5g:/iu, "").replace(/`/g, "");
+    const m = trimmed.match(/^(.*)_((?:CO[A-Fa-f0-9]{32}))$/iu);
+    if (!m?.[2]) return null;
+    return { targetProperty: (m[1] ?? "").replace(/`/g, ""), conditionId: m[2] };
+  }
+
+  generateObservationForCompound(
+    compoundName: string,
+    unit: string,
+    value: number,
+    whenIsoUtc: string
+  ): ObservationPayload | null {
+    const trimmed = compoundName.trim().replace(/^data5g:/iu, "").replace(/`/g, "");
+    if (!ObservationTool.parseMetricCompound(trimmed)) return null;
+    return {
+      observationId: `OB${randomUUID().replace(/-/g, "")}`,
+      observedMetric: trimmed,
+      value,
+      unit: unit || "NA",
+      obtainedAt: whenIsoUtc
+    };
+  }
+
+  static lookupUnitForCompound(compoundName: string, intentTurtle: string | null | undefined, proseHint?: string): string {
+    const trimmed = compoundName.trim().replace(/^data5g:/iu, "").replace(/`/g, "");
+    const parsed = ObservationTool.parseMetricCompound(trimmed);
+    if (intentTurtle) {
+      const tool = new ObservationTool();
+      for (const m of tool.parseConditionMetrics(intentTurtle)) {
+        if (`${m.targetProperty}_${m.conditionId}` === trimmed) return m.unit || "NA";
+      }
+      if (parsed) {
+        for (const m of tool.parseConditionMetrics(intentTurtle)) {
+          const a = m.conditionId.replace(/^CO/iu, "").toLowerCase();
+          const b = parsed.conditionId.replace(/^CO/iu, "").toLowerCase();
+          if (a === b && m.targetProperty === parsed.targetProperty) return m.unit || "NA";
+        }
+      }
+    }
+    return proseFallbackUnit(proseHint);
+  }
+
   toTurtle(payload: ObservationPayload): string {
     return `@prefix met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
@@ -379,4 +423,12 @@ data5g:${payload.observationId} a met:Observation ;
     );
     return ["Reportable metrics extracted from Condition statements:", ...lines].join("\n");
   }
+}
+
+function proseFallbackUnit(hint?: string): string {
+  if (!hint) return "NA";
+  const lower = hint.toLowerCase();
+  if (/\bmbit\b|mb\/s|\bmegabit\b/u.test(lower)) return "mbit/s";
+  if (/\bms\b|milliseconds?\b|\blatency\b/u.test(lower)) return "ms";
+  return "NA";
 }

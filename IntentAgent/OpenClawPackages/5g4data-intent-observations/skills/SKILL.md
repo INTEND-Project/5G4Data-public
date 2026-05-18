@@ -36,6 +36,10 @@ When the package is loaded in an interactive clone, it supports package-owned `o
 - `observe stop`: stops all streams for the session.
 - `observe override metric=<metric_name> min=<n> max=<n>`: runtime span override.
 
+## Synthetic LLM-coded multi-metric runs
+
+Structured prompts (`intent_id=`, `mode=streaming|historic`, `frequency=…`, repeated `metric=…`) call an OpenAI-compatible API so each metric gets its own spawned `syntheticMetricWorker` process (`observe synthetic …` aliases the same DSL). `observe synthetic stop`, combined `observe status`, and unified `observe stop` are documented in `prompt_modules/observe_stream.md`.
+
 Debug logging behavior (`--debug`):
 
 - stream metadata: `logs/observations-stream.ndjson`

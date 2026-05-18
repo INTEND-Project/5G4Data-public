@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { GraphDbTool } from "./graphdbTool.js";
+import type { GraphDbEnvFallback } from "./graphTargetBinding.js";
 import { ObservationTool, type ConditionMetric, type ReportableObservationStream } from "./observationTool.js";
 
 export interface StartObservationStreamsArgs {
@@ -8,11 +9,7 @@ export interface StartObservationStreamsArgs {
   intentId: string;
   intentTurtle: string;
   packageDir: string;
-  graphCfg: {
-    graphDbEndpoint: string;
-    graphDbNamedGraph: string;
-    graphDbQueryLimit: number;
-  };
+  graphCfg: GraphDbEnvFallback;
   debug: boolean;
   debugLogPath: string;
 }
@@ -112,11 +109,7 @@ export async function startObservationStreams(args: StartObservationStreamsArgs)
     return "No reportable observation streams found (check ObservationReportingExpectation + Conditions + report triggers).";
   }
 
-  const graphTool = new GraphDbTool(
-    args.graphCfg.graphDbEndpoint,
-    args.graphCfg.graphDbNamedGraph,
-    args.graphCfg.graphDbQueryLimit
-  );
+  const graphTool = GraphDbTool.fromEnv(args.graphCfg);
 
   const state: SessionState = {
     intentId: args.intentId,

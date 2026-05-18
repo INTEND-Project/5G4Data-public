@@ -1,10 +1,20 @@
 import { GraphDbTool } from "./graphdbTool.js";
 import {
+  effectiveGraphDbEnv,
+  type GraphTargetBinding
+} from "./graphTargetBinding.js";
+import {
   applyObservationOverride,
   observationStreamStatus,
   startObservationStreams,
   stopObservationStreams
 } from "./observationStreamCoordinator.js";
+import { looksLikeSyntheticObservationPrompt } from "./syntheticPrompt.js";
+import {
+  handleSyntheticObservationUserLine,
+  stopSyntheticObservationForSession,
+  syntheticObservationStatus
+} from "./syntheticRunOrchestrator.js";
 
 interface ReplObserveHookContext {
   line: string;
@@ -15,6 +25,15 @@ interface ReplObserveHookContext {
   graphDbEndpoint: string;
   graphDbNamedGraph: string;
   graphDbQueryLimit: number;
+  graphTargetBinding?: GraphTargetBinding | null;
+}
+
+function graphFallback(ctx: ReplObserveHookContext) {
+  return {
+    graphDbEndpoint: ctx.graphDbEndpoint,
+    graphDbNamedGraph: ctx.graphDbNamedGraph,
+    graphDbQueryLimit: ctx.graphDbQueryLimit
+  };
 }
 
 function parseKeyValueTokens(line: string): Record<string, string> {
@@ -40,24 +59,85 @@ export async function handleReplLine(
   ctx: ReplObserveHookContext
 ): Promise<{ handled: boolean; assistantText?: string }> {
   const line = ctx.line.trim();
-  if (!line.toLowerCase().startsWith("observe")) return { handled: false };
 
-  const parts = line.split(/\s+/);
-  const action = (parts[1] ?? "").toLowerCase();
+  if (!line.toLowerCase().startsWith("observe")) {
+    if (looksLikeSyntheticObservationPrompt(line)) {
+      const synth = await handleSyntheticObservationUserLine({
+        line,
+        sessionId: ctx.session.sessionId,
+        packageDir: ctx.packageDir,
+        graphDbEndpoint: ctx.graphDbEndpoint,
+        graphDbNamedGraph: ctx.graphDbNamedGraph,
+        graphDbQueryLimit: ctx.graphDbQueryLimit,
+        graphTargetBinding: ctx.graphTargetBinding
+      });
+      if (synth.started && synth.assistantText !== undefined) {
+        return { handled: true, assistantText: synth.assistantText };
+      }
+      if (synth.started) {
+        return { handled: true, assistantText: "Synthetic observation flow failed silently." };
+      }
+    }
+    return { handled: false };
+  }
+
+  const parts = line.split(/\s+/).map((x) => x.trim());
+  const observeToken = parts[0] ?? "";
+
+  const block = observeToken.toLowerCase() === "observe" ? parts.slice(1) : [];
+
+  const action = block[0]?.toLowerCase() ?? "";
   if (!action) {
     return {
       handled: true,
       assistantText:
-        "Usage: `observe start intent_id=...`, `observe status`, `observe stop`, `observe override metric=... min=... max=...`."
+        "Usage:\n`observe start intent_id=...`\n`observe synthetic ...` (`intent_id=`, `mode=streaming|historic`, `frequency=60s`, `metric=prop_CO...`).\n`observe synthetic stop` | `observe status` | `observe stop` (stops streams + synthetic) | `observe override metric=… min=… max=…`."
     };
   }
 
+  if (action === "synthetic") {
+    const sub = (block[1] ?? "").toLowerCase();
+    if (sub === "stop") {
+      return {
+        handled: true,
+        assistantText: stopSyntheticObservationForSession(ctx.session.sessionId)
+      };
+    }
+    let payloadLine = "";
+    if (sub === "start") {
+      payloadLine = block.slice(2).join(" ").trim();
+    } else {
+      payloadLine = block.slice(1).join(" ").trim();
+    }
+    const synth = await handleSyntheticObservationUserLine({
+      line: payloadLine,
+      sessionId: ctx.session.sessionId,
+      packageDir: ctx.packageDir,
+      graphDbEndpoint: ctx.graphDbEndpoint,
+      graphDbNamedGraph: ctx.graphDbNamedGraph,
+      graphDbQueryLimit: ctx.graphDbQueryLimit,
+      graphTargetBinding: ctx.graphTargetBinding,
+      force: true
+    });
+    if (synth.assistantText !== undefined) {
+      return { handled: true, assistantText: synth.assistantText };
+    }
+    return { handled: true, assistantText: "Synthetic codegen did not yield a reply." };
+  }
+
   if (action === "status") {
-    return { handled: true, assistantText: observationStreamStatus(ctx.session.sessionId) };
+    const synthetic = syntheticObservationStatus(ctx.session.sessionId);
+    const streams = observationStreamStatus(ctx.session.sessionId);
+    return { handled: true, assistantText: `${streams}\n\n${synthetic}` };
   }
 
   if (action === "stop") {
-    return { handled: true, assistantText: stopObservationStreams(ctx.session.sessionId) };
+    const synth = stopSyntheticObservationForSession(ctx.session.sessionId);
+    const stream = stopObservationStreams(ctx.session.sessionId);
+    return {
+      handled: true,
+      assistantText: [stream, "", synth].join("\n").trimEnd()
+    };
   }
 
   if (action === "override") {
@@ -80,7 +160,9 @@ export async function handleReplLine(
     if (!intentId) {
       return { handled: true, assistantText: "Missing `intent_id=...` for observe start." };
     }
-    const graphTool = new GraphDbTool(ctx.graphDbEndpoint, ctx.graphDbNamedGraph, ctx.graphDbQueryLimit);
+    const fallback = graphFallback(ctx);
+    const graphTool = GraphDbTool.fromBinding(ctx.graphTargetBinding, fallback);
+    const graphEnv = effectiveGraphDbEnv(ctx.graphTargetBinding, fallback);
     const intentTurtle = await graphTool.getIntentTurtle(intentId);
     if (!intentTurtle) {
       return {
@@ -93,11 +175,7 @@ export async function handleReplLine(
       intentId,
       intentTurtle,
       packageDir: ctx.packageDir,
-      graphCfg: {
-        graphDbEndpoint: ctx.graphDbEndpoint,
-        graphDbNamedGraph: ctx.graphDbNamedGraph,
-        graphDbQueryLimit: ctx.graphDbQueryLimit
-      },
+      graphCfg: graphEnv,
       debug: ctx.debug,
       debugLogPath: ctx.debugLogPath
     });
@@ -107,6 +185,6 @@ export async function handleReplLine(
   return {
     handled: true,
     assistantText:
-      "Unknown observe action. Use `observe start`, `observe status`, `observe stop`, or `observe override`."
+      "Unknown observe action. Supported: observe start/synthetic/status/stop/override (+ auto-detected synthetic prompts when not prefixed with observe)."
   };
 }

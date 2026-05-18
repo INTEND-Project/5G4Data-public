@@ -1,3 +1,5 @@
+import type { GraphDbEnvFallback, GraphTargetBinding } from "./graphTargetBinding.js";
+
 export const NEAREST_EDGE_DATACENTER_QUERY = `
 PREFIX schema: <https://intendproject.eu/schema/>
 PREFIX aeros: <https://aeros.eu/schema/>
@@ -18,8 +20,38 @@ export class GraphDbTool {
   constructor(
     private readonly endpoint: string,
     private readonly namedGraph: string,
-    private readonly queryLimit: number
+    private readonly queryLimit: number,
+    private readonly repositoryBaseUrl?: string
   ) {}
+
+  static fromEnv(env: GraphDbEnvFallback): GraphDbTool {
+    return new GraphDbTool(
+      env.graphDbEndpoint,
+      env.graphDbNamedGraph,
+      env.graphDbQueryLimit,
+      env.repositoryBaseUrl
+    );
+  }
+
+  static fromBinding(
+    binding: GraphTargetBinding | null | undefined,
+    fallback: GraphDbEnvFallback,
+    queryLimit?: number
+  ): GraphDbTool {
+    const limit = queryLimit ?? fallback.graphDbQueryLimit;
+    if (binding) {
+      const repoBase =
+        binding.repositoryBaseUrl ?? binding.sparqlEndpoint.replace(/\/sparql\/?$/i, "");
+      return new GraphDbTool(binding.sparqlEndpoint, binding.graphIri, limit, repoBase);
+    }
+    const repoBase = fallback.graphDbEndpoint.replace(/\/sparql\/?$/i, "");
+    return new GraphDbTool(
+      fallback.graphDbEndpoint,
+      fallback.graphDbNamedGraph,
+      limit,
+      repoBase
+    );
+  }
 
   /**
    * Intent-Simulator `graphdb_client.get_intent()` uses
@@ -71,7 +103,16 @@ export class GraphDbTool {
     const root = this.intentRootUri(intentId);
     if (!root) return null;
 
-    // Mirrors Intent-Simulator `shared/graphdb_client.py` `get_intent()` (repository-wide, no GRAPH wrapper).
+    const graphClause = this.namedGraph.trim()
+      ? `GRAPH <${this.namedGraph}> {
+  ?s ?p ?o .
+  <${root}> (^!rdf:type|!rdf:type)* ?s .
+  FILTER(?p != rdf:type || ?o != rdf:List)
+}`
+      : `?s ?p ?o .
+  <${root}> (^!rdf:type|!rdf:type)* ?s .
+  FILTER(?p != rdf:type || ?o != rdf:List)`;
+
     const query = `
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX data5g: <http://5g4data.eu/5g4data#>
@@ -87,9 +128,7 @@ CONSTRUCT {
   ?s ?p ?o .
 }
 WHERE {
-  ?s ?p ?o .
-  <${root}> (^!rdf:type|!rdf:type)* ?s .
-  FILTER(?p != rdf:type || ?o != rdf:List)
+  ${graphClause}
 }
 `.trim();
 
@@ -104,10 +143,20 @@ WHERE {
   }
 
   async insertTurtle(turtle: string): Promise<boolean> {
-    const statementsUrl = this.endpoint
-      .replace(/\/sparql$/, "")
-      .replace(/\/$/, "")
-      .concat("/statements");
+    const graphIri = this.namedGraph.trim();
+    const repoBase = (this.repositoryBaseUrl ?? this.repositoryQueryUrl()).replace(/\/$/, "");
+
+    if (graphIri) {
+      const url = `${repoBase}/rdf-graphs/service?graph=${encodeURIComponent(graphIri)}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-turtle" },
+        body: turtle
+      });
+      return response.ok;
+    }
+
+    const statementsUrl = `${repoBase}/statements`;
     const response = await fetch(statementsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-turtle" },

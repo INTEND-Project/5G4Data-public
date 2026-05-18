@@ -42,6 +42,9 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   const kgTargetsDeleteUrlBase = withAppBasePath("/api/kg-targets");
   const scriptsApiUrl = withAppBasePath("/api/scripts");
   const discoverIntentAgentApiUrl = withAppBasePath("/api/registry/discover-intent-agent");
+  const discoverObservationAgentApiUrl = withAppBasePath(
+    "/api/registry/discover-observation-agent",
+  );
   const a2aMessageSendUrl = withAppBasePath("/api/a2a/message-send");
   const registryConnected = await getRegistryConnectionStatus();
   const scripts = await listScriptsForUser(user.id, selectedDomain);
@@ -91,6 +94,7 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
       kgTargets={kgTargets}
       scriptsApiUrl={scriptsApiUrl}
       discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
+      discoverObservationAgentApiUrl={discoverObservationAgentApiUrl}
       a2aMessageSendUrl={a2aMessageSendUrl}
       registryConnected={registryConnected}
       scripts={scripts}

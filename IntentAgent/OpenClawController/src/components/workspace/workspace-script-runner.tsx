@@ -18,6 +18,7 @@ type WorkspaceScriptRunnerProps = {
   kgTargetsApiBaseUrl: string;
   kgTargets: Array<{ id: string; displayName: string }>;
   discoverIntentAgentApiUrl: string;
+  discoverObservationAgentApiUrl: string;
   a2aMessageSendUrl: string;
 };
 
@@ -44,6 +45,7 @@ export function WorkspaceScriptRunner({
   kgTargetsApiBaseUrl,
   kgTargets,
   discoverIntentAgentApiUrl,
+  discoverObservationAgentApiUrl,
   a2aMessageSendUrl,
 }: WorkspaceScriptRunnerProps) {
   const router = useRouter();
@@ -411,20 +413,17 @@ export function WorkspaceScriptRunner({
 
       const bindings = new Map<string, string>();
       let lastWorkspaceIntentWellKnownUri: string | null = null;
-      let memoizedIntentAgentWellKnownUri: string | undefined;
+      const discoverCache = new Map<string, string>();
 
-      const lookupIntentGeneratingAgentUri = async (): Promise<
-        string | null
-      > => {
-        if (memoizedIntentAgentWellKnownUri) {
-          return memoizedIntentAgentWellKnownUri;
-        }
-
-        const response = await fetch(discoverIntentAgentApiUrl, {
+      const fetchAgentWellKnownUri = async (
+        apiUrl: string,
+        domain: string,
+      ): Promise<string | null> => {
+        const response = await fetch(apiUrl, {
           method: "POST",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ domain: selectedDomain }),
+          body: JSON.stringify({ domain }),
         });
 
         const body = (await response.json().catch(() => ({}))) as {
@@ -448,9 +447,32 @@ export function WorkspaceScriptRunner({
           return null;
         }
 
-        memoizedIntentAgentWellKnownUri = uriCandidate;
-
         return uriCandidate;
+      };
+
+      const resolveDiscoverUri = async (
+        cacheKey: string,
+        apiUrl: string,
+        domain: string,
+      ): Promise<string | null> => {
+        const cached = discoverCache.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
+
+        const uri = await fetchAgentWellKnownUri(apiUrl, domain);
+        if (uri) {
+          discoverCache.set(cacheKey, uri);
+        }
+        return uri;
+      };
+
+      const lookupIntentGeneratingAgentUri = async (): Promise<string | null> => {
+        return resolveDiscoverUri(
+          `intent-agent:${selectedDomain}`,
+          discoverIntentAgentApiUrl,
+          selectedDomain,
+        );
       };
 
       for (const statement of orderedStatements) {
@@ -470,6 +492,43 @@ export function WorkspaceScriptRunner({
           appendRunnerLog(
             `Line ${statement.line}: ${statement.alias} → ${uri}`,
           );
+          continue;
+        }
+
+        if (statement.kind === "discover") {
+          if (statement.agentKind === "status-agent") {
+            appendRunnerLog(
+              `Line ${statement.line}: status-agent discovery is not implemented yet.`,
+            );
+            return;
+          }
+
+          if (statement.domain !== selectedDomain) {
+            appendRunnerLog(
+              `Line ${statement.line}: note — script domain "${statement.domain}" differs from workspace domain "${selectedDomain}".`,
+            );
+          }
+
+          const cacheKey = `${statement.agentKind}:${statement.domain}`;
+          const apiUrl =
+            statement.agentKind === "intent-agent"
+              ? discoverIntentAgentApiUrl
+              : discoverObservationAgentApiUrl;
+
+          appendRunnerLog(`Line ${statement.line}: Searching registry…`);
+          const uri = await resolveDiscoverUri(cacheKey, apiUrl, statement.domain);
+          if (!uri) {
+            appendRunnerLog(
+              statement.agentKind === "intent-agent"
+                ? "Could not locate an intent-generating agent card for this domain."
+                : "Could not locate an observation-control agent card for this domain.",
+            );
+            return;
+          }
+
+          bindings.set(statement.alias, uri);
+
+          appendRunnerLog(`Line ${statement.line}: ${statement.alias} → ${uri}`);
           continue;
         }
 
@@ -580,8 +639,8 @@ export function WorkspaceScriptRunner({
       }
 
       if (catalogBindings.size > 0) {
-        const merged = [...new Set([].concat(...catalogBindings.values()) as string[])].sort(
-          (a, b) => a.localeCompare(b),
+        const merged = [...new Set(Array.from(catalogBindings.values()).flat())].sort((a, b) =>
+          a.localeCompare(b),
         );
         setScriptExtractedMetricNames(merged);
         appendRunnerLog(
@@ -600,6 +659,7 @@ export function WorkspaceScriptRunner({
     beginScriptRun,
     endActiveScriptRun,
     discoverIntentAgentApiUrl,
+    discoverObservationAgentApiUrl,
     kgTargetsApiBaseUrl,
     persistIntentStoreUrl,
     selectedDomain,

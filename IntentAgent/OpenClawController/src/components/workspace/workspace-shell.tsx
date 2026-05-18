@@ -24,6 +24,7 @@ type WorkspaceShellProps = {
   kgTargetsDeleteUrlBase: string;
   scriptsApiUrl: string;
   discoverIntentAgentApiUrl: string;
+  discoverObservationAgentApiUrl: string;
   a2aMessageSendUrl: string;
   registryConnected: boolean;
   kgTargets: Array<{
@@ -55,6 +56,7 @@ export function WorkspaceShell({
   kgTargetsDeleteUrlBase,
   scriptsApiUrl,
   discoverIntentAgentApiUrl,
+  discoverObservationAgentApiUrl,
   a2aMessageSendUrl,
   registryConnected,
   kgTargets,
@@ -138,6 +140,7 @@ export function WorkspaceShell({
             <WorkspaceScriptRunner
               a2aMessageSendUrl={a2aMessageSendUrl}
               discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
+              discoverObservationAgentApiUrl={discoverObservationAgentApiUrl}
               kgTargets={scriptRunnerKgTargets}
               kgTargetsApiBaseUrl={kgTargetsDeleteUrlBase}
               metricNames={assistantContext.metricNames}

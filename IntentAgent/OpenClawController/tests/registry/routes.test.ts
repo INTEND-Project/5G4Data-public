@@ -38,7 +38,7 @@ describe("registry routes", () => {
     ]);
 
     const routeModule = await import("../../src/app/api/domains/route");
-    const response = await routeModule.GET(new Request("http://localhost/api/domains"));
+    const response = await routeModule.GET();
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({

@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { createSession } from "../turnOrchestrator.js";
+import {
+  bindingsConflict,
+  parseGraphTargetBindingFromMetadata
+} from "../graphTargetBinding.js";
 import type { AgentTurnResult, ChatSession } from "../../models.js";
 
 export interface A2AJsonRpcAdapterDeps {
@@ -35,6 +39,7 @@ interface IncomingMessageShape {
   taskId?: string;
   contextId?: string;
   messageId?: string;
+  metadata?: unknown;
 }
 
 const SEND_METHODS = new Set(["message/send", "SendMessage"]);
@@ -108,8 +113,41 @@ function buildCompletedTaskResult(options: {
 }
 
 type PreparedSend =
-  | { ok: true; id: string | number | null; taskId: string; contextId: string; session: ChatSession; userText: string; userMessageId: string }
+  | {
+      ok: true;
+      id: string | number | null;
+      taskId: string;
+      contextId: string;
+      session: ChatSession;
+      userText: string;
+      userMessageId: string;
+    }
   | { ok: false; httpStatus: number; body: string };
+
+function applyGraphTargetBindingToSession(
+  session: ChatSession,
+  incoming: IncomingMessageShape
+): PreparedSend | null {
+  const parsed = parseGraphTargetBindingFromMetadata(incoming.metadata);
+  if (parsed && bindingsConflict(session.graphTargetBinding, parsed)) {
+    return {
+      ok: false,
+      httpStatus: 200,
+      body: jsonRpcError(null, {
+        code: -32602,
+        message: "Invalid params.",
+        data: {
+          details:
+            "graphTarget metadata conflicts with the binding established for this taskId."
+        }
+      })
+    };
+  }
+  if (parsed && !session.graphTargetBinding) {
+    session.graphTargetBinding = parsed;
+  }
+  return null;
+}
 
 export class A2AJsonRpcAdapter {
   private readonly bindings = new Map<string, A2ABinding>();
@@ -210,10 +248,18 @@ export class A2AJsonRpcAdapter {
       taskId = incoming.taskId;
       contextId = binding.contextId;
       session = binding.session;
+      const bindingConflict = applyGraphTargetBindingToSession(session, incoming);
+      if (bindingConflict) {
+        return bindingConflict;
+      }
     } else {
       taskId = randomUUID();
       contextId = randomUUID();
       session = createSession();
+      const bindingConflict = applyGraphTargetBindingToSession(session, incoming);
+      if (bindingConflict) {
+        return bindingConflict;
+      }
       this.bindings.set(taskId, { session, contextId });
     }
 

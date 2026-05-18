@@ -23,6 +23,7 @@ import type { LoadedDomainPackage } from "./packageLoader.js";
 import { WorkflowEngine } from "./workflowEngine.js";
 import { buildIntentUsageSummary } from "./usage.js";
 import { appendUsageLog } from "./usageLogger.js";
+import { tryReplPackageHook } from "./replPackageHook.js";
 
 type ModelMessage = { role: "system" | "user" | "assistant"; content: string };
 type GraphDbWriterApi = { insertTurtle: (turtle: string) => Promise<boolean> };
@@ -47,11 +48,49 @@ export class TurnOrchestrator {
     this.workflowEngine = new WorkflowEngine(domainPackage);
   }
 
-  async runTurn(session: ChatSession, userText: string): Promise<AgentTurnResult> {
+  async runTurn(
+    session: ChatSession,
+    userText: string,
+    hooks?: {
+      replHookDebug?: boolean;
+      replHookDebugLogPath?: string;
+    }
+  ): Promise<AgentTurnResult> {
     const debug: string[] = [];
     const warnings: string[] = [];
     const calls: LlmCallRecord[] = [];
     const turnId = randomUUID();
+    const hookDebug = hooks?.replHookDebug ?? false;
+    const hookDebugLogPath = hooks?.replHookDebugLogPath ?? "logs/openclaw-agent-debug.jsonl";
+
+    const replHookResult = await tryReplPackageHook({
+      line: userText.trim(),
+      session,
+      domainPackage: this.domainPackage,
+      debug: hookDebug,
+      debugLogPath: hookDebugLogPath,
+      graphDbEndpoint: this.config.graphDbEndpoint,
+      graphDbNamedGraph: this.config.graphDbNamedGraph,
+      graphDbQueryLimit: this.config.graphDbQueryLimit,
+      graphTargetBinding: session.graphTargetBinding ?? null
+    });
+
+    if (replHookResult.handled) {
+      session.messages.push({ role: "user", text: userText, createdAt: new Date().toISOString() });
+      if (replHookResult.assistantText) {
+        session.messages.push({
+          role: "assistant",
+          text: replHookResult.assistantText,
+          createdAt: new Date().toISOString()
+        });
+      }
+      debug.push("repl_package_hook_handled=true");
+      return {
+        response: replHookResult.assistantText ?? "",
+        warnings,
+        debug
+      };
+    }
     const confirmationConfig = this.domainPackage.workflow.confirmation;
     const acceptedUserInputs = confirmationConfig?.acceptedUserInputs ?? ["ok"];
     const assistantMarkers = confirmationConfig?.assistantMarkers ?? ["type ok to confirm"];
@@ -62,7 +101,11 @@ export class TurnOrchestrator {
     const effectiveUserText =
       confirmationAck && previousUserRequest ? previousUserRequest : userText;
     const intentFlags = this.workflowEngine.classifyIntent(effectiveUserText);
-    const context = await this.contextBuilder.build(effectiveUserText, intentFlags);
+    const context = await this.contextBuilder.build(
+      effectiveUserText,
+      intentFlags,
+      session.graphTargetBinding ?? null
+    );
     warnings.push(...context.warnings);
     debug.push(...context.debug, `confirmation_acknowledged=${confirmationAck}`);
 

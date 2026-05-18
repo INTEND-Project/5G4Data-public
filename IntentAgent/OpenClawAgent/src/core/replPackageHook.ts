@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { ChatSession } from "../models.js";
+import type { ChatSession, GraphTargetBinding } from "../models.js";
 import type { LoadedDomainPackage } from "./packageLoader.js";
 
 export interface ReplHookInput {
@@ -13,6 +13,7 @@ export interface ReplHookInput {
   graphDbEndpoint: string;
   graphDbNamedGraph: string;
   graphDbQueryLimit: number;
+  graphTargetBinding?: GraphTargetBinding | null;
 }
 
 export async function tryReplPackageHook(
@@ -33,6 +34,7 @@ export async function tryReplPackageHook(
         graphDbEndpoint: string;
         graphDbNamedGraph: string;
         graphDbQueryLimit: number;
+        graphTargetBinding?: GraphTargetBinding | null;
       }) => Promise<{ handled: boolean; assistantText?: string }>;
     };
     if (!mod.handleReplLine) return { handled: false };
@@ -44,10 +46,15 @@ export async function tryReplPackageHook(
       packageDir: input.domainPackage.packageDir,
       graphDbEndpoint: input.graphDbEndpoint,
       graphDbNamedGraph: input.graphDbNamedGraph,
-      graphDbQueryLimit: input.graphDbQueryLimit
+      graphDbQueryLimit: input.graphDbQueryLimit,
+      graphTargetBinding: input.graphTargetBinding ?? input.session.graphTargetBinding ?? null
     });
-  } catch {
-    return { handled: false };
+  } catch (error) {
+    console.error("[openclaw] replPreTurn hook failed:", error);
+    return {
+      handled: true,
+      assistantText: `Observation hook failed: ${error instanceof Error ? error.message : String(error)}`
+    };
   }
 }
 
@@ -59,6 +66,19 @@ export async function shutdownObservationStreamsIfPresent(packageDir: string): P
       stopAllObservationStreams?: () => void;
     };
     mod.stopAllObservationStreams?.();
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function shutdownSyntheticRunsIfPresent(packageDir: string): Promise<void> {
+  const modPath = join(packageDir, "tools", "syntheticRunOrchestrator.ts");
+  if (!existsSync(modPath)) return;
+  try {
+    const mod = (await import(pathToFileURL(modPath).href)) as {
+      stopAllSyntheticRuns?: () => void;
+    };
+    mod.stopAllSyntheticRuns?.();
   } catch {
     /* ignore */
   }

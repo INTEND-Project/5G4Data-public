@@ -6,7 +6,10 @@ import { loadConfig, type AppConfig } from "./config.js";
 import { createOpenClawModelInvoker } from "./adapters/openclaw.js";
 import { createSession, TurnOrchestrator } from "./core/turnOrchestrator.js";
 import { loadDomainPackage } from "./core/packageLoader.js";
-import { shutdownObservationStreamsIfPresent, tryReplPackageHook } from "./core/replPackageHook.js";
+import {
+  shutdownObservationStreamsIfPresent,
+  shutdownSyntheticRunsIfPresent
+} from "./core/replPackageHook.js";
 import {
   buildAgentCard,
   persistAgentCard,
@@ -369,7 +372,10 @@ async function runOneShot(
   writeIntentTurtleDebug: boolean
 ): Promise<void> {
   const session = createSession();
-  const result = await orchestrator.runTurn(session, prompt);
+  const result = await orchestrator.runTurn(session, prompt, {
+    replHookDebug: debug,
+    replHookDebugLogPath: debugLogPath
+  });
   appendDebugLog(debug, debugLogPath, session, prompt, result);
   if (writeIntentTurtleDebug) {
     writeIntentTurtleDebugFile(resolve(process.cwd(), debugLogPath), result.response);
@@ -405,36 +411,10 @@ async function runInteractive(
       if (userText.toLowerCase() === "exit" || userText.toLowerCase() === "quit") {
         break;
       }
-      const cfg = orchestrator.getAppConfig();
-      const hook = await tryReplPackageHook({
-        line: userText,
-        session,
-        domainPackage: orchestrator.getDomainPackage(),
-        debug,
-        debugLogPath,
-        graphDbEndpoint: cfg.graphDbEndpoint,
-        graphDbNamedGraph: cfg.graphDbNamedGraph,
-        graphDbQueryLimit: cfg.graphDbQueryLimit
+      const result = await orchestrator.runTurn(session, userText, {
+        replHookDebug: debug,
+        replHookDebugLogPath: debugLogPath
       });
-      if (hook.handled) {
-        const synthetic: AgentTurnResult = {
-          response: hook.assistantText ?? "",
-          warnings: [],
-          debug: ["repl_package_hook_handled=true"]
-        };
-        appendDebugLog(debug, debugLogPath, session, userText, synthetic);
-        session.messages.push({ role: "user", text: userText, createdAt: new Date().toISOString() });
-        if (hook.assistantText) {
-          session.messages.push({
-            role: "assistant",
-            text: hook.assistantText,
-            createdAt: new Date().toISOString()
-          });
-          process.stdout.write(`\nAssistant:\n${hook.assistantText}\n\n`);
-        }
-        continue;
-      }
-      const result = await orchestrator.runTurn(session, userText);
       appendDebugLog(debug, debugLogPath, session, userText, result);
       if (writeIntentTurtleDebug) {
         writeIntentTurtleDebugFile(resolve(process.cwd(), debugLogPath), result.response);
@@ -454,7 +434,9 @@ async function runInteractive(
       }
     }
   } finally {
-    await shutdownObservationStreamsIfPresent(orchestrator.getDomainPackage().packageDir);
+    const pkgDir = orchestrator.getDomainPackage().packageDir;
+    await shutdownObservationStreamsIfPresent(pkgDir);
+    await shutdownSyntheticRunsIfPresent(pkgDir);
     rl.close();
   }
 }

@@ -9,10 +9,20 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+export interface GraphTargetBinding {
+  graphTargetId?: string;
+  repositoryId: string;
+  graphIri: string;
+  sparqlEndpoint: string;
+  repositoryBaseUrl?: string;
+}
+
 export interface ChatSession {
   sessionId: string;
   createdAt: string;
   messages: ChatMessage[];
+  /** From first A2A message metadata.openclaw.graphTarget for this task. */
+  graphTargetBinding?: GraphTargetBinding | null;
 }
 
 export interface AgentTurnResult {

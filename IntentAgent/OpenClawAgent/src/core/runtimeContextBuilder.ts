@@ -3,6 +3,7 @@ import { buildToolContext } from "../utils/prompting.js";
 import type { LoadedDomainPackage } from "./packageLoader.js";
 import { CapabilityRouter } from "./capabilityRouter.js";
 import type { IntentFlags } from "./workflowEngine.js";
+import type { GraphTargetBinding } from "../models.js";
 
 export interface RuntimeContextResult {
   runtimeContext: string;
@@ -20,8 +21,12 @@ export class RuntimeContextBuilder {
     this.router = new CapabilityRouter(config, domainPackage);
   }
 
-  async build(userText: string, intentFlags: IntentFlags): Promise<RuntimeContextResult> {
-    const context = await this.router.buildContext(userText, intentFlags);
+  async build(
+    userText: string,
+    intentFlags: IntentFlags,
+    graphTargetBinding?: GraphTargetBinding | null
+  ): Promise<RuntimeContextResult> {
+    const context = await this.router.buildContext(userText, intentFlags, graphTargetBinding);
     const runtimeContext = buildToolContext({
       ontologySummary: context.ontologySummary,
       exampleSummary: context.exampleSummary,

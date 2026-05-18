@@ -1,4 +1,5 @@
 import type { AppConfig } from "../config.js";
+import type { GraphTargetBinding } from "../models.js";
 import type { ContextRules, LoadedDomainPackage } from "./packageLoader.js";
 import type { IntentFlags } from "./workflowEngine.js";
 import { existsSync } from "node:fs";
@@ -75,8 +76,24 @@ export class CapabilityRouter {
     return new ToolCtor(this.config.workloadCatalogBaseUrl);
   }
 
-  private async createGraphDbApi(): Promise<GraphDbApi> {
+  private async createGraphDbApi(
+    graphTargetBinding?: GraphTargetBinding | null
+  ): Promise<GraphDbApi> {
     const mod = await this.importToolModule("graphdbTool.ts");
+    const fromBinding = mod.GraphDbTool as {
+      fromBinding?: (
+        binding: GraphTargetBinding | null | undefined,
+        fallback: { graphDbEndpoint: string; graphDbNamedGraph: string; graphDbQueryLimit: number },
+        queryLimit?: number
+      ) => GraphDbApi;
+    };
+    if (typeof fromBinding.fromBinding === "function") {
+      return fromBinding.fromBinding(graphTargetBinding, {
+        graphDbEndpoint: this.config.graphDbEndpoint,
+        graphDbNamedGraph: this.config.graphDbNamedGraph,
+        graphDbQueryLimit: this.config.graphDbQueryLimit
+      });
+    }
     const ToolCtor = mod.GraphDbTool as new (
       endpoint: string,
       namedGraph: string,
@@ -116,7 +133,11 @@ export class CapabilityRouter {
     return { extractLocalityPhrase, geocodePlace, haversineKm, bboxPolygonWkt };
   }
 
-  async buildContext(userText: string, intentFlags: IntentFlags): Promise<CapabilityContext> {
+  async buildContext(
+    userText: string,
+    intentFlags: IntentFlags,
+    graphTargetBinding?: GraphTargetBinding | null
+  ): Promise<CapabilityContext> {
     const warnings: string[] = [];
     const debug: string[] = [];
     const rules: ContextRules = this.domainPackage.contextRules;
@@ -135,8 +156,12 @@ export class CapabilityRouter {
     let workflowOverride = "No workflow override.";
     const ontology = await this.createOntologyApi();
     const catalogue = await this.createCatalogueApi();
-    const graphdb = await this.createGraphDbApi();
+    const graphdb = await this.createGraphDbApi(graphTargetBinding);
     const locality = await this.createLocalityApi();
+
+    if (graphTargetBinding) {
+      graphDbSummary = `[Controller graph target] repository=${graphTargetBinding.repositoryId} graph=${graphTargetBinding.graphIri}`;
+    }
 
     if (capabilities.has("ontology_summary")) {
       ontologySummary = ontology.ontologySummary();

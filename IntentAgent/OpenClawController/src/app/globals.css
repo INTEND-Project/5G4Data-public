@@ -664,6 +664,9 @@ select.workspace-topbar-run-select:disabled {
 
 .workspace-editor-panel {
   align-content: start;
+  /* Allow the grid track to shrink below Monaco's content min-width so the editor stays inside the panel. */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .workspace-heading-row {
@@ -867,6 +870,8 @@ select.workspace-topbar-run-select:disabled {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .workspace-editor-height-resizer {
@@ -891,6 +896,10 @@ select.workspace-topbar-run-select:disabled {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 18px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .workspace-runner {

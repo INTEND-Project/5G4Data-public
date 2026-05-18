@@ -44,6 +44,7 @@ export function ScriptEditor({
         defaultLanguage="plaintext"
         height={`${heightPx}px`}
         options={{
+          automaticLayout: true,
           minimap: { enabled: false },
           scrollBeyondLastLine: false,
           wordWrap: "on",

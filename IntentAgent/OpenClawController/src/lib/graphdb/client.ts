@@ -120,3 +120,47 @@ export async function deleteRepository(input: { repositoryId: string }) {
     throw new Error(await buildGraphDbErrorMessage(response, "repository deletion"));
   }
 }
+
+function normalizedGraphDbBaseUrl(): string {
+  const env = loadAppEnv(process.env);
+  return env.graphDbBaseUrl.endsWith("/") ? env.graphDbBaseUrl : `${env.graphDbBaseUrl}/`;
+}
+
+/** POST Turtle intent data into the target named graph (RDF4J Graph Store HTTP API). */
+export async function ingestIntentTurtle(input: {
+  repositoryId: string;
+  graphIri: string;
+  turtle: string;
+}): Promise<void> {
+  const base = normalizedGraphDbBaseUrl();
+  const url =
+    `${base}repositories/${encodeURIComponent(input.repositoryId)}` +
+    `/rdf-graphs/service?graph=${encodeURIComponent(input.graphIri)}`;
+
+  const controller = new AbortController();
+  const timeoutMs = 60_000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-turtle",
+      },
+      body: input.turtle,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`GraphDB timed out after ${timeoutMs / 1000}s during intent ingest`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    throw new Error(await buildGraphDbErrorMessage(response, "intent ingest"));
+  }
+}

@@ -18,6 +18,7 @@ const graphDbClientMock = {
   createRepository: vi.fn(),
   createNamedGraph: vi.fn(),
   deleteRepository: vi.fn(),
+  ingestIntentTurtle: vi.fn(),
 };
 
 const guardMock = {
@@ -201,5 +202,74 @@ describe("kg target routes", () => {
     ).rejects.toThrow("GraphDB repository deletion failed with 500");
 
     expect(dbMock.knowledgeGraphTarget.delete).not.toHaveBeenCalled();
+  });
+
+  it("ingests Turtle into GraphDB using the persisted repository id and named graph iri", async () => {
+    dbMock.knowledgeGraphTarget.findFirst.mockResolvedValue({
+      id: "kg-target-1",
+      repositoryId: "telenor-5g4data-kg-avalanche-demo",
+      graphIri: "urn:intend:kg:telenor-5g4data:kg-avalanche-demo",
+    });
+    graphDbClientMock.ingestIntentTurtle.mockResolvedValue(undefined);
+
+    const turtle = `@prefix icm: <http://example/icm/> .\n _:x a icm:Intent .\n`;
+
+    const routeModule = await import("../../src/app/api/kg-targets/[id]/store-intent/route");
+    const response = await routeModule.POST(
+      new Request("http://localhost/api/kg-targets/kg-target-1/store-intent", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ turtle }),
+      }),
+      {
+        params: Promise.resolve({
+          id: "kg-target-1",
+        }),
+      },
+    );
+
+    expect(graphDbClientMock.ingestIntentTurtle).toHaveBeenCalledWith({
+      repositoryId: "telenor-5g4data-kg-avalanche-demo",
+      graphIri: "urn:intend:kg:telenor-5g4data:kg-avalanche-demo",
+      turtle,
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      intentId: null,
+      graphTargetId: "kg-target-1",
+    });
+  });
+
+  it("returns 502 when ingestIntentTurtle throws", async () => {
+    dbMock.knowledgeGraphTarget.findFirst.mockResolvedValue({
+      id: "kg-target-1",
+      repositoryId: "telenor-5g4data-kg-avalanche-demo",
+      graphIri: "urn:intend:kg:telenor-5g4data:kg-avalanche-demo",
+    });
+    graphDbClientMock.ingestIntentTurtle.mockRejectedValue(new Error("GraphDB intent ingest failed with 418"));
+
+    const routeModule = await import("../../src/app/api/kg-targets/[id]/store-intent/route");
+    const response = await routeModule.POST(
+      new Request("http://localhost/api/kg-targets/kg-target-1/store-intent", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ turtle: "@prefix icm: <http://x/> .\n _:a a icm:Intent .\n" }),
+      }),
+      {
+        params: Promise.resolve({
+          id: "kg-target-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "GraphDB intent ingest failed with 418",
+    });
   });
 });

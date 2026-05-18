@@ -88,6 +88,35 @@ describe("graphdb client", () => {
     );
   });
 
+  it("posts Turtle intents to the named graph endpoint with a turtle content type", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const graphDbClientModule = await import("../../src/lib/graphdb/client");
+
+    const turtle = `@prefix icm: <http://example/icm/> .\n _:x a icm:Intent .\n`;
+
+    await graphDbClientModule.ingestIntentTurtle({
+      repositoryId: "demo-repo",
+      graphIri: "urn:intend:kg:demo:test",
+      turtle,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+
+    expect(url).toBe(
+      "http://graphdb.example/repositories/demo-repo/rdf-graphs/service?graph=urn%3Aintend%3Akg%3Ademo%3Atest",
+    );
+    expect(init.method).toBe("POST");
+    expect(init.headers).toMatchObject({
+      "content-type": "application/x-turtle",
+    });
+    expect(init.body).toBe(turtle);
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it("throws when GraphDB rejects repository deletion", async () => {
     const fetchMock = vi
       .fn()

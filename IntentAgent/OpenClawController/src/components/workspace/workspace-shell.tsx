@@ -70,8 +70,10 @@ export function WorkspaceShell({
     content: script.content,
   }));
 
-  const runTargetOptions =
-    kgTargets.length > 0 ? kgTargets.map((target) => target.displayName) : [];
+  const scriptRunnerKgTargets = kgTargets.map((target) => ({
+    id: target.id,
+    displayName: target.displayName,
+  }));
 
   return (
     <main className="workspace-shell">
@@ -135,8 +137,9 @@ export function WorkspaceShell({
             <WorkspaceScriptRunner
               a2aMessageSendUrl={a2aMessageSendUrl}
               discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
+              kgTargets={scriptRunnerKgTargets}
+              kgTargetsApiBaseUrl={kgTargetsDeleteUrlBase}
               metricNames={assistantContext.metricNames}
-              runTargetOptions={runTargetOptions}
               scriptsApiUrl={scriptsApiUrl}
             />
           </section>

@@ -15,7 +15,8 @@ import type { CreateIntentStatement } from "@/lib/dsl/types";
 type WorkspaceScriptRunnerProps = {
   metricNames: string[];
   scriptsApiUrl: string;
-  runTargetOptions: string[];
+  kgTargetsApiBaseUrl: string;
+  kgTargets: Array<{ id: string; displayName: string }>;
   discoverIntentAgentApiUrl: string;
   a2aMessageSendUrl: string;
 };
@@ -40,7 +41,8 @@ function readStoredEditorHeight(): number {
 export function WorkspaceScriptRunner({
   metricNames,
   scriptsApiUrl,
-  runTargetOptions,
+  kgTargetsApiBaseUrl,
+  kgTargets,
   discoverIntentAgentApiUrl,
   a2aMessageSendUrl,
 }: WorkspaceScriptRunnerProps) {
@@ -342,8 +344,27 @@ export function WorkspaceScriptRunner({
       window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, []);
 
-  const kgTargetSelectOptions =
-    runTargetOptions.length > 0 ? runTargetOptions : ["kg-avalanche-demo"];
+  const runnerKgTargets =
+    kgTargets.length > 0
+      ? kgTargets
+      : [{ id: "", displayName: "kg-avalanche-demo" }];
+
+  const [selectedKgTargetId, setSelectedKgTargetId] = useState("");
+
+  useEffect(() => {
+    if (kgTargets.length === 0) {
+      setSelectedKgTargetId("");
+      return;
+    }
+    setSelectedKgTargetId((prev) =>
+      prev && kgTargets.some((t) => t.id === prev) ? prev : kgTargets[0].id,
+    );
+  }, [kgTargets]);
+
+  const persistIntentStoreUrl =
+    selectedKgTargetId.length > 0 && kgTargetsApiBaseUrl.trim().length > 0
+      ? `${kgTargetsApiBaseUrl.replace(/\/+$/, "")}/${encodeURIComponent(selectedKgTargetId)}/store-intent`
+      : null;
 
   const intentFinishRef = useRef<(() => void) | null>(null);
   const [runBusy, setRunBusy] = useState(false);
@@ -476,6 +497,11 @@ export function WorkspaceScriptRunner({
         appendRunnerLog(
           `Conversation uses a single persistent task/context pair; reuse them as you iterate with Send.`,
         );
+        if (!persistIntentStoreUrl) {
+          appendRunnerLog(
+            "Intent Turtle will not be stored: choose or create a knowledge graph target in the sidebar.",
+          );
+        }
 
         await new Promise<void>((finish) => {
           intentFinishRef.current = finish;
@@ -498,6 +524,7 @@ export function WorkspaceScriptRunner({
     beginScriptRun,
     endActiveScriptRun,
     discoverIntentAgentApiUrl,
+    persistIntentStoreUrl,
     selectedDomain,
   ]);
 
@@ -596,12 +623,18 @@ export function WorkspaceScriptRunner({
           </label>
           <select
             className="workspace-select workspace-runner-select"
-            defaultValue={kgTargetSelectOptions[0]}
+            disabled={runnerKgTargets.length === 1 && runnerKgTargets[0]?.id === ""}
             id="runner-kg-target"
+            onChange={(event) => setSelectedKgTargetId(event.target.value)}
+            value={
+              runnerKgTargets.some((t) => t.id === selectedKgTargetId)
+                ? selectedKgTargetId
+                : runnerKgTargets[0]?.id ?? ""
+            }
           >
-            {kgTargetSelectOptions.map((targetName) => (
-              <option key={targetName} value={targetName}>
-                {targetName}
+            {runnerKgTargets.map((target) => (
+              <option key={target.id || target.displayName} value={target.id}>
+                {target.displayName}
               </option>
             ))}
           </select>
@@ -774,7 +807,9 @@ export function WorkspaceScriptRunner({
         agentCardWellKnownURI={intentSession?.wellKnownURI ?? ""}
         intentArtifactLabel={intentSession?.intentArtifactLabel ?? ""}
         onFinished={handleIntentDialogFinish}
+        onIntentPersistLog={appendRunnerLog}
         open={intentSession !== null}
+        persistIntentStoreUrl={persistIntentStoreUrl}
         seedPrompt={intentSession?.prompt ?? null}
       />
     </>

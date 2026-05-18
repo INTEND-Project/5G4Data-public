@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { extractIntentTurtle } from "@/lib/intent/extract-intent-turtle";
+
 type TranscriptTurn = {
   id: string;
   role: "user" | "agent";
@@ -14,6 +16,10 @@ export type IntentGenSessionDialogProps = {
   agentCardWellKnownURI: string;
   intentArtifactLabel: string;
   seedPrompt?: string | null;
+  /** When set, Turtle extracted from agent replies is POSTed here (selected KG target ingest endpoint). */
+  persistIntentStoreUrl?: string | null;
+  /** Optional hook for correlating ingest with script run logs. */
+  onIntentPersistLog?: (line: string) => void;
   /** Called once the user chooses to dismiss after the handshake is ready to continue outside the modal. */
   onFinished: () => void;
 };
@@ -24,6 +30,8 @@ export function IntentGenSessionDialog({
   agentCardWellKnownURI,
   intentArtifactLabel,
   seedPrompt,
+  persistIntentStoreUrl,
+  onIntentPersistLog,
   onFinished,
 }: IntentGenSessionDialogProps) {
   const taskBindingsRef = useRef<{ taskId?: string; contextId?: string }>({});
@@ -140,23 +148,54 @@ export function IntentGenSessionDialog({
           taskBindingsRef.current.contextId = nextCtx;
         }
 
-        const reply =
-          typeof body.visibleText === "string"
-            ? body.visibleText.trim()
-            : "(Agent returned empty text.)";
+        const replyRaw =
+          typeof body.visibleText === "string" ? body.visibleText.trim() : "";
+        const reply = replyRaw.length > 0 ? replyRaw : "(Agent returned empty text.)";
+
         setTranscript((parts) => [
           ...parts,
           {
             id: crypto.randomUUID(),
             role: "agent",
-            text: reply || "(Agent returned empty text.)",
+            text: reply,
           },
         ]);
+
+        const ingestUrl = persistIntentStoreUrl?.trim();
+        const turtlePayload = ingestUrl ? extractIntentTurtle(replyRaw) : null;
+
+        if (ingestUrl && turtlePayload) {
+          try {
+            const ingestResponse = await fetch(ingestUrl, {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ turtle: turtlePayload }),
+            });
+            const ingestBody = (await ingestResponse.json().catch(() => ({}))) as {
+              intentId?: string | null;
+              error?: string;
+            };
+            if (ingestResponse.ok) {
+              const idNote =
+                typeof ingestBody.intentId === "string" ? ingestBody.intentId : "unknown-id";
+              onIntentPersistLog?.(`Stored intent in knowledge graph (${idNote}).`);
+            } else if (typeof ingestBody.error === "string" && ingestBody.error.length > 0) {
+              onIntentPersistLog?.(`Knowledge graph ingest failed: ${ingestBody.error}`);
+            } else {
+              onIntentPersistLog?.(
+                `Knowledge graph ingest failed with HTTP ${ingestResponse.status}.`,
+              );
+            }
+          } catch (err) {
+            onIntentPersistLog?.(`Knowledge graph ingest error: ${String(err)}`);
+          }
+        }
       } finally {
         setSending(false);
       }
     },
-    [a2aMessageSendUrl, agentCardWellKnownURI],
+    [a2aMessageSendUrl, agentCardWellKnownURI, persistIntentStoreUrl, onIntentPersistLog],
   );
 
   useEffect(() => {

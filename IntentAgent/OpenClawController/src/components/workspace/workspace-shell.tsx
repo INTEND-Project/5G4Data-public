@@ -6,6 +6,7 @@ import { DomainSelector } from "@/components/workspace/domain-selector";
 import { KgTargetPanel } from "@/components/workspace/kg-target-panel";
 import { ScriptList } from "@/components/workspace/script-list";
 import { WorkspaceLeftSidebarResizable } from "@/components/workspace/workspace-left-sidebar-resizable";
+import { WorkspaceRunIdChip } from "@/components/workspace/workspace-run-id-chip";
 import { WorkspaceScriptRunner } from "@/components/workspace/workspace-script-runner";
 import { WorkspaceScriptSessionProvider } from "@/components/workspace/workspace-script-session-context";
 
@@ -74,44 +75,44 @@ export function WorkspaceShell({
 
   return (
     <main className="workspace-shell">
-      <header className="workspace-topbar">
-        <div className="workspace-brand">
-          <Image
-            alt="INTEND icon"
-            className="workspace-brand-logo"
-            src="https://intendproject.eu/intend-icon.png"
-            height={44}
-            width={44}
-          />
-          <div className="workspace-brand-copy">
-            <strong>INTEND Data Generation Controller Studio</strong>
-            <span>TM Forum intent data generation script design and execution for cognitive continuum</span>
-          </div>
-        </div>
-        <div className="workspace-top-actions">
-          <span
-            className={`workspace-chip workspace-topbar-chip ${
-              registryConnected ? "workspace-chip-live" : "workspace-chip-down"
-            }`}
-          >
-            {registryConnected ? "agent registry connected" : "agent registry disconnected"}
-          </span>
-          <span className="workspace-chip workspace-topbar-chip">runId: demo-run-2026-05-06</span>
-          <button
-            className="workspace-button workspace-top-action-button"
-            title={`Signed in as ${username}`}
-            type="button"
-          >
-            About/Help
-          </button>
-        </div>
-      </header>
-
       <WorkspaceScriptSessionProvider
         draftContent={draftContent}
         scripts={scriptsPayload}
         selectedDomain={selectedDomain}
       >
+        <header className="workspace-topbar">
+          <div className="workspace-brand">
+            <Image
+              alt="INTEND icon"
+              className="workspace-brand-logo"
+              src="https://intendproject.eu/intend-icon.png"
+              height={44}
+              width={44}
+            />
+            <div className="workspace-brand-copy">
+              <strong>INTEND Data Generation Controller Studio</strong>
+              <span>TM Forum intent data generation script design and execution for cognitive continuum</span>
+            </div>
+          </div>
+          <div className="workspace-top-actions">
+            <span
+              className={`workspace-chip workspace-topbar-chip ${
+                registryConnected ? "workspace-chip-live" : "workspace-chip-down"
+              }`}
+            >
+              {registryConnected ? "agent registry connected" : "agent registry disconnected"}
+            </span>
+            <WorkspaceRunIdChip />
+            <button
+              className="workspace-button workspace-top-action-button"
+              title={`Signed in as ${username}`}
+              type="button"
+            >
+              About/Help
+            </button>
+          </div>
+        </header>
+
         <section className="workspace-grid workspace-grid-with-resizable-sidebar">
           <WorkspaceLeftSidebarResizable>
             <aside className="workspace-panel">

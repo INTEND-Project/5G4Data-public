@@ -420,6 +420,71 @@ a {
   color: #ff9a9a;
 }
 
+button.workspace-run-log-open-button {
+  font: inherit;
+  border: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+.workspace-run-history-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  max-width: min(520px, 42vw);
+}
+
+select.workspace-topbar-run-select {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  max-width: min(420px, 36vw);
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+select.workspace-topbar-run-select option {
+  font-size: 1.2rem;
+}
+
+select.workspace-topbar-run-select:focus-visible {
+  outline: 2px solid rgba(125, 180, 255, 0.55);
+  outline-offset: 2px;
+}
+
+select.workspace-topbar-run-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.workspace-run-log-dialog {
+  width: min(720px, 100%);
+  max-height: min(86vh, 960px);
+  padding: 22px 24px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  display: grid;
+  gap: 14px;
+}
+
+.workspace-run-log-dialog h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.workspace-run-log-dialog-body {
+  margin-top: 0;
+  max-height: min(50vh, 420px);
+}
+
 .workspace-intent-dialog-backdrop {
   position: fixed;
   inset: 0;

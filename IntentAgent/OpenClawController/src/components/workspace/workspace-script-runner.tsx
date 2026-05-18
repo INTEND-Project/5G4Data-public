@@ -58,6 +58,12 @@ export function WorkspaceScriptRunner({
     openScriptTab,
     migrateDraftTabToSavedScript,
     clearDirtyForKeys,
+    selectedRunLogLines,
+    appendRunnerLog,
+    beginScriptRun,
+    endActiveScriptRun,
+    runLogDialogOpen,
+    closeRunLogDialog,
   } = useWorkspaceScriptSession();
 
   const [editorHeightPx, setEditorHeightPx] = useState(DEFAULT_EDITOR_HEIGHT);
@@ -71,33 +77,36 @@ export function WorkspaceScriptRunner({
     editorHeightPxRef.current = editorHeightPx;
   }, [editorHeightPx]);
 
-  const onEditorHeightResizeMouseDown = useCallback((event: React.MouseEvent) => {
-    event.preventDefault();
-    const startY = event.clientY;
-    const startH = editorHeightPxRef.current;
-    const onMove = (ev: MouseEvent) => {
-      const delta = ev.clientY - startY;
-      const next = Math.min(
-        MAX_EDITOR_HEIGHT,
-        Math.max(MIN_EDITOR_HEIGHT, startH + delta),
-      );
-      setEditorHeightPx(next);
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      try {
-        window.localStorage.setItem(
-          EDITOR_HEIGHT_STORAGE_KEY,
-          String(editorHeightPxRef.current),
+  const onEditorHeightResizeMouseDown = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault();
+      const startY = event.clientY;
+      const startH = editorHeightPxRef.current;
+      const onMove = (ev: MouseEvent) => {
+        const delta = ev.clientY - startY;
+        const next = Math.min(
+          MAX_EDITOR_HEIGHT,
+          Math.max(MIN_EDITOR_HEIGHT, startH + delta),
         );
-      } catch {
-        /* ignore */
-      }
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }, []);
+        setEditorHeightPx(next);
+      };
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        try {
+          window.localStorage.setItem(
+            EDITOR_HEIGHT_STORAGE_KEY,
+            String(editorHeightPxRef.current),
+          );
+        } catch {
+          /* ignore */
+        }
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    },
+    [],
+  );
 
   const scriptNameRef = useRef(activeScriptName);
   scriptNameRef.current = activeScriptName;
@@ -137,6 +146,21 @@ export function WorkspaceScriptRunner({
   }, [saveAsDialogOpen, saving]);
 
   useEffect(() => {
+    if (!runLogDialogOpen) {
+      return;
+    }
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      event.preventDefault();
+      closeRunLogDialog();
+    };
+    document.addEventListener("keydown", onEscape);
+    return () => document.removeEventListener("keydown", onEscape);
+  }, [runLogDialogOpen, closeRunLogDialog]);
+
+  useEffect(() => {
     if (!saveAsDialogOpen) {
       return;
     }
@@ -168,7 +192,9 @@ export function WorkspaceScriptRunner({
       const fail = async (response: Response, fallback: string) => {
         const body = await response.json().catch(() => ({}));
         const message =
-          typeof body?.error === "string" ? body.error : `${fallback} (${response.status})`;
+          typeof body?.error === "string"
+            ? body.error
+            : `${fallback} (${response.status})`;
         setSaveError(message);
         if (saveAsDialogOpenRef.current) {
           setSaveAsError(message);
@@ -191,7 +217,9 @@ export function WorkspaceScriptRunner({
             await fail(response, "Save failed");
             return false;
           }
-          const data = (await response.json()) as { script?: { id: string; name: string } };
+          const data = (await response.json()) as {
+            script?: { id: string; name: string };
+          };
           const newId = data.script?.id;
           const newName = data.script?.name ?? trimmedName;
           if (newId) {
@@ -204,12 +232,18 @@ export function WorkspaceScriptRunner({
         }
 
         if (trimmedName === activeScriptName.trim()) {
-          const response = await fetch(`${scriptsApiUrl}/${encodeURIComponent(activeScriptId)}`, {
-            method: "PATCH",
-            credentials: "same-origin",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ content: activeContent, name: trimmedName }),
-          });
+          const response = await fetch(
+            `${scriptsApiUrl}/${encodeURIComponent(activeScriptId)}`,
+            {
+              method: "PATCH",
+              credentials: "same-origin",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                content: activeContent,
+                name: trimmedName,
+              }),
+            },
+          );
           if (!response.ok) {
             await fail(response, "Save failed");
             return false;
@@ -234,7 +268,9 @@ export function WorkspaceScriptRunner({
           await fail(response, "Save failed");
           return false;
         }
-        const data = (await response.json()) as { script?: { id: string; name: string } };
+        const data = (await response.json()) as {
+          script?: { id: string; name: string };
+        };
         const created = data.script;
         if (!created?.id) {
           const message = "Save failed: server did not return a script id.";
@@ -302,14 +338,14 @@ export function WorkspaceScriptRunner({
       void quickSaveRef.current();
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
-    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, []);
 
   const kgTargetSelectOptions =
     runTargetOptions.length > 0 ? runTargetOptions : ["kg-avalanche-demo"];
 
   const intentFinishRef = useRef<(() => void) | null>(null);
-  const [runnerLog, setRunnerLog] = useState<string[]>([]);
   const [runBusy, setRunBusy] = useState(false);
   const [intentSession, setIntentSession] = useState<{
     wellKnownURI: string;
@@ -317,135 +353,150 @@ export function WorkspaceScriptRunner({
     intentArtifactLabel: string;
   } | null>(null);
 
-  const appendRunnerLog = useCallback((entry: string) => {
-    setRunnerLog((lines) => [...lines, entry]);
-  }, []);
-
   const handleRunScript = useCallback(async () => {
-    setRunnerLog([]);
-    appendRunnerLog("Run Script: analysing DSL…");
+    beginScriptRun(activeScriptName);
+    try {
+      appendRunnerLog("Run Script: analysing DSL…");
 
-    const { statements, diagnostics } = analyzeScript(activeContent);
+      const { statements, diagnostics } = analyzeScript(activeContent);
 
-    for (const diagnostic of diagnostics.filter((diag) => diag.severity === "error")) {
-      appendRunnerLog(
-        `[line ${diagnostic.line}, ${diagnostic.code}] ${diagnostic.message}`,
-      );
-    }
-
-    if (diagnostics.some((diag) => diag.severity === "error")) {
-      appendRunnerLog("Stopping: resolve validation errors first.");
-      return;
-    }
-
-    const orderedStatements = [...statements].sort((a, b) => a.line - b.line);
-
-    appendRunnerLog("Run Script: executing supported statements in order.");
-
-    const bindings = new Map<string, string>();
-    let lastWorkspaceIntentWellKnownUri: string | null = null;
-    let memoizedIntentAgentWellKnownUri: string | undefined;
-
-    const lookupIntentGeneratingAgentUri = async (): Promise<string | null> => {
-      if (memoizedIntentAgentWellKnownUri) {
-        return memoizedIntentAgentWellKnownUri;
-      }
-
-      const response = await fetch(discoverIntentAgentApiUrl, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ domain: selectedDomain }),
-      });
-
-      const body = (await response.json().catch(() => ({}))) as {
-        error?: string;
-        agent?: { wellKnownURI?: string };
-      };
-
-      const uriCandidate =
-        response.ok &&
-        typeof body.agent?.wellKnownURI === "string" &&
-        body.agent.wellKnownURI.length > 0
-          ? body.agent.wellKnownURI
-          : null;
-
-      if (!uriCandidate) {
+      for (const diagnostic of diagnostics.filter(
+        (diag) => diag.severity === "error",
+      )) {
         appendRunnerLog(
-          typeof body.error === "string" && body.error.length > 0
-            ? body.error
-            : `Discovery request failed (${response.status}).`,
+          `[line ${diagnostic.line}, ${diagnostic.code}] ${diagnostic.message}`,
         );
-        return null;
       }
 
-      memoizedIntentAgentWellKnownUri = uriCandidate;
-
-      return uriCandidate;
-    };
-
-    for (const statement of orderedStatements) {
-      if (statement.kind === "discover-intent-workspace-domain") {
-        appendRunnerLog(`Line ${statement.line}: Searching registry…`);
-        const uri = await lookupIntentGeneratingAgentUri();
-        if (!uri) {
-          appendRunnerLog("Could not locate an intent-generating agent card for this domain.");
-          return;
-        }
-
-        bindings.set(statement.alias, uri);
-        lastWorkspaceIntentWellKnownUri = uri;
-
-        appendRunnerLog(`Line ${statement.line}: ${statement.alias} → ${uri}`);
-        continue;
-      }
-
-      if (statement.kind !== "create-intent") {
-        continue;
-      }
-
-      const stmt: CreateIntentStatement = statement;
-
-      let resolved =
-        bindings.get(stmt.agentAlias) ??
-        (stmt.agentAlias === "intentGen" ? lastWorkspaceIntentWellKnownUri : null);
-
-      if (!resolved && stmt.agentAlias === "intentGen") {
-        resolved = await lookupIntentGeneratingAgentUri();
-        if (!resolved) {
-          appendRunnerLog(
-            `Line ${statement.line}: intentGen shortcut needs a reachable intent-generating agent for ${selectedDomain}.`,
-          );
-          return;
-        }
-      }
-
-      if (!resolved) {
-        appendRunnerLog(
-          `Line ${statement.line}: Unable to bind agent card URI for "${stmt.agentAlias}".`,
-        );
+      if (diagnostics.some((diag) => diag.severity === "error")) {
+        appendRunnerLog("Stopping: resolve validation errors first.");
         return;
       }
 
-      appendRunnerLog(`Line ${statement.line}: Opening A2A session for artifact "${stmt.intentAlias}".`);
-      appendRunnerLog(
-        `Conversation uses a single persistent task/context pair; reuse them as you iterate with Send.`,
-      );
+      const orderedStatements = [...statements].sort((a, b) => a.line - b.line);
 
-      await new Promise<void>((finish) => {
-        intentFinishRef.current = finish;
-        setIntentSession({
-          intentArtifactLabel: stmt.intentAlias,
-          prompt: stmt.prompt,
-          wellKnownURI: resolved,
+      appendRunnerLog("Run Script: executing supported statements in order.");
+
+      const bindings = new Map<string, string>();
+      let lastWorkspaceIntentWellKnownUri: string | null = null;
+      let memoizedIntentAgentWellKnownUri: string | undefined;
+
+      const lookupIntentGeneratingAgentUri = async (): Promise<
+        string | null
+      > => {
+        if (memoizedIntentAgentWellKnownUri) {
+          return memoizedIntentAgentWellKnownUri;
+        }
+
+        const response = await fetch(discoverIntentAgentApiUrl, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ domain: selectedDomain }),
         });
-      });
-    }
 
-    appendRunnerLog("Run Script: finished scripted steps.");
+        const body = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          agent?: { wellKnownURI?: string };
+        };
+
+        const uriCandidate =
+          response.ok &&
+          typeof body.agent?.wellKnownURI === "string" &&
+          body.agent.wellKnownURI.length > 0
+            ? body.agent.wellKnownURI
+            : null;
+
+        if (!uriCandidate) {
+          appendRunnerLog(
+            typeof body.error === "string" && body.error.length > 0
+              ? body.error
+              : `Discovery request failed (${response.status}).`,
+          );
+          return null;
+        }
+
+        memoizedIntentAgentWellKnownUri = uriCandidate;
+
+        return uriCandidate;
+      };
+
+      for (const statement of orderedStatements) {
+        if (statement.kind === "discover-intent-workspace-domain") {
+          appendRunnerLog(`Line ${statement.line}: Searching registry…`);
+          const uri = await lookupIntentGeneratingAgentUri();
+          if (!uri) {
+            appendRunnerLog(
+              "Could not locate an intent-generating agent card for this domain.",
+            );
+            return;
+          }
+
+          bindings.set(statement.alias, uri);
+          lastWorkspaceIntentWellKnownUri = uri;
+
+          appendRunnerLog(
+            `Line ${statement.line}: ${statement.alias} → ${uri}`,
+          );
+          continue;
+        }
+
+        if (statement.kind !== "create-intent") {
+          continue;
+        }
+
+        const stmt: CreateIntentStatement = statement;
+
+        let resolved =
+          bindings.get(stmt.agentAlias) ??
+          (stmt.agentAlias === "intentGen"
+            ? lastWorkspaceIntentWellKnownUri
+            : null);
+
+        if (!resolved && stmt.agentAlias === "intentGen") {
+          resolved = await lookupIntentGeneratingAgentUri();
+          if (!resolved) {
+            appendRunnerLog(
+              `Line ${statement.line}: intentGen shortcut needs a reachable intent-generating agent for ${selectedDomain}.`,
+            );
+            return;
+          }
+        }
+
+        if (!resolved) {
+          appendRunnerLog(
+            `Line ${statement.line}: Unable to bind agent card URI for "${stmt.agentAlias}".`,
+          );
+          return;
+        }
+
+        appendRunnerLog(
+          `Line ${statement.line}: Opening A2A session for artifact "${stmt.intentAlias}".`,
+        );
+        appendRunnerLog(
+          `Conversation uses a single persistent task/context pair; reuse them as you iterate with Send.`,
+        );
+
+        await new Promise<void>((finish) => {
+          intentFinishRef.current = finish;
+          setIntentSession({
+            intentArtifactLabel: stmt.intentAlias,
+            prompt: stmt.prompt,
+            wellKnownURI: resolved,
+          });
+        });
+      }
+
+      appendRunnerLog("Run Script: finished scripted steps.");
+    } finally {
+      endActiveScriptRun();
+    }
   }, [
     activeContent,
+    activeScriptName,
     appendRunnerLog,
+    beginScriptRun,
+    endActiveScriptRun,
     discoverIntentAgentApiUrl,
     selectedDomain,
   ]);
@@ -474,7 +525,11 @@ export function WorkspaceScriptRunner({
   return (
     <>
       {openTabs.length >= 2 ? (
-        <div aria-label="Open scripts" className="workspace-editor-tabs" role="tablist">
+        <div
+          aria-label="Open scripts"
+          className="workspace-editor-tabs"
+          role="tablist"
+        >
           {openTabs.map((tab) => {
             const selected = tab.tabKey === activeTabKey;
             return (
@@ -529,7 +584,9 @@ export function WorkspaceScriptRunner({
         <div className="workspace-runner-field">
           <label className="workspace-label">Run mode</label>
           <div className="workspace-runner-modes">
-            <span className="workspace-runner-mode workspace-runner-mode-active">dry-run</span>
+            <span className="workspace-runner-mode workspace-runner-mode-active">
+              dry-run
+            </span>
             <span className="workspace-runner-mode">execute</span>
           </div>
         </div>
@@ -559,7 +616,9 @@ export function WorkspaceScriptRunner({
             id="runner-result-policy"
           >
             <option value="stop on first error">stop on first error</option>
-            <option value="continue with warnings">continue with warnings</option>
+            <option value="continue with warnings">
+              continue with warnings
+            </option>
           </select>
         </div>
         <div className="workspace-runner-actions">
@@ -580,15 +639,6 @@ export function WorkspaceScriptRunner({
             {saving ? "Saving…" : "Save As"}
           </button>
         </div>
-        {runnerLog.length > 0 ? (
-          <div aria-label="Run script output" className="workspace-runner-log" role="log">
-            {runnerLog.map((line, index) => (
-              <p className="workspace-runner-log-entry" key={`runner-${index}`}>
-                {line}
-              </p>
-            ))}
-          </div>
-        ) : null}
       </div>
       {saveError ? (
         <p className="workspace-save-error" role="alert">
@@ -615,11 +665,14 @@ export function WorkspaceScriptRunner({
           >
             <h3 id="workspace-save-as-dialog-title">Save script</h3>
             <p className="workspace-save-as-dialog-hint">
-              Keep the current file name to update this script. Change the name to create a new
-              script and open it in a new tab.
+              Keep the current file name to update this script. Change the name
+              to create a new script and open it in a new tab.
             </p>
             <div>
-              <label className="workspace-label" htmlFor="workspace-save-as-script-name">
+              <label
+                className="workspace-label"
+                htmlFor="workspace-save-as-script-name"
+              >
                 Script file name
               </label>
               <input
@@ -659,6 +712,57 @@ export function WorkspaceScriptRunner({
                 type="button"
               >
                 {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {runLogDialogOpen ? (
+        <div
+          className="workspace-save-name-dialog-backdrop"
+          onClick={closeRunLogDialog}
+          role="presentation"
+        >
+          <div
+            aria-labelledby="workspace-run-log-dialog-title"
+            aria-modal="true"
+            className="workspace-run-log-dialog"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <h3 id="workspace-run-log-dialog-title">Run script log</h3>
+            <p className="workspace-save-as-dialog-hint">
+              Output for the run selected in the top bar (up to the last 10
+              script runs).
+            </p>
+            <div
+              aria-label="Run script output"
+              className="workspace-runner-log workspace-run-log-dialog-body"
+              role="log"
+            >
+              {selectedRunLogLines.length === 0 ? (
+                <p className="workspace-runner-log-empty">
+                  No script run output for this selection.
+                </p>
+              ) : (
+                selectedRunLogLines.map((line, index) => (
+                  <p
+                    className="workspace-runner-log-entry"
+                    key={`runner-dialog-${index}`}
+                  >
+                    {line}
+                  </p>
+                ))
+              )}
+            </div>
+            <div className="workspace-save-name-dialog-actions">
+              <button
+                className="workspace-button"
+                onClick={closeRunLogDialog}
+                type="button"
+              >
+                Close
               </button>
             </div>
           </div>

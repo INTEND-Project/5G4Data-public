@@ -28,6 +28,23 @@ export function defaultScriptName(domain: string) {
   return `${safe}.workspace.control.dsl`;
 }
 
+/** Visible label for run history: "<script name>: dd/mm hh.mm" (local time). */
+export function formatScriptRunListLabel(scriptName: string, startedAtMs: number): string {
+  const d = new Date(startedAtMs);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const hour = String(d.getHours()).padStart(2, "0");
+  const minute = String(d.getMinutes()).padStart(2, "0");
+  return `${scriptName}: ${day}/${month} ${hour}.${minute}`;
+}
+
+export type ScriptRunLogRecord = {
+  id: string;
+  scriptName: string;
+  startedAt: number;
+  lines: string[];
+};
+
 type OpenTab = {
   tabKey: string;
   scriptId: string | null;
@@ -55,6 +72,18 @@ export type WorkspaceScriptSessionContextValue = {
   closeTab: (tabKey: string) => void;
   migrateDraftTabToSavedScript: (scriptId: string, name: string) => void;
   clearDirtyForKeys: (keys: string[]) => void;
+  /** Last 10 runs, newest first. */
+  scriptRunLogs: ScriptRunLogRecord[];
+  selectedScriptRunId: string | null;
+  setSelectedScriptRunId: (id: string | null) => void;
+  /** Lines for the currently selected run (for the log dialog). */
+  selectedRunLogLines: string[];
+  beginScriptRun: (scriptName: string) => void;
+  appendRunnerLog: (entry: string) => void;
+  endActiveScriptRun: () => void;
+  runLogDialogOpen: boolean;
+  openRunLogDialog: () => void;
+  closeRunLogDialog: () => void;
 };
 
 const WorkspaceScriptSessionContext = createContext<WorkspaceScriptSessionContextValue | null>(
@@ -85,6 +114,62 @@ export function WorkspaceScriptSessionProvider({
     buildInitialTabs(draftContent, selectedDomain),
   );
   const dirtyKeysRef = useRef<Set<string>>(new Set());
+
+  const [scriptRunLogs, setScriptRunLogs] = useState<ScriptRunLogRecord[]>([]);
+  const [selectedScriptRunId, setSelectedScriptRunId] = useState<string | null>(null);
+  const [runLogDialogOpen, setRunLogDialogOpen] = useState(false);
+  const activeRunIdRef = useRef<string | null>(null);
+
+  const beginScriptRun = useCallback((scriptName: string) => {
+    const id =
+      typeof globalThis.crypto !== "undefined" &&
+      typeof globalThis.crypto.randomUUID === "function"
+        ? globalThis.crypto.randomUUID()
+        : `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const startedAt = Date.now();
+    activeRunIdRef.current = id;
+    setScriptRunLogs((prev) =>
+      [{ id, scriptName, startedAt, lines: [] }, ...prev].slice(0, 10),
+    );
+    setSelectedScriptRunId(id);
+  }, []);
+
+  const appendRunnerLog = useCallback((entry: string) => {
+    const targetId = activeRunIdRef.current;
+    if (!targetId) {
+      return;
+    }
+    setScriptRunLogs((prev) =>
+      prev.map((r) =>
+        r.id === targetId ? { ...r, lines: [...r.lines, entry] } : r,
+      ),
+    );
+  }, []);
+
+  const endActiveScriptRun = useCallback(() => {
+    activeRunIdRef.current = null;
+  }, []);
+
+  const openRunLogDialog = useCallback(() => {
+    setRunLogDialogOpen(true);
+  }, []);
+
+  const closeRunLogDialog = useCallback(() => {
+    setRunLogDialogOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (scriptRunLogs.length === 0) {
+      setSelectedScriptRunId(null);
+      return;
+    }
+    setSelectedScriptRunId((prev) => {
+      if (prev && scriptRunLogs.some((r) => r.id === prev)) {
+        return prev;
+      }
+      return scriptRunLogs[0]?.id ?? null;
+    });
+  }, [scriptRunLogs]);
 
   const prevDomainRef = useRef(selectedDomain);
   useEffect(() => {
@@ -270,6 +355,13 @@ export function WorkspaceScriptSessionProvider({
     }
   }, []);
 
+  const selectedRunLogLines = useMemo(() => {
+    if (!selectedScriptRunId) {
+      return [];
+    }
+    return scriptRunLogs.find((r) => r.id === selectedScriptRunId)?.lines ?? [];
+  }, [scriptRunLogs, selectedScriptRunId]);
+
   const value = useMemo(
     (): WorkspaceScriptSessionContextValue => ({
       selectedDomain,
@@ -286,6 +378,16 @@ export function WorkspaceScriptSessionProvider({
       closeTab,
       migrateDraftTabToSavedScript,
       clearDirtyForKeys,
+      scriptRunLogs,
+      selectedScriptRunId,
+      setSelectedScriptRunId,
+      selectedRunLogLines,
+      beginScriptRun,
+      appendRunnerLog,
+      endActiveScriptRun,
+      runLogDialogOpen,
+      openRunLogDialog,
+      closeRunLogDialog,
     }),
     [
       selectedDomain,
@@ -302,6 +404,15 @@ export function WorkspaceScriptSessionProvider({
       closeTab,
       migrateDraftTabToSavedScript,
       clearDirtyForKeys,
+      scriptRunLogs,
+      selectedScriptRunId,
+      selectedRunLogLines,
+      beginScriptRun,
+      appendRunnerLog,
+      endActiveScriptRun,
+      runLogDialogOpen,
+      openRunLogDialog,
+      closeRunLogDialog,
     ],
   );
 

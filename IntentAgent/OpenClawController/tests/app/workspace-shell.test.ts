@@ -13,6 +13,14 @@ describe("workspace shell bootstrap", () => {
       resolve(process.cwd(), "src/components/workspace/workspace-shell.tsx"),
       "utf8",
     );
+    const runIdChipSource = readFileSync(
+      resolve(process.cwd(), "src/components/workspace/workspace-run-id-chip.tsx"),
+      "utf8",
+    );
+    const scriptSessionContextSource = readFileSync(
+      resolve(process.cwd(), "src/components/workspace/workspace-script-session-context.tsx"),
+      "utf8",
+    );
     const scriptRunnerSource = readFileSync(
       resolve(process.cwd(), "src/components/workspace/workspace-script-runner.tsx"),
       "utf8",
@@ -51,7 +59,11 @@ describe("workspace shell bootstrap", () => {
     expect(shellSource).toContain("intend-icon.png");
     expect(shellSource).toContain("agent registry connected");
     expect(shellSource).toContain("agent registry disconnected");
-    expect(shellSource).toContain("runId: demo-run-2026-05-06");
+    expect(shellSource).toContain("WorkspaceRunIdChip");
+    expect(runIdChipSource).toContain("formatScriptRunListLabel");
+    expect(runIdChipSource).toContain("workspace-topbar-run-select");
+    expect(runIdChipSource).toContain("scriptRunLogs");
+    expect(scriptSessionContextSource).toContain("slice(0, 10)");
     expect(shellSource).toContain("About/Help");
     expect(shellSource).toContain("workspace-topbar-chip");
     expect(shellSource).toContain("workspace-panel-tight-stack");
@@ -68,6 +80,7 @@ describe("workspace shell bootstrap", () => {
     expect(scriptRunnerSource).toContain("Run result policy");
     expect(scriptRunnerSource).toContain("stop on first error");
     expect(scriptRunnerSource).toContain("Run Script");
+    expect(scriptRunnerSource).toContain("selectedRunLogLines");
     expect(scriptRunnerSource).toContain("Save As");
     expect(scriptRunnerSource).toContain("workspace-editor-height-resizer");
     expect(scriptRunnerSource).toContain("workspace-editor-tabs");
@@ -141,6 +154,8 @@ describe("workspace shell bootstrap", () => {
     expect(globalsSource).toContain(".workspace-brand-copy");
     expect(globalsSource).toContain(".workspace-top-actions");
     expect(globalsSource).toContain(".workspace-topbar-chip");
+    expect(globalsSource).toContain(".workspace-run-history-controls");
+    expect(globalsSource).toContain("select.workspace-topbar-run-select");
     expect(globalsSource).toContain(".workspace-chip-live");
     expect(globalsSource).toContain(".workspace-chip-down");
     expect(globalsSource).toContain(".workspace-runner");

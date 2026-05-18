@@ -26,6 +26,8 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
     redirect("/login");
   }
 
+  const appEnv = loadAppEnv(process.env);
+
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const normalizedAgents = await listNormalizedAgents();
   const domains = deriveDomains(normalizedAgents);
@@ -66,7 +68,7 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
     availableAgents: agentNames,
     metricNames: completionContext.metricNames,
     stage: completionContext.stage,
-    assistantModel: loadAppEnv(process.env).assistantModel,
+    assistantModel: appEnv.assistantModel,
   });
   const kgTargets = await db.knowledgeGraphTarget.findMany({
     where: {
@@ -77,6 +79,7 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
       id: true,
       displayName: true,
       repositoryId: true,
+      graphIri: true,
     },
     orderBy: {
       createdAt: "desc",
@@ -96,6 +99,7 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
       discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
       discoverObservationAgentApiUrl={discoverObservationAgentApiUrl}
       a2aMessageSendUrl={a2aMessageSendUrl}
+      graphDbBaseUrl={appEnv.graphDbBaseUrl}
       registryConnected={registryConnected}
       scripts={scripts}
       selectedDomain={selectedDomain}

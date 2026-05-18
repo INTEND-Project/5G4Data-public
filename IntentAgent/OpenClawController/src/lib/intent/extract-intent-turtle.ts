@@ -74,3 +74,9 @@ export function normalizedIntentIdFromStoreResponse(
   }
   return t;
 }
+
+/** Canonical intent local id (`I` + 32 hex) when `for` in DSL references an intent directly. */
+export function parseCanonicalIntentLocalId(raw: string): string | null {
+  const normalized = normalizedIntentIdFromStoreResponse(raw.trim());
+  return normalized && /^I[a-f0-9]{32}$/i.test(normalized) ? normalized : null;
+}

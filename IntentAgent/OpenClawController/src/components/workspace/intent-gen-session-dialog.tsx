@@ -7,6 +7,7 @@ import {
   extractIntentTurtle,
   normalizedIntentIdFromStoreResponse,
 } from "@/lib/intent/extract-intent-turtle";
+import type { GraphTargetBinding } from "@/lib/kg/graph-target-binding";
 
 type TranscriptTurn = {
   id: string;
@@ -14,18 +15,26 @@ type TranscriptTurn = {
   text: string;
 };
 
+export type IntentGenSessionDialogVariant = "intent-generation" | "observation-report";
+
 export type IntentGenSessionDialogProps = {
   open: boolean;
   a2aMessageSendUrl: string;
   agentCardWellKnownURI: string;
   intentArtifactLabel: string;
+  /** UI copy; observation sessions do not store intent Turtle via this modal. Defaults to intent generation. */
+  variant?: IntentGenSessionDialogVariant;
   seedPrompt?: string | null;
   /** When set, Turtle extracted from agent replies is POSTed here (selected KG target ingest endpoint). */
   persistIntentStoreUrl?: string | null;
   /** Optional hook for correlating ingest with script run logs. */
   onIntentPersistLog?: (line: string) => void;
+  /** Mirror each user/agent transcript turn to the run script log (e.g. workspace Log dialog). */
+  onTranscriptTurn?: (turn: { role: "user" | "agent"; text: string }) => void;
   /** When Turtle is stored successfully, canonical intent id (`I…`) for DSL follow-up bindings. */
   onKgIntentStored?: (dslAlias: string, canonicalIntentId: string) => void;
+  /** Per-run GraphDB target from Controller runner (A2A metadata.openclaw.graphTarget). */
+  graphTargetBinding?: GraphTargetBinding | null;
   /** Called once the user chooses to dismiss after the handshake is ready to continue outside the modal. */
   onFinished: () => void;
 };
@@ -35,10 +44,13 @@ export function IntentGenSessionDialog({
   a2aMessageSendUrl,
   agentCardWellKnownURI,
   intentArtifactLabel,
+  variant = "intent-generation",
   seedPrompt,
   persistIntentStoreUrl,
   onIntentPersistLog,
+  onTranscriptTurn,
   onKgIntentStored,
+  graphTargetBinding = null,
   onFinished,
 }: IntentGenSessionDialogProps) {
   const taskBindingsRef = useRef<{ taskId?: string; contextId?: string }>({});
@@ -49,9 +61,37 @@ export function IntentGenSessionDialog({
   const seedStartedRef = useRef(false);
 
   const sessionKey = useMemo(
-    () => `${agentCardWellKnownURI}::${intentArtifactLabel}`,
-    [agentCardWellKnownURI, intentArtifactLabel],
+    () => `${variant}::${agentCardWellKnownURI}::${intentArtifactLabel}`,
+    [variant, agentCardWellKnownURI, intentArtifactLabel],
   );
+
+  const titleId =
+    variant === "observation-report"
+      ? "workspace-observation-dialog-title"
+      : "workspace-intent-dialog-title";
+
+  const title =
+    variant === "observation-report"
+      ? "Observation reporting (A2A)"
+      : "Intent generation (A2A)";
+
+  const meta =
+    variant === "observation-report" ? (
+      <p className="workspace-intent-dialog-meta">
+        Scripted session alias <strong>{intentArtifactLabel}</strong>. Task and context identifiers are reused for each
+        message so follow-ups stay in the same observation-reporting dialogue.
+      </p>
+    ) : (
+      <p className="workspace-intent-dialog-meta">
+        Storing conversational output alias <strong>{intentArtifactLabel}</strong>. Task and context identifiers are
+        reused for every round trip so follow-up prompts stay grounded in the same working session.
+      </p>
+    );
+
+  const composePlaceholder =
+    variant === "observation-report"
+      ? "Refine observation instructions or constraints…"
+      : "Respond to the agent or steer the negotiation…";
 
   const transcriptScrollRef = useRef<HTMLDivElement>(null);
 
@@ -108,6 +148,7 @@ export function IntentGenSessionDialog({
         ...parts,
         { id: crypto.randomUUID(), role: "user", text: trimmed },
       ]);
+      onTranscriptTurn?.({ role: "user", text: trimmed });
 
       try {
         const payload: Record<string, unknown> = {
@@ -120,6 +161,9 @@ export function IntentGenSessionDialog({
         }
         if (bindings.contextId) {
           payload.contextId = bindings.contextId;
+        }
+        if (graphTargetBinding) {
+          payload.graphTarget = graphTargetBinding;
         }
 
         const response = await fetch(a2aMessageSendUrl, {
@@ -167,6 +211,7 @@ export function IntentGenSessionDialog({
             text: reply,
           },
         ]);
+        onTranscriptTurn?.({ role: "agent", text: reply });
 
         const ingestUrl = persistIntentStoreUrl?.trim();
         const turtlePayload = ingestUrl ? extractIntentTurtle(replyRaw) : null;
@@ -191,7 +236,7 @@ export function IntentGenSessionDialog({
               onIntentPersistLog?.(
                 `[${idNote}] Stored intent in knowledge graph (${idNote}).`,
               );
-              if (canonical) {
+              if (canonical && variant === "intent-generation") {
                 onKgIntentStored?.(intentArtifactLabel, canonical);
               }
             } else if (typeof ingestBody.error === "string" && ingestBody.error.length > 0) {
@@ -218,8 +263,11 @@ export function IntentGenSessionDialog({
       agentCardWellKnownURI,
       persistIntentStoreUrl,
       intentArtifactLabel,
+      variant,
       onIntentPersistLog,
+      onTranscriptTurn,
       onKgIntentStored,
+      graphTargetBinding,
     ],
   );
 
@@ -271,18 +319,15 @@ export function IntentGenSessionDialog({
       role="presentation"
     >
       <div
-        aria-labelledby="workspace-intent-dialog-title"
+        aria-labelledby={titleId}
         aria-modal="true"
         aria-busy={sending}
         className="workspace-intent-dialog"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >
-        <h3 id="workspace-intent-dialog-title">Intent generation (A2A)</h3>
-        <p className="workspace-intent-dialog-meta">
-          Storing conversational output alias <strong>{intentArtifactLabel}</strong>. Task and context identifiers are
-          reused for every round trip so follow-up prompts stay grounded in the same working session.
-        </p>
+        <h3 id={titleId}>{title}</h3>
+        {meta}
 
         <div
           aria-live="polite"
@@ -331,7 +376,7 @@ export function IntentGenSessionDialog({
             disabled={sending}
             id="workspace-intent-message"
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Respond to the agent or steer the negotiation…"
+            placeholder={composePlaceholder}
             rows={4}
             value={draft}
           />

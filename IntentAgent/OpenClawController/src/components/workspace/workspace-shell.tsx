@@ -26,11 +26,13 @@ type WorkspaceShellProps = {
   discoverIntentAgentApiUrl: string;
   discoverObservationAgentApiUrl: string;
   a2aMessageSendUrl: string;
+  graphDbBaseUrl: string;
   registryConnected: boolean;
   kgTargets: Array<{
     id: string;
     displayName: string;
     repositoryId: string;
+    graphIri: string;
   }>;
   assistantContext: {
     assistantModel: string;
@@ -58,6 +60,7 @@ export function WorkspaceShell({
   discoverIntentAgentApiUrl,
   discoverObservationAgentApiUrl,
   a2aMessageSendUrl,
+  graphDbBaseUrl,
   registryConnected,
   kgTargets,
   assistantContext,
@@ -76,6 +79,8 @@ export function WorkspaceShell({
   const scriptRunnerKgTargets = kgTargets.map((target) => ({
     id: target.id,
     displayName: target.displayName,
+    repositoryId: target.repositoryId,
+    graphIri: target.graphIri,
   }));
 
   return (
@@ -141,6 +146,7 @@ export function WorkspaceShell({
               a2aMessageSendUrl={a2aMessageSendUrl}
               discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
               discoverObservationAgentApiUrl={discoverObservationAgentApiUrl}
+              graphDbBaseUrl={graphDbBaseUrl}
               kgTargets={scriptRunnerKgTargets}
               kgTargetsApiBaseUrl={kgTargetsDeleteUrlBase}
               metricNames={assistantContext.metricNames}

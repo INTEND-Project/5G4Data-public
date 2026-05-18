@@ -5,12 +5,22 @@ import { z } from "zod";
 
 import { interpretSendMessageResult } from "@/lib/a2a/interpret-message-result";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
+import { openClawMetadataEnvelope } from "@/lib/kg/graph-target-binding";
+
+const graphTargetSchema = z.object({
+  graphTargetId: z.string().optional(),
+  repositoryId: z.string().min(1),
+  graphIri: z.string().min(1),
+  sparqlEndpoint: z.string().url(),
+  repositoryBaseUrl: z.string().url().optional(),
+});
 
 const bodySchema = z.object({
   wellKnownURI: z.string().url(),
   taskId: z.string().min(1).optional(),
   contextId: z.string().min(1).optional(),
   text: z.string().min(1),
+  graphTarget: graphTargetSchema.optional(),
 });
 
 async function fetchAgentRpcUrl(wellKnownURI: string): Promise<{ ok: true; rpcUrl: string } | { ok: false; message: string }> {
@@ -83,6 +93,9 @@ export async function POST(request: Request) {
   }
   if (body.contextId) {
     message.contextId = body.contextId;
+  }
+  if (body.graphTarget) {
+    message.metadata = openClawMetadataEnvelope(body.graphTarget);
   }
 
   const requestId = randomUUID();

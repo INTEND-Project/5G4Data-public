@@ -1,4 +1,5 @@
 import type { DslDiagnostic, DslStatement } from "@/lib/dsl/types";
+import { parseCanonicalIntentLocalId } from "@/lib/intent/extract-intent-turtle";
 
 export function validateScript(statements: DslStatement[]): DslDiagnostic[] {
   const diagnostics: DslDiagnostic[] = [];
@@ -41,7 +42,10 @@ export function validateScript(statements: DslStatement[]): DslDiagnostic[] {
         intentAliases.add(statement.intentAlias);
         break;
       case "extract-metric-catalog":
-        if (!intentAliases.has(statement.intentAlias)) {
+        if (
+          !intentAliases.has(statement.intentAlias) &&
+          !parseCanonicalIntentLocalId(statement.intentAlias)
+        ) {
           diagnostics.push({
             line: statement.line,
             severity: "error",
@@ -61,7 +65,10 @@ export function validateScript(statements: DslStatement[]): DslDiagnostic[] {
           });
         }
 
-        if (!intentAliases.has(statement.intentAlias)) {
+        if (
+          !intentAliases.has(statement.intentAlias) &&
+          !parseCanonicalIntentLocalId(statement.intentAlias)
+        ) {
           diagnostics.push({
             line: statement.line,
             severity: "error",

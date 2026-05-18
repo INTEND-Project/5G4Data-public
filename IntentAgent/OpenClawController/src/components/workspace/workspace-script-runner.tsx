@@ -10,13 +10,36 @@ import {
   useWorkspaceScriptSession,
 } from "@/components/workspace/workspace-script-session-context";
 import { analyzeScript } from "@/lib/dsl/analysis/analyze-script";
-import type { CreateIntentStatement, ExtractMetricCatalogStatement } from "@/lib/dsl/types";
+import type {
+  CreateIntentStatement,
+  ExtractMetricCatalogStatement,
+  RequestObservationReportStatement,
+} from "@/lib/dsl/types";
+import { buildObservationReportSeed } from "@/lib/dsl/observation-report-seed";
+import { parseCanonicalIntentLocalId } from "@/lib/intent/extract-intent-turtle";
+import {
+  buildGraphTargetBinding,
+  type GraphTargetBinding,
+} from "@/lib/kg/graph-target-binding";
+
+function resolveIntentIdForObservation(
+  intentRef: string,
+  intentIdByAlias: Map<string, string>,
+): string | null {
+  return parseCanonicalIntentLocalId(intentRef) ?? intentIdByAlias.get(intentRef) ?? null;
+}
 
 type WorkspaceScriptRunnerProps = {
   metricNames: string[];
   scriptsApiUrl: string;
   kgTargetsApiBaseUrl: string;
-  kgTargets: Array<{ id: string; displayName: string }>;
+  kgTargets: Array<{
+    id: string;
+    displayName: string;
+    repositoryId: string;
+    graphIri: string;
+  }>;
+  graphDbBaseUrl: string;
   discoverIntentAgentApiUrl: string;
   discoverObservationAgentApiUrl: string;
   a2aMessageSendUrl: string;
@@ -44,6 +67,7 @@ export function WorkspaceScriptRunner({
   scriptsApiUrl,
   kgTargetsApiBaseUrl,
   kgTargets,
+  graphDbBaseUrl,
   discoverIntentAgentApiUrl,
   discoverObservationAgentApiUrl,
   a2aMessageSendUrl,
@@ -70,6 +94,19 @@ export function WorkspaceScriptRunner({
     closeRunLogDialog,
     setScriptExtractedMetricNames,
   } = useWorkspaceScriptSession();
+
+  const appendA2ATranscriptTurn = useCallback(
+    (turn: { role: "user" | "agent"; text: string }) => {
+      if (turn.role === "agent") {
+        appendRunnerLog("Agent");
+      }
+      for (const line of turn.text.split("\n")) {
+        appendRunnerLog(line);
+      }
+      appendRunnerLog("");
+    },
+    [appendRunnerLog],
+  );
 
   const [editorHeightPx, setEditorHeightPx] = useState(DEFAULT_EDITOR_HEIGHT);
   const editorHeightPxRef = useRef(editorHeightPx);
@@ -370,6 +407,7 @@ export function WorkspaceScriptRunner({
       : null;
 
   const intentFinishRef = useRef<(() => void) | null>(null);
+  const observationFinishRef = useRef<(() => void) | null>(null);
   /** Maps DSL intent alias (`as` from create-intent) → canonical kg intent id (`I…`) after successful ingest. */
   const intentIdByAliasRef = useRef(new Map<string, string>());
   const [runBusy, setRunBusy] = useState(false);
@@ -378,6 +416,23 @@ export function WorkspaceScriptRunner({
     prompt: string;
     intentArtifactLabel: string;
   } | null>(null);
+  const [observationSession, setObservationSession] = useState<{
+    wellKnownURI: string;
+    sessionAlias: string;
+    seedPrompt: string;
+    graphTargetBinding: GraphTargetBinding;
+  } | null>(null);
+
+  const resolveSelectedGraphTargetBinding = useCallback((): GraphTargetBinding | null => {
+    if (!selectedKgTargetId.trim()) {
+      return null;
+    }
+    const target = kgTargets.find((t) => t.id === selectedKgTargetId);
+    if (!target?.repositoryId?.trim() || !target.graphIri?.trim()) {
+      return null;
+    }
+    return buildGraphTargetBinding(target, graphDbBaseUrl);
+  }, [graphDbBaseUrl, kgTargets, selectedKgTargetId]);
 
   const handleKgIntentStored = useCallback((_dslAlias: string, canonicalIntentId: string) => {
     intentIdByAliasRef.current.set(_dslAlias, canonicalIntentId);
@@ -582,6 +637,69 @@ export function WorkspaceScriptRunner({
           continue;
         }
 
+        if (statement.kind === "request-observation-report") {
+          const stmt: RequestObservationReportStatement = statement;
+
+          const graphTargetBinding = resolveSelectedGraphTargetBinding();
+          if (!graphTargetBinding) {
+            appendRunnerLog(
+              `Line ${statement.line}: request observation-report requires a knowledge graph target in the runner (same as intent storage).`,
+            );
+            return;
+          }
+
+          const resolved = bindings.get(stmt.agentAlias);
+          if (!resolved) {
+            appendRunnerLog(
+              `Line ${statement.line}: Unable to bind agent card URI for "${stmt.agentAlias}".`,
+            );
+            return;
+          }
+
+          const canonicalId = resolveIntentIdForObservation(
+            stmt.intentAlias,
+            intentIdByAliasRef.current,
+          );
+          if (!canonicalId) {
+            appendRunnerLog(
+              `Line ${statement.line}: No intent id for "${stmt.intentAlias}". Use a canonical id (I + 32 hex) in \`for\`, or store intent Turtle to the selected knowledge graph target after \`create intent … as ${stmt.intentAlias}\`.`,
+            );
+            return;
+          }
+
+          const intentIdForSeed = parseCanonicalIntentLocalId(stmt.intentAlias) ?? stmt.intentAlias;
+          const seedPrompt = buildObservationReportSeed(
+            intentIdForSeed,
+            canonicalId,
+            stmt.instructions,
+          );
+
+          const intentRefNote = parseCanonicalIntentLocalId(stmt.intentAlias)
+            ? `canonical id ${canonicalId} from script \`for\` clause`
+            : `DSL intent "${stmt.intentAlias}" (stored id ${canonicalId})`;
+          const kgTarget = kgTargets.find((t) => t.id === selectedKgTargetId);
+          appendRunnerLog(
+            `Run Script: observation-report session "${stmt.sessionAlias}" for ${intentRefNote}.`,
+          );
+          appendRunnerLog(
+            `Line ${statement.line}: Graph target "${kgTarget?.displayName ?? selectedKgTargetId}" (${graphTargetBinding.repositoryId}, ${graphTargetBinding.graphIri}).`,
+          );
+          appendRunnerLog(
+            `Line ${statement.line}: Opening A2A session for observation reporting; task/context are reused until you Close.`,
+          );
+
+          await new Promise<void>((finish) => {
+            observationFinishRef.current = finish;
+            setObservationSession({
+              wellKnownURI: resolved,
+              sessionAlias: stmt.sessionAlias,
+              seedPrompt,
+              graphTargetBinding,
+            });
+          });
+          continue;
+        }
+
         if (statement.kind === "extract-metric-catalog") {
           const stmt: ExtractMetricCatalogStatement = statement;
 
@@ -664,6 +782,9 @@ export function WorkspaceScriptRunner({
     persistIntentStoreUrl,
     selectedDomain,
     selectedKgTargetId,
+    kgTargets,
+    graphDbBaseUrl,
+    resolveSelectedGraphTargetBinding,
     setScriptExtractedMetricNames,
   ]);
 
@@ -671,6 +792,12 @@ export function WorkspaceScriptRunner({
     intentFinishRef.current?.();
     intentFinishRef.current = null;
     setIntentSession(null);
+  }, []);
+
+  const handleObservationDialogFinish = useCallback(() => {
+    observationFinishRef.current?.();
+    observationFinishRef.current = null;
+    setObservationSession(null);
   }, []);
 
   const kickOffRunScript = useCallback(() => {
@@ -947,10 +1074,23 @@ export function WorkspaceScriptRunner({
         intentArtifactLabel={intentSession?.intentArtifactLabel ?? ""}
         onFinished={handleIntentDialogFinish}
         onIntentPersistLog={appendRunnerLog}
+        onTranscriptTurn={appendA2ATranscriptTurn}
         onKgIntentStored={handleKgIntentStored}
         open={intentSession !== null}
         persistIntentStoreUrl={persistIntentStoreUrl}
         seedPrompt={intentSession?.prompt ?? null}
+      />
+      <IntentGenSessionDialog
+        a2aMessageSendUrl={a2aMessageSendUrl}
+        agentCardWellKnownURI={observationSession?.wellKnownURI ?? ""}
+        graphTargetBinding={observationSession?.graphTargetBinding ?? null}
+        intentArtifactLabel={observationSession?.sessionAlias ?? ""}
+        onFinished={handleObservationDialogFinish}
+        onTranscriptTurn={appendA2ATranscriptTurn}
+        open={observationSession !== null}
+        persistIntentStoreUrl={null}
+        seedPrompt={observationSession?.seedPrompt ?? null}
+        variant="observation-report"
       />
     </>
   );

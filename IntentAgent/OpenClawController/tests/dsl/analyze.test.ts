@@ -69,6 +69,23 @@ create intent using intentGen prompt "Deploy avalanche object detection in Troms
     expect(diagnostics).toEqual([]);
   });
 
+  it("accepts observation-report for canonical intent id without create-intent alias", async () => {
+    const parserModule = await import("../../src/lib/dsl/parser/parse-script");
+    const validatorModule = await import("../../src/lib/dsl/validator/validate-script");
+
+    const script = `discover observation-agent by domain 5g4data as observationControl
+request observation-report using observationControl for I6be57670fcad46fba1f648ad28b9cdb5 instructions "For metric bandwidth keep values in range." as observationSession`;
+
+    const parsed = parserModule.parseScript(script);
+    const diagnostics = validatorModule.validateScript(parsed.statements);
+
+    expect(parsed.statements.map((statement) => statement.kind)).toEqual([
+      "discover",
+      "request-observation-report",
+    ]);
+    expect(diagnostics).toEqual([]);
+  });
+
   it("reports intentGen misuse when no qualifying discovery preceded it", async () => {
     const parserModule = await import("../../src/lib/dsl/parser/parse-script");
     const validatorModule = await import("../../src/lib/dsl/validator/validate-script");

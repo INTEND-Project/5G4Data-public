@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -44,6 +45,40 @@ export type ScriptRunLogRecord = {
   startedAt: number;
   lines: string[];
 };
+
+const SCRIPT_RUN_LOGS_STORAGE_PREFIX = "openclaw.workspace.scriptRunLogs.v1:";
+
+function scriptRunLogsStorageKey(domain: string): string {
+  return `${SCRIPT_RUN_LOGS_STORAGE_PREFIX}${encodeURIComponent(domain)}`;
+}
+
+function parseStoredScriptRunLogs(raw: string | null): ScriptRunLogRecord[] {
+  if (!raw) {
+    return [];
+  }
+  try {
+    const data = JSON.parse(raw) as unknown;
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    const rows = data.filter((row): row is ScriptRunLogRecord => {
+      if (!row || typeof row !== "object") {
+        return false;
+      }
+      const r = row as ScriptRunLogRecord;
+      return (
+        typeof r.id === "string" &&
+        typeof r.scriptName === "string" &&
+        typeof r.startedAt === "number" &&
+        Array.isArray(r.lines) &&
+        r.lines.every((line) => typeof line === "string")
+      );
+    });
+    return rows.slice(0, 10);
+  } catch {
+    return [];
+  }
+}
 
 type OpenTab = {
   tabKey: string;
@@ -157,6 +192,36 @@ export function WorkspaceScriptSessionProvider({
   const closeRunLogDialog = useCallback(() => {
     setRunLogDialogOpen(false);
   }, []);
+
+  useLayoutEffect(() => {
+    if (typeof globalThis.window === "undefined") {
+      return;
+    }
+    activeRunIdRef.current = null;
+    try {
+      setScriptRunLogs(
+        parseStoredScriptRunLogs(
+          globalThis.window.localStorage.getItem(scriptRunLogsStorageKey(selectedDomain)),
+        ),
+      );
+    } catch {
+      setScriptRunLogs([]);
+    }
+  }, [selectedDomain]);
+
+  useEffect(() => {
+    if (typeof globalThis.window === "undefined") {
+      return;
+    }
+    try {
+      globalThis.window.localStorage.setItem(
+        scriptRunLogsStorageKey(selectedDomain),
+        JSON.stringify(scriptRunLogs),
+      );
+    } catch {
+      // Ignore quota errors and private mode.
+    }
+  }, [selectedDomain, scriptRunLogs]);
 
   useEffect(() => {
     if (scriptRunLogs.length === 0) {

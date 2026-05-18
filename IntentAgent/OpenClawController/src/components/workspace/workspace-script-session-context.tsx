@@ -119,6 +119,9 @@ export type WorkspaceScriptSessionContextValue = {
   runLogDialogOpen: boolean;
   openRunLogDialog: () => void;
   closeRunLogDialog: () => void;
+  /** Non-empty after a Run Script executes `extract metric-catalog` (flattened metric names); drives Agent assistant chips. */
+  scriptExtractedMetricNames: string[];
+  setScriptExtractedMetricNames: (names: string[]) => void;
 };
 
 const WorkspaceScriptSessionContext = createContext<WorkspaceScriptSessionContextValue | null>(
@@ -153,6 +156,7 @@ export function WorkspaceScriptSessionProvider({
   const [scriptRunLogs, setScriptRunLogs] = useState<ScriptRunLogRecord[]>([]);
   const [selectedScriptRunId, setSelectedScriptRunId] = useState<string | null>(null);
   const [runLogDialogOpen, setRunLogDialogOpen] = useState(false);
+  const [scriptExtractedMetricNames, setScriptExtractedMetricNames] = useState<string[]>([]);
   const activeRunIdRef = useRef<string | null>(null);
 
   const beginScriptRun = useCallback((scriptName: string) => {
@@ -242,6 +246,7 @@ export function WorkspaceScriptSessionProvider({
       prevDomainRef.current = selectedDomain;
       dirtyKeysRef.current = new Set();
       setBundle(buildInitialTabs(draftContent, selectedDomain));
+      setScriptExtractedMetricNames([]);
     }
   }, [selectedDomain, draftContent]);
 
@@ -453,6 +458,8 @@ export function WorkspaceScriptSessionProvider({
       runLogDialogOpen,
       openRunLogDialog,
       closeRunLogDialog,
+      scriptExtractedMetricNames,
+      setScriptExtractedMetricNames,
     }),
     [
       selectedDomain,
@@ -478,6 +485,8 @@ export function WorkspaceScriptSessionProvider({
       runLogDialogOpen,
       openRunLogDialog,
       closeRunLogDialog,
+      scriptExtractedMetricNames,
+      setScriptExtractedMetricNames,
     ],
   );
 

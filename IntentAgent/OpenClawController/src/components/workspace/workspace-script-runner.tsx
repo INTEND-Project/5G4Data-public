@@ -66,6 +66,7 @@ export function WorkspaceScriptRunner({
     endActiveScriptRun,
     runLogDialogOpen,
     closeRunLogDialog,
+    setScriptExtractedMetricNames,
   } = useWorkspaceScriptSession();
 
   const [editorHeightPx, setEditorHeightPx] = useState(DEFAULT_EDITOR_HEIGHT);
@@ -405,6 +406,7 @@ export function WorkspaceScriptRunner({
       appendRunnerLog("Run Script: executing supported statements in order.");
 
       intentIdByAliasRef.current.clear();
+      setScriptExtractedMetricNames([]);
       const catalogBindings = new Map<string, string[]>();
 
       const bindings = new Map<string, string>();
@@ -578,6 +580,10 @@ export function WorkspaceScriptRunner({
       }
 
       if (catalogBindings.size > 0) {
+        const merged = [...new Set([].concat(...catalogBindings.values()) as string[])].sort(
+          (a, b) => a.localeCompare(b),
+        );
+        setScriptExtractedMetricNames(merged);
         appendRunnerLog(
           `Run Script: metric-catalog list aliases bound: ${Array.from(catalogBindings.keys()).join(", ")}.`,
         );
@@ -598,6 +604,7 @@ export function WorkspaceScriptRunner({
     persistIntentStoreUrl,
     selectedDomain,
     selectedKgTargetId,
+    setScriptExtractedMetricNames,
   ]);
 
   const handleIntentDialogFinish = useCallback(() => {

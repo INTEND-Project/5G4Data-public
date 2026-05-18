@@ -205,7 +205,7 @@ a {
 }
 
 .workspace-grid.workspace-grid-with-resizable-sidebar {
-  grid-template-columns: auto 8px minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-columns: auto 8px minmax(0, 1fr) 8px auto;
   align-items: start;
 }
 

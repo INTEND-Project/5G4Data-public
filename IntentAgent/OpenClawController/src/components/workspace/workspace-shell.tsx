@@ -6,6 +6,7 @@ import { DomainSelector } from "@/components/workspace/domain-selector";
 import { KgTargetPanel } from "@/components/workspace/kg-target-panel";
 import { ScriptList } from "@/components/workspace/script-list";
 import { WorkspaceLeftSidebarResizable } from "@/components/workspace/workspace-left-sidebar-resizable";
+import { WorkspaceRightSidebarResizable } from "@/components/workspace/workspace-right-sidebar-resizable";
 import { WorkspaceRunIdChip } from "@/components/workspace/workspace-run-id-chip";
 import { WorkspaceScriptRunner } from "@/components/workspace/workspace-script-runner";
 import { WorkspaceScriptSessionProvider } from "@/components/workspace/workspace-script-session-context";
@@ -144,7 +145,7 @@ export function WorkspaceShell({
             />
           </section>
 
-          <aside className="workspace-panel">
+          <WorkspaceRightSidebarResizable>
             <KgTargetPanel
               createUrl={kgTargetsCreateUrl}
               deleteUrlBase={kgTargetsDeleteUrlBase}
@@ -152,7 +153,7 @@ export function WorkspaceShell({
               targets={kgTargets}
             />
             <AssistantPanel assistantContext={assistantContext} />
-          </aside>
+          </WorkspaceRightSidebarResizable>
         </section>
       </WorkspaceScriptSessionProvider>
     </main>

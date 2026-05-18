@@ -72,6 +72,7 @@ describe("workspace shell bootstrap", () => {
     expect(shellSource).toContain("scriptsApiUrl");
     expect(shellSource).toContain("WorkspaceScriptSessionProvider");
     expect(shellSource).toContain("WorkspaceLeftSidebarResizable");
+    expect(shellSource).toContain("WorkspaceRightSidebarResizable");
     expect(scriptRunnerSource).toContain("Run mode");
     expect(scriptRunnerSource).toContain("dry-run");
     expect(scriptRunnerSource).toContain("execute");
@@ -165,6 +166,7 @@ describe("workspace shell bootstrap", () => {
     expect(globalsSource).toContain(".workspace-runner-mode-active");
     expect(globalsSource).toContain(".workspace-sidebar-column");
     expect(globalsSource).toContain(".workspace-sidebar-resizer");
+    expect(globalsSource).toContain("grid-template-columns: auto 8px minmax(0, 1fr) 8px auto");
     expect(globalsSource).toContain(".workspace-script-name");
     expect(globalsSource).toContain(".workspace-editor-tab-active");
     expect(globalsSource).toContain(".workspace-editor-height-resizer");

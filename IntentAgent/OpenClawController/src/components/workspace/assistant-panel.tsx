@@ -1,3 +1,9 @@
+"use client";
+
+import { useMemo } from "react";
+
+import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
+
 type AssistantPanelProps = {
   assistantContext: {
     assistantModel: string;
@@ -8,6 +14,14 @@ type AssistantPanelProps = {
 };
 
 export function AssistantPanel({ assistantContext }: AssistantPanelProps) {
+  const { scriptExtractedMetricNames } = useWorkspaceScriptSession();
+
+  const derivedMetricLabels = useMemo(
+    () =>
+      scriptExtractedMetricNames.length > 0 ? scriptExtractedMetricNames : assistantContext.metricNames,
+    [assistantContext.metricNames, scriptExtractedMetricNames],
+  );
+
   return (
     <section className="workspace-section">
       <div className="workspace-heading-row">
@@ -15,11 +29,20 @@ export function AssistantPanel({ assistantContext }: AssistantPanelProps) {
         <span className="workspace-chip">{assistantContext.assistantModel}</span>
       </div>
       <p className="workspace-hint">
-        The AGENT ASSISTANT is using the {assistantContext.stage} stage context and
-        derived metric names to draft snippets.
+        {scriptExtractedMetricNames.length > 0 ? (
+          <>
+            The AGENT ASSISTANT will use metric names returned by <code>extract metric-catalog</code>{" "}
+            in your last Run Script (below). Stage: {assistantContext.stage}.
+          </>
+        ) : (
+          <>
+            The AGENT ASSISTANT is using the {assistantContext.stage} stage context and fallback
+            derived metric names until you run <code>extract metric-catalog</code> successfully.
+          </>
+        )}
       </p>
       <div className="workspace-metric-list">
-        {assistantContext.metricNames.map((metric) => (
+        {derivedMetricLabels.map((metric) => (
           <span className="workspace-chip" key={metric}>
             {metric}
           </span>

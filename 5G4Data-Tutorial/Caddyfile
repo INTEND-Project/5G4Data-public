@@ -24,7 +24,18 @@ start5g-1.cs.uit.no {
     handle /tmf-simulator* {
         reverse_proxy http://start5g-1.cs.uit.no:3000
     }
-    
+
+    # A2A Registry API (host port 17001; strip /a2a-registry prefix)
+    handle /a2a-registry/api* {
+        uri strip_prefix /a2a-registry
+        reverse_proxy http://start5g-1.cs.uit.no:17001
+    }
+
+    # A2A Registry frontend (host port 17173)
+    handle /a2a-registry* {
+        reverse_proxy http://start5g-1.cs.uit.no:17173
+    }
+
     # ChartMuseum at /charts
     handle /charts/* {
         uri strip_prefix /charts

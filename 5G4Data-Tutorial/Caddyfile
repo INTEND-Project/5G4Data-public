@@ -20,17 +20,11 @@ start5g-1.cs.uit.no {
         reverse_proxy flask-app:5003
     }
 
-    # Workload catalog legacy path
-    handle /webapp/* {
-        reverse_proxy http://webapp:3000
+    # OpenClaw Controller (dev server on host port 3000)
+    handle /tmf-simulator* {
+        reverse_proxy http://start5g-1.cs.uit.no:3000
     }
-
-    # Workload catalog at /workloads
-    handle /workloads/* {
-        uri replace /workloads /webapp
-        reverse_proxy http://webapp:3000
-    }
-
+    
     # ChartMuseum at /charts
     handle /charts/* {
         uri strip_prefix /charts

@@ -8,37 +8,62 @@ start5g-1.cs.uit.no {
     # - workload catalogue: 3040
     # - associated chartmuseum: 8080
     handle_path /wcatalog/* {
-        reverse_proxy http://start5g-1.cs.uit.no:3040
+        reverse_proxy http://host.docker.internal:3040
     }
 
     handle_path /wchartmuseum/* {
-        reverse_proxy http://start5g-1.cs.uit.no:8080
-    }
-
-    # Main Flask app at root
-    handle {
-        reverse_proxy flask-app:5003
+        reverse_proxy http://host.docker.internal:8080
     }
 
     # OpenClaw Controller (dev server on host port 3000)
     handle /tmf-simulator* {
-        reverse_proxy http://start5g-1.cs.uit.no:3000
+        reverse_proxy http://host.docker.internal:3000 {
+            header_up Host {host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+
+    # OpenClaw agents (host ports; must match registry wellKnownURI paths)
+    handle_path /5g4data-intent-generating-agent/* {
+        reverse_proxy http://host.docker.internal:3011
+    }
+
+    handle_path /5g4data-intent-observation-generating-agent/* {
+        reverse_proxy http://host.docker.internal:3012
     }
 
     # A2A Registry API (host port 17001; strip /a2a-registry prefix)
     handle /a2a-registry/api* {
         uri strip_prefix /a2a-registry
-        reverse_proxy http://start5g-1.cs.uit.no:17001
+        reverse_proxy http://host.docker.internal:17001
     }
 
     # A2A Registry frontend (host port 17173)
     handle /a2a-registry* {
-        reverse_proxy http://start5g-1.cs.uit.no:17173
+        reverse_proxy http://host.docker.internal:17173
     }
 
     # ChartMuseum at /charts
     handle /charts/* {
         uri strip_prefix /charts
         reverse_proxy http://chartmuseum:8080
+    }
+
+    # Workload catalog legacy path
+    handle /webapp/* {
+        reverse_proxy http://webapp:3000
+    }
+
+    # Workload catalog at /workloads
+    handle /workloads/* {
+        uri replace /workloads /webapp
+        reverse_proxy http://webapp:3000
+    }
+
+    # Main Flask app at root (must be last — catch-all)
+    handle {
+        reverse_proxy flask-app:5003
     }
 }

@@ -45,7 +45,7 @@ PREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
 SELECT DISTINCT
-  (REPLACE(REPLACE(STR(?metric), ".*[#/]", ""), "-", "_") AS ?metric_name)
+  (REPLACE(STR(?metric), ".*[#/]", "") AS ?metric_name)
 WHERE {
   GRAPH <${graphIri}> {
     VALUES ?intentId { ${intentLit} }

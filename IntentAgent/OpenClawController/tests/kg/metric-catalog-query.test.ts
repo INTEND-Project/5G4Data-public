@@ -32,6 +32,17 @@ describe("metric-catalog-query", () => {
     expect(q).toContain("ORDER BY ?metric_name");
   });
 
+
+  it("preserves hyphenated metric local names from GraphDB", () => {
+    const q = buildMetricCatalogQuery(
+      "urn:intend:kg:demo:test",
+      "I04fb0697e3a243e7a292c6cb57e9f797",
+    );
+    expect(q).toContain('(REPLACE(STR(?metric), ".*[#/]", "") AS ?metric_name)');
+    expect(q).not.toContain('"-" , "_"');
+    expect(q).not.toContain('"-", "_")');
+  });
+
   it("rejects unsafe graph iris for angle-bracket embedding", () => {
     expect(() => buildMetricCatalogQuery("bad iri\n", "I04fb0697e3a243e7a292c6cb57e9f797")).toThrow();
     expect(() => buildMetricCatalogQuery("", "I04fb0697e3a243e7a292c6cb57e9f797")).toThrow();

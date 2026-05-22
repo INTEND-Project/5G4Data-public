@@ -20,9 +20,9 @@ Observation of intent-level abstractions is sufficient to support the integratio
 
 The simulator is implemented as a multiagent system based on OpenClaw:
 
-- `OpenClawAgent` is the generic runtime kernel.
-- `OpenClawPackages` contain domain-specific behavior.
-- Agents are instantiated as package-bound runtime clones (for example `OpenClawAgent-<package-name>`).
+- `SimulatorAgentKernel` is the generic runtime kernel.
+- `SimulatorAgentPackages` contain domain-specific behavior.
+- Agents are instantiated as package-bound runtime clones (for example `SimulatorAgentKernel-<package-name>`).
 
 This separation keeps reusable mechanics (orchestration, model invocation, validation loops, package loading) in the kernel and domain behavior (prompts, rules, workflows, tools, validators) in packages.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Interactive A2A (v0.3-style JSON-RPC) client for OpenClawAgent.
+ * Interactive A2A (v0.3-style JSON-RPC) client for SimulatorAgentKernel.
  *
  * Usage:
  *   node scripts/a2a-interactive.mjs
@@ -13,7 +13,7 @@
  *   A2A_RPC_URL         — Optional; if set, JSON-RPC POST goes here instead of card.url
  *
  * JSON-RPC POSTs target the card field `url` (e.g. https://host/<agent-slug>/v1). The reverse proxy must
- * map that public prefix to upstream root routes (e.g. Caddy `handle_path` or `uri strip_prefix`): OpenClawAgent
+ * map that public prefix to upstream root routes (e.g. Caddy `handle_path` or `uri strip_prefix`): SimulatorAgentKernel
  * serves /.well-known/… and /v1 only at / on the listened port.
  */
 import { randomUUID } from "node:crypto";

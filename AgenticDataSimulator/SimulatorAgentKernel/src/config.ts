@@ -84,10 +84,10 @@ function loadEnvFile(path: string): void {
 export function loadConfig(): AppConfig {
   // Load env values in this precedence:
   // 1) shell/exported vars (highest, already in process.env)
-  // 2) OpenClawAgent/.env
-  // 3) HermesAgentReal/.env
+  // 2) SimulatorAgentKernel/.env
+  // 3) IntentAgent/HermesAgent/.env
   loadEnvFile(resolve(process.cwd(), ".env"));
-  loadEnvFile(resolve(process.cwd(), "../HermesAgentReal/.env"));
+  loadEnvFile(resolve(process.cwd(), "../IntentAgent/HermesAgent/.env"));
 
   const llmProvider = (process.env.LLM_PROVIDER ?? "openai").trim().toLowerCase() as
     | "openai"
@@ -102,19 +102,19 @@ export function loadConfig(): AppConfig {
 
   const skillFile = resolve(
     process.cwd(),
-    process.env.SKILL_FILE ?? "../OpenClawPackages/5g4data-intent-generation/skills/SKILL.md"
+    process.env.SKILL_FILE ?? "../SimulatorAgentPackages/5g4data-intent-generation/skills/SKILL.md"
   );
   const domainPackageDir = resolve(
     process.cwd(),
-    process.env.DOMAIN_PACKAGE_DIR ?? "../OpenClawPackages/5g4data-intent-generation"
+    process.env.DOMAIN_PACKAGE_DIR ?? "../SimulatorAgentPackages/5g4data-intent-generation"
   );
   const systemPromptFile = resolve(
     process.cwd(),
-    process.env.SYSTEM_PROMPT_FILE ?? "../SKILLs/SYSTEM_PROMPT.md"
+    process.env.SYSTEM_PROMPT_FILE ?? "../IntentAgent/SKILLs/SYSTEM_PROMPT.md"
   );
   const shaclShapesFile = resolve(
     process.cwd(),
-    process.env.SHACL_SHAPES_FILE ?? "../HermesAgentReal/validation/skill_subset_intent_shapes.ttl"
+    process.env.SHACL_SHAPES_FILE ?? "../IntentAgent/HermesAgent/validation/skill_subset_intent_shapes.ttl"
   );
   const llmUsageLogPath = process.env.LLM_USAGE_LOG_PATH
     ? resolve(process.cwd(), process.env.LLM_USAGE_LOG_PATH)

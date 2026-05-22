@@ -4,18 +4,18 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadDomainPackage } from "../core/packageLoader.js";
-import { ObservationTool } from "../../../OpenClawPackages/5g4data-intent-observations/tools/observationTool.js";
+import { ObservationTool } from "../../../SimulatorAgentPackages/5g4data-intent-observations/tools/observationTool.js";
 import {
   applyObservationOverride,
   startObservationStreams,
   stopObservationStreams
-} from "../../../OpenClawPackages/5g4data-intent-observations/tools/observationStreamCoordinator.js";
+} from "../../../SimulatorAgentPackages/5g4data-intent-observations/tools/observationStreamCoordinator.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturePath = join(__dirname, "fixtures", "observation-streams-min.ttl");
 const observationsPackageDir = join(
   __dirname,
-  "../../../OpenClawPackages/5g4data-intent-observations"
+  "../../../SimulatorAgentPackages/5g4data-intent-observations"
 );
 
 test("5g4data-intent-observations manifest exposes replPreTurn hook", () => {

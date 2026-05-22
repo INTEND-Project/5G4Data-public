@@ -7,7 +7,7 @@ import { cloneAgentForPackage } from "../core/agentCloneManager.js";
 
 test("cloneAgentForPackage creates versioned clone and excludes transient folders", () => {
   const root = mkdtempSync(join(tmpdir(), "clone-manager-"));
-  const baseline = join(root, "OpenClawAgent");
+  const baseline = join(root, "SimulatorAgentKernel");
   mkdirSync(baseline, { recursive: true });
   writeFileSync(join(baseline, ".env"), "LLM_PROVIDER=openai\n", "utf8");
   writeFileSync(join(baseline, "README.md"), "baseline\n", "utf8");
@@ -27,7 +27,7 @@ test("cloneAgentForPackage creates versioned clone and excludes transient folder
 
 test("cloneAgentForPackage prefers provided folderName", () => {
   const root = mkdtempSync(join(tmpdir(), "clone-manager-folder-name-"));
-  const baseline = join(root, "OpenClawAgent");
+  const baseline = join(root, "SimulatorAgentKernel");
   mkdirSync(baseline, { recursive: true });
   writeFileSync(join(baseline, "README.md"), "baseline\n", "utf8");
 
@@ -36,5 +36,5 @@ test("cloneAgentForPackage prefers provided folderName", () => {
     packageName: "pkg-a",
     folderName: "5g4data-intent-generating-agent"
   });
-  assert.match(clone.cloneDir, /OpenClawAgent-5g4data-intent-generating-agent$/);
+  assert.match(clone.cloneDir, /SimulatorAgentKernel-5g4data-intent-generating-agent$/);
 });

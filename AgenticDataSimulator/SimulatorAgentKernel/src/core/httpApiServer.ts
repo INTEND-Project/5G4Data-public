@@ -172,7 +172,7 @@ export function createOpenApiSpec(
   return {
     openapi: "3.1.0",
     info: {
-      title: "OpenClawAgent Control API",
+      title: "SimulatorAgentKernel Control API",
       version: "1.0.0"
     },
     paths: { ...basePaths, ...(extensionPaths ?? {}) }

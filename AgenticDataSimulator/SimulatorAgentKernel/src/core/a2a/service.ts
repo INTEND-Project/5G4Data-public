@@ -103,7 +103,7 @@ export function buildAgentCard(config: A2AConfig, domainPackage: LoadedDomainPac
   return {
     protocolVersion: partial?.protocolVersion ?? "0.3.0",
     name: cardName,
-    description: partial?.description ?? `OpenClawAgent package runtime for ${packageName}`,
+    description: partial?.description ?? `SimulatorAgentKernel package runtime for ${packageName}`,
     domain: partial?.domain,
     url: `${publicBaseUrl}/v1`,
     version: partial?.version ?? domainPackage.manifest.version,

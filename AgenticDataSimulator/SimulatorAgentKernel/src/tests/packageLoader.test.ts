@@ -5,7 +5,7 @@ import { loadDomainPackage } from "../core/packageLoader.js";
 import { WorkflowEngine } from "../core/workflowEngine.js";
 
 const basePackageDir =
-  "/home/telco/arneme/INTEND-Project/5G4Data-public/IntentAgent/OpenClawPackages/5g4data-intent-generation";
+  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages/5g4data-intent-generation";
 
 test("loads 5g4data-intent-generation package", () => {
   const domainPackage = loadDomainPackage(basePackageDir);
@@ -33,7 +33,7 @@ test("workflow modules resolve based on intent flags", () => {
 
 test("domain package swap works by changing directory", () => {
   const templatePackageDir = join(
-    "/home/telco/arneme/INTEND-Project/5G4Data-public/IntentAgent/OpenClawPackages",
+    "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages",
     "package-template"
   );
   const domainPackage = loadDomainPackage(templatePackageDir);

@@ -1,8 +1,8 @@
-# OpenClaw Controller MVP Verification
+# Simulator Controller MVP Verification
 
 ## Automated checks
 
-Run these from `IntentAgent/OpenClawController`:
+Run these from `AgenticDataSimulator/SimulatorController`:
 
 ```bash
 npm test

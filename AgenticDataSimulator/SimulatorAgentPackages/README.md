@@ -1,6 +1,6 @@
-# OpenClawPackages
+# SimulatorAgentPackages
 
-`OpenClawPackages` is the domain package registry used by the generic `OpenClawAgent` kernel.
+`SimulatorAgentPackages` is the domain package registry used by the generic `SimulatorAgentKernel` kernel.
 
 Each subfolder in this directory is a self-contained domain package that defines behavior through configuration, prompts, skills, validators, and optional package tools/postprocessors.
 
@@ -8,7 +8,7 @@ Each subfolder in this directory is a self-contained domain package that defines
 
 The goal is "zero code changes" in the base agent for new domains.
 
-- `OpenClawAgent` stays a generic runtime kernel.
+- `SimulatorAgentKernel` stays a generic runtime kernel.
 - Domain-specific behavior lives in package assets.
 - New use cases are created by adding a new package and loading it.
 
@@ -61,7 +61,7 @@ Optional postprocessor wiring:
 Start from the template:
 
 ```bash
-cd IntentAgent/OpenClawPackages
+cd AgenticDataSimulator/SimulatorAgentPackages
 cp -r package-template my-domain-package
 ```
 
@@ -78,10 +78,10 @@ Then customize:
 
 ## Load a package into an isolated agent clone
 
-From `IntentAgent/OpenClawAgent`:
+From `AgenticDataSimulator/SimulatorAgentKernel`:
 
 ```bash
-npx tsx src/index.ts package load ../OpenClawPackages/my-domain-package
+npx tsx src/index.ts package load ../SimulatorAgentPackages/my-domain-package
 ```
 
 Or from a `.tgz` archive:
@@ -92,8 +92,8 @@ npx tsx src/index.ts package load /path/to/my-domain-package.tgz
 
 This command:
 
-- installs/validates package under `../OpenClawPackages/<package-name>`
-- creates a versioned clone `../OpenClawAgent-<package-name>` (or `-v2`, `-v3`, ...)
+- installs/validates package under `../SimulatorAgentPackages/<package-name>`
+- creates a versioned clone `../SimulatorAgentKernel-<package-name>` (or `-v2`, `-v3`, ...)
 - copies package tools into cloned `src/tools/`
 - updates cloned `.env` to point to package `DOMAIN_PACKAGE_DIR` and `SKILL_FILE`
 
@@ -102,7 +102,7 @@ This command:
 Each clone’s OpenAPI listener uses `API_SERVER_PORT` from `.env` (default in the kernel is `3011`). To avoid collisions when several agents run on the same machine, pass **`--port <n>`** on the clone’s entrypoint (before any one-shot prompt). This overrides `API_SERVER_PORT` for that process only:
 
 ```bash
-cd ../OpenClawAgent-5g4data-intent-observations
+cd ../SimulatorAgentKernel-5g4data-intent-observations
 API_SERVER_ENABLED=true npx tsx src/index.ts --port 3013
 ```
 

@@ -82,7 +82,7 @@ export async function POST(request: Request) {
   }
 
   const rpcUrl = rpc.rpcUrl;
-  /** @see OpenClawAgent/scripts/a2a-interactive.mjs */
+  /** @see SimulatorAgentKernel/scripts/a2a-interactive.mjs */
   const message: Record<string, unknown> = {
     role: "user",
     messageId: randomUUID(),

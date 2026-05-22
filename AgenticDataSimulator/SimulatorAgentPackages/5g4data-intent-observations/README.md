@@ -4,8 +4,8 @@ Domain package for generating TM Forum formatted observation report payloads fro
 
 ## Scope
 
-- Package-only implementation under `OpenClawPackages/5g4data-intent-observations`.
-- Requires runtime capability wiring in `OpenClawAgent` so `intent_id` can be fetched from GraphDB and injected into runtime context.
+- Package-only implementation under `SimulatorAgentPackages/5g4data-intent-observations`.
+- Requires runtime capability wiring in `SimulatorAgentKernel` so `intent_id` can be fetched from GraphDB and injected into runtime context.
 
 ## Inputs
 
@@ -39,7 +39,7 @@ These prompts are handled in the agent pre-turn hook (REPL **and** HTTP `/v1/ses
 
 ## `--port` (clone runtime)
 
-When running the **cloned** agent (`OpenClawAgent-5g4data-intent-observations`) with the OpenAPI server enabled, you can set the HTTP listener port without editing `.env`:
+When running the **cloned** agent (`SimulatorAgentKernel-5g4data-intent-observations`) with the OpenAPI server enabled, you can set the HTTP listener port without editing `.env`:
 
 ```bash
 API_SERVER_ENABLED=true npx tsx src/index.ts --port 3013

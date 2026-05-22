@@ -20,7 +20,7 @@ todos:
 isProject: false
 ---
 
-# OpenClawAgent client-server and discovery architecture
+# SimulatorAgentKernel client-server and discovery architecture
 
 ## Executive summary
 
@@ -36,7 +36,7 @@ This enables runtime-independent controller scripts to create intents using logi
 ## Current state
 
 - OpenClaw runtime is CLI-first, centered on `TurnOrchestrator.runTurn(...)`.
-- Domain behavior is package-driven under `OpenClawPackages`.
+- Domain behavior is package-driven under `SimulatorAgentPackages`.
 - Observation reporting package supports natural-language and structured override behavior.
 - No production-ready built-in server for discovery, routing, and binding lifecycles yet.
 

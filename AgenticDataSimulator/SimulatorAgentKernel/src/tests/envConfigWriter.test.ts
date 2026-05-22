@@ -15,12 +15,12 @@ test("updateEnvFile upserts domain and skill values", () => {
   );
 
   updateEnvFile(envPath, [
-    { key: "DOMAIN_PACKAGE_DIR", value: "../OpenClawPackages/package-template" },
-    { key: "SKILL_FILE", value: "../OpenClawPackages/package-template/skills/SKILL.md" }
+    { key: "DOMAIN_PACKAGE_DIR", value: "../SimulatorAgentPackages/package-template" },
+    { key: "SKILL_FILE", value: "../SimulatorAgentPackages/package-template/skills/SKILL.md" }
   ]);
 
   const content = readFileSync(envPath, "utf8");
-  assert.match(content, /DOMAIN_PACKAGE_DIR=\.\.\/OpenClawPackages\/package-template/);
-  assert.match(content, /SKILL_FILE=\.\.\/OpenClawPackages\/package-template\/skills\/SKILL\.md/);
+  assert.match(content, /DOMAIN_PACKAGE_DIR=\.\.\/SimulatorAgentPackages\/package-template/);
+  assert.match(content, /SKILL_FILE=\.\.\/SimulatorAgentPackages\/package-template\/skills\/SKILL\.md/);
   assert.match(content, /OPENAI_MODEL=test/);
 });

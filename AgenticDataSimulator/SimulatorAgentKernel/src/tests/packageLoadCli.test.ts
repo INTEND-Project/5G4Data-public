@@ -6,13 +6,13 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 const mockPackageSource =
-  "/home/telco/arneme/INTEND-Project/5G4Data-public/IntentAgent/OpenClawPackages/package-template";
+  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages/package-template";
 const builtCliPath =
-  "/home/telco/arneme/INTEND-Project/5G4Data-public/IntentAgent/OpenClawAgent/dist/index.js";
+  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentKernel/dist/index.js";
 
 test("CLI package load installs package and creates agent clone", () => {
   const root = mkdtempSync(join(tmpdir(), "pkg-load-cli-"));
-  const baseline = join(root, "OpenClawAgent");
+  const baseline = join(root, "SimulatorAgentKernel");
   const archivePath = join(root, "package-template.tgz");
   execFileSync("mkdir", ["-p", baseline], { stdio: "pipe" });
   writeFileSync(join(baseline, ".env"), "LLM_PROVIDER=openai\n", "utf8");
@@ -26,7 +26,7 @@ test("CLI package load installs package and creates agent clone", () => {
   assert.match(output, /Package installed: package-template/);
 
   const siblings = readdirSync(root);
-  const clone = siblings.find((name) => name.startsWith("OpenClawAgent-package-template"));
+  const clone = siblings.find((name) => name.startsWith("SimulatorAgentKernel-package-template"));
   assert.ok(clone, "expected clone folder");
   const cloneDir = join(root, clone as string);
   assert.ok(existsSync(join(cloneDir, ".env")));

@@ -11,5 +11,5 @@ Starter template for creating a new OpenClaw domain package.
 5. Load with:
 
 ```bash
-npx tsx src/index.ts package load ../OpenClawPackages/<your-package-name>
+npx tsx src/index.ts package load ../SimulatorAgentPackages/<your-package-name>
 ```

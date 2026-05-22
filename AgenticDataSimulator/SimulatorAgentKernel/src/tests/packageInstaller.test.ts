@@ -7,12 +7,12 @@ import { tmpdir } from "node:os";
 import { installPackageFromPath } from "../core/packageInstaller.js";
 
 const mockPackageSource =
-  "/home/telco/arneme/INTEND-Project/5G4Data-public/IntentAgent/OpenClawPackages/package-template";
+  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages/package-template";
 
 test("installPackageFromPath installs and validates package from tgz", () => {
   const root = mkdtempSync(join(tmpdir(), "pkg-install-"));
   const archivePath = join(root, "package-template.tgz");
-  const packagesRoot = join(root, "OpenClawPackages");
+  const packagesRoot = join(root, "SimulatorAgentPackages");
 
   execFileSync("tar", ["-czf", archivePath, "-C", mockPackageSource, "."], { stdio: "pipe" });
   const result = installPackageFromPath({ sourcePath: archivePath, packagesRoot });
@@ -25,7 +25,7 @@ test("installPackageFromPath installs and validates package from tgz", () => {
 test("installPackageFromPath installs from unpacked directory", () => {
   const root = mkdtempSync(join(tmpdir(), "pkg-install-dir-"));
   const sourceDir = join(root, "mock-dir");
-  const packagesRoot = join(root, "OpenClawPackages");
+  const packagesRoot = join(root, "SimulatorAgentPackages");
   cpSync(mockPackageSource, sourceDir, { recursive: true });
   const result = installPackageFromPath({ sourcePath: sourceDir, packagesRoot });
   assert.equal(result.packageName, "package-template");
@@ -36,7 +36,7 @@ test("installPackageFromPath installs from unpacked directory", () => {
 test("installPackageFromPath rejects archive without manifest", () => {
   const root = mkdtempSync(join(tmpdir(), "pkg-install-empty-"));
   const source = join(root, "empty-package");
-  const packagesRoot = join(root, "OpenClawPackages");
+  const packagesRoot = join(root, "SimulatorAgentPackages");
   const archivePath = join(root, "empty.tgz");
   execFileSync("mkdir", ["-p", source], { stdio: "pipe" });
   execFileSync("tar", ["-czf", archivePath, "-C", source, "."], { stdio: "pipe" });

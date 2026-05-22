@@ -4,7 +4,7 @@ import { loadDomainPackage } from "../core/packageLoader.js";
 import { runConfiguredPostprocessors } from "../core/postprocessorRunner.js";
 
 const basePackageDir =
-  "/home/telco/arneme/INTEND-Project/5G4Data-public/IntentAgent/OpenClawPackages/5g4data-intent-generation";
+  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages/5g4data-intent-generation";
 
 test("configured package postprocessor rewrites placeholders and invalid uuid-like identifiers", async () => {
   const domainPackage = loadDomainPackage(basePackageDir);

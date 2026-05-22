@@ -290,7 +290,7 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   const { pruneClonePackagingArtifacts } = await import("./core/cloneRuntimePruner.js");
 
   const baselineAgentDir = process.cwd();
-  const packagesRoot = resolve(baselineAgentDir, "../OpenClawPackages");
+  const packagesRoot = resolve(baselineAgentDir, "../SimulatorAgentPackages");
   const installed = installPackageFromPath({
     sourcePath: command.archivePath,
     packagesRoot

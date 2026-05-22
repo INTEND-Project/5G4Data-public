@@ -4,10 +4,10 @@ Domain package for TM Forum–style 5G4Data intent generation (workloads, locali
 
 ## Running the cloned agent with a custom HTTP port
 
-After `package load` from `OpenClawAgent`, run the clone with **`--port`** so multiple agents can listen on one host without conflicting on the default port:
+After `package load` from `SimulatorAgentKernel`, run the clone with **`--port`** so multiple agents can listen on one host without conflicting on the default port:
 
 ```bash
-cd ../OpenClawAgent-5g4data-intent-generation
+cd ../SimulatorAgentKernel-5g4data-intent-generation
 API_SERVER_ENABLED=true npx tsx src/index.ts --port 3012
 ```
 

@@ -114,7 +114,7 @@ docker compose restart reverse-proxy
 
 ---
 
-## 6. OpenClawAgent kernel changes (`IntentAgent/OpenClawAgent`)
+## 6. SimulatorAgentKernel kernel changes (`AgenticDataSimulator/SimulatorAgentKernel`)
 
 Relevant fixes in **`src/index.ts`**:
 
@@ -152,7 +152,7 @@ Relevant fixes in **`src/index.ts`**:
 | `a2a-registry/backend/app/main.py`, `worker.py` | Call migrations before DB pool |
 | `a2a-registry/docker-compose.yml` | Postgres init comment |
 | `5G4Data-Tutorial/Caddyfile` | `/5g4data-intent-generation-agent/` route |
-| `IntentAgent/OpenClawAgent/src/index.ts` | A2A registration after listen |
+| `AgenticDataSimulator/SimulatorAgentKernel/src/index.ts` | A2A registration after listen |
 
 ---
 

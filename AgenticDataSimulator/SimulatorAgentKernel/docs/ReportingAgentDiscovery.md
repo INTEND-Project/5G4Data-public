@@ -21,7 +21,7 @@ This enables a controller to send control messages to the correct reporting agen
 Out of scope:
 
 - Standardizing a universal "agent control message" protocol across all ecosystems
-- Replacing package/domain semantics inside `OpenClawPackages/5g4data-intent-observations`
+- Replacing package/domain semantics inside `SimulatorAgentPackages/5g4data-intent-observations`
 
 ## Architecture Overview
 

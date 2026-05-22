@@ -3,6 +3,7 @@ version: '3.8'
 services:
   # PostgreSQL Database
   postgres:
+    restart: unless-stopped
     image: postgres:14-alpine
     container_name: a2a-registry-db
     environment:
@@ -23,6 +24,7 @@ services:
 
   # Backend API
   api:
+    restart: unless-stopped
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -51,6 +53,7 @@ services:
 
   # Health Check Worker
   worker:
+    restart: unless-stopped
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -68,6 +71,7 @@ services:
 
   # Frontend (production-like static build served by nginx)
   frontend:
+    restart: unless-stopped
     build:
       context: ./website
       dockerfile: Dockerfile

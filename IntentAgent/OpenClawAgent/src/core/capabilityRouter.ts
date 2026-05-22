@@ -40,6 +40,7 @@ export interface CapabilityContext {
   catalogueSummary: string;
   graphDbSummary: string;
   workflowOverride: string;
+  knownMetricStems: string[];
   warnings: string[];
   debug: string[];
 }
@@ -154,6 +155,7 @@ export class CapabilityRouter {
     let catalogueSummary = "Catalogue context not requested.";
     let graphDbSummary = "GraphDB context not requested.";
     let workflowOverride = "No workflow override.";
+    let knownMetricStems: string[] = [];
     const ontology = await this.createOntologyApi();
     const catalogue = await this.createCatalogueApi();
     const graphdb = await this.createGraphDbApi(graphTargetBinding);
@@ -183,7 +185,9 @@ export class CapabilityRouter {
         const selectedChart = await this.selectChart(userText, catalogue);
         if (selectedChart) {
           const objectivesSummary = await catalogue.objectivesSummaryForChart(selectedChart);
+          knownMetricStems = await this.parseMetricStemsFromObjectivesSummary(objectivesSummary);
           catalogueSummary = `${catalogueSummary}\n\n${rules.prompts.selectedWorkloadTag}\n${objectivesSummary}\nUse these objective thresholds as deployment-condition defaults unless the user overrides.`;
+          debug.push(`known_metric_stems=${knownMetricStems.join(",")}`);
         }
       } catch (error) {
         warnings.push("Selected workload objective extraction failed.");
@@ -236,6 +240,7 @@ export class CapabilityRouter {
       catalogueSummary,
       graphDbSummary,
       workflowOverride,
+      knownMetricStems,
       warnings,
       debug
     };
@@ -294,6 +299,18 @@ export class CapabilityRouter {
     }
     debug.push(`graphdb_candidates_count=${bindings.length}`);
     return summary;
+  }
+
+
+  private async parseMetricStemsFromObjectivesSummary(summary: string): Promise<string[]> {
+    try {
+      const mod = await this.importToolModule("metricNaming.ts");
+      const parse = mod.parseMetricStemsFromRuntimeContext as ((runtimeContext: string) => string[]) | undefined;
+      if (!parse) return [];
+      return parse(summary);
+    } catch {
+      return [];
+    }
   }
 
   private async selectChart(userText: string, catalogue: CatalogueApi): Promise<string | null> {

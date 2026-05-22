@@ -164,6 +164,8 @@ interface CliOptions {
   debug: boolean;
   noGraphDB: boolean;
   debugLogPath: string;
+  /** Max NDJSON lines kept per metric in `logs/observations-<metric>.ndjson` (also `OBS_LOG_N` for child workers). */
+  obsLogN: number;
   /** When set, overrides `API_SERVER_PORT` from the environment before config load. */
   apiServerPort?: number;
   prompt: string;
@@ -173,11 +175,31 @@ function parseCliOptions(argv: string[]): CliOptions {
   let debug = false;
   let noGraphDB = false;
   let debugLogPath = "logs/openclaw-agent-debug.jsonl";
+  let obsLogN = 100;
   let apiServerPort: number | undefined;
   const promptParts: string[] = [];
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (!token) continue;
+    if (token === "--obsLogN" || token.startsWith("--obsLogN=")) {
+      let raw: string;
+      if (token.startsWith("--obsLogN=")) {
+        raw = token.slice("--obsLogN=".length).trim();
+      } else {
+        const next = argv[i + 1];
+        if (!next || next.startsWith("--")) {
+          throw new Error("Usage: --obsLogN <non-negative integer> (max lines per metric in logs/observations-<metric>.ndjson).");
+        }
+        raw = next.trim();
+        i += 1;
+      }
+      const parsed = Number.parseInt(raw, 10);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error(`Invalid --obsLogN ${JSON.stringify(raw)}: expected a non-negative integer.`);
+      }
+      obsLogN = parsed;
+      continue;
+    }
     if (token === "--port" || token.startsWith("--port=")) {
       let raw: string;
       if (token.startsWith("--port=")) {
@@ -212,7 +234,7 @@ function parseCliOptions(argv: string[]): CliOptions {
     }
     promptParts.push(token);
   }
-  return { debug, noGraphDB, debugLogPath, apiServerPort, prompt: promptParts.join(" ").trim() };
+  return { debug, noGraphDB, debugLogPath, obsLogN, apiServerPort, prompt: promptParts.join(" ").trim() };
 }
 
 function normalizeEnvPath(value: string): string {
@@ -447,6 +469,7 @@ if (process.argv[1]?.endsWith("index.js") || process.argv[1]?.endsWith("index.ts
     const handled = await runPackageLoadCommand(argv);
     if (handled) return;
     const options = parseCliOptions(argv);
+    process.env.OBS_LOG_N = String(options.obsLogN);
     if (options.apiServerPort !== undefined) {
       process.env.API_SERVER_PORT = String(options.apiServerPort);
     }

@@ -151,6 +151,7 @@ export class TurnOrchestrator {
       text,
       {
         runtimeContext: context.runtimeContext,
+        knownMetricStems: context.knownMetricStems,
         intentFlags,
         validatorRules: this.domainPackage.validatorRules,
         domainPackage: this.domainPackage

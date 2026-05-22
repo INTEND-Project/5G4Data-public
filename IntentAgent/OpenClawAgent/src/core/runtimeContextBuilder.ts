@@ -7,6 +7,7 @@ import type { GraphTargetBinding } from "../models.js";
 
 export interface RuntimeContextResult {
   runtimeContext: string;
+  knownMetricStems: string[];
   warnings: string[];
   debug: string[];
 }
@@ -34,6 +35,11 @@ export class RuntimeContextBuilder {
       graphDbSummary: context.graphDbSummary,
       workflowOverride: context.workflowOverride
     });
-    return { runtimeContext, warnings: context.warnings, debug: context.debug };
+    return {
+      runtimeContext,
+      knownMetricStems: context.knownMetricStems,
+      warnings: context.warnings,
+      debug: context.debug
+    };
   }
 }

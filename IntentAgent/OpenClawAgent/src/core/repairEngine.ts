@@ -8,6 +8,7 @@ import { runConfiguredPostprocessors } from "./postprocessorRunner.js";
 
 export interface RepairContext {
   runtimeContext: string;
+  knownMetricStems?: string[];
   intentFlags: IntentFlags;
   validatorRules: ValidatorRules;
   domainPackage: LoadedDomainPackage;
@@ -33,6 +34,7 @@ export class RepairEngine {
       text: responseText,
       context: {
         runtimeContext: context.runtimeContext,
+        knownMetricStems: context.knownMetricStems,
         intentFlags: context.intentFlags,
         validatorRules: context.validatorRules
       },
@@ -80,6 +82,7 @@ ${preprocessed}`;
         text: repaired.text,
         context: {
           runtimeContext: context.runtimeContext,
+          knownMetricStems: context.knownMetricStems,
           intentFlags: context.intentFlags,
           validatorRules: context.validatorRules
         },

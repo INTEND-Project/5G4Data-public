@@ -6,6 +6,7 @@ import type { IntentFlags } from "./workflowEngine.js";
 
 export interface PostprocessorContext {
   runtimeContext: string;
+  knownMetricStems?: string[];
   intentFlags: IntentFlags;
   validatorRules: ValidatorRules;
 }

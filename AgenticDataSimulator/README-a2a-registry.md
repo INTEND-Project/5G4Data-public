@@ -1,6 +1,6 @@
 # A2A Registry deployment notes (start5g / OpenClaw integration)
 
-**Mirror of:** `~/arneme/a2a-agent-registry/a2a-registry/README-a2a-registry.md` — update both when changing this document.
+**Mirror:** `AgenticDataSimulator/a2a-registry/README-a2a-registry.md` — update both when changing this document.
 
 ---
 
@@ -142,7 +142,7 @@ docker compose restart reverse-proxy
 
 ---
 
-## 6. OpenClawAgent kernel changes (`IntentAgent/OpenClawAgent`)
+## 6. SimulatorAgentKernel changes (`AgenticDataSimulator/SimulatorAgentKernel`)
 
 Relevant fixes in **`src/index.ts`**:
 
@@ -181,7 +181,7 @@ Relevant fixes in **`src/index.ts`**:
 | `a2a-registry/docker-compose.yml` | Postgres init comment |
 | `5G4Data-Tutorial/Caddyfile` | `/openclaw-agents/*` → OpenClawAgentsProxy; legacy per-agent routes optional |
 | `IntentAgent/OpenClawAgentsProxy/` | Registry-backed reverse proxy (Docker) |
-| `IntentAgent/OpenClawAgent/src/index.ts` | A2A registration after listen |
+| `AgenticDataSimulator/SimulatorAgentKernel/src/index.ts` | A2A registration after listen |
 
 ---
 

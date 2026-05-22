@@ -11,6 +11,8 @@ Multi-agent data generation simulator stack for the 5G4Data project.
 | `SimulatorController` | Web workspace for script authoring, agent discovery, and execution |
 | `a2a-registry` | Agent-to-agent registry for discovery and registration |
 
+See also [`README-a2a-registry.md`](README-a2a-registry.md) for deployment and Caddy/UFW integration notes.
+
 ## Typical workflow
 
 1. Author or extend a package under `SimulatorAgentPackages/`.

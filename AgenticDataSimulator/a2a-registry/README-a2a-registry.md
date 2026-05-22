@@ -1,6 +1,6 @@
 # A2A Registry deployment notes (start5g / OpenClaw integration)
 
-**Mirror:** `INTEND-Project/5G4Data-public/IntentAgent/README-a2a-registry.md` — update both when changing this document.
+**Mirror:** `AgenticDataSimulator/README-a2a-registry.md` — update both when changing this document.
 
 ---
 

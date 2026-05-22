@@ -20,4 +20,4 @@ See also [`README-a2a-registry.md`](README-a2a-registry.md) for deployment and C
 3. Run the resulting `SimulatorAgentKernel-<package-name>` clone.
 4. Use `SimulatorController` to orchestrate multi-agent scripts against registered agents.
 
-Some shared assets remain under `IntentAgent/` (for example `SKILLs/` and `HermesAgent/`).
+Some shared assets remain under `IntentAgent/` (for example `HermesAgent/`). The kernel system prompt lives at `SimulatorAgentKernel/SYSTEM_PROMPT.md`.

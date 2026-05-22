@@ -98,7 +98,7 @@ Default debug log file:
 - `WORKLOAD_CATALOG_BASE_URL`
 - `GRAPHDB_ENDPOINT`, `GRAPHDB_NAMED_GRAPH`, `GRAPHDB_QUERY_LIMIT`, `GRAPHDB_CONTEXT_LIMIT`
 - `DEFAULT_INTENT_HANDLER`, `DEFAULT_INTENT_OWNER`, `AUTO_GENERATE_DESCRIPTION`
-- `SKILL_FILE`, `SYSTEM_PROMPT_FILE` (optional compatibility layer; package prompts are primary)
+- `SKILL_FILE`, `SYSTEM_PROMPT_FILE` (defaults to `./SYSTEM_PROMPT.md` in the kernel; optional compatibility layer — package prompts are primary)
 - `SHACL_SHAPES_FILE`, `SHACL_MAX_RETRIES`
 - `API_SERVER_ENABLED`, `API_SERVER_HOST`, `API_SERVER_PORT` (overridden for this process by CLI `--port <n>` when given)
 - `A2A_ENABLED`, `A2A_REGISTRY_BASE_URL`, `A2A_AGENT_BASE_URL`, `A2A_AGENT_CARD_PATH`, `A2A_AUTO_REGISTER_ON_STARTUP`

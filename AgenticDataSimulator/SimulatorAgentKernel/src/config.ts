@@ -110,7 +110,7 @@ export function loadConfig(): AppConfig {
   );
   const systemPromptFile = resolve(
     process.cwd(),
-    process.env.SYSTEM_PROMPT_FILE ?? "../IntentAgent/SKILLs/SYSTEM_PROMPT.md"
+    process.env.SYSTEM_PROMPT_FILE ?? "./SYSTEM_PROMPT.md"
   );
   const shaclShapesFile = resolve(
     process.cwd(),

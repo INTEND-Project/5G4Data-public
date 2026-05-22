@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { DataFactory, Parser, Store, type Term } from "n3";
+import {
+  resolveCompoundMetricAgainstIntent,
+  resolveConditionScopedMetricName
+} from "./metricNaming.js";
 
 export interface ObservationPayload {
   observationId: string;
@@ -12,6 +16,7 @@ export interface ObservationPayload {
 export interface ConditionMetric {
   conditionId: string;
   targetProperty: string;
+  compoundMetric: string;
   unit: string;
 }
 
@@ -29,6 +34,7 @@ export interface ReportableObservationStream {
   targetLocalName: string;
   conditionId: string;
   targetProperty: string;
+  compoundMetric: string;
   unit: string;
   frequencySeconds: number;
   minValue: number;
@@ -98,6 +104,8 @@ export class ObservationTool {
     return out;
   }
 
+
+
   private findUnit(store: Store, node: Term): string {
     const direct = this.objectLocalsByPredicateLocal(store, node, "unit")[0];
     if (direct) return direct;
@@ -114,15 +122,22 @@ export class ObservationTool {
   private collectConditionMetricsFromNode(
     store: Store,
     conditionId: string,
-    node: Term
-  ): Array<{ targetProperty: string; unit: string }> {
+    node: Term,
+  ): Array<{ targetProperty: string; compoundMetric: string; unit: string }> {
     const targetProps = this.objectLocalsByPredicateLocal(store, node, "valuesOfTargetProperty");
     if (targetProps.length === 0) return [];
     const unit = this.findUnit(store, node);
-    return targetProps.map((prop) => ({
-      targetProperty: prop.replace(new RegExp(`_${conditionId}$`, "i"), ""),
-      unit
-    }));
+    return targetProps.map((prop) => {
+      const resolved = resolveConditionScopedMetricName({
+        valuesOfTargetPropertyLocal: prop,
+        conditionId
+      });
+      return {
+        targetProperty: resolved.targetProperty,
+        compoundMetric: resolved.compoundMetric,
+        unit
+      };
+    });
   }
 
   private extractExpectationGraph(intentTurtle: string): {
@@ -178,9 +193,10 @@ export class ObservationTool {
         ...constraintNodes.flatMap((n) => this.collectConditionMetricsFromNode(store, conditionId, n))
       ];
       for (const metric of metrics) {
-        out.set(`${conditionId}|${metric.targetProperty}`, {
+        out.set(`${conditionId}|${metric.compoundMetric}`, {
           conditionId,
           targetProperty: metric.targetProperty,
+          compoundMetric: metric.compoundMetric,
           unit: metric.unit
         });
       }
@@ -333,12 +349,24 @@ export class ObservationTool {
         targetLocalName: target,
         conditionId: metric.conditionId,
         targetProperty: metric.targetProperty,
+        compoundMetric: metric.compoundMetric,
         unit: metric.unit || "NA",
         frequencySeconds: rep?.frequencySeconds ?? 600,
         minValue: 10,
         maxValue: 100
       };
     });
+  }
+
+
+  /** Resolve a metric token to the compound name stored in GraphDB intent Turtle. */
+  resolveCompoundMetricFromIntent(compoundFromUser: string, intentTurtle: string): string | null {
+    const metrics = this.parseConditionMetrics(intentTurtle).map((m) => m.compoundMetric);
+    return resolveCompoundMetricAgainstIntent(compoundFromUser, metrics);
+  }
+
+  listCompoundMetricsFromIntent(intentTurtle: string): string[] {
+    return this.parseConditionMetrics(intentTurtle).map((m) => m.compoundMetric);
   }
 
   resolveFrequencySeconds(intentTurtle: string, fallback = 600): number {
@@ -348,7 +376,7 @@ export class ObservationTool {
   generateObservation(metric: ConditionMetric, value: number, whenIsoUtc: string): ObservationPayload {
     return {
       observationId: `OB${randomUUID().replace(/-/g, "")}`,
-      observedMetric: `${metric.targetProperty}_${metric.conditionId}`,
+      observedMetric: metric.compoundMetric,
       value,
       unit: metric.unit || "NA",
       obtainedAt: whenIsoUtc
@@ -381,18 +409,12 @@ export class ObservationTool {
   }
 
   static lookupUnitForCompound(compoundName: string, intentTurtle: string | null | undefined, proseHint?: string): string {
-    const trimmed = compoundName.trim().replace(/^data5g:/iu, "").replace(/`/g, "");
-    const parsed = ObservationTool.parseMetricCompound(trimmed);
     if (intentTurtle) {
       const tool = new ObservationTool();
-      for (const m of tool.parseConditionMetrics(intentTurtle)) {
-        if (`${m.targetProperty}_${m.conditionId}` === trimmed) return m.unit || "NA";
-      }
-      if (parsed) {
+      const resolved = tool.resolveCompoundMetricFromIntent(compoundName, intentTurtle);
+      if (resolved) {
         for (const m of tool.parseConditionMetrics(intentTurtle)) {
-          const a = m.conditionId.replace(/^CO/iu, "").toLowerCase();
-          const b = parsed.conditionId.replace(/^CO/iu, "").toLowerCase();
-          if (a === b && m.targetProperty === parsed.targetProperty) return m.unit || "NA";
+          if (m.compoundMetric === resolved) return m.unit || "NA";
         }
       }
     }
@@ -419,7 +441,7 @@ data5g:${payload.observationId} a met:Observation ;
     }
     const lines = metrics.map(
       (m) =>
-        `- condition=${m.conditionId}, metric=data5g:${m.targetProperty}_${m.conditionId}, unit=${m.unit || "NA"}`
+        `- condition=${m.conditionId}, metric=data5g:${m.compoundMetric}, unit=${m.unit || "NA"}`
     );
     return ["Reportable metrics extracted from Condition statements:", ...lines].join("\n");
   }

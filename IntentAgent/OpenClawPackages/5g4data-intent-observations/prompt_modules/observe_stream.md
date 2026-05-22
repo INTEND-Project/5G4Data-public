@@ -20,6 +20,7 @@ When a user prompt matches the structured synthetic DSL **or** the REPL invokes 
 - Fetch intent Turtle, resolve units per `{targetProperty}_{conditionId}` compound.
 - Perform OpenAI-compatible `chat/completions` call per metric (`SYNTH_OBS_*` env; see README).
 - Write snippets under `logs/synthetic-runs/<sessionId>/…` and spawn `npx tsx tools/syntheticMetricWorker.ts <config.json>` (one PID per metric; parallel emission).
+- Copy each validated sampler program to `logs/observation-program-<metric>.js` (latest codegen per metric; same log directory as observation NDJSON when `OBSERVATION_LOG_PATH` is set).
 - `mode=streaming` uses sequential wall-clock pacing; `mode=historic` replays deterministic sim-time timestamps from `start`→`stop` as fast as possible (subject to `SYNTH_OBS_HISTORIC_MAX_POINTS`).
 
 REPL shortcuts:
@@ -29,8 +30,13 @@ REPL shortcuts:
 - `observe status` merges classical stream summaries with synthetic PID listing.
 - `observe stop` stops **both**.
 
+Observation log (always on):
+- Each generated observation is written to `logs/observations-<metric>.ndjson` (one file per metric; override log directory with `OBSERVATION_LOG_PATH`).
+- The file keeps at most the **last N** entries (default **N=100**). Set N with agent CLI `--obsLogN <N>` (exports `OBS_LOG_N` for synthetic worker children) or env `OBS_LOG_N`. Use `--obsLogN 0` to disable file logging.
+- One NDJSON line per observation: payload fields, full Turtle, and whether GraphDB accepted the write.
+
 Debug behavior:
-- If `--debug` is active:
+- If `--debug` is active (in addition to the observation log):
   - Append stream metadata entries to `logs/observations-stream.ndjson`.
   - Append full Turtle payloads to per-metric files:
     - `logs/observations-by-metric/<metric_name>.ttl`

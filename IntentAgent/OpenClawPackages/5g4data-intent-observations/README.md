@@ -33,7 +33,9 @@ These prompts are handled in the agent pre-turn hook (REPL **and** HTTP `/v1/ses
 3. Resolve frequency from trigger delay.
 4. Apply runtime overrides (time window > event > baseline).
 5. Generate TM Forum observation report Turtle payloads.
-6. Persist to Prometheus + metadata in GraphDB, or print payloads when `--noGraphDB` is active in loaded clone runtime.
+6. Retain the last N observation payloads per metric in `logs/observations-<metric>.ndjson` (default N=100; `--obsLogN` on the agent CLI or `OBS_LOG_N`; `OBSERVATION_LOG_PATH` to override the log directory).
+7. Store the latest synthetic sampler program per metric in `logs/observation-program-<metric>.js` (LLM-generated function body; overwritten on each new synthetic run for that metric).
+8. Persist to Prometheus + metadata in GraphDB, or print payloads when `--noGraphDB` is active in loaded clone runtime.
 
 ## `--port` (clone runtime)
 
@@ -44,6 +46,18 @@ API_SERVER_ENABLED=true npx tsx src/index.ts --port 3013
 ```
 
 Equivalent to setting `API_SERVER_PORT` for that process; use a unique port per clone on the same host. Does not change `A2A_AGENT_BASE_URL`—keep that aligned with your reverse proxy or registry.
+
+## `--obsLogN`
+
+On the OpenClaw agent CLI (observation clone runtime):
+
+```bash
+npx tsx src/index.ts --obsLogN 250
+```
+
+- Default: **100** (keeps the last 100 NDJSON lines per metric in `logs/observations-<metric>.ndjson`).
+- Sets `OBS_LOG_N` for the process and synthetic worker children.
+- `--obsLogN 0` disables observation file logging.
 
 ## `--noGraphDB`
 

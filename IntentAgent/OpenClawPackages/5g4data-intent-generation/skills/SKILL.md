@@ -50,19 +50,19 @@ data5g:I<uuid4> a icm:Intent ;
 
 data5g:CO<uuid4> a icm:Condition ;
     dct:description "<objective-name> condition quan:smaller: <value><unit>" ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:<objective-name>_CO<same-uuid4> ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:<objective-name>___ID_CONDITION_<LABEL>_1__ ;
             quan:smaller [ quan:unit "<unit>" ;
                     rdf:value <value> ] ] .
 
 data5g:CO<uuid4> a icm:Condition ;
     dct:description "Bandwidth condition quan:larger: <value>mbit/s" ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:bandwidth_CO<same-uuid4> ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:bandwidth___ID_CONDITION_BANDWIDTH_1__ ;
             quan:larger [ quan:unit "mbit/s" ;
                     rdf:value <value> ] ] .
 
 data5g:CO<uuid4> a icm:Condition ;
     dct:description "Latency condition quan:smaller: <value>ms" ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:networklatency_CO<same-uuid4> ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:networklatency___ID_CONDITION_LATENCY_1__ ;
             quan:smaller [ quan:unit "ms" ;
                     rdf:value <value> ] ] .
 
@@ -200,7 +200,7 @@ Rules:
 Rules:
 - Read `objectives` in selected chart `values.yaml`.
 - Create one deployment condition per objective unless user narrows scope.
-- Metric stem is objective `name`, suffixed with `_<condition-id>`.
+- Metric stem is objective `name`, suffixed with the condition placeholder token (see naming rules below).
 - Use user-provided threshold when available; otherwise use `tmf-value-hint`.
 - Null runtime `value` does not block condition creation.
 - If no reliable objectives exist, ask follow-up or mark deployment-condition generation out-of-scope.
@@ -215,14 +215,14 @@ objectives:
     measuredBy: intend/p99token
 ```
 
-Use metric `data5g:p99-token-target_<condition-id>`.
+Use metric `data5g:p99-token-target___ID_CONDITION_P99_1__` (same placeholder token as the condition; postprocessing yields `data5g:p99-token-target_CO<uuid4>`).
 
 ## Sustainability condition extraction from Helm charts
 
 Rules:
 - Read `sustainability` in selected chart `values.yaml`.
 - Create one sustainability condition per entry unless user narrows scope.
-- Metric stem is metric `name`, suffixed with `_<condition-id>`.
+- Metric stem is metric `name`, suffixed with the condition placeholder token (see naming rules below).
 - Use user-provided threshold when available; otherwise use `tmf-value-hint`, then `value`.
 - Preserve `measuredBy` from chart entries whenever present.
 - If no reliable sustainability metrics exist, ask follow-up or mark sustainability-condition generation out-of-scope.
@@ -237,7 +237,7 @@ sustainability:
     measuredBy: intend/container_cpu_watts
 ```
 
-Use metric `data5g:kepler_container_cpu_watts_<condition-id>`.
+Use metric `data5g:kepler_container_cpu_watts___ID_CONDITION_CPU_WATTS_1__` (postprocessing yields `data5g:kepler_container_cpu_watts_CO<uuid4>`).
 
 ## Inference rules for expectation selection
 
@@ -305,7 +305,9 @@ Rules:
 - Use exactly the same placeholder token for all references to the same resource.
 - Never reuse one placeholder for different resources.
 - Never emit ad-hoc suffixes like `COlatency1...` or `RG1...`; use placeholders only.
-- Use condition-scoped property suffixes (`_<condition-id>`).
+- Placeholder labels inside `__ID_...__` must be UPPERCASE letters, digits, and underscores only (for example `__ID_CONDITION_P99_1__`, not `__ID_CONDITION_p99_token_target_1__`).
+- Condition resource: `data5g:CO__ID_CONDITION_<LABEL>_1__`.
+- Condition-scoped `icm:valuesOfTargetProperty`: `data5g:<metric-stem>___ID_CONDITION_<LABEL>_1__` — reuse the exact same `__ID_CONDITION_<LABEL>_1__` token as the condition; do **not** insert `CO` before the placeholder during generation. Package postprocessing rewrites this to `data5g:<metric-stem>_CO<uuid4>`.
 
 ## Local modeling rules
 
@@ -339,10 +341,11 @@ Do not invent unsupported context properties. `data5g:DeploymentDescriptor` must
 ## Property naming guidance
 
 - Keep one consistent naming pattern per file.
-- Preferred forms:
-  - bandwidth: `data5g:bandwidth_<condition-id>`
-  - latency: `data5g:networklatency_<condition-id>`
-  - deployment metric: `data5g:<objective-name>_<condition-id>`
+- Preferred forms during generation (placeholders):
+  - bandwidth: `data5g:bandwidth___ID_CONDITION_BANDWIDTH_1__`
+  - latency: `data5g:networklatency___ID_CONDITION_LATENCY_1__`
+  - deployment metric: `data5g:<objective-name>___ID_CONDITION_<LABEL>_1__`
+- Final form after postprocessing: `data5g:<metric-stem>_CO<uuid4>` (for example `data5g:p99-token-target_COf7f31f2dd17c4cbc91eaa95f1109879b`).
 
 ## Validation checklist
 

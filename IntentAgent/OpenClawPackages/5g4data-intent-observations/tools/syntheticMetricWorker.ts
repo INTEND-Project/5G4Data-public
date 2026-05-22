@@ -4,8 +4,16 @@
  */
 
 import { readFileSync } from "node:fs";
+import { basename } from "node:path";
 import { GraphDbTool } from "./graphdbTool.js";
-import { ObservationTool } from "./observationTool.js";
+import { logObservationPayload } from "./observationLog.js";
+import { ObservationTool, type ObservationPayload } from "./observationTool.js";
+import {
+  hashSeed,
+  localHourFromSim,
+  mulberry32,
+  parseUtcOffsetMinutes
+} from "./syntheticPrng.js";
 
 export interface SyntheticMetricWorkerConfig {
   compoundMetric: string;
@@ -20,6 +28,7 @@ export interface SyntheticMetricWorkerConfig {
   graphDbNamedGraph: string;
   graphDbQueryLimit: number;
   repositoryBaseUrl?: string;
+  timezoneHint?: string;
 }
 
 function numericEnv(name: string, fallback: number): number {
@@ -28,27 +37,7 @@ function numericEnv(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
-function hashSeed(s: string): number {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < s.length; i += 1) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h >>> 0;
-}
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return (): number => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-interface SnippetCtx {
+export interface SnippetCtx {
   simTime: Date;
   tickIndex: number;
   mode: "streaming" | "historic";
@@ -57,6 +46,31 @@ interface SnippetCtx {
   frequencySeconds: number;
   unitHint: string;
   uniform01: () => number;
+  /** Offset minutes east of UTC from optional `timezone` global (e.g. `UTC+2`). */
+  utcOffsetMinutes: number;
+  /** Hour-of-day (0–23) after applying `utcOffsetMinutes` to `simTime`. */
+  localHour: number;
+}
+
+function buildSnippetCtx(
+  cfg: SyntheticMetricWorkerConfig,
+  simTime: Date,
+  tickIndex: number,
+  uniform01: () => number
+): SnippetCtx {
+  const utcOffsetMinutes = parseUtcOffsetMinutes(cfg.timezoneHint);
+  return {
+    simTime,
+    tickIndex,
+    mode: cfg.mode,
+    metric: cfg.compoundMetric,
+    intentId: cfg.intentId,
+    frequencySeconds: cfg.frequencySeconds,
+    uniform01,
+    unitHint: cfg.unit,
+    utcOffsetMinutes,
+    localHour: localHourFromSim(simTime, utcOffsetMinutes)
+  };
 }
 
 export function compileSnippet(snippetBody: string): (ctx: SnippetCtx) => number {
@@ -72,13 +86,26 @@ function loadCfg(path: string): SyntheticMetricWorkerConfig {
   return JSON.parse(raw) as SyntheticMetricWorkerConfig;
 }
 
-async function insertOrPrint(_tool: ObservationTool, graphDb: GraphDbTool | undefined, ttl: string) {
-  if (process.env.NO_GRAPHDB === "true") {
+async function insertOrPrint(
+  graphDb: GraphDbTool | undefined,
+  payload: ObservationPayload,
+  ttl: string,
+  cfg: SyntheticMetricWorkerConfig
+): Promise<void> {
+  const graphDbWritten = process.env.NO_GRAPHDB !== "true" && graphDb !== undefined;
+  if (!graphDbWritten) {
     process.stdout.write(`${ttl}\n\nGraphDB write skipped (--noGraphDB)\n`);
-    return;
+  } else {
+    await graphDb.insertTurtle(ttl);
   }
-  if (!graphDb) return;
-  await graphDb.insertTurtle(ttl);
+  logObservationPayload({
+    source: "synthetic",
+    intentId: cfg.intentId,
+    payload,
+    turtle: ttl,
+    graphDbWritten,
+    frequencySeconds: cfg.frequencySeconds
+  });
 }
 
 async function historicRun(
@@ -102,22 +129,14 @@ async function historicRun(
     if (tickIndex >= maxPoints) {
       throw new Error(`historic point cap (${maxPoints}) exceeded; widen window or lower frequency.`);
     }
+    const simTime = new Date(t);
     const rnd = mulberry32(hashSeed(`${cfg.intentId}|${cfg.compoundMetric}|historic|${tickIndex}`));
-    const ctx: SnippetCtx = {
-      simTime: new Date(t),
-      tickIndex,
-      mode: cfg.mode,
-      metric: cfg.compoundMetric,
-      intentId: cfg.intentId,
-      frequencySeconds: cfg.frequencySeconds,
-      uniform01: rnd,
-      unitHint: cfg.unit
-    };
+    const ctx = buildSnippetCtx(cfg, simTime, tickIndex, rnd);
     let value = Number(run(ctx));
     if (!Number.isFinite(value)) throw new Error("Snippet returned non-numeric observation.");
     const payload = tool.generateObservationForCompound(cfg.compoundMetric, cfg.unit, value, isoNoMillis(ctx.simTime));
     if (!payload) throw new Error("Invalid compoundMetric for Observation.");
-    await insertOrPrint(tool, graphDb, tool.toTurtle(payload));
+    await insertOrPrint(graphDb, payload, tool.toTurtle(payload), cfg);
 
     tickIndex += 1;
     t += freqMs;
@@ -139,16 +158,7 @@ export function streamingSchedule(
       const nowWall = Date.now();
       const rnd = mulberry32(hashSeed(`${cfg.intentId}|${cfg.compoundMetric}|stream|${tickIndex}|${nowWall}`));
       try {
-        const ctx: SnippetCtx = {
-          simTime: new Date(nowWall),
-          tickIndex,
-          mode: cfg.mode,
-          metric: cfg.compoundMetric,
-          intentId: cfg.intentId,
-          frequencySeconds: cfg.frequencySeconds,
-          uniform01: rnd,
-          unitHint: cfg.unit
-        };
+        const ctx = buildSnippetCtx(cfg, new Date(nowWall), tickIndex, rnd);
         let value = Number(run(ctx));
         if (!Number.isFinite(value)) throw new Error("Snippet returned non-numeric observation.");
         const payload = tool.generateObservationForCompound(
@@ -158,7 +168,7 @@ export function streamingSchedule(
           isoNoMillis(new Date(nowWall))
         );
         if (!payload) throw new Error("Invalid compoundMetric for Observation.");
-        await insertOrPrint(tool, graphDb, tool.toTurtle(payload));
+        await insertOrPrint(graphDb, payload, tool.toTurtle(payload), cfg);
       } catch (e) {
         process.stderr.write(`synthetic_metric_worker_tick_error:${String(e)}\n`);
       }
@@ -176,6 +186,15 @@ export async function runSyntheticMetricWorkerFromConfig(cfg: SyntheticMetricWor
     process.env.NO_GRAPHDB === "true"
       ? undefined
       : GraphDbTool.fromEnv(cfg);
+
+  if (graphDb) {
+    const ok = await graphDb.storeGraphdbMetadata(cfg.compoundMetric);
+    if (!ok) {
+      process.stderr.write(
+        `Warning: failed to store GraphDB metadata for metric ${cfg.compoundMetric}\n`
+      );
+    }
+  }
 
   if (cfg.mode === "historic") {
     await historicRun(cfg, run, tool, graphDb);

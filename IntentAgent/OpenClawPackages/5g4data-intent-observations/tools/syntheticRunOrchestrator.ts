@@ -7,11 +7,13 @@ import {
   type GraphDbEnvFallback,
   type GraphTargetBinding
 } from "./graphTargetBinding.js";
+import { writeObservationProgramLog } from "./observationLog.js";
 import { ObservationTool } from "./observationTool.js";
 import { looksLikeSyntheticObservationPrompt, parseSyntheticPrompt } from "./syntheticPrompt.js";
 import type { ParsedSyntheticPrompt } from "./syntheticPrompt.js";
 import { codegenMetricSnippet } from "./syntheticLlmCodegen.js";
 import { validateGeneratedSnippet } from "./syntheticSnippetValidate.js";
+import { validateSnippetSamples } from "./syntheticSnippetProbe.js";
 
 interface SpawnedSynth {
   compoundMetric: string;
@@ -75,15 +77,32 @@ export async function startSyntheticObservationFromParsed(args: {
   const spawned: SpawnedSynth[] = [];
   const workerAbsTs = join(args.packageDir, "tools", "syntheticMetricWorker.ts");
 
+  const observationTool = new ObservationTool();
+  const intentMetrics = observationTool.listCompoundMetricsFromIntent(intentTurtle);
   let idx = 0;
   for (const slice of args.parsed.metricSlices) {
-    const unitResolved = ObservationTool.lookupUnitForCompound(slice.metricCompound, intentTurtle, slice.instructionsText);
+    const resolvedMetric = observationTool.resolveCompoundMetricFromIntent(slice.metricCompound, intentTurtle);
+    if (!resolvedMetric) {
+      for (const s of spawned) s.child.kill("SIGTERM");
+      sessions.delete(args.sessionId);
+      return [
+        `Metric ${slice.metricCompound} is not defined in GraphDB intent ${args.parsed.intentId}.`,
+        `Use one of: ${intentMetrics.map((m) => `data5g:${m}`).join(", ") || "(none found)"}`
+      ].join(" ");
+    }
+    const userMetric = slice.metricCompound.trim().replace(/^data5g:/iu, "").replace(/`/g, "");
+    if (resolvedMetric !== userMetric) {
+      process.stderr.write(
+        `Resolved metric ${slice.metricCompound} -> ${resolvedMetric} from GraphDB intent\n`
+      );
+    }
+    const unitResolved = ObservationTool.lookupUnitForCompound(resolvedMetric, intentTurtle, slice.instructionsText);
     const unit = unitResolved !== "NA" ? unitResolved : "NA";
 
     const codegenSlice = await codegenMetricSnippet({
       fullUserPrompt: args.parsed.rawUserLine,
       intentId: args.parsed.intentId,
-      compoundMetric: slice.metricCompound,
+      compoundMetric: resolvedMetric,
       kgUnitResolved: unit,
       instructionsSlice: slice.instructionsText,
       mode: args.parsed.mode,
@@ -111,18 +130,44 @@ export async function startSyntheticObservationFromParsed(args: {
       return v.reason;
     }
 
+    const sampleCheck = validateSnippetSamples({
+      snippet: codegenSlice.snippet,
+      intentId: args.parsed.intentId,
+      compoundMetric: resolvedMetric,
+      mode: args.parsed.mode,
+      frequencySeconds: args.parsed.frequencySeconds,
+      historicStartIso: args.parsed.historicStart?.toISOString(),
+      historicEndIso: args.parsed.historicEnd?.toISOString(),
+      timezoneHint: args.parsed.timezone,
+      unitHint: unit,
+      instructionsSlice: slice.instructionsText
+    });
+    if (!sampleCheck.ok) {
+      for (const s of spawned) s.child.kill("SIGTERM");
+      sessions.delete(args.sessionId);
+      return sampleCheck.reason;
+    }
+
     idx += 1;
-    const mdir = join(runRoot, `m${idx}_${slice.metricCompound.replace(/[^\w.-]+/gu, "_").slice(0, 160)}`);
+    const mdir = join(runRoot, `m${idx}_${resolvedMetric.replace(/[^\w.-]+/gu, "_").slice(0, 160)}`);
     mkdirSync(mdir, { recursive: true });
     const snippetPath = join(mdir, "snippet.js.txt");
     const cfgPath = join(mdir, "worker-config.json");
 
     writeFileSync(snippetPath, codegenSlice.snippet, "utf8");
+    writeObservationProgramLog({
+      metric: resolvedMetric,
+      program: codegenSlice.snippet,
+      intentId: args.parsed.intentId,
+      sessionId: args.sessionId,
+      mode: args.parsed.mode,
+      frequencySeconds: args.parsed.frequencySeconds
+    });
     writeFileSync(
       cfgPath,
       JSON.stringify(
         {
-          compoundMetric: slice.metricCompound,
+          compoundMetric: resolvedMetric,
           unit,
           intentId: args.parsed.intentId,
           mode: args.parsed.mode,
@@ -130,6 +175,7 @@ export async function startSyntheticObservationFromParsed(args: {
           snippetPath,
           historicStartIso: args.parsed.historicStart?.toISOString(),
           historicEndIso: args.parsed.historicEnd?.toISOString(),
+          timezoneHint: args.parsed.timezone,
           graphDbEndpoint: graphEnv.graphDbEndpoint,
           graphDbNamedGraph: graphEnv.graphDbNamedGraph,
           graphDbQueryLimit: graphEnv.graphDbQueryLimit,
@@ -154,10 +200,10 @@ export async function startSyntheticObservationFromParsed(args: {
     );
 
     cp.on("error", (error) => {
-      process.stderr.write(`synthetic spawn error (${slice.metricCompound}): ${String(error)}\n`);
+      process.stderr.write(`synthetic spawn error (${resolvedMetric}): ${String(error)}\n`);
     });
 
-    spawned.push({ compoundMetric: slice.metricCompound, child: cp });
+    spawned.push({ compoundMetric: resolvedMetric, child: cp });
   }
 
   sessions.set(args.sessionId, spawned);
@@ -168,9 +214,11 @@ export async function startSyntheticObservationFromParsed(args: {
       ? `historic window ${args.parsed.historicStart?.toISOString()}→${args.parsed.historicEnd?.toISOString()}`
       : "streaming (wall clock)";
 
+  const logsRoot = join(process.cwd(), "logs");
   return [
     `Started ${spawned.length} synthetic observation worker process(es); ${modeTail}.`,
     `Run directory: ${runRoot}`,
+    `Program logs: ${logsRoot}/observation-program-<metric>.js`,
     "Metrics:",
     ...tails,
     "`observe status` lists stream + synthetic PIDs.",

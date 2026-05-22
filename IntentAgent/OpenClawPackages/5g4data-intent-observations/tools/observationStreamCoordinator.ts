@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { GraphDbTool } from "./graphdbTool.js";
 import type { GraphDbEnvFallback } from "./graphTargetBinding.js";
+import { logObservationPayload, resolveObsLogMaxEntries } from "./observationLog.js";
 import { ObservationTool, type ConditionMetric, type ReportableObservationStream } from "./observationTool.js";
 
 export interface StartObservationStreamsArgs {
@@ -33,7 +34,7 @@ function ensureParentDir(filePath: string): void {
 }
 
 function metricName(stream: ReportableObservationStream): string {
-  return `${stream.targetProperty}_${stream.conditionId}`;
+  return stream.compoundMetric;
 }
 
 function randomInRange(min: number, max: number): number {
@@ -46,6 +47,7 @@ function streamAsConditionMetric(stream: ReportableObservationStream): Condition
   return {
     conditionId: stream.conditionId,
     targetProperty: stream.targetProperty,
+    compoundMetric: stream.compoundMetric,
     unit: stream.unit
   };
 }
@@ -68,11 +70,22 @@ async function emitTick(
   const payload = tool.generateObservation(streamAsConditionMetric(stream), value, iso);
   const turtle = tool.toTurtle(payload);
 
-  if (process.env.NO_GRAPHDB === "true") {
+  const graphDbWritten = process.env.NO_GRAPHDB !== "true";
+  if (!graphDbWritten) {
     process.stdout.write(`${turtle}\n\nGraphDB write skipped (--noGraphDB)\n`);
   } else {
     await graphTool.insertTurtle(turtle);
   }
+
+  logObservationPayload({
+    source: "stream",
+    sessionId,
+    intentId: state.intentId,
+    payload,
+    turtle,
+    graphDbWritten,
+    frequencySeconds: stream.frequencySeconds
+  });
 
   if (!args.debug) return;
 
@@ -118,6 +131,20 @@ export async function startObservationStreams(args: StartObservationStreamsArgs)
   };
   sessions.set(args.sessionId, state);
 
+  const graphDbWritten = process.env.NO_GRAPHDB !== "true";
+  if (graphDbWritten) {
+    const storedMetrics = new Set<string>();
+    for (const stream of streams) {
+      const metric = metricName(stream);
+      if (storedMetrics.has(metric)) continue;
+      storedMetrics.add(metric);
+      const ok = await graphTool.storeGraphdbMetadata(metric);
+      if (!ok) {
+        process.stderr.write(`Warning: failed to store GraphDB metadata for metric ${metric}\n`);
+      }
+    }
+  }
+
   for (const stream of streams) {
     const tick = () => {
       void emitTick(args.sessionId, state, stream, tool, graphTool, args);
@@ -130,7 +157,8 @@ export async function startObservationStreams(args: StartObservationStreamsArgs)
   const logsRoot = resolve(process.cwd(), "logs");
   return [
     `Started ${state.streams.length} observation stream(s) for intent ${args.intentId}.`,
-    `Tick log: ${resolve(logsRoot, "observations-stream.ndjson")}`,
+    `Observation logs (last ${resolveObsLogMaxEntries()} per metric): ${logsRoot}/observations-<metric>.ndjson`,
+    `Tick log (debug): ${resolve(logsRoot, "observations-stream.ndjson")}`,
     `Per-metric Turtle (debug): ${resolve(logsRoot, "observations-by-metric")}/`,
     "Commands: `observe status`, `observe stop`, `observe override metric=... min=... max=...`."
   ].join("\n");

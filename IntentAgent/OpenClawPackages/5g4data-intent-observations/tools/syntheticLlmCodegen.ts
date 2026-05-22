@@ -34,7 +34,7 @@ Given a synthetic context variable \`ctx\`, it must EXECUTE imperative statement
 ALLOWED identifiers: Math, Number, Date, ctx (the only injected variable).
 
 ctx fields:
-- ctx.simTime: Date (UTC for simulations)
+- ctx.simTime: Date (UTC instant for each simulated sample)
 - ctx.tickIndex: nonnegative integer sequence index starting at 0
 - ctx.mode: "streaming" | "historic"
 - ctx.metric: compound metric local name ..._CO...
@@ -42,9 +42,14 @@ ctx fields:
 - ctx.frequencySeconds: integer step duration in seconds between logical samples
 - ctx.uniform01(): deterministic uniform (0,1] PRNG seeded by harness
 - ctx.unitHint: RDF unit label string (informational only)
+- ctx.utcOffsetMinutes: integer offset east of UTC from optional timezoneHint (0 when absent)
+- ctx.localHour: hour-of-day 0–23 after applying utcOffsetMinutes to ctx.simTime
 
 RULES:
 - Respect requested ranges/window wording as closely as reproducible deterministic code permits.
+- When instructions mention daytime, business hours, morning/evening, or clock times without explicit UTC, use ctx.localHour (not ctx.simTime.getUTCHours()) unless timezoneHint is absent and UTC is clearly intended.
+- Do NOT return literal 0 for off-hours/night unless instructions explicitly request zero or unavailable service. When a numeric range is given (e.g. 500-2000), use the low end or a reduced baseline off-hours instead of zero.
+- In historic mode, historicBounds in the context JSON define the full simulated timeline; the snippet must produce meaningful non-zero samples across that span when a numeric range is requested.
 - No async, no awaits, no external libraries, no filesystem or network references.
 - No comments outside // single-line sparingly OK.
 - Produce stable behavior for the same inputs (prefer ctx.uniform01 branching).`;

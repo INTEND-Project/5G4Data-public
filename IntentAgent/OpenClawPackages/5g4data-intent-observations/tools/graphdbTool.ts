@@ -75,7 +75,33 @@ export class GraphDbTool {
 
   /** POST SPARQL to repository root (same as Python client), not necessarily .../sparql. */
   private repositoryQueryUrl(): string {
-    return this.endpoint.replace(/\/sparql\/?$/i, "").replace(/\/$/, "");
+    return this.repositoryBaseUrl?.replace(/\/$/, "") ?? this.endpoint.replace(/\/sparql\/?$/i, "").replace(/\/$/, "");
+  }
+
+  /** GraphDB REST `/repositories/{id}/statements` (Intent-Simulator `graphdb_client`). */
+  private statementsEndpoint(): string {
+    return `${this.repositoryQueryUrl()}/statements`;
+  }
+
+  /** Repository id from binding URL, e.g. `.../repositories/intent-reports/sparql` → `intent-reports`. */
+  private repositoryId(): string {
+    const fromUrl = (url: string): string | null => {
+      const m = url.match(/\/repositories\/([^/?#]+)/i);
+      return m?.[1] ?? null;
+    };
+    return (
+      fromUrl(this.repositoryBaseUrl ?? "") ??
+      fromUrl(this.endpoint) ??
+      process.env.GRAPHDB_REPOSITORY?.trim() ??
+      "intent-reports"
+    );
+  }
+
+  /** GraphDB server root, e.g. `http://host:7200`. */
+  private graphDbServerBaseUrl(): string {
+    const repoUrl = this.repositoryQueryUrl();
+    const idx = repoUrl.search(/\/repositories\//i);
+    return idx >= 0 ? repoUrl.slice(0, idx).replace(/\/$/, "") : repoUrl.replace(/\/$/, "");
   }
 
   private buildQuery(query: string): string {
@@ -163,5 +189,111 @@ WHERE {
       body: turtle
     });
     return response.ok;
+  }
+
+  /**
+   * Store Prometheus query metadata for a metric in the metadata graph
+   * (Intent-Simulator `GraphDbClient.store_prometheus_metadata`).
+   */
+  async storePrometheusMetadata(
+    metricName: string,
+    prometheusUrl = process.env.PROMETHEUS_URL?.trim() || "http://start5g-1.cs.uit.no:9090"
+  ): Promise<boolean> {
+    try {
+      const readableQuery = `${metricName}{job="intent_reports"}`;
+      const encodedQuery = encodeURIComponent(readableQuery);
+      const prometheusQueryUrl = `${prometheusUrl.replace(/\/$/, "")}/api/v1/query?query=${encodedQuery}`;
+      const escapedReadableQuery = readableQuery.replace(/"/g, '\\"');
+
+      const insertQuery = `
+PREFIX data5g: <http://5g4data.eu/5g4data#>
+
+INSERT DATA {
+  GRAPH <http://intent-reports-metadata> {
+    data5g:${metricName}
+      data5g:hasQuery <${prometheusQueryUrl}> ;
+      data5g:hasReadableQuery "${escapedReadableQuery}" .
+  }
+}
+`.trim();
+
+      const response = await fetch(this.statementsEndpoint(), {
+        method: "POST",
+        headers: { "Content-Type": "application/sparql-update" },
+        body: insertQuery
+      });
+      if (!response.ok) return false;
+      return response.status === 204 || response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Store GraphDB query metadata for a metric in the metadata graph
+   * (Intent-Simulator `GraphDbClient.store_graphdb_metadata`).
+   */
+  async storeGraphdbMetadata(
+    metricName: string,
+    graphdbUrl?: string
+  ): Promise<boolean> {
+    try {
+      const repository = this.repositoryId();
+      const serverBase = (graphdbUrl ?? this.graphDbServerBaseUrl()).replace(/\/$/, "");
+
+      const sparqlQuery = `
+PREFIX met:  <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX data5g: <http://5g4data.eu/5g4data#>
+PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+PREFIX imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/>
+PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
+PREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>
+
+SELECT ?unit ?value ?timestamp
+WHERE {
+  SERVICE <repository:${repository}> {
+    BIND(IRI(CONCAT("http://5g4data.eu/5g4data#", "${metricName}")) AS ?metric)
+
+    ?observation a met:Observation ;
+            met:observedMetric ?metric ;
+            met:observedValue ?blankValue ;
+            met:obtainedAt ?timestamp .
+
+    ?blankValue rdf:value ?rawValue ;
+            quan:unit ?unit .
+
+    BIND(xsd:decimal(?rawValue) AS ?value)
+  }
+}
+ORDER BY ?timestamp
+`;
+
+      const encodedQuery = encodeURIComponent(sparqlQuery);
+      const graphdbQueryUrl = `${serverBase}/repositories/${repository}?query=${encodedQuery}`;
+
+      const insertQuery = `
+PREFIX data5g: <http://5g4data.eu/5g4data#>
+
+INSERT DATA {
+  GRAPH <http://intent-reports-metadata> {
+    <http://5g4data.eu/5g4data#${metricName}>
+      data5g:hasQuery <${graphdbQueryUrl}> .
+  }
+}
+`.trim();
+
+      const response = await fetch(this.statementsEndpoint(), {
+        method: "POST",
+        headers: { "Content-Type": "application/sparql-update" },
+        body: insertQuery
+      });
+      if (!response.ok) return false;
+      return response.status === 204 || response.ok;
+    } catch {
+      return false;
+    }
   }
 }

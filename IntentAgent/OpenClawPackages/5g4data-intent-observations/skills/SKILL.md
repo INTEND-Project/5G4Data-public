@@ -42,5 +42,7 @@ Structured prompts (`intent_id=`, `mode=streaming|historic`, `frequency=…`, re
 
 Debug logging behavior (`--debug`):
 
-- stream metadata: `logs/observations-stream.ndjson`
-- full Turtle per metric: `logs/observations-by-metric/<metric_name>.ttl`
+- observation log (always, last N lines per metric): `logs/observations-<metric>.ndjson` (default N=100 via `--obsLogN` / `OBS_LOG_N`; `OBSERVATION_LOG_PATH` to override log directory)
+- synthetic program log (per metric, on codegen): `logs/observation-program-<metric>.js`
+- stream metadata (debug): `logs/observations-stream.ndjson`
+- full Turtle per metric (debug): `logs/observations-by-metric/<metric_name>.ttl`

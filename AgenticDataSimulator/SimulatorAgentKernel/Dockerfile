@@ -12,4 +12,4 @@ ENV API_SERVER_HOST=0.0.0.0
 
 EXPOSE 3011
 
-CMD ["npx", "tsx", "src/index.ts"]
+CMD ["npx", "tsx", "src/index.ts", "--debug"]

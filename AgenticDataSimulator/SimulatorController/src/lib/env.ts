@@ -33,7 +33,7 @@ const appEnvSchema = z.object({
   GRAPHDB_BASE_URL: z
     .string()
     .url()
-    .default("http://start5g-1.cs.uit.no:7200/"),
+    .default("https://start5g-1.cs.uit.no/graphdb/"),
   APP_BASE_PATH: z.string().optional(),
   ASSISTANT_MODEL: z.string().default("gpt-4.1-mini"),
   ASSISTANT_API_KEY: z.string().optional(),

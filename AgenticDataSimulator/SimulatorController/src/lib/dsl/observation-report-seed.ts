@@ -1,30 +1,28 @@
-/** True when instructions already declare intent_id (plain line or inside `backticks`). */
-export function instructionsAlreadyDeclareIntentId(body: string): boolean {
-  const trimmed = body.trim();
-  if (/^\s*intent_id\s*=/im.test(trimmed)) {
-    return true;
-  }
-  for (const m of trimmed.matchAll(/`([^`]+)`/g)) {
-    if (/^\s*intent_id\s*=/i.test((m[1] ?? "").trim())) {
-      return true;
-    }
-  }
-  return false;
+/** Remove unsupported intent_id declarations from DSL instructions (bound via `for` clause). */
+export function stripIntentIdFromInstructions(body: string): string {
+  let s = body.trim();
+  s = s.replace(/`intent_id\s*=\s*[^`]+`\s*,?\s*/gi, "");
+  s = s.replace(/(?:^|\n)\s*intent_id\s*=\s*\S+\s*\n?/gi, "\n");
+  return s.trim().replace(/^,\s*/, "");
+}
+
+/** True when instructions use structured synthetic backtick globals (mode, frequency, metric, …). */
+export function looksStructuredObservationInstructions(body: string): boolean {
+  return /`(?:mode|frequency|start|stop|metric)\s*=/i.test(body);
 }
 
 export function buildObservationReportSeed(
-  dslIntentAlias: string,
   canonicalIntentId: string,
   instructions: string,
 ): string {
-  const body = instructions.trim();
-  const prelude = instructionsAlreadyDeclareIntentId(body)
-    ? ([] as string[])
-    : [`intent_id=${dslIntentAlias}`, ""];
+  const stripped = stripIntentIdFromInstructions(instructions);
+  const intentGlobal = `\`intent_id=${canonicalIntentId}\``;
+  const body = looksStructuredObservationInstructions(stripped)
+    ? `${intentGlobal}, ${stripped}`
+    : stripped;
 
   return [
-    ...prelude,
-    `Generate observation reports for \`intent_id=${canonicalIntentId}\`.`,
+    `Generate observation reports for ${intentGlobal}.`,
     "",
     "Instructions:",
     body,

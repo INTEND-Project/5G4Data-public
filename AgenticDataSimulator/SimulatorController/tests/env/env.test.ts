@@ -24,7 +24,7 @@ describe("loadAppEnv", () => {
 
     expect(env.databaseUrl).toBe("file:./dev.db");
     expect(env.a2aRegistryBaseUrl).toBe("https://start5g-1.cs.uit.no/a2a-registry");
-    expect(env.graphDbBaseUrl).toBe("http://start5g-1.cs.uit.no:7200/");
+    expect(env.graphDbBaseUrl).toBe("https://start5g-1.cs.uit.no/graphdb/");
     expect(env.appBasePath).toBe("/tmf-simulator");
     expect(env.assistantModel).toBe("gpt-4.1-mini");
     expect(env.assistantApiKey).toBeUndefined();

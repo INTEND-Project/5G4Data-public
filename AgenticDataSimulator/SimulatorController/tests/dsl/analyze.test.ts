@@ -86,6 +86,27 @@ request observation-report using observationControl for I6be57670fcad46fba1f648a
     expect(diagnostics).toEqual([]);
   });
 
+  it("accepts structured observation-report for create-intent alias without intent_id in instructions", async () => {
+    const parserModule = await import("../../src/lib/dsl/parser/parse-script");
+    const validatorModule = await import("../../src/lib/dsl/validator/validate-script");
+
+    const script = `discover intent-agent by domain 5g4data as intentGen
+create intent using intentGen prompt "I want to experiment with a small llm in a datacenter near Tromsø/Norway in a sustainable manner" as llmIntent
+discover observation-agent by domain 5g4data as observationControl
+request observation-report using observationControl for llmIntent instructions "\`mode=historic\`, \`start=17.05.2026 05:00:00\`, \`stop=18.05.2026 05:00:00\`, \`frequency=60s\`. For \`metric=p99-token-target\`, between 06:00 and 18:00 keep values in the 500-2000 range with daily variation and low noise. During 08:00-09:00 and 16:00-17:00 allow short dips down to between 200-300" as llmObservationSession`;
+
+    const parsed = parserModule.parseScript(script);
+    const diagnostics = validatorModule.validateScript(parsed.statements);
+
+    expect(parsed.statements.map((statement) => statement.kind)).toEqual([
+      "discover",
+      "create-intent",
+      "discover",
+      "request-observation-report",
+    ]);
+    expect(diagnostics).toEqual([]);
+  });
+
   it("reports intentGen misuse when no qualifying discovery preceded it", async () => {
     const parserModule = await import("../../src/lib/dsl/parser/parse-script");
     const validatorModule = await import("../../src/lib/dsl/validator/validate-script");

@@ -15,19 +15,14 @@ import type {
   ExtractMetricCatalogStatement,
   RequestObservationReportStatement,
 } from "@/lib/dsl/types";
+import { resolveMetricStemsInObservationInstructions } from "@/lib/dsl/analysis/extract-metric-catalog";
 import { buildObservationReportSeed } from "@/lib/dsl/observation-report-seed";
 import { parseCanonicalIntentLocalId } from "@/lib/intent/extract-intent-turtle";
+import { resolveIntentIdForObservation } from "@/lib/intent/resolve-intent-ref";
 import {
   buildGraphTargetBinding,
   type GraphTargetBinding,
 } from "@/lib/kg/graph-target-binding";
-
-function resolveIntentIdForObservation(
-  intentRef: string,
-  intentIdByAlias: Map<string, string>,
-): string | null {
-  return parseCanonicalIntentLocalId(intentRef) ?? intentIdByAlias.get(intentRef) ?? null;
-}
 
 type WorkspaceScriptRunnerProps = {
   metricNames: string[];
@@ -465,6 +460,7 @@ export function WorkspaceScriptRunner({
       intentIdByAliasRef.current.clear();
       setScriptExtractedMetricNames([]);
       const catalogBindings = new Map<string, string[]>();
+      const catalogByIntentId = new Map<string, string[]>();
 
       const bindings = new Map<string, string>();
       let lastWorkspaceIntentWellKnownUri: string | null = null;
@@ -667,11 +663,30 @@ export function WorkspaceScriptRunner({
             return;
           }
 
-          const intentIdForSeed = parseCanonicalIntentLocalId(stmt.intentAlias) ?? stmt.intentAlias;
-          const seedPrompt = buildObservationReportSeed(
-            intentIdForSeed,
-            canonicalId,
+          const metricCatalog = catalogByIntentId.get(canonicalId) ?? [];
+          const stemResolution = resolveMetricStemsInObservationInstructions(
             stmt.instructions,
+            metricCatalog,
+          );
+          for (const { stem, compound } of stemResolution.resolved) {
+            appendRunnerLog(
+              `Line ${statement.line}: Resolved metric stem "${stem}" → "${compound}".`,
+            );
+          }
+          for (const stem of stemResolution.ambiguous) {
+            appendRunnerLog(
+              `Line ${statement.line}: Ambiguous metric stem "${stem}" (multiple compounds in catalog); left unchanged.`,
+            );
+          }
+          for (const stem of stemResolution.unmatched) {
+            appendRunnerLog(
+              `Line ${statement.line}: Unknown metric stem "${stem}" (not in catalog); left unchanged.`,
+            );
+          }
+
+          const seedPrompt = buildObservationReportSeed(
+            canonicalId,
+            stemResolution.instructions,
           );
 
           const intentRefNote = parseCanonicalIntentLocalId(stmt.intentAlias)
@@ -744,6 +759,11 @@ export function WorkspaceScriptRunner({
 
           const metricNames = Array.isArray(data.metricNames) ? data.metricNames : [];
           catalogBindings.set(stmt.metricCatalogAlias, metricNames);
+          const priorCatalog = catalogByIntentId.get(canonicalId) ?? [];
+          catalogByIntentId.set(
+            canonicalId,
+            [...new Set([...priorCatalog, ...metricNames])].sort((a, b) => a.localeCompare(b)),
+          );
 
           const preview =
             metricNames.length <= 24

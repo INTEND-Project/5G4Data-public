@@ -1,4 +1,5 @@
 import { loadAppEnv } from "@/lib/env";
+import { buildA2AAuthHeaders } from "@/lib/a2a/auth-headers";
 import { normalizeRegistryAgents } from "@/lib/registry/normalize";
 import { REGISTRY_LIST_PATHS } from "@/lib/registry/paths";
 import type { RegistryAgent, RegistryAgentRecord } from "@/lib/registry/types";
@@ -30,9 +31,13 @@ async function enrichRegistryRecord(record: RegistryAgentRecord): Promise<Regist
     return record;
   }
 
+  const env = loadAppEnv(process.env);
+  const authHeaders = buildA2AAuthHeaders(env, { wellKnownUri: record.wellKnownURI });
+
   try {
     const response = await fetch(record.wellKnownURI, {
       cache: "no-store",
+      headers: authHeaders,
     });
 
     if (!response.ok) {

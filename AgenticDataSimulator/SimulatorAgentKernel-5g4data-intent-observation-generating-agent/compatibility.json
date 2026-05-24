@@ -1,0 +1,7 @@
+{
+  "openclawKernel": ">=1.0.0",
+  "notes": [
+    "Requires package tool loading support.",
+    "Uses package-local tool modules with no baseline kernel changes."
+  ]
+}

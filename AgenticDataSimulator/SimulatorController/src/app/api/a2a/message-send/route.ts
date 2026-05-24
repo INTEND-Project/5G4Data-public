@@ -3,8 +3,10 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { buildA2AAuthHeaders } from "@/lib/a2a/auth-headers";
 import { interpretSendMessageResult } from "@/lib/a2a/interpret-message-result";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
+import { loadAppEnv } from "@/lib/env";
 import { openClawMetadataEnvelope } from "@/lib/kg/graph-target-binding";
 
 const graphTargetSchema = z.object({
@@ -23,12 +25,21 @@ const bodySchema = z.object({
   graphTarget: graphTargetSchema.optional(),
 });
 
-async function fetchAgentRpcUrl(wellKnownURI: string): Promise<{ ok: true; rpcUrl: string } | { ok: false; message: string }> {
+async function fetchAgentRpcUrl(
+  wellKnownURI: string,
+  authHeaders: Record<string, string>
+): Promise<
+  | { ok: true; rpcUrl: string; card: Record<string, unknown> }
+  | { ok: false; message: string }
+> {
   let response: Response;
   try {
     response = await fetch(wellKnownURI, {
       cache: "no-store",
-      headers: { accept: "application/json" },
+      headers: {
+        accept: "application/json",
+        ...authHeaders,
+      },
     });
   } catch (err) {
     return {
@@ -55,12 +66,13 @@ async function fetchAgentRpcUrl(wellKnownURI: string): Promise<{ ok: true; rpcUr
     return { ok: false, message: "Agent card payload invalid." };
   }
 
-  const url = (card as { url?: unknown }).url;
+  const cardRecord = card as Record<string, unknown>;
+  const url = cardRecord.url;
   if (typeof url !== "string" || !url.length) {
     return { ok: false, message: "Agent card missing string field url." };
   }
 
-  return { ok: true, rpcUrl: url };
+  return { ok: true, rpcUrl: url, card: cardRecord };
 }
 
 export async function POST(request: Request) {
@@ -76,12 +88,18 @@ export async function POST(request: Request) {
   }
 
   const body = parsedBody.data;
-  const rpc = await fetchAgentRpcUrl(body.wellKnownURI);
+  const env = loadAppEnv(process.env);
+  const initialAuthHeaders = buildA2AAuthHeaders(env, { wellKnownUri: body.wellKnownURI });
+  const rpc = await fetchAgentRpcUrl(body.wellKnownURI, initialAuthHeaders);
   if (!rpc.ok) {
     return NextResponse.json({ error: rpc.message }, { status: 502 });
   }
 
   const rpcUrl = rpc.rpcUrl;
+  const authHeaders = buildA2AAuthHeaders(env, {
+    card: rpc.card,
+    wellKnownUri: body.wellKnownURI,
+  });
   /** @see SimulatorAgentKernel/scripts/a2a-interactive.mjs */
   const message: Record<string, unknown> = {
     role: "user",
@@ -108,6 +126,7 @@ export async function POST(request: Request) {
         accept: "application/json",
         "content-type": "application/json",
         "a2a-version": "0.3",
+        ...authHeaders,
       },
       body: JSON.stringify({
         jsonrpc: "2.0",

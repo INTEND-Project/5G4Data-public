@@ -4,6 +4,7 @@ from typing import Any, Optional, Tuple
 
 import aiohttp
 
+from .agent_auth import build_agent_auth_headers
 from .config import settings
 from .models import AgentCreate
 from .validators import _normalise_fields, validate_agent_card
@@ -31,6 +32,7 @@ async def verify_well_known_uri(agent_data: AgentCreate) -> Tuple[bool, str]:
         Tuple of (verified: bool, message: str)
     """
     well_known_uri = str(agent_data.wellKnownURI)
+    auth_headers = build_agent_auth_headers(well_known_uri, agent_data.name)
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -40,6 +42,7 @@ async def verify_well_known_uri(agent_data: AgentCreate) -> Tuple[bool, str]:
                 headers={
                     "User-Agent": "A2A-Registry-Backend/1.0",
                     "Accept": "application/json",
+                    **auth_headers,
                 },
             ) as response:
                 if response.status != 200:
@@ -77,16 +80,21 @@ async def verify_well_known_uri(agent_data: AgentCreate) -> Tuple[bool, str]:
         return False, f"Unexpected error: {e}"
 
 
-async def fetch_agent_card(well_known_uri: str) -> Tuple[Optional[dict[str, Any]], Optional[str]]:
+async def fetch_agent_card(
+    well_known_uri: str,
+    agent_card_name: Optional[str] = None,
+) -> Tuple[Optional[dict[str, Any]], Optional[str]]:
     """
     Fetch an agent card from a wellKnownURI.
 
     Args:
         well_known_uri: The URL to fetch the agent card from
+        agent_card_name: Optional agent card name for API key lookup
 
     Returns:
         Tuple of (agent_card_dict or None, error_message or None)
     """
+    auth_headers = build_agent_auth_headers(well_known_uri, agent_card_name)
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -95,6 +103,7 @@ async def fetch_agent_card(well_known_uri: str) -> Tuple[Optional[dict[str, Any]
                 headers={
                     "User-Agent": "A2A-Registry/1.0",
                     "Accept": "application/json",
+                    **auth_headers,
                 },
             ) as response:
                 if response.status != 200:

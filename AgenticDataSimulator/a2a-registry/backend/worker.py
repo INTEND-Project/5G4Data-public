@@ -8,6 +8,7 @@ from uuid import UUID
 
 import aiohttp
 
+from app.agent_auth import build_agent_auth_headers
 from app.config import settings
 from app.database import db
 from app.db_migrations import run_pending_sql_migrations
@@ -49,12 +50,14 @@ async def check_agent_health(
     error_message = None
 
     try:
+        auth_headers = build_agent_auth_headers(well_known_uri)
         async with session.get(
             well_known_uri,
             timeout=aiohttp.ClientTimeout(total=settings.health_check_timeout_seconds),
             headers={
                 "User-Agent": "A2A-Registry-HealthCheck/1.0",
                 "Accept": "application/json",
+                **auth_headers,
             },
         ) as response:
             status_code = response.status

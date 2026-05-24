@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     # Admin
     admin_api_key: str = ""
 
+    # Agent fetch auth (for protected agent cards / endpoints)
+    agent_api_keys: str = "{}"
+    agent_api_key: str = ""
+    agent_api_key_header: str = "X-Api-Key"
+
     # Logging
     log_json: bool = True
     log_level: str = "INFO"

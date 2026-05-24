@@ -14,6 +14,8 @@ import structlog
 from a2a.client import ClientConfig, ClientFactory
 from a2a.types import Message, Part, Role, SendMessageRequest
 
+from app.agent_auth import build_agent_auth_headers
+
 logger = structlog.get_logger()
 
 SMOKE_TEST_TIMEOUT_SECONDS = 15
@@ -87,9 +89,11 @@ async def smoke_test(well_known_uri: str) -> tuple[str, str]:
     card_path = parsed.path or None
 
     try:
+        auth_headers = build_agent_auth_headers(well_known_uri)
         async with httpx.AsyncClient(
             timeout=SMOKE_TEST_TIMEOUT_SECONDS,
             follow_redirects=True,
+            headers=auth_headers,
         ) as http_client:
             factory = ClientFactory(
                 ClientConfig(httpx_client=http_client, streaming=False),

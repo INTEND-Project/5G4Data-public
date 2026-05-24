@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Validator Rules",
+  "type": "object",
+  "required": ["forbiddenPhrases", "requiredTokens", "conditionalRequirements"],
+  "properties": {
+    "forbiddenPhrases": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "requiredTokens": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "clarificationTag": { "type": "string", "minLength": 1 },
+    "conditionalRequirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["intentFlag", "requiresAnyTokens", "error"],
+        "properties": {
+          "intentFlag": { "type": "string", "minLength": 1 },
+          "requiresAnyTokens": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1
+          },
+          "error": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "identifierRules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["regex", "error"],
+        "properties": {
+          "regex": { "type": "string", "minLength": 1 },
+          "error": { "type": "string", "minLength": 1 },
+          "validateAsUuid4Suffix": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

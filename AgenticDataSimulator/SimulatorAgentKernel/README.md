@@ -17,6 +17,7 @@ Related guide:
 - Output policy validation + repair loop (`src/core/outputPolicyValidator.ts`, `src/core/repairEngine.ts`)
 - SHACL validation loop scaffolding (`src/core/shaclValidatorTool.ts`)
 - OpenAI/Anthropic integration adapter (`src/adapters/openclaw.ts`)
+- A2A v0.3 API key authentication on the HTTP control API (agent card, OpenAPI, JSON-RPC, REST sessions); `GET /health` stays public
 
 ## Install
 
@@ -102,6 +103,28 @@ Default debug log file:
 - `SHACL_SHAPES_FILE`, `SHACL_MAX_RETRIES`
 - `API_SERVER_ENABLED`, `API_SERVER_HOST`, `API_SERVER_PORT` (overridden for this process by CLI `--port <n>` when given)
 - `A2A_ENABLED`, `A2A_REGISTRY_BASE_URL`, `A2A_AGENT_BASE_URL`, `A2A_AGENT_CARD_PATH`, `A2A_AUTO_REGISTER_ON_STARTUP`
+- `AGENT_API_KEY`, `AGENT_API_KEY_HEADER` (default header: `X-Api-Key`; see [Authentication](#authentication))
+
+## Authentication
+
+Agent HTTP endpoints use **A2A v0.3-style API key authentication** when `AGENT_API_KEY` is set in the clone’s `.env`.
+
+- Each cloned agent gets a unique `AGENT_API_KEY` during `package load`.
+- The agent card advertises the scheme in `securitySchemes` / `security` (OpenAPI 3.0 `apiKey` in header).
+- Callers must send the key on every request except `GET /health` (missing/invalid key → HTTP `401`).
+- [`SimulatorController`](../SimulatorController/) and [`a2a-registry`](../a2a-registry/) read keys from their `AGENT_API_KEYS` JSON map (auto-updated on `package load`).
+
+Example request:
+
+```bash
+curl -H "X-Api-Key: $AGENT_API_KEY" http://127.0.0.1:3011/.well-known/agent-card.json
+```
+
+Interactive A2A client (`npm run a2a:chat`) reads `AGENT_API_KEY` from the clone `.env` or environment.
+
+If `AGENT_API_KEY` is unset, the API server runs **without** inbound auth (development only; a warning is logged at startup).
+
+See [`.env.example`](.env.example) for variable names.
 
 ## Minimal OpenAPI control API
 
@@ -117,14 +140,15 @@ To run several agent clones on one host without port clashes, pass an explicit l
 API_SERVER_ENABLED=true npx tsx src/index.ts --port 3012
 ```
 
-Available routes:
+Available routes (require `X-Api-Key` when `AGENT_API_KEY` is configured):
 
 - `POST /v1/sessions`
 - `POST /v1/sessions/{sessionId}/turns`
-- `GET /health`
+- `GET /health` (no authentication)
 - `GET /v1/agent/info`
 - `GET /openapi.json`
 - `GET /.well-known/agent-card.json`
+- `POST /v1` (A2A JSON-RPC)
 
 ## A2A registration workflow
 
@@ -165,6 +189,8 @@ What it does:
 - Updates cloned `.env`:
   - `DOMAIN_PACKAGE_DIR=../SimulatorAgentPackages/<package-name>`
   - `SKILL_FILE=../SimulatorAgentPackages/<package-name>/skills/SKILL.md`
+  - `AGENT_API_KEY=<generated>` (unique per clone)
+  - `AGENT_API_KEYS` merged into [`SimulatorController/.env`](../SimulatorController/.env) and [`a2a-registry/backend/.env`](../a2a-registry/backend/.env)
 
 After this step, run the cloned folder, not the kernel folder.
 

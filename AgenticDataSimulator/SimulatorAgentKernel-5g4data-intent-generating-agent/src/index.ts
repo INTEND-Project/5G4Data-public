@@ -255,14 +255,20 @@ function normalizeEnvPath(value: string): string {
   return `./${value}`;
 }
 
-function parsePackageLoadCommand(argv: string[]): { archivePath: string } | null {
+function parsePackageLoadCommand(
+  argv: string[]
+): { archivePath: string; skipContainer: boolean } | null {
   if (argv.length < 3) return null;
   if (argv[0] !== "package" || argv[1] !== "load") return null;
-  const archivePath = argv[2];
+  const rest = argv.slice(2);
+  const skipContainer = rest[0] === "--no-container";
+  const archivePath = skipContainer ? rest[1] : rest[0];
   if (!archivePath) {
-    throw new Error("Usage: npx tsx src/index.ts package load <path-to-package.tgz|path-to-package-dir>");
+    throw new Error(
+      "Usage: npx tsx src/index.ts package load [--no-container] <path-to-package.tgz|path-to-package-dir>"
+    );
   }
-  return { archivePath };
+  return { archivePath, skipContainer };
 }
 
 function packageLoadEnabled(): boolean {
@@ -300,6 +306,15 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   const { deployPackageToClone } = await import("./core/packageCloneDeployer.js");
   const { deployPackageToolsToClone } = await import("./core/packageToolDeployer.js");
   const { pruneClonePackagingArtifacts } = await import("./core/cloneRuntimePruner.js");
+  const {
+    containerLoadEnabled,
+    containerNameForClone,
+    dockerComposeAvailable,
+    ensureContainerEnvDefaults,
+    runCloneContainer,
+    waitForAgentHealth,
+    writeCloneDockerCompose
+  } = await import("./core/cloneContainerDeployer.js");
 
   const baselineAgentDir = process.cwd();
   const packagesRoot = resolve(baselineAgentDir, "../SimulatorAgentPackages");
@@ -341,6 +356,45 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   await prepareAndRegisterA2A(cloneConfig, clonePackage, cloned.cloneDir, "package_load");
   pruneClonePackagingArtifacts(cloned.cloneDir);
 
+  const port = readDotEnvKey(cloneEnvPath, "API_SERVER_PORT") ?? "3011";
+  const shouldContainerize = !command.skipContainer && containerLoadEnabled();
+  let containerStarted = false;
+  if (shouldContainerize) {
+    if (!dockerComposeAvailable()) {
+      throw new Error(
+        "Docker Compose is not available. Install Docker and ensure `docker compose version` works, " +
+          "or re-run with --no-container to skip container startup."
+      );
+    }
+    ensureContainerEnvDefaults(cloneEnvPath);
+    writeCloneDockerCompose({
+      cloneDir: cloned.cloneDir,
+      cloneName: cloned.cloneName,
+      port
+    });
+    const containerResult = runCloneContainer(cloned.cloneDir, cloned.cloneName, port);
+    if (!containerResult.ok) {
+      if (containerResult.stdout.trim()) {
+        process.stderr.write(containerResult.stdout);
+      }
+      if (containerResult.stderr.trim()) {
+        process.stderr.write(containerResult.stderr);
+      }
+      throw new Error(
+        `Failed to build/start container for ${cloned.cloneName} (exit ${containerResult.exitCode ?? "unknown"}). ` +
+          "Check Docker daemon, port conflicts, and run `docker compose logs` in the clone directory."
+      );
+    }
+    const healthy = await waitForAgentHealth(Number(port));
+    if (!healthy) {
+      throw new Error(
+        `Container ${containerResult.containerName} started but /health on port ${port} did not respond in time. ` +
+          `Check logs: cd "${cloned.cloneDir}" && docker compose logs`
+      );
+    }
+    containerStarted = true;
+  }
+
   process.stdout.write(`Package installed: ${installed.packageName}\n`);
   process.stdout.write(`Package directory: ${installed.packageDir}\n`);
   process.stdout.write(`Agent clone: ${cloned.cloneDir}\n`);
@@ -359,9 +413,20 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   if (deployedTools.copiedToolFiles.length > 0) {
     process.stdout.write(`Copied package tools: ${deployedTools.copiedToolFiles.join(", ")}\n`);
   }
-  process.stdout.write(
-    `Run with: cd "${cloned.cloneDir}" && npx tsx src/index.ts --debug\n`
-  );
+  if (containerStarted) {
+    process.stdout.write(
+      `Container started: ${containerNameForClone(cloned.cloneName)} (port ${port})\n`
+    );
+    process.stdout.write(`Health: http://127.0.0.1:${port}/health\n`);
+    process.stdout.write(`Manage: cd "${cloned.cloneDir}" && docker compose logs -f\n`);
+    process.stdout.write(
+      `Fallback (host): cd "${cloned.cloneDir}" && npx tsx src/index.ts --debug\n`
+    );
+  } else {
+    process.stdout.write(
+      `Run with: cd "${cloned.cloneDir}" && npx tsx src/index.ts --debug\n`
+    );
+  }
   return true;
 }
 

@@ -148,6 +148,7 @@ Relevant fixes in **`src/index.ts`**:
 
 1. **Defer A2A registration until after HTTP listen** when `apiServerEnabled && !options.prompt`, so the registry never hits `:3011` before the server binds.
 2. **Registration after `await server.listen()`** for the API-server path, with optional **retries** and a short **hint** on persistent **5xx** / gateway errors.
+3. **`package load` containerizes clones** by default: each clone gets a `Dockerfile` (from the baseline kernel) and a generated `docker-compose.yml`, then `docker compose up -d --build` runs automatically. Containers publish `API_SERVER_PORT` to the **host**, so Caddy can still reach agents via **`host.docker.internal:<port>`** without compose network changes. Use **`--no-container`** or **`CONTAINER_LOAD=false`** to skip Docker.
 
 ---
 
@@ -163,7 +164,7 @@ Relevant fixes in **`src/index.ts`**:
 ## 8. Checklist for a new environment
 
 1. Postgres: migrations **002–006** applied (automatic on API/worker startup after `db_migrations` change, or manual `psql` if needed).
-2. Agent: **`A2A_AGENT_BASE_URL`** matches the public Caddy path; each agent listens on its **`API_SERVER_HOST` / `API_SERVER_PORT`** (e.g. 3011 vs 3012 on the host).
+2. Agent: **`A2A_AGENT_BASE_URL`** matches the public Caddy path; each agent listens on its **`API_SERVER_HOST` / `API_SERVER_PORT`** (e.g. 3011 vs 3012). With **`package load`**, agents run in Docker but still publish those ports on the **host**.
 3. Caddy: **`handle_path /openclaw-agents/*`** → **`host.docker.internal:18080`** (OpenClawAgentsProxy) **or** legacy per-agent routes; reload Caddy.
 4. UFW: allow TCP **18080** (proxy) and **3011** / **3012** (agents) **from the Docker network subnet** that hosts Caddy.
 5. From Caddy container: **`wget http://host.docker.internal:18080/health`** and **`wget http://host.docker.internal:3011/health`** succeed.

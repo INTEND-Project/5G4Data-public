@@ -18,6 +18,7 @@ test("CLI package load installs package and creates agent clone", () => {
   execFileSync("mkdir", ["-p", baseline], { stdio: "pipe" });
   writeFileSync(join(baseline, ".env"), "LLM_PROVIDER=openai\n", "utf8");
   writeFileSync(join(baseline, "README.md"), "baseline\n", "utf8");
+  writeFileSync(join(baseline, "Dockerfile"), "FROM node:22-slim\n", "utf8");
   const controllerEnv = join(root, "SimulatorController", ".env");
   const registryEnv = join(root, "a2a-registry", "backend", ".env");
   mkdirSync(join(root, "SimulatorController"), { recursive: true });
@@ -26,10 +27,14 @@ test("CLI package load installs package and creates agent clone", () => {
   writeFileSync(registryEnv, "API_HOST=0.0.0.0\n", "utf8");
   execFileSync("tar", ["-czf", archivePath, "-C", mockPackageSource, "."], { stdio: "pipe" });
 
-  const output = execFileSync(process.execPath, [builtCliPath, "package", "load", archivePath], {
-    cwd: baseline,
-    encoding: "utf8"
-  });
+  const output = execFileSync(
+    process.execPath,
+    [builtCliPath, "package", "load", "--no-container", archivePath],
+    {
+      cwd: baseline,
+      encoding: "utf8"
+    }
+  );
   assert.match(output, /Package installed: package-template/);
 
   const siblings = readdirSync(root);
@@ -49,6 +54,8 @@ test("CLI package load installs package and creates agent clone", () => {
   assert.equal(controllerKeys["package-template"], registryKeys["package-template"]);
   assert.match(controllerKeys["package-template"] ?? "", /^[0-9a-f]{64}$/);
   assert.ok(existsSync(join(cloneDir, "manifest.json")));
+  assert.ok(existsSync(join(cloneDir, "Dockerfile")));
+  assert.ok(!existsSync(join(cloneDir, "docker-compose.yml")));
   assert.ok(existsSync(join(cloneDir, "prompt_modules", "base.md")));
   assert.ok(existsSync(join(cloneDir, "rules", "classification.json")));
   assert.ok(!existsSync(join(cloneDir, "scripts", "create-package-tgz.mjs")));

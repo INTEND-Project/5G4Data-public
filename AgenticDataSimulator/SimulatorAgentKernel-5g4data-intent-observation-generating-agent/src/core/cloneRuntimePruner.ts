@@ -7,6 +7,8 @@ const CLONE_ONLY_REMOVE_PATHS = [
   "src/core/agentCloneManager.ts",
   "src/core/packageCloneDeployer.ts",
   "src/core/packageToolDeployer.ts",
+  "src/core/cloneContainerDeployer.ts",
+  "src/tests/cloneContainerDeployer.test.ts",
   "src/tests/packageLoadCli.test.ts",
   "src/tests/packageInstaller.test.ts",
   "src/tests/packageToolDeployer.test.ts"

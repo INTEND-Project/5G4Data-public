@@ -16,9 +16,28 @@ See also [`README-a2a-registry.md`](README-a2a-registry.md) for deployment and C
 ## Typical workflow
 
 1. Author or extend a package under `SimulatorAgentPackages/`.
-2. From `SimulatorAgentKernel`, run `npx tsx src/index.ts package load ../SimulatorAgentPackages/<package-name>`.
-3. Run the resulting `SimulatorAgentKernel-<package-name>` clone.
-4. Use `SimulatorController` to orchestrate multi-agent scripts against registered agents.
+2. Start both simulator agents (from this directory):
+
+   ```bash
+   ./agent-control start
+   ```
+
+   Other commands: `./agent-control stop`, `./agent-control restart`, `./agent-control --help`
+
+   To run `agent-control` without `./`, add `bin` to your `PATH` once per shell (or add to `~/.bashrc`):
+
+   ```bash
+   cd AgenticDataSimulator
+   export PATH="$(pwd)/bin:$PATH"
+   agent-control start
+   ```
+
+3. Use `SimulatorController` to orchestrate multi-agent scripts against registered agents.
+
+Manual load (alternative to `agent-control start`):
+
+1. From `SimulatorAgentKernel`, run `npx tsx src/index.ts package load ../SimulatorAgentPackages/<package-name>`.
+2. Run the resulting `SimulatorAgentKernel-<package-name>` clone.
 
 ## Authentication
 

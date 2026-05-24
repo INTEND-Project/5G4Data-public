@@ -41,14 +41,19 @@ In normal usage, you create/update agents from this kernel, then run the cloned 
 cd SimulatorAgentKernel
 npm install
 
-# 2) create/update an agent instance from a package
+# 2) create/update an agent instance from a package (builds and starts a Docker container)
 npx tsx src/index.ts package load ../SimulatorAgentPackages/5g4data-intent-generation
 
-# 3) enter the created agent clone
-cd ../SimulatorAgentKernel-5g4data-intent-generation
+# 3) the clone runs in Docker; check health and logs
+curl http://127.0.0.1:3011/health
+cd ../SimulatorAgentKernel-5g4data-intent-generation && docker compose logs -f
+```
 
-# 4) run the actual agent instance
-npx tsx src/index.ts --debug
+Skip container startup (filesystem clone only, for CI or hosts without Docker):
+
+```bash
+npx tsx src/index.ts package load --no-container ../SimulatorAgentPackages/5g4data-intent-generation
+# or: CONTAINER_LOAD=false npx tsx src/index.ts package load ../SimulatorAgentPackages/...
 ```
 
 You can also load from archive:
@@ -59,7 +64,15 @@ npx tsx src/index.ts package load /path/to/my-package.tgz
 
 ## Run the resulting agent
 
-From a cloned agent directory (`SimulatorAgentKernel-<package-name>`):
+By default, `package load` builds and starts the clone as a **Docker container** with the host port from `API_SERVER_PORT` in the clone `.env` (package `mappings/env.defaults.json` may set this, e.g. **3011** or **3012**).
+
+```bash
+cd ../SimulatorAgentKernel-5g4data-intent-generation
+docker compose logs -f
+docker compose restart
+```
+
+**Host fallback** (no container, or after `--no-container` load):
 
 ```bash
 # one-shot
@@ -179,6 +192,8 @@ Load a package archive and materialize an isolated runnable clone:
 npx tsx src/index.ts package load /path/to/my-package.tgz
 # or load directly from an unpacked package directory
 npx tsx src/index.ts package load ../SimulatorAgentPackages/my-package
+# skip Docker build/start (filesystem clone only)
+npx tsx src/index.ts package load --no-container ../SimulatorAgentPackages/my-package
 ```
 
 What it does:
@@ -187,12 +202,15 @@ What it does:
 - Clones baseline agent into `../SimulatorAgentKernel-<package-name>` (or `-v2`, `-v3`, ... if needed).
 - Copies package-provided tool sources from `<package>/tools/*.ts` into cloned `src/tools/`.
 - Updates cloned `.env`:
-  - `DOMAIN_PACKAGE_DIR=../SimulatorAgentPackages/<package-name>`
-  - `SKILL_FILE=../SimulatorAgentPackages/<package-name>/skills/SKILL.md`
+  - `DOMAIN_PACKAGE_DIR=./`
+  - `SKILL_FILE=./skills/SKILL.md`
   - `AGENT_API_KEY=<generated>` (unique per clone)
   - `AGENT_API_KEYS` merged into [`SimulatorController/.env`](../SimulatorController/.env) and [`a2a-registry/backend/.env`](../a2a-registry/backend/.env)
+- Unless `--no-container` or `CONTAINER_LOAD=false`: writes `docker-compose.yml`, runs `docker compose up -d --build`, and waits for `GET /health` on the published host port.
 
-After this step, run the cloned folder, not the kernel folder.
+Each clone includes a `Dockerfile` and, after load, a generated `docker-compose.yml`. Containers publish `API_SERVER_PORT` to the host so existing Caddy `host.docker.internal:<port>` routes keep working.
+
+After this step, manage the cloned folder's container (or run on the host with `--no-container`).
 
 Create an archive from a package folder:
 

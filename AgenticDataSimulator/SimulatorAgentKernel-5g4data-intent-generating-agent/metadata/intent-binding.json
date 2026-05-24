@@ -1,5 +1,0 @@
-{
-  "intentLocalIdField": "intent_id",
-  "intentIriField": "intentIri",
-  "notes": "Intent generation package emits identifiers consumed by controller-side logical binding workflows."
-}

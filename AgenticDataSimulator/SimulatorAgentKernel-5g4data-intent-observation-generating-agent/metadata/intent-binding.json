@@ -1,5 +1,0 @@
-{
-  "intentLocalIdField": "intent_id",
-  "intentIriField": "intentIri",
-  "notes": "Observation package expects intent binding context to route report control updates."
-}

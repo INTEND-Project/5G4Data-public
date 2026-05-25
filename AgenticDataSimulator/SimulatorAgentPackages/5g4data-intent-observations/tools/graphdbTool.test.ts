@@ -95,13 +95,53 @@ test("storePrometheusMetadata posts readable and encoded query URLs", async () =
         graphDbQueryLimit: 0,
       },
     );
-    const metric = "latency_COb1b2c3d4e5f678901234567890abcd";
-    const ok = await tool.storePrometheusMetadata(metric, "http://prom:9090");
+    const metric = "p99-token-target_COb1b2c3d4e5f678901234567890abcd";
+    const ok = await tool.storePrometheusMetadata(metric, "http://prom:9090/prometheus", {
+      intentId: "Iabc123",
+      conditionId: "COb1b2c3d4e5f678901234567890abcd"
+    });
     assert.equal(ok, true);
     assert.match(postedBody, /GRAPH <http:\/\/intent-reports-metadata>/);
-    assert.match(postedBody, /data5g:latency_COb1b2c3d4e5f678901234567890abcd/);
-    assert.match(postedBody, /hasReadableQuery "latency_COb1b2c3d4e5f678901234567890abcd\{job=\\"intent_reports\\"\}"/);
-    assert.match(postedBody, /http:\/\/prom:9090\/api\/v1\/query\?query=/);
+    assert.match(postedBody, /<http:\/\/5g4data\.eu\/5g4data#p99-token-target_COb1b2c3d4e5f678901234567890abcd>/);
+    assert.match(
+      postedBody,
+      /hasReadableQuery "p99tokentarget_COb1b2c3d4e5f678901234567890abcd\{job=\\"intent_reports\\",intent_id=\\"Iabc123\\",condition_id=\\"COb1b2c3d4e5f678901234567890abcd\\"\}"/
+    );
+    assert.match(postedBody, /http:\/\/prom:9090\/prometheus\/api\/v1\/query\?query=/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("storePrometheusMetadata uses localhost default base URL", async () => {
+  const originalFetch = globalThis.fetch;
+  let postedBody = "";
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    postedBody = String(init?.body ?? "");
+    return new Response("", { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const tool = GraphDbTool.fromBinding(
+      {
+        repositoryId: "repo-x",
+        graphIri: "urn:intend:kg:x",
+        sparqlEndpoint: "http://gdb/repositories/repo-x/sparql",
+        repositoryBaseUrl: "http://gdb/repositories/repo-x"
+      },
+      {
+        graphDbEndpoint: "http://fallback/sparql",
+        graphDbNamedGraph: "urn:env",
+        graphDbQueryLimit: 0
+      }
+    );
+    const metric = "p99-token-target_COb1b2c3d4e5f678901234567890abcd";
+    const ok = await tool.storePrometheusMetadata(metric, undefined, {
+      intentId: "Iabc123",
+      conditionId: "COb1b2c3d4e5f678901234567890abcd"
+    });
+    assert.equal(ok, true);
+    assert.match(postedBody, /http:\/\/127\.0\.0\.1:9090\/prometheus\/api\/v1\/query\?query=/);
   } finally {
     globalThis.fetch = originalFetch;
   }

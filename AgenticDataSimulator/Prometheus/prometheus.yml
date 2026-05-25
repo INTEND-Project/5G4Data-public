@@ -1,6 +1,10 @@
 global:
   scrape_interval: 5s
 
+storage:
+  tsdb:
+    out_of_order_time_window: 365d
+
 scrape_configs:
   - job_name: pushgateway
     honor_labels: true

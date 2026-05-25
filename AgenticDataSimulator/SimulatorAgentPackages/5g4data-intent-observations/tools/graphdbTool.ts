@@ -1,4 +1,8 @@
 import type { GraphDbEnvFallback, GraphTargetBinding } from "./graphTargetBinding.js";
+import {
+  buildPrometheusInstantQueryUrl,
+  buildPrometheusReadableQuery
+} from "./prometheusMetricNaming.js";
 
 export const NEAREST_EDGE_DATACENTER_QUERY = `
 PREFIX schema: <https://intendproject.eu/schema/>
@@ -194,15 +198,25 @@ WHERE {
   /**
    * Store Prometheus query metadata for a metric in the metadata graph
    * (Intent-Simulator `GraphDbClient.store_prometheus_metadata`).
+   *
+   * Subject IRI local name stays the GraphDB compound metric (`p99-token-target_CO…`) so
+   * Grafana / IntentReportQueryProxy lookups by dashboard linkToken succeed. PromQL in
+   * hasQuery / hasReadableQuery uses the sanitized Prometheus metric name and label set.
    */
   async storePrometheusMetadata(
+    /** GraphDB / Grafana linkToken compound name (may contain hyphens). */
     metricName: string,
-    prometheusUrl = process.env.PROMETHEUS_URL?.trim() || "http://start5g-1.cs.uit.no:9090"
+    prometheusUrl = process.env.PROMETHEUS_URL?.trim() || "http://127.0.0.1:9090/prometheus",
+    opts?: { intentId?: string; conditionId?: string | null }
   ): Promise<boolean> {
     try {
-      const readableQuery = `${metricName}{job="intent_reports"}`;
-      const encodedQuery = encodeURIComponent(readableQuery);
-      const prometheusQueryUrl = `${prometheusUrl.replace(/\/$/, "")}/api/v1/query?query=${encodedQuery}`;
+      const identity = {
+        compoundMetric: metricName,
+        intentId: opts?.intentId ?? "",
+        conditionId: opts?.conditionId ?? null
+      };
+      const readableQuery = buildPrometheusReadableQuery(identity);
+      const prometheusQueryUrl = buildPrometheusInstantQueryUrl(prometheusUrl, identity);
       const escapedReadableQuery = readableQuery.replace(/"/g, '\\"');
 
       const insertQuery = `
@@ -210,7 +224,7 @@ PREFIX data5g: <http://5g4data.eu/5g4data#>
 
 INSERT DATA {
   GRAPH <http://intent-reports-metadata> {
-    data5g:${metricName}
+    <http://5g4data.eu/5g4data#${metricName}>
       data5g:hasQuery <${prometheusQueryUrl}> ;
       data5g:hasReadableQuery "${escapedReadableQuery}" .
   }

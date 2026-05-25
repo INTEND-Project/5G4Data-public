@@ -9,6 +9,11 @@
       "id": "required-prefixes",
       "module": "tools/postprocess/requiredPrefixes.ts",
       "when": "always"
+    },
+    {
+      "id": "report-destinations",
+      "module": "tools/postprocess/reportDestinations.ts",
+      "when": "always"
     }
   ]
 }

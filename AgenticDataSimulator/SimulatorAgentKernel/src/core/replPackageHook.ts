@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { ChatSession, GraphTargetBinding } from "../models.js";
+import type { ChatSession, GraphTargetBinding, ObservationStorageType } from "../models.js";
 import type { LoadedDomainPackage } from "./packageLoader.js";
 
 export interface ReplHookInput {
@@ -14,6 +14,8 @@ export interface ReplHookInput {
   graphDbNamedGraph: string;
   graphDbQueryLimit: number;
   graphTargetBinding?: GraphTargetBinding | null;
+  observationStorageOverride?: ObservationStorageType | null;
+  createIntentStorage?: ObservationStorageType | null;
 }
 
 export async function tryReplPackageHook(
@@ -35,6 +37,8 @@ export async function tryReplPackageHook(
         graphDbNamedGraph: string;
         graphDbQueryLimit: number;
         graphTargetBinding?: GraphTargetBinding | null;
+        observationStorageOverride?: ObservationStorageType | null;
+        createIntentStorage?: ObservationStorageType | null;
       }) => Promise<{ handled: boolean; assistantText?: string }>;
     };
     if (!mod.handleReplLine) return { handled: false };
@@ -47,7 +51,11 @@ export async function tryReplPackageHook(
       graphDbEndpoint: input.graphDbEndpoint,
       graphDbNamedGraph: input.graphDbNamedGraph,
       graphDbQueryLimit: input.graphDbQueryLimit,
-      graphTargetBinding: input.graphTargetBinding ?? input.session.graphTargetBinding ?? null
+      graphTargetBinding: input.graphTargetBinding ?? input.session.graphTargetBinding ?? null,
+      observationStorageOverride:
+        input.observationStorageOverride ?? input.session.observationStorage ?? null,
+      createIntentStorage:
+        input.createIntentStorage ?? input.session.createIntentStorage ?? null
     });
   } catch (error) {
     console.error("[openclaw] replPreTurn hook failed:", error);

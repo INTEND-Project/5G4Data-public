@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "n3": "^1.17.4"
+    "n3": "^1.17.4",
+    "protobufjs": "^8.4.2",
+    "snappyjs": "^0.7.0"
   }
 }

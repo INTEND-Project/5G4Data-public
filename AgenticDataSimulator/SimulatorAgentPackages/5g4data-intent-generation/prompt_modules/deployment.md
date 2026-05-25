@@ -6,4 +6,4 @@ Deployment policy:
 - Prefer `tmf-value-hint` when available; otherwise use `value`, and state the source explicitly.
 - For deployment reporting, use `icm:ObservationReportingExpectation` (not `icm:ReportingExpectation`).
 - Add deployment-specific reporting trigger resources: `data5g:tenMinutesDeployment` and `data5g:TenMinuteReportEventDeployment`.
-- Ensure deployment event uses `imo:eventFor` pointing to the deployment expectation and reporting uses `icm:reportTriggers` / `icm:reportDestinations` with Prometheus destination.
+- Ensure deployment event uses `imo:eventFor` pointing to the deployment expectation and reporting uses `icm:reportTriggers` / `icm:reportDestinations` per the reporting-storage policy.

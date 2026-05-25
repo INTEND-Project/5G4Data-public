@@ -6,8 +6,11 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { GraphDbTool } from "./graphdbTool.js";
-import { logObservationPayload } from "./observationLog.js";
 import { ObservationTool, type ObservationPayload } from "./observationTool.js";
+import { persistObservationWithStorage, registerObservationMetadataForMetric } from "./persistObservation.js";
+import { flushBufferedPrometheusRemoteWrite } from "./observationStorageRegistry.js";
+import type { ObservationStorageId } from "./observationStorageTypes.js";
+import { resolveObservationStorageTypes } from "./resolveObservationStorage.js";
 import {
   hashSeed,
   localHourFromSim,
@@ -29,6 +32,10 @@ export interface SyntheticMetricWorkerConfig {
   graphDbQueryLimit: number;
   repositoryBaseUrl?: string;
   timezoneHint?: string;
+  conditionId: string;
+  storageTypes: ObservationStorageId[];
+  observationStorageOverride?: ObservationStorageId | null;
+  createIntentStorage?: ObservationStorageId | null;
 }
 
 function numericEnv(name: string, fallback: number): number {
@@ -87,24 +94,32 @@ function loadCfg(path: string): SyntheticMetricWorkerConfig {
 }
 
 async function insertOrPrint(
-  graphDb: GraphDbTool | undefined,
+  graphDb: GraphDbTool,
   payload: ObservationPayload,
   ttl: string,
   cfg: SyntheticMetricWorkerConfig
 ): Promise<void> {
-  const graphDbWritten = process.env.NO_GRAPHDB !== "true" && graphDb !== undefined;
-  if (!graphDbWritten) {
-    process.stdout.write(`${ttl}\n\nGraphDB write skipped (--noGraphDB)\n`);
-  } else {
-    await graphDb.insertTurtle(ttl);
-  }
-  logObservationPayload({
-    source: "synthetic",
+  const storageIds = resolveObservationStorageTypes({
+    sessionOverride: cfg.observationStorageOverride,
+    intentDestinations: cfg.storageTypes,
+    createIntentStorage: cfg.createIntentStorage
+  });
+  const prometheusWriteMode =
+    cfg.mode === "historic" && storageIds.includes("prometheus") ? "buffer" : "push";
+
+  await persistObservationWithStorage({
+    graphTool: graphDb,
     intentId: cfg.intentId,
+    compoundMetric: cfg.compoundMetric,
+    conditionId: cfg.conditionId,
+    unit: cfg.unit,
     payload,
     turtle: ttl,
-    graphDbWritten,
-    frequencySeconds: cfg.frequencySeconds
+    storageTypes: cfg.storageTypes,
+    sessionOverride: cfg.observationStorageOverride,
+    createIntentStorage: cfg.createIntentStorage,
+    prometheusWriteMode,
+    log: { source: "synthetic", frequencySeconds: cfg.frequencySeconds }
   });
 }
 
@@ -112,7 +127,7 @@ async function historicRun(
   cfg: SyntheticMetricWorkerConfig,
   run: (ctx: SnippetCtx) => number,
   tool: ObservationTool,
-  graphDb: GraphDbTool | undefined
+  graphDb: GraphDbTool
 ): Promise<void> {
   const start = cfg.historicStartIso ? new Date(cfg.historicStartIso) : null;
   const end = cfg.historicEndIso ? new Date(cfg.historicEndIso) : null;
@@ -142,13 +157,22 @@ async function historicRun(
     t += freqMs;
     if (tickIndex % 4096 === 0) await new Promise<void>((resolve) => setImmediate(resolve));
   }
+
+  const storageIds = resolveObservationStorageTypes({
+    sessionOverride: cfg.observationStorageOverride,
+    intentDestinations: cfg.storageTypes,
+    createIntentStorage: cfg.createIntentStorage
+  });
+  if (storageIds.includes("prometheus")) {
+    await flushBufferedPrometheusRemoteWrite();
+  }
 }
 
 export function streamingSchedule(
   cfg: SyntheticMetricWorkerConfig,
   run: (ctx: SnippetCtx) => number,
   tool: ObservationTool,
-  graphDb: GraphDbTool | undefined
+  graphDb: GraphDbTool
 ): void {
   const freqMs = Math.max(1, cfg.frequencySeconds) * 1000;
 
@@ -182,19 +206,19 @@ export function streamingSchedule(
 export async function runSyntheticMetricWorkerFromConfig(cfg: SyntheticMetricWorkerConfig, snippetBody: string): Promise<void> {
   const run = compileSnippet(snippetBody);
   const tool = new ObservationTool();
-  const graphDb =
-    process.env.NO_GRAPHDB === "true"
-      ? undefined
-      : GraphDbTool.fromEnv(cfg);
-
-  if (graphDb) {
-    const ok = await graphDb.storeGraphdbMetadata(cfg.compoundMetric);
-    if (!ok) {
-      process.stderr.write(
-        `Warning: failed to store GraphDB metadata for metric ${cfg.compoundMetric}\n`
-      );
-    }
-  }
+  const graphDb = GraphDbTool.fromEnv(cfg);
+  const registered = new Set<string>();
+  await registerObservationMetadataForMetric(
+    graphDb,
+    cfg.compoundMetric,
+    cfg.conditionId,
+    cfg.unit,
+    cfg.intentId,
+    cfg.storageTypes,
+    cfg.observationStorageOverride,
+    cfg.createIntentStorage,
+    registered
+  );
 
   if (cfg.mode === "historic") {
     await historicRun(cfg, run, tool, graphDb);

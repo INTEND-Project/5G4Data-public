@@ -9,6 +9,8 @@ import {
 } from "./graphTargetBinding.js";
 import { writeObservationProgramLog } from "./observationLog.js";
 import { ObservationTool } from "./observationTool.js";
+import type { ObservationStorageId } from "./observationStorageTypes.js";
+import { DEFAULT_OBSERVATION_STORAGE } from "./observationStorageTypes.js";
 import { looksLikeSyntheticObservationPrompt, parseSyntheticPrompt } from "./syntheticPrompt.js";
 import type { ParsedSyntheticPrompt } from "./syntheticPrompt.js";
 import { codegenMetricSnippet } from "./syntheticLlmCodegen.js";
@@ -56,6 +58,8 @@ export async function startSyntheticObservationFromParsed(args: {
   graphDbQueryLimit: number;
   graphTargetBinding?: GraphTargetBinding | null;
   parsed: ParsedSyntheticPrompt;
+  observationStorageOverride?: ObservationStorageId | null;
+  createIntentStorage?: ObservationStorageId | null;
 }): Promise<string> {
   const fallback: GraphDbEnvFallback = {
     graphDbEndpoint: args.graphDbEndpoint,
@@ -78,6 +82,9 @@ export async function startSyntheticObservationFromParsed(args: {
   const workerAbsTs = join(args.packageDir, "tools", "syntheticMetricWorker.ts");
 
   const observationTool = new ObservationTool();
+  const streamsByMetric = new Map(
+    observationTool.parseReportableObservationStreams(intentTurtle).map((s) => [s.compoundMetric, s])
+  );
   const intentMetrics = observationTool.listCompoundMetricsFromIntent(intentTurtle);
   let idx = 0;
   for (const slice of args.parsed.metricSlices) {
@@ -98,6 +105,12 @@ export async function startSyntheticObservationFromParsed(args: {
     }
     const unitResolved = ObservationTool.lookupUnitForCompound(resolvedMetric, intentTurtle, slice.instructionsText);
     const unit = unitResolved !== "NA" ? unitResolved : "NA";
+    const streamInfo = streamsByMetric.get(resolvedMetric);
+    const storageTypes = streamInfo?.storageTypes ?? [DEFAULT_OBSERVATION_STORAGE];
+    const conditionId =
+      streamInfo?.conditionId ??
+      ObservationTool.parseMetricCompound(resolvedMetric)?.conditionId ??
+      "unknown";
 
     const codegenSlice = await codegenMetricSnippet({
       fullUserPrompt: args.parsed.rawUserLine,
@@ -179,7 +192,11 @@ export async function startSyntheticObservationFromParsed(args: {
           graphDbEndpoint: graphEnv.graphDbEndpoint,
           graphDbNamedGraph: graphEnv.graphDbNamedGraph,
           graphDbQueryLimit: graphEnv.graphDbQueryLimit,
-          repositoryBaseUrl: graphEnv.repositoryBaseUrl
+          repositoryBaseUrl: graphEnv.repositoryBaseUrl,
+          conditionId,
+          storageTypes,
+          observationStorageOverride: args.observationStorageOverride ?? null,
+          createIntentStorage: args.createIntentStorage ?? null
         },
         null,
         2
@@ -235,6 +252,8 @@ export async function handleSyntheticObservationUserLine(opts: {
   graphDbNamedGraph: string;
   graphDbQueryLimit: number;
   graphTargetBinding?: GraphTargetBinding | null;
+  observationStorageOverride?: ObservationStorageId | null;
+  createIntentStorage?: ObservationStorageId | null;
   /** When true, skip `looksLikeSyntheticObservationPrompt` (e.g. `observe synthetic …`). */
   force?: boolean;
 }): Promise<{ started: boolean; assistantText?: string }> {
@@ -254,7 +273,9 @@ export async function handleSyntheticObservationUserLine(opts: {
     graphDbNamedGraph: opts.graphDbNamedGraph,
     graphDbQueryLimit: opts.graphDbQueryLimit,
     graphTargetBinding: opts.graphTargetBinding,
-    parsed: parsed.value
+    parsed: parsed.value,
+    observationStorageOverride: opts.observationStorageOverride,
+    createIntentStorage: opts.createIntentStorage
   });
   return { started: true, assistantText };
 }

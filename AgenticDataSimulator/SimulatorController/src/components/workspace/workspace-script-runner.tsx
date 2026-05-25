@@ -87,6 +87,7 @@ export function WorkspaceScriptRunner({
     appendRunnerLog,
     beginScriptRun,
     endActiveScriptRun,
+    openRunLogDialog,
     runLogDialogOpen,
     closeRunLogDialog,
     setScriptExtractedMetricNames,
@@ -452,6 +453,7 @@ export function WorkspaceScriptRunner({
 
   const handleRunScript = useCallback(async () => {
     beginScriptRun(activeScriptName);
+    openRunLogDialog();
     try {
       appendRunnerLog("Run Script: analysing DSL…");
 
@@ -832,6 +834,7 @@ export function WorkspaceScriptRunner({
     appendRunnerLog,
     beginScriptRun,
     endActiveScriptRun,
+    openRunLogDialog,
     discoverIntentAgentApiUrl,
     discoverObservationAgentApiUrl,
     kgTargetsApiBaseUrl,

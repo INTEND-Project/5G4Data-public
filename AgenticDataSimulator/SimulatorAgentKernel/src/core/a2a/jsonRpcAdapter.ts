@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { createSession } from "../turnOrchestrator.js";
 import {
   bindingsConflict,
-  parseGraphTargetBindingFromMetadata
+  parseGraphTargetBindingFromMetadata,
+  parseOpenClawControllerMetadata
 } from "../graphTargetBinding.js";
 import type { AgentTurnResult, ChatSession } from "../../models.js";
 
@@ -124,12 +125,15 @@ type PreparedSend =
     }
   | { ok: false; httpStatus: number; body: string };
 
-function applyGraphTargetBindingToSession(
+function applyOpenClawMetadataToSession(
   session: ChatSession,
   incoming: IncomingMessageShape
 ): PreparedSend | null {
-  const parsed = parseGraphTargetBindingFromMetadata(incoming.metadata);
-  if (parsed && bindingsConflict(session.graphTargetBinding, parsed)) {
+  const parsed = parseOpenClawControllerMetadata(incoming.metadata);
+  if (!parsed) return null;
+
+  const graphTarget = parsed.graphTarget;
+  if (graphTarget && bindingsConflict(session.graphTargetBinding, graphTarget)) {
     return {
       ok: false,
       httpStatus: 200,
@@ -143,8 +147,14 @@ function applyGraphTargetBindingToSession(
       })
     };
   }
-  if (parsed && !session.graphTargetBinding) {
-    session.graphTargetBinding = parsed;
+  if (graphTarget && !session.graphTargetBinding) {
+    session.graphTargetBinding = graphTarget;
+  }
+  if (parsed.observationStorage) {
+    session.observationStorage = parsed.observationStorage;
+  }
+  if (parsed.createIntentStorage && !session.createIntentStorage) {
+    session.createIntentStorage = parsed.createIntentStorage;
   }
   return null;
 }
@@ -248,7 +258,7 @@ export class A2AJsonRpcAdapter {
       taskId = incoming.taskId;
       contextId = binding.contextId;
       session = binding.session;
-      const bindingConflict = applyGraphTargetBindingToSession(session, incoming);
+      const bindingConflict = applyOpenClawMetadataToSession(session, incoming);
       if (bindingConflict) {
         return bindingConflict;
       }
@@ -256,7 +266,7 @@ export class A2AJsonRpcAdapter {
       taskId = randomUUID();
       contextId = randomUUID();
       session = createSession();
-      const bindingConflict = applyGraphTargetBindingToSession(session, incoming);
+      const bindingConflict = applyOpenClawMetadataToSession(session, incoming);
       if (bindingConflict) {
         return bindingConflict;
       }

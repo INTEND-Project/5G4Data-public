@@ -15,6 +15,7 @@ import {
   stopSyntheticObservationForSession,
   syntheticObservationStatus
 } from "./syntheticRunOrchestrator.js";
+import type { ObservationStorageId } from "./observationStorageTypes.js";
 
 interface ReplObserveHookContext {
   line: string;
@@ -26,6 +27,8 @@ interface ReplObserveHookContext {
   graphDbNamedGraph: string;
   graphDbQueryLimit: number;
   graphTargetBinding?: GraphTargetBinding | null;
+  observationStorageOverride?: ObservationStorageId | null;
+  createIntentStorage?: ObservationStorageId | null;
 }
 
 function graphFallback(ctx: ReplObserveHookContext) {
@@ -69,7 +72,9 @@ export async function handleReplLine(
         graphDbEndpoint: ctx.graphDbEndpoint,
         graphDbNamedGraph: ctx.graphDbNamedGraph,
         graphDbQueryLimit: ctx.graphDbQueryLimit,
-        graphTargetBinding: ctx.graphTargetBinding
+        graphTargetBinding: ctx.graphTargetBinding,
+        observationStorageOverride: ctx.observationStorageOverride,
+        createIntentStorage: ctx.createIntentStorage
       });
       if (synth.started && synth.assistantText !== undefined) {
         return { handled: true, assistantText: synth.assistantText };
@@ -117,6 +122,8 @@ export async function handleReplLine(
       graphDbNamedGraph: ctx.graphDbNamedGraph,
       graphDbQueryLimit: ctx.graphDbQueryLimit,
       graphTargetBinding: ctx.graphTargetBinding,
+      observationStorageOverride: ctx.observationStorageOverride,
+      createIntentStorage: ctx.createIntentStorage,
       force: true
     });
     if (synth.assistantText !== undefined) {
@@ -177,7 +184,9 @@ export async function handleReplLine(
       packageDir: ctx.packageDir,
       graphCfg: graphEnv,
       debug: ctx.debug,
-      debugLogPath: ctx.debugLogPath
+      debugLogPath: ctx.debugLogPath,
+      observationStorageOverride: ctx.observationStorageOverride,
+      createIntentStorage: ctx.createIntentStorage
     });
     return { handled: true, assistantText };
   }

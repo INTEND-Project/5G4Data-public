@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readDotEnvKey, updateEnvFile } from "./envConfigWriter.js";
 
@@ -64,10 +64,22 @@ export function renderCloneDockerCompose(input: WriteCloneDockerComposeInput): s
       API_SERVER_HOST: "0.0.0.0"
       API_SERVER_PORT: "${port}"
     command: ["npx", "tsx", "src/index.ts", "--debug"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
 `;
+}
+
+/** Compose file args for clone dir; merges override when present. */
+export function dockerComposeFileArgs(cloneDir: string): string[] {
+  const args = ["-f", "docker-compose.yml"];
+  const overridePath = join(cloneDir, "docker-compose.override.yml");
+  if (existsSync(overridePath)) {
+    args.push("-f", "docker-compose.override.yml");
+  }
+  return args;
 }
 
 export function writeCloneDockerCompose(input: WriteCloneDockerComposeInput): string {
@@ -96,8 +108,7 @@ export function runCloneContainer(
     "docker",
     [
       "compose",
-      "-f",
-      "docker-compose.yml",
+      ...dockerComposeFileArgs(cloneDir),
       "--project-name",
       projectName,
       "up",

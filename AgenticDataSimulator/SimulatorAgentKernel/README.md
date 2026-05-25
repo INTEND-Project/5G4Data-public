@@ -208,7 +208,7 @@ What it does:
   - `AGENT_API_KEYS` merged into [`SimulatorController/.env`](../SimulatorController/.env) and [`a2a-registry/backend/.env`](../a2a-registry/backend/.env)
 - Unless `--no-container` or `CONTAINER_LOAD=false`: writes `docker-compose.yml`, runs `docker compose up -d --build`, and waits for `GET /health` on the published host port.
 
-Each clone includes a `Dockerfile` and, after load, a generated `docker-compose.yml`. Containers publish `API_SERVER_PORT` to the host so existing Caddy `host.docker.internal:<port>` routes keep working.
+Each clone includes a `Dockerfile` and, after load, a generated `docker-compose.yml` with `extra_hosts` for `host.docker.internal` so containers can reach host Pushgateway/Prometheus. Containers publish `API_SERVER_PORT` to the host so existing Caddy `host.docker.internal:<port>` routes keep working.
 
 After this step, manage the cloned folder's container (or run on the host with `--no-container`).
 

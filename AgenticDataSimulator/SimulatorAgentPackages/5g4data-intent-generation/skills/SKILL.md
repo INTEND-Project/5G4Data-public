@@ -316,7 +316,7 @@ Rules:
 - Each expectation has exactly one `icm:target`.
 - Targets: deployment -> `data5g:deployment`, sustainability -> `data5g:sustainability`, network -> `data5g:network-slice`, observation reporting -> same target it reports on.
 - Include one observation reporting expectation per target by default.
-- Observation reporting must include `icm:reportDestinations` to `data5g:prometheus` and `icm:reportTriggers` with a target-specific TenMinute event.
+- Observation reporting must include `icm:reportDestinations` (default `data5g:graphdb`; use `data5g:prometheus` when the user or runtime context requests Prometheus) and `icm:reportTriggers` with a target-specific TenMinute event.
 - Each TenMinute event must include `imo:eventFor` pointing to the corresponding expectation (`DE`, `SE`, or `NE`).
 
 ## Context guidance

@@ -7,4 +7,4 @@ Sustainability policy:
 - Prefer `tmf-value-hint` when available; otherwise use `value`, and state the source explicitly.
 - For sustainability reporting, use `icm:ObservationReportingExpectation` (not `icm:ReportingExpectation`).
 - Add sustainability-specific reporting trigger resources: `data5g:tenMinutesSustainability` and `data5g:TenMinuteReportEventSustainability`.
-- Ensure sustainability event uses `imo:eventFor` pointing to the sustainability expectation and reporting uses `icm:reportTriggers` / `icm:reportDestinations` with Prometheus destination.
+- Ensure sustainability event uses `imo:eventFor` pointing to the sustainability expectation and reporting uses `icm:reportTriggers` / `icm:reportDestinations` per the reporting-storage policy.

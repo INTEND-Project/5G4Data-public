@@ -24,7 +24,21 @@ function readNonEmptyString(value: unknown): string | null {
   return t.length > 0 ? t : null;
 }
 
-export function parseGraphTargetBindingFromMetadata(metadata: unknown): GraphTargetBinding | null {
+export type ObservationStorageType = "graphdb" | "prometheus";
+
+function parseStorageField(value: unknown): ObservationStorageType | null {
+  const t = readNonEmptyString(value)?.toLowerCase();
+  if (t === "graphdb" || t === "prometheus") return t;
+  return null;
+}
+
+export type OpenClawControllerMetadata = {
+  graphTarget: GraphTargetBinding | null;
+  observationStorage: ObservationStorageType | null;
+  createIntentStorage: ObservationStorageType | null;
+};
+
+export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawControllerMetadata | null {
   if (!isRecord(metadata)) return null;
   const openclaw = metadata.openclaw;
   if (!isRecord(openclaw)) return null;
@@ -32,29 +46,38 @@ export function parseGraphTargetBindingFromMetadata(metadata: unknown): GraphTar
   const version = readNonEmptyString(openclaw.controllerBindingVersion);
   if (version && version !== "1") {
     console.warn(
-      `[openclaw] Ignoring graphTarget binding with unsupported controllerBindingVersion=${version}`,
+      `[openclaw] Ignoring metadata with unsupported controllerBindingVersion=${version}`,
     );
     return null;
   }
 
+  let graphTarget: GraphTargetBinding | null = null;
   const raw = openclaw.graphTarget;
-  if (!isRecord(raw)) return null;
+  if (isRecord(raw)) {
+    const repositoryId = readNonEmptyString(raw.repositoryId);
+    const graphIri = readNonEmptyString(raw.graphIri);
+    const sparqlEndpoint = readNonEmptyString(raw.sparqlEndpoint);
+    if (repositoryId && graphIri && sparqlEndpoint) {
+      graphTarget = {
+        graphTargetId: readNonEmptyString(raw.graphTargetId) ?? undefined,
+        repositoryId,
+        graphIri,
+        sparqlEndpoint,
+        repositoryBaseUrl: readNonEmptyString(raw.repositoryBaseUrl) ?? undefined,
+      };
+    }
+  }
 
-  const repositoryId = readNonEmptyString(raw.repositoryId);
-  const graphIri = readNonEmptyString(raw.graphIri);
-  const sparqlEndpoint = readNonEmptyString(raw.sparqlEndpoint);
-  if (!repositoryId || !graphIri || !sparqlEndpoint) return null;
+  const observationStorage = parseStorageField(openclaw.observationStorage);
+  const createIntentStorage = parseStorageField(openclaw.createIntentStorage);
 
-  const graphTargetId = readNonEmptyString(raw.graphTargetId) ?? undefined;
-  const repositoryBaseUrl = readNonEmptyString(raw.repositoryBaseUrl) ?? undefined;
+  if (!graphTarget && !observationStorage && !createIntentStorage) return null;
 
-  return {
-    graphTargetId,
-    repositoryId,
-    graphIri,
-    sparqlEndpoint,
-    repositoryBaseUrl,
-  };
+  return { graphTarget, observationStorage, createIntentStorage };
+}
+
+export function parseGraphTargetBindingFromMetadata(metadata: unknown): GraphTargetBinding | null {
+  return parseOpenClawControllerMetadata(metadata)?.graphTarget ?? null;
 }
 
 export function bindingsConflict(

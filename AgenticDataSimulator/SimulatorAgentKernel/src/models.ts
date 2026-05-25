@@ -17,12 +17,18 @@ export interface GraphTargetBinding {
   repositoryBaseUrl?: string;
 }
 
+export type ObservationStorageType = "graphdb" | "prometheus";
+
 export interface ChatSession {
   sessionId: string;
   createdAt: string;
   messages: ChatMessage[];
   /** From first A2A message metadata.openclaw.graphTarget for this task. */
   graphTargetBinding?: GraphTargetBinding | null;
+  /** Session override from `request observation-report … storage`. */
+  observationStorage?: ObservationStorageType | null;
+  /** From Controller `create intent … storage` for the bound intent alias. */
+  createIntentStorage?: ObservationStorageType | null;
 }
 
 export interface AgentTurnResult {

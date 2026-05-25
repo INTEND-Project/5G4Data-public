@@ -13,7 +13,7 @@
   "stages": [
     {
       "id": "base",
-      "includeModules": ["base", "defaults", "review"],
+      "includeModules": ["base", "defaults", "reporting-storage", "review"],
       "confirmationRequired": false
     },
     {

@@ -35,6 +35,16 @@
       "intentFlag": "sustainability",
       "requiresAnyTokens": ["data5g:SustainabilityExpectation"],
       "error": "Sustainability intent requires data5g:SustainabilityExpectation."
+    },
+    {
+      "intentFlag": "reportToPrometheus",
+      "requiresAnyTokens": ["data5g:prometheus"],
+      "error": "Prometheus storage requested but reportDestinations missing data5g:prometheus."
+    },
+    {
+      "intentFlag": "reportToGraphdb",
+      "requiresAnyTokens": ["data5g:graphdb"],
+      "error": "GraphDB storage requested but reportDestinations missing data5g:graphdb."
     }
   ],
   "identifierRules": [

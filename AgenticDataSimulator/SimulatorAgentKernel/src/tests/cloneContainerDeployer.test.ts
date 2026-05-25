@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import {
   containerLoadEnabled,
   containerNameForClone,
+  dockerComposeFileArgs,
   ensureContainerEnvDefaults,
   healthCheckUrl,
   projectNameForClone,
@@ -24,8 +25,24 @@ test("renderCloneDockerCompose includes container name and port mapping", () => 
   assert.match(content, /API_SERVER_PORT: "3013"/);
   assert.match(content, /API_SERVER_HOST: "0.0.0.0"/);
   assert.match(content, /restart: unless-stopped/);
+  assert.match(content, /host\.docker\.internal:host-gateway/);
   assert.match(content, /command: \["npx", "tsx", "src\/index\.ts", "--debug"\]/);
   assert.match(content, /- \.\/logs:\/app\/logs/);
+});
+
+test("dockerComposeFileArgs includes override file when present", () => {
+  const cloneDir = mkdtempSync(join(tmpdir(), "clone-compose-args-"));
+  writeFileSync(join(cloneDir, "docker-compose.yml"), "services: {}\n", "utf8");
+
+  assert.deepEqual(dockerComposeFileArgs(cloneDir), ["-f", "docker-compose.yml"]);
+
+  writeFileSync(join(cloneDir, "docker-compose.override.yml"), "services: {}\n", "utf8");
+  assert.deepEqual(dockerComposeFileArgs(cloneDir), [
+    "-f",
+    "docker-compose.yml",
+    "-f",
+    "docker-compose.override.yml"
+  ]);
 });
 
 test("writeCloneDockerCompose writes docker-compose.yml to clone directory", () => {

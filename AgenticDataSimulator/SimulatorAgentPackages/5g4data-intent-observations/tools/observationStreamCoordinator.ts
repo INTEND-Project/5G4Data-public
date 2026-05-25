@@ -2,8 +2,13 @@ import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { GraphDbTool } from "./graphdbTool.js";
 import type { GraphDbEnvFallback } from "./graphTargetBinding.js";
-import { logObservationPayload, resolveObsLogMaxEntries } from "./observationLog.js";
+import { resolveObsLogMaxEntries } from "./observationLog.js";
 import { ObservationTool, type ConditionMetric, type ReportableObservationStream } from "./observationTool.js";
+import {
+  persistObservationWithStorage,
+  registerObservationMetadataForMetric
+} from "./persistObservation.js";
+import type { ObservationStorageId } from "./observationStorageTypes.js";
 
 export interface StartObservationStreamsArgs {
   sessionId: string;
@@ -13,6 +18,10 @@ export interface StartObservationStreamsArgs {
   graphCfg: GraphDbEnvFallback;
   debug: boolean;
   debugLogPath: string;
+  /** Session override from `request observation-report … storage`. */
+  observationStorageOverride?: ObservationStorageId | null;
+  /** From Controller `create intent … storage` for this intent alias. */
+  createIntentStorage?: ObservationStorageId | null;
 }
 
 interface StreamRuntime {
@@ -70,21 +79,18 @@ async function emitTick(
   const payload = tool.generateObservation(streamAsConditionMetric(stream), value, iso);
   const turtle = tool.toTurtle(payload);
 
-  const graphDbWritten = process.env.NO_GRAPHDB !== "true";
-  if (!graphDbWritten) {
-    process.stdout.write(`${turtle}\n\nGraphDB write skipped (--noGraphDB)\n`);
-  } else {
-    await graphTool.insertTurtle(turtle);
-  }
-
-  logObservationPayload({
-    source: "stream",
-    sessionId,
+  await persistObservationWithStorage({
+    graphTool,
     intentId: state.intentId,
+    compoundMetric: metric,
+    conditionId: stream.conditionId,
+    unit: stream.unit,
     payload,
     turtle,
-    graphDbWritten,
-    frequencySeconds: stream.frequencySeconds
+    storageTypes: stream.storageTypes,
+    sessionOverride: args.observationStorageOverride,
+    createIntentStorage: args.createIntentStorage,
+    log: { source: "stream", sessionId, frequencySeconds: stream.frequencySeconds }
   });
 
   if (!args.debug) return;
@@ -131,18 +137,21 @@ export async function startObservationStreams(args: StartObservationStreamsArgs)
   };
   sessions.set(args.sessionId, state);
 
-  const graphDbWritten = process.env.NO_GRAPHDB !== "true";
-  if (graphDbWritten) {
-    const storedMetrics = new Set<string>();
-    for (const stream of streams) {
-      const metric = metricName(stream);
-      if (storedMetrics.has(metric)) continue;
-      storedMetrics.add(metric);
-      const ok = await graphTool.storeGraphdbMetadata(metric);
-      if (!ok) {
-        process.stderr.write(`Warning: failed to store GraphDB metadata for metric ${metric}\n`);
-      }
-    }
+  const storedMetrics = new Set<string>();
+  for (const stream of streams) {
+    const metric = metricName(stream);
+    if (storedMetrics.has(metric)) continue;
+    await registerObservationMetadataForMetric(
+      graphTool,
+      metric,
+      stream.conditionId,
+      stream.unit,
+      args.intentId,
+      stream.storageTypes,
+      args.observationStorageOverride,
+      args.createIntentStorage,
+      storedMetrics
+    );
   }
 
   for (const stream of streams) {
@@ -183,7 +192,7 @@ export function observationStreamStatus(sessionId: string): string {
   if (!state || state.streams.length === 0) return "No active observation streams.";
   const lines = state.streams.map(
     ({ stream }) =>
-      `- metric=${metricName(stream)}, every=${stream.frequencySeconds}s, min=${stream.minValue}, max=${stream.maxValue}`
+      `- metric=${metricName(stream)}, storage=${stream.storageTypes.join("+")}, every=${stream.frequencySeconds}s, min=${stream.minValue}, max=${stream.maxValue}`
   );
   return [`Active observation streams: ${state.streams.length}`, ...lines].join("\n");
 }

@@ -35,7 +35,19 @@ These prompts are handled in the agent pre-turn hook (REPL **and** HTTP `/v1/ses
 5. Generate TM Forum observation report Turtle payloads.
 6. Retain the last N observation payloads per metric in `logs/observations-<metric>.ndjson` (default N=100; `--obsLogN` on the agent CLI or `OBS_LOG_N`; `OBSERVATION_LOG_PATH` to override the log directory).
 7. Store the latest synthetic sampler program per metric in `logs/observation-program-<metric>.js` (LLM-generated function body; overwritten on each new synthetic run for that metric).
-8. Persist to Prometheus + metadata in GraphDB, or print payloads when `--noGraphDB` is active in loaded clone runtime.
+8. Persist observation datapoints per `icm:reportDestinations` on the intent (`data5g:graphdb` → Turtle in GraphDB; `data5g:prometheus` → Pushgateway for streaming with simulated timestamps, or Prometheus remote-write batch for historic runs). Always register retrieval metadata in GraphDB (`storeGraphdbMetadata` or `storePrometheusMetadata`). Session override via A2A `openclaw.observationStorage` or Controller `request observation-report … storage`. Print payloads when `--noGraphDB` skips GraphDB inserts only.
+
+## Clone / Prometheus env
+
+Applied automatically on `package load` via `tools/onPackageLoad.ts` (see `mappings/env.defaults.json`):
+
+| Variable | Purpose | Clone value (start5g-1) |
+|----------|---------|-------------------------|
+| `PROMETHEUS_URL` | GraphDB `hasQuery` metadata base (read by IntentReportQueryProxy on host) | `http://127.0.0.1:9090/prometheus` |
+| `PROMETHEUS_REMOTE_WRITE_URL` | Historic batch remote-write from container | `http://host.docker.internal:9090/prometheus/api/v1/write` |
+| `PUSHGATEWAY_URL` | Streaming Pushgateway from container | `http://host.docker.internal:9091` |
+
+Also merges package `package.json` dependencies into the clone and refreshes the clone `package-lock.json` via `npm install --package-lock-only` so Docker `npm ci` succeeds. Clone `docker-compose.yml` (from the kernel) includes `host.docker.internal:host-gateway` in `extra_hosts`. Rebuild the container after `package load`.
 
 ## `--port` (clone runtime)
 

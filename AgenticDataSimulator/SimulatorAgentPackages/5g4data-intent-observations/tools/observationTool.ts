@@ -4,6 +4,11 @@ import {
   resolveCompoundMetricAgainstIntent,
   resolveConditionScopedMetricName
 } from "./metricNaming.js";
+import {
+  DEFAULT_OBSERVATION_STORAGE,
+  type ObservationStorageId,
+  isObservationStorageId
+} from "./observationStorageTypes.js";
 
 export interface ObservationPayload {
   observationId: string;
@@ -39,6 +44,7 @@ export interface ReportableObservationStream {
   frequencySeconds: number;
   minValue: number;
   maxValue: number;
+  storageTypes: ObservationStorageId[];
 }
 
 const RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
@@ -273,6 +279,36 @@ export class ObservationTool {
     return map;
   }
 
+  /** Map reporting target local name → storage destination ids from `icm:reportDestinations`. */
+  parseReportDestinationsByTarget(intentTurtle: string): Map<string, ObservationStorageId[]> {
+    const store = this.parseStore(intentTurtle);
+    const out = new Map<string, ObservationStorageId[]>();
+
+    for (const subj of this.subjectsWithTypeLocal(store, "ObservationReportingExpectation")) {
+      const target = this.objectLocalsByPredicateLocal(store, subj, "target")[0] ?? "";
+      if (!target) continue;
+
+      const destTerms = store
+        .getQuads(subj, null, null, null)
+        .filter((q) => this.termLocal(q.predicate) === "reportDestinations")
+        .map((q) => q.object);
+
+      const ids: ObservationStorageId[] = [];
+      for (const dest of destTerms) {
+        const members = this.objectLocalsByPredicateLocal(store, dest, "member");
+        const locals = members.length > 0 ? members : [this.termLocal(dest)];
+        for (const local of locals) {
+          const norm = local.replace(/^data5g:/iu, "").trim().toLowerCase();
+          if (isObservationStorageId(norm) && !ids.includes(norm)) ids.push(norm);
+        }
+      }
+
+      if (ids.length > 0) out.set(target, ids);
+    }
+
+    return out;
+  }
+
   parseObservationReportingExpectations(intentTurtle: string): Array<{
     id: string;
     target: string;
@@ -324,6 +360,7 @@ export class ObservationTool {
     const durationByName = this.parseDurationSecondsByLocalName(intentTurtle);
     const eventToDur = this.parseEventClassToDurationLocal(intentTurtle);
     const reporting = this.parseObservationReportingExpectations(intentTurtle);
+    const destinationsByTarget = this.parseReportDestinationsByTarget(intentTurtle);
     const targetToReporting = new Map<string, { id: string; frequencySeconds: number }>();
     for (const re of reporting) {
       let frequencySeconds = 600;
@@ -353,7 +390,8 @@ export class ObservationTool {
         unit: metric.unit || "NA",
         frequencySeconds: rep?.frequencySeconds ?? 600,
         minValue: 10,
-        maxValue: 100
+        maxValue: 100,
+        storageTypes: destinationsByTarget.get(target) ?? [DEFAULT_OBSERVATION_STORAGE]
       };
     });
   }

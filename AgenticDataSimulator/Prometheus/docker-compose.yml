@@ -1,0 +1,23 @@
+services:
+  pushgateway:
+    image: prom/pushgateway:v1.9.0
+    container_name: 5g4data-pushgateway
+    restart: unless-stopped
+    ports:
+      - "9091:9091"
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: 5g4data-prometheus
+    restart: unless-stopped
+    depends_on:
+      - pushgateway
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+      - --web.external-url=${PROMETHEUS_EXTERNAL_URL:-http://127.0.0.1:9090}

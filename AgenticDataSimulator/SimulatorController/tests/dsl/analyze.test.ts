@@ -86,6 +86,41 @@ request observation-report using observationControl for I6be57670fcad46fba1f648a
     expect(diagnostics).toEqual([]);
   });
 
+  it("parses create intent with storage graphdb and request observation-report with storage override", async () => {
+    const parserModule = await import("../../src/lib/dsl/parser/parse-script");
+    const validatorModule = await import("../../src/lib/dsl/validator/validate-script");
+
+    const script = `discover intent-agent by domain 5g4data as intentGen
+create intent using intentGen storage graphdb prompt "Deploy LLM" as llmIntent
+discover observation-agent by domain 5g4data as observationControl
+request observation-report using observationControl for llmIntent storage prometheus instructions "For metric foo." as obsSession`;
+
+    const parsed = parserModule.parseScript(script);
+    const diagnostics = validatorModule.validateScript(parsed.statements);
+
+    expect(diagnostics).toEqual([]);
+    const createStmt = parsed.statements.find((s) => s.kind === "create-intent");
+    const obsStmt = parsed.statements.find((s) => s.kind === "request-observation-report");
+    expect(createStmt && createStmt.kind === "create-intent" && createStmt.storage).toBe("graphdb");
+    expect(
+      obsStmt &&
+        obsStmt.kind === "request-observation-report" &&
+        obsStmt.storage === "prometheus",
+    ).toBe(true);
+  });
+
+  it("defaults create intent storage to graphdb when omitted", async () => {
+    const parserModule = await import("../../src/lib/dsl/parser/parse-script");
+    const parsed = parserModule.parseScript(
+      'create intent using intentGen prompt "Deploy" as x',
+    );
+    const stmt = parsed.statements[0];
+    expect(stmt?.kind).toBe("create-intent");
+    if (stmt?.kind === "create-intent") {
+      expect(stmt.storage).toBe("graphdb");
+    }
+  });
+
   it("accepts structured observation-report for create-intent alias without intent_id in instructions", async () => {
     const parserModule = await import("../../src/lib/dsl/parser/parse-script");
     const validatorModule = await import("../../src/lib/dsl/validator/validate-script");

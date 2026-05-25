@@ -35,16 +35,25 @@ export function buildGraphTargetBinding(
   };
 }
 
-export function openClawMetadataEnvelope(graphTarget: GraphTargetBinding): {
-  openclaw: {
-    controllerBindingVersion: "1";
-    graphTarget: GraphTargetBinding;
-  };
+export type OpenClawControllerMetadata = {
+  controllerBindingVersion: "1";
+  graphTarget?: GraphTargetBinding;
+  observationStorage?: "graphdb" | "prometheus";
+  createIntentStorage?: "graphdb" | "prometheus";
+};
+
+export function openClawMetadataEnvelope(opts: {
+  graphTarget?: GraphTargetBinding;
+  observationStorage?: "graphdb" | "prometheus";
+  createIntentStorage?: "graphdb" | "prometheus";
+}): {
+  openclaw: OpenClawControllerMetadata;
 } {
-  return {
-    openclaw: {
-      controllerBindingVersion: "1",
-      graphTarget,
-    },
+  const openclaw: OpenClawControllerMetadata = {
+    controllerBindingVersion: "1",
   };
+  if (opts.graphTarget) openclaw.graphTarget = opts.graphTarget;
+  if (opts.observationStorage) openclaw.observationStorage = opts.observationStorage;
+  if (opts.createIntentStorage) openclaw.createIntentStorage = opts.createIntentStorage;
+  return { openclaw };
 }

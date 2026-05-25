@@ -17,6 +17,8 @@ import type {
 } from "@/lib/dsl/types";
 import { resolveMetricStemsInObservationInstructions } from "@/lib/dsl/analysis/extract-metric-catalog";
 import { buildObservationReportSeed } from "@/lib/dsl/observation-report-seed";
+import type { ObservationStorageType } from "@/lib/dsl/types";
+import { buildIntentGenerationStorageHint } from "@/lib/observation-storage";
 import { parseCanonicalIntentLocalId } from "@/lib/intent/extract-intent-turtle";
 import { resolveIntentIdForObservation } from "@/lib/intent/resolve-intent-ref";
 import {
@@ -405,17 +407,22 @@ export function WorkspaceScriptRunner({
   const observationFinishRef = useRef<(() => void) | null>(null);
   /** Maps DSL intent alias (`as` from create-intent) → canonical kg intent id (`I…`) after successful ingest. */
   const intentIdByAliasRef = useRef(new Map<string, string>());
+  /** Maps DSL intent alias → observation storage from `create intent … storage`. */
+  const intentStorageByAliasRef = useRef(new Map<string, ObservationStorageType>());
   const [runBusy, setRunBusy] = useState(false);
   const [intentSession, setIntentSession] = useState<{
     wellKnownURI: string;
     prompt: string;
     intentArtifactLabel: string;
+    storage: ObservationStorageType;
   } | null>(null);
   const [observationSession, setObservationSession] = useState<{
     wellKnownURI: string;
     sessionAlias: string;
     seedPrompt: string;
     graphTargetBinding: GraphTargetBinding;
+    observationStorage?: ObservationStorageType;
+    createIntentStorage?: ObservationStorageType;
   } | null>(null);
 
   const resolveSelectedGraphTargetBinding = useCallback((): GraphTargetBinding | null => {
@@ -429,9 +436,19 @@ export function WorkspaceScriptRunner({
     return buildGraphTargetBinding(target, graphDbBaseUrl);
   }, [graphDbBaseUrl, kgTargets, selectedKgTargetId]);
 
-  const handleKgIntentStored = useCallback((_dslAlias: string, canonicalIntentId: string) => {
-    intentIdByAliasRef.current.set(_dslAlias, canonicalIntentId);
-  }, []);
+  const handleKgIntentStored = useCallback(
+    (
+      _dslAlias: string,
+      canonicalIntentId: string,
+      storage?: ObservationStorageType,
+    ) => {
+      intentIdByAliasRef.current.set(_dslAlias, canonicalIntentId);
+      if (storage) {
+        intentStorageByAliasRef.current.set(_dslAlias, storage);
+      }
+    },
+    [],
+  );
 
   const handleRunScript = useCallback(async () => {
     beginScriptRun(activeScriptName);
@@ -458,6 +475,7 @@ export function WorkspaceScriptRunner({
       appendRunnerLog("Run Script: executing supported statements in order.");
 
       intentIdByAliasRef.current.clear();
+      intentStorageByAliasRef.current.clear();
       setScriptExtractedMetricNames([]);
       const catalogBindings = new Map<string, string[]>();
       const catalogByIntentId = new Map<string, string[]>();
@@ -609,7 +627,9 @@ export function WorkspaceScriptRunner({
             return;
           }
 
-          appendRunnerLog(`Run Script: create intent as "${stmt.intentAlias}".`);
+          appendRunnerLog(
+            `Run Script: create intent as "${stmt.intentAlias}" (observation storage: ${stmt.storage}).`,
+          );
           appendRunnerLog(
             `Line ${statement.line}: Opening A2A session for intent alias "${stmt.intentAlias}".`,
           );
@@ -626,8 +646,11 @@ export function WorkspaceScriptRunner({
             intentFinishRef.current = finish;
             setIntentSession({
               intentArtifactLabel: stmt.intentAlias,
-              prompt: stmt.prompt,
+              prompt: [buildIntentGenerationStorageHint(stmt.storage), "", stmt.prompt].join(
+                "\n",
+              ),
               wellKnownURI: resolved,
+              storage: stmt.storage,
             });
           });
           continue;
@@ -684,9 +707,20 @@ export function WorkspaceScriptRunner({
             );
           }
 
+          const createIntentStorage = intentStorageByAliasRef.current.get(stmt.intentAlias);
           const seedPrompt = buildObservationReportSeed(
             canonicalId,
             stemResolution.instructions,
+            stmt.storage,
+          );
+
+          const storageNote = stmt.storage
+            ? `override ${stmt.storage}`
+            : createIntentStorage
+              ? `from create-intent: ${createIntentStorage}`
+              : "from intent Turtle / default graphdb";
+          appendRunnerLog(
+            `Line ${statement.line}: Observation storage for session: ${storageNote}.`,
           );
 
           const intentRefNote = parseCanonicalIntentLocalId(stmt.intentAlias)
@@ -710,6 +744,8 @@ export function WorkspaceScriptRunner({
               sessionAlias: stmt.sessionAlias,
               seedPrompt,
               graphTargetBinding,
+              observationStorage: stmt.storage,
+              createIntentStorage,
             });
           });
           continue;
@@ -1098,12 +1134,15 @@ export function WorkspaceScriptRunner({
         onKgIntentStored={handleKgIntentStored}
         open={intentSession !== null}
         persistIntentStoreUrl={persistIntentStoreUrl}
+        createIntentStorage={intentSession?.storage ?? null}
         seedPrompt={intentSession?.prompt ?? null}
       />
       <IntentGenSessionDialog
         a2aMessageSendUrl={a2aMessageSendUrl}
         agentCardWellKnownURI={observationSession?.wellKnownURI ?? ""}
+        createIntentStorage={observationSession?.createIntentStorage ?? null}
         graphTargetBinding={observationSession?.graphTargetBinding ?? null}
+        observationStorage={observationSession?.observationStorage ?? null}
         intentArtifactLabel={observationSession?.sessionAlias ?? ""}
         onFinished={handleObservationDialogFinish}
         onTranscriptTurn={appendA2ATranscriptTurn}

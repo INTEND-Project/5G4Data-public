@@ -192,6 +192,36 @@ a {
   line-height: 1.1;
 }
 
+.workspace-user-chip {
+  color: var(--muted);
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-user-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.workspace-user-label {
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+
+.workspace-user-controls form {
+  display: inline;
+}
+
+.workspace-user-controls .workspace-top-action-button {
+  padding: 6px 10px;
+  font-size: 1.2rem;
+}
+
 .workspace-stage-row {
   display: flex;
   flex-wrap: wrap;
@@ -441,16 +471,16 @@ select.workspace-topbar-run-select {
   color: inherit;
   cursor: pointer;
   max-width: min(420px, 36vw);
-  padding: 6px 10px;
+  padding: 5px 8px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.2);
-  font-size: 1.2rem;
+  font-size: 1rem;
   line-height: 1.2;
 }
 
 select.workspace-topbar-run-select option {
-  font-size: 1.2rem;
+  font-size: 1rem;
 }
 
 select.workspace-topbar-run-select:focus-visible {

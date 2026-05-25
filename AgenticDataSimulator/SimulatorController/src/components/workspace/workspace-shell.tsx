@@ -10,6 +10,7 @@ import { WorkspaceRightSidebarResizable } from "@/components/workspace/workspace
 import { WorkspaceRunIdChip } from "@/components/workspace/workspace-run-id-chip";
 import { WorkspaceScriptRunner } from "@/components/workspace/workspace-script-runner";
 import { WorkspaceScriptSessionProvider } from "@/components/workspace/workspace-script-session-context";
+import { withAppBasePath } from "@/lib/app-paths";
 
 type WorkspaceShellProps = {
   username: string;
@@ -113,13 +114,23 @@ export function WorkspaceShell({
               {registryConnected ? "agent registry connected" : "agent registry disconnected"}
             </span>
             <WorkspaceRunIdChip />
-            <button
-              className="workspace-button workspace-top-action-button"
-              title={`Signed in as ${username}`}
-              type="button"
-            >
+            <button className="workspace-button workspace-top-action-button" type="button">
               About/Help
             </button>
+            <div className="workspace-user-controls">
+              <span className="workspace-user-label">User:</span>
+              <span
+                className="workspace-chip workspace-topbar-chip workspace-user-chip"
+                title={`Signed in as ${username}`}
+              >
+                {username}
+              </span>
+              <form action={withAppBasePath("/api/auth/logout")} method="post">
+                <button className="workspace-button workspace-top-action-button" type="submit">
+                  Logout
+                </button>
+              </form>
+            </div>
           </div>
         </header>
 

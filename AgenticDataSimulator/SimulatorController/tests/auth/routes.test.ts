@@ -258,4 +258,25 @@ describe("auth route handlers", () => {
     });
     expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
   });
+
+  it("redirects to login after a browser form logout", async () => {
+    dbMock.session.deleteMany.mockResolvedValue({
+      count: 1,
+    });
+
+    const routeModule = await import("../../src/app/api/auth/logout/route");
+    const response = await routeModule.POST(
+      new Request("http://localhost/tmf-simulator/api/auth/logout", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie: "openclaw-controller-session=session-token",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/tmf-simulator/login");
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+  });
 });

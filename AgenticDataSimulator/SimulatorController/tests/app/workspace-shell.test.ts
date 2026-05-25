@@ -65,6 +65,13 @@ describe("workspace shell bootstrap", () => {
     expect(runIdChipSource).toContain("scriptRunLogs");
     expect(scriptSessionContextSource).toContain("slice(0, 10)");
     expect(shellSource).toContain("About/Help");
+    expect(shellSource).toContain("workspace-user-controls");
+    expect(shellSource).toContain("workspace-user-label");
+    expect(shellSource).toContain("User:");
+    expect(shellSource).toContain("Logout");
+    expect(shellSource).toContain('withAppBasePath("/api/auth/logout")');
+    expect(shellSource).toContain("workspace-user-chip");
+    expect(shellSource).toContain("{username}");
     expect(shellSource).toContain("workspace-topbar-chip");
     expect(shellSource).toContain("workspace-panel-tight-stack");
     expect(shellSource).toContain("kgTargetsCreateUrl");
@@ -155,6 +162,9 @@ describe("workspace shell bootstrap", () => {
     expect(globalsSource).toContain(".workspace-brand-copy");
     expect(globalsSource).toContain(".workspace-top-actions");
     expect(globalsSource).toContain(".workspace-topbar-chip");
+    expect(globalsSource).toContain(".workspace-user-chip");
+    expect(globalsSource).toContain(".workspace-user-controls");
+    expect(globalsSource).toContain(".workspace-user-label");
     expect(globalsSource).toContain(".workspace-run-history-controls");
     expect(globalsSource).toContain("select.workspace-topbar-run-select");
     expect(globalsSource).toContain(".workspace-chip-live");

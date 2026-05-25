@@ -29,7 +29,7 @@ export function WorkspaceRunIdChip() {
           title="No script runs yet"
           type="button"
         >
-          Log
+          Show selected log
         </button>
       </div>
     );
@@ -57,7 +57,7 @@ export function WorkspaceRunIdChip() {
         onClick={openRunLogDialog}
         type="button"
       >
-        Log
+        Show selected log
       </button>
     </div>
   );

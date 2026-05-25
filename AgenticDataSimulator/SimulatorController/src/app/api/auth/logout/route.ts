@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { withAppBasePath } from "@/lib/app-paths";
 import { getSessionTokenFromRequest } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import {
@@ -18,7 +19,17 @@ export async function POST(request: Request) {
     });
   }
 
-  const response = NextResponse.json({ ok: true });
+  const contentType = request.headers.get("content-type") ?? "";
+  const isFormSubmission = contentType.includes("application/x-www-form-urlencoded");
+
+  const response = isFormSubmission
+    ? new NextResponse(null, {
+        status: 303,
+        headers: {
+          location: withAppBasePath("/login"),
+        },
+      })
+    : NextResponse.json({ ok: true });
   const clearedCookie = createClearedSessionCookie(
     process.env.NODE_ENV === "production",
   );

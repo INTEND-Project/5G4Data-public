@@ -32,9 +32,15 @@ export type IntentGenSessionDialogProps = {
   /** Mirror each user/agent transcript turn to the run script log (e.g. workspace Log dialog). */
   onTranscriptTurn?: (turn: { role: "user" | "agent"; text: string }) => void;
   /** When Turtle is stored successfully, canonical intent id (`I…`) for DSL follow-up bindings. */
-  onKgIntentStored?: (dslAlias: string, canonicalIntentId: string) => void;
+  onKgIntentStored?: (
+    dslAlias: string,
+    canonicalIntentId: string,
+    createIntentStorage?: "graphdb" | "prometheus",
+  ) => void;
   /** Per-run GraphDB target from Controller runner (A2A metadata.openclaw.graphTarget). */
   graphTargetBinding?: GraphTargetBinding | null;
+  observationStorage?: "graphdb" | "prometheus" | null;
+  createIntentStorage?: "graphdb" | "prometheus" | null;
   /** Called once the user chooses to dismiss after the handshake is ready to continue outside the modal. */
   onFinished: () => void;
 };
@@ -51,6 +57,8 @@ export function IntentGenSessionDialog({
   onTranscriptTurn,
   onKgIntentStored,
   graphTargetBinding = null,
+  observationStorage = null,
+  createIntentStorage = null,
   onFinished,
 }: IntentGenSessionDialogProps) {
   const taskBindingsRef = useRef<{ taskId?: string; contextId?: string }>({});
@@ -165,6 +173,12 @@ export function IntentGenSessionDialog({
         if (graphTargetBinding) {
           payload.graphTarget = graphTargetBinding;
         }
+        if (observationStorage) {
+          payload.observationStorage = observationStorage;
+        }
+        if (createIntentStorage) {
+          payload.createIntentStorage = createIntentStorage;
+        }
 
         const response = await fetch(a2aMessageSendUrl, {
           method: "POST",
@@ -237,7 +251,11 @@ export function IntentGenSessionDialog({
                 `[${idNote}] Stored intent in knowledge graph (${idNote}).`,
               );
               if (canonical && variant === "intent-generation") {
-                onKgIntentStored?.(intentArtifactLabel, canonical);
+                onKgIntentStored?.(
+                  intentArtifactLabel,
+                  canonical,
+                  createIntentStorage ?? undefined,
+                );
               }
             } else if (typeof ingestBody.error === "string" && ingestBody.error.length > 0) {
               onIntentPersistLog?.(

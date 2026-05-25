@@ -48,6 +48,12 @@ describe("observation-report seed", () => {
     );
   });
 
+  it("includes storage override hint when provided", () => {
+    const seed = buildObservationReportSeed("Iabc", "For metric bandwidth.", "prometheus");
+    expect(seed).toContain("Observation storage override: prometheus.");
+    expect(seed).toContain("Generate observation reports for `intent_id=Iabc`.");
+  });
+
   it("builds historic structured seed with injected intent_id", () => {
     const canonicalId = "I9fde73e5715a43beb4dcd6053c7b8b82";
     const instructions =

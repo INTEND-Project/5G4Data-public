@@ -23,6 +23,8 @@ const bodySchema = z.object({
   contextId: z.string().min(1).optional(),
   text: z.string().min(1),
   graphTarget: graphTargetSchema.optional(),
+  observationStorage: z.enum(["graphdb", "prometheus"]).optional(),
+  createIntentStorage: z.enum(["graphdb", "prometheus"]).optional(),
 });
 
 async function fetchAgentRpcUrl(
@@ -112,8 +114,12 @@ export async function POST(request: Request) {
   if (body.contextId) {
     message.contextId = body.contextId;
   }
-  if (body.graphTarget) {
-    message.metadata = openClawMetadataEnvelope(body.graphTarget);
+  if (body.graphTarget || body.observationStorage || body.createIntentStorage) {
+    message.metadata = openClawMetadataEnvelope({
+      graphTarget: body.graphTarget,
+      observationStorage: body.observationStorage,
+      createIntentStorage: body.createIntentStorage,
+    });
   }
 
   const requestId = randomUUID();

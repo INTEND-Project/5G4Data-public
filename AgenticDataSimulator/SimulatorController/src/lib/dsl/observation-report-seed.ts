@@ -11,9 +11,13 @@ export function looksStructuredObservationInstructions(body: string): boolean {
   return /`(?:mode|frequency|start|stop|metric)\s*=/i.test(body);
 }
 
+import type { ObservationStorageType } from "@/lib/dsl/types";
+import { buildObservationStorageOverrideHint } from "@/lib/observation-storage";
+
 export function buildObservationReportSeed(
   canonicalIntentId: string,
   instructions: string,
+  storageOverride?: ObservationStorageType,
 ): string {
   const stripped = stripIntentIdFromInstructions(instructions);
   const intentGlobal = `\`intent_id=${canonicalIntentId}\``;
@@ -21,10 +25,10 @@ export function buildObservationReportSeed(
     ? `${intentGlobal}, ${stripped}`
     : stripped;
 
-  return [
-    `Generate observation reports for ${intentGlobal}.`,
-    "",
-    "Instructions:",
-    body,
-  ].join("\n");
+  const lines = [`Generate observation reports for ${intentGlobal}.`];
+  if (storageOverride) {
+    lines.push("", buildObservationStorageOverrideHint(storageOverride));
+  }
+  lines.push("", "Instructions:", body);
+  return lines.join("\n");
 }

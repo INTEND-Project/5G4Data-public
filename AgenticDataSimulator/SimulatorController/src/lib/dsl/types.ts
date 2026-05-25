@@ -19,10 +19,13 @@ export type DiscoverIntentWorkspaceDomainStatement = {
   alias: string;
 };
 
+export type ObservationStorageType = "graphdb" | "prometheus";
+
 export type CreateIntentStatement = {
   kind: "create-intent";
   line: number;
   agentAlias: string;
+  storage: ObservationStorageType;
   prompt: string;
   intentAlias: string;
 };
@@ -48,6 +51,8 @@ export type RequestObservationReportStatement = {
   line: number;
   agentAlias: string;
   intentAlias: string;
+  /** Omitted on DSL line → no session override. */
+  storage?: ObservationStorageType;
   instructions: string;
   sessionAlias: string;
 };

@@ -31,7 +31,7 @@ describe("graph-target-binding", () => {
       { id: "t", repositoryId: "r", graphIri: "urn:g" },
       "http://host:7200",
     );
-    expect(openClawMetadataEnvelope(binding)).toEqual({
+    expect(openClawMetadataEnvelope({ graphTarget: binding })).toEqual({
       openclaw: {
         controllerBindingVersion: "1",
         graphTarget: binding,

@@ -31,16 +31,37 @@ See also [`README-a2a-registry.md`](README-a2a-registry.md) for deployment and C
    export PATH="$(pwd)/bin:$PATH"
    agent-control start
    ```
+## Agent logs on the host
 
-3. Use `SimulatorController` to orchestrate multi-agent scripts against registered agents.
+Each running agent container bind-mounts its log directory to the corresponding clone directory on the host:
 
-Manual load (alternative to `agent-control start`):
+| Agent | Host log directory |
+|-------|-------------------|
+| Intent generation | `SimulatorAgentKernel-5g4data-intent-generating-agent/logs/` |
+| Observations | `SimulatorAgentKernel-5g4data-intent-observation-generating-agent/logs/` |
 
-1. From `SimulatorAgentKernel`, run `npx tsx src/index.ts package load ../SimulatorAgentPackages/<package-name>`.
-2. Run the resulting `SimulatorAgentKernel-<package-name>` clone.
+Agents are started with `--debug`, so you will typically see files such as `openclaw-agent-debug.jsonl` there (and additional observation logs under the observations agent clone).
+
+To **stop** writing logs to the host filesystem, remove the bind mount from that agent's `docker-compose.yml`:
+
+```yaml
+    volumes:
+      - ./logs:/app/logs
+```
+
+Then recreate the container (for example `./agent-control restart` or `docker compose up -d --force-recreate` in the clone directory). Logs will remain inside the container only unless you also remove `--debug` from the `command` in the same file.
 
 ## Authentication
 
 Cloned agents enforce **API key authentication** on HTTP/A2A endpoints (A2A v0.3 `securitySchemes`). Keys are generated on `package load` and synced into `SimulatorController/.env` and `a2a-registry/backend/.env` as `AGENT_API_KEYS`. See [`SimulatorAgentKernel/README.md`](SimulatorAgentKernel/README.md#authentication) for details.
 
 Some shared assets remain under `IntentAgent/` (for example `HermesAgent/`). The kernel system prompt lives at `SimulatorAgentKernel/SYSTEM_PROMPT.md`.
+
+#  Manual load agents
+This is an alternative way to start agents manually.
+
+1. From `SimulatorAgentKernel`, run `npx tsx src/index.ts package load ../SimulatorAgentPackages/package-name` (package-name is the name of the package folder, e.g. 5g4data-intent-generation).
+2. Install node packages: (e.g. *cd ../clone-name* and *npm install* where clone-name is the resulting clone folder, e.g. SimulatorAgentKernel-5g4data-intent-generating-agent)
+2. Run the resulting clone form the clone-folder (e.g.  *npx tsx src/index.ts --debug*).
+
+

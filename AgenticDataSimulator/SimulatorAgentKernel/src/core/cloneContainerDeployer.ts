@@ -64,6 +64,8 @@ export function renderCloneDockerCompose(input: WriteCloneDockerComposeInput): s
       API_SERVER_HOST: "0.0.0.0"
       API_SERVER_PORT: "${port}"
     command: ["npx", "tsx", "src/index.ts", "--debug"]
+    volumes:
+      - ./logs:/app/logs
     restart: unless-stopped
 `;
 }

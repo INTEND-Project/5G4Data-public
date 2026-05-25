@@ -25,6 +25,7 @@ test("renderCloneDockerCompose includes container name and port mapping", () => 
   assert.match(content, /API_SERVER_HOST: "0.0.0.0"/);
   assert.match(content, /restart: unless-stopped/);
   assert.match(content, /command: \["npx", "tsx", "src\/index\.ts", "--debug"\]/);
+  assert.match(content, /- \.\/logs:\/app\/logs/);
 });
 
 test("writeCloneDockerCompose writes docker-compose.yml to clone directory", () => {

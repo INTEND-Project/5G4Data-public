@@ -153,7 +153,8 @@ start_agent() {
   fi
 
   wait_for_health "$port" "$label"
-  echo "Logs: cd \"${clone_dir}\" && docker compose logs -f"
+  echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
+  echo "Agent log files: ${clone_dir}/logs/"
   echo
 }
 
@@ -181,7 +182,8 @@ restart_agent() {
   (cd "$clone_dir" && docker compose build)
   (cd "$clone_dir" && docker compose up -d --force-recreate)
   wait_for_health "$port" "$label"
-  echo "Logs: cd \"${clone_dir}\" && docker compose logs -f"
+  echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
+  echo "Agent log files: ${clone_dir}/logs/"
   echo
   return 0
 }

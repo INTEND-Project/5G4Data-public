@@ -42,6 +42,7 @@ start5g-1.cs.uit.no {
 
     # A2A Registry frontend (host port 17173)
     handle /a2a-registry* {
+        uri strip_prefix /a2a-registry
         reverse_proxy http://host.docker.internal:17173
     }
 
@@ -60,6 +61,36 @@ start5g-1.cs.uit.no {
     handle /workloads/* {
         uri replace /workloads /webapp
         reverse_proxy http://webapp:3000
+    }
+
+    # GraphDB on host port 7200 (OpenClaw agents use https://…/graphdb/…)
+    handle /graphdb* {
+        uri strip_prefix /graphdb
+        reverse_proxy http://host.docker.internal:7200 {
+            header_up Host {host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Prometheus UI/API (host port 9090)
+    handle /prometheus* {
+        uri strip_prefix /prometheus
+        reverse_proxy http://host.docker.internal:9090 {
+            header_up Host {host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Prometheus Pushgateway (host port 9091)
+    handle /prometheus-pushgateway* {
+        uri strip_prefix /prometheus-pushgateway
+        reverse_proxy http://host.docker.internal:9091 {
+            header_up Host {host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
     # Main Flask app at root (must be last — catch-all)

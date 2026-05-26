@@ -47,7 +47,12 @@ export class PrometheusTool {
 
   async pushSample(sample: PrometheusSample, job = "intent_reports"): Promise<boolean> {
     if (!this.pushgatewayUrl) return false;
-    const endpoint = `${this.pushgatewayUrl.replace(/\/$/, "")}/metrics/job/${encodeURIComponent(job)}`;
+    const base = `${this.pushgatewayUrl.replace(/\/$/, "")}/metrics/job/${encodeURIComponent(job)}`;
+    const intentId = sample.labels?.intent_id?.trim();
+    const endpoint =
+      intentId !== undefined && intentId.length > 0
+        ? `${base}/intent_id/${encodeURIComponent(intentId)}`
+        : base;
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },

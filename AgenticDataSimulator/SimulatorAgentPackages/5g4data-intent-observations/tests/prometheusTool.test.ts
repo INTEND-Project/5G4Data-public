@@ -48,6 +48,31 @@ test("pushSample POST body includes timestamp suffix", async () => {
   }
 });
 
+test("pushSample uses intent_id grouping path when label is present", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl = "";
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    requestUrl = String(input);
+    return new Response("", { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const tool = PrometheusTool.fromEnv("http://pg:9091", "http://127.0.0.1:9090/prometheus");
+    const ok = await tool.pushSample({
+      metricName: "metric_a",
+      value: 9,
+      labels: { job: "intent_reports", intent_id: "Iabc123" },
+    });
+    assert.equal(ok, true);
+    assert.equal(
+      requestUrl,
+      "http://pg:9091/metrics/job/intent_reports/intent_id/Iabc123"
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("fromEnv derives remote write URL from prometheus base", () => {
   const url = prometheusRemoteWriteUrl(
     undefined,

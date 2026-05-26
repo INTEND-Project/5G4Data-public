@@ -154,4 +154,23 @@ request observation-report using observationControl for llmIntent instructions "
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]?.code).toEqual("UNKNOWN_AGENT_ALIAS");
   });
+
+  it("reports INVALID_SYNTAX for unrecognized DSL lines", async () => {
+    const analyzeModule = await import("../../src/lib/dsl/analysis/analyze-script");
+
+    const { statements, diagnostics } = analyzeModule.analyzeScript(
+      "this is not valid dsl syntax",
+    );
+
+    expect(statements).toEqual([]);
+    expect(diagnostics).toEqual([
+      {
+        line: 1,
+        severity: "error",
+        code: "INVALID_SYNTAX",
+        message:
+          "Unrecognized DSL statement. Expected discover, create intent, extract metric-catalog, request status-report, or request observation-report.",
+      },
+    ]);
+  });
 });

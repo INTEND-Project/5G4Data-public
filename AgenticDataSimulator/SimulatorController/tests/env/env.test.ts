@@ -25,6 +25,8 @@ describe("loadAppEnv", () => {
     expect(env.databaseUrl).toBe("file:./dev.db");
     expect(env.a2aRegistryBaseUrl).toBe("https://start5g-1.cs.uit.no/a2a-registry");
     expect(env.graphDbBaseUrl).toBe("https://start5g-1.cs.uit.no/graphdb/");
+    expect(env.prometheusUrl).toBe("http://127.0.0.1:9090/");
+    expect(env.pushgatewayUrl).toBe("http://127.0.0.1:9091");
     expect(env.appBasePath).toBe("/tmf-simulator");
     expect(env.assistantModel).toBe("gpt-4.1-mini");
     expect(env.assistantApiKey).toBeUndefined();
@@ -43,6 +45,8 @@ describe("loadAppEnv", () => {
       DATABASE_URL: "file:./test.db",
       A2A_REGISTRY_BASE_URL: "https://registry.example.test",
       GRAPHDB_BASE_URL: "http://graphdb.example.test:7200/",
+      PROMETHEUS_URL: "http://prometheus.example.test:9090/",
+      PUSHGATEWAY_URL: "http://pushgateway.example.test:9091",
       APP_BASE_PATH: "/controller",
       ASSISTANT_MODEL: "claude-3-7-sonnet",
       ASSISTANT_API_KEY: "secret",
@@ -52,6 +56,8 @@ describe("loadAppEnv", () => {
       databaseUrl: "file:./test.db",
       a2aRegistryBaseUrl: "https://registry.example.test",
       graphDbBaseUrl: "http://graphdb.example.test:7200/",
+      prometheusUrl: "http://prometheus.example.test:9090/",
+      pushgatewayUrl: "http://pushgateway.example.test:9091",
       appBasePath: "/controller",
       assistantModel: "claude-3-7-sonnet",
       assistantApiKey: "secret",

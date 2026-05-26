@@ -34,6 +34,8 @@ const appEnvSchema = z.object({
     .string()
     .url()
     .default("https://start5g-1.cs.uit.no/graphdb/"),
+  PROMETHEUS_URL: z.string().url().default("http://127.0.0.1:9090/"),
+  PUSHGATEWAY_URL: z.string().url().default("http://127.0.0.1:9091"),
   APP_BASE_PATH: z.string().optional(),
   ASSISTANT_MODEL: z.string().default("gpt-4.1-mini"),
   ASSISTANT_API_KEY: z.string().optional(),
@@ -46,6 +48,8 @@ export type AppEnv = {
   databaseUrl: string;
   a2aRegistryBaseUrl: string;
   graphDbBaseUrl: string;
+  prometheusUrl: string;
+  pushgatewayUrl: string;
   appBasePath: string;
   assistantModel: string;
   assistantApiKey?: string;
@@ -59,6 +63,8 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     DATABASE_URL: source.DATABASE_URL,
     A2A_REGISTRY_BASE_URL: source.A2A_REGISTRY_BASE_URL,
     GRAPHDB_BASE_URL: source.GRAPHDB_BASE_URL,
+    PROMETHEUS_URL: source.PROMETHEUS_URL,
+    PUSHGATEWAY_URL: source.PUSHGATEWAY_URL,
     APP_BASE_PATH: source.APP_BASE_PATH,
     ASSISTANT_MODEL: source.ASSISTANT_MODEL,
     ASSISTANT_API_KEY: source.ASSISTANT_API_KEY,
@@ -71,6 +77,8 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     databaseUrl: parsed.DATABASE_URL,
     a2aRegistryBaseUrl: parsed.A2A_REGISTRY_BASE_URL,
     graphDbBaseUrl: parsed.GRAPHDB_BASE_URL,
+    prometheusUrl: parsed.PROMETHEUS_URL,
+    pushgatewayUrl: parsed.PUSHGATEWAY_URL,
     appBasePath: getConfiguredAppBasePath({
       APP_BASE_PATH: parsed.APP_BASE_PATH,
     }),

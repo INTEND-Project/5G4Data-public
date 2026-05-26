@@ -132,4 +132,32 @@ describe("graphdb client", () => {
       }),
     ).rejects.toThrow("GraphDB repository deletion failed with 500");
   });
+
+  it("posts a SPARQL update that clears the default, metadata, and named graphs", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const graphDbClientModule = await import("../../src/lib/graphdb/client");
+
+    await graphDbClientModule.clearKnowledgeGraph({
+      repositoryId: "telenor-5g4data-kg-avalanche-demo",
+      graphIri: "urn:intend:kg:telenor-5g4data:kg-avalanche-demo",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+
+    expect(url).toBe("http://graphdb.example/repositories/telenor-5g4data-kg-avalanche-demo");
+    expect(init.method).toBe("POST");
+    expect(init.headers).toMatchObject({
+      "Content-Type": "application/sparql-update",
+    });
+    expect(init.body).toBe(
+      `CLEAR DEFAULT ;
+CLEAR GRAPH <http://intent-reports-metadata> ;
+CLEAR GRAPH <urn:intend:kg:telenor-5g4data:kg-avalanche-demo> ;`,
+    );
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
 });

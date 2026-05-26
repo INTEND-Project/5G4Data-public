@@ -37,14 +37,23 @@ describe("workspace shell bootstrap", () => {
       resolve(process.cwd(), "src/components/workspace/kg-target-panel.tsx"),
       "utf8",
     );
+    const prometheusPanelSource = readFileSync(
+      resolve(process.cwd(), "src/components/workspace/prometheus-panel.tsx"),
+      "utf8",
+    );
     const globalsSource = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8");
 
     expect(loginSource).toContain("Sign in to OpenClaw Controller");
     expect(loginSource).toContain('withAppBasePath("/api/auth/login")');
     expect(loginSource).toContain('withAppBasePath("/api/auth/register")');
     expect(workspaceSource).toContain("WorkspaceShell");
-    expect(workspaceSource).toContain("getRegistryConnectionStatus");
+    expect(workspaceSource).toContain("getInfraConnectionStatus");
+    expect(workspaceSource).toContain("infraStatusApiUrl");
+    expect(workspaceSource).toContain('withAppBasePath("/api/infra/status")');
     expect(workspaceSource).toContain("registryConnected");
+    expect(workspaceSource).toContain("graphDbConnected");
+    expect(workspaceSource).toContain("prometheusConnected");
+    expect(workspaceSource).toContain('withAppBasePath("/api/prometheus/intents")');
     expect(workspaceSource).toContain("kgTargetsCreateUrl");
     expect(workspaceSource).toContain("kgTargetsDeleteUrlBase");
     expect(workspaceSource).toContain('withAppBasePath("/api/kg-targets")');
@@ -57,8 +66,11 @@ describe("workspace shell bootstrap", () => {
       "TM Forum intent data generation script design and execution for cognitive continuum",
     );
     expect(shellSource).toContain("intend-icon.png");
-    expect(shellSource).toContain("agent registry connected");
-    expect(shellSource).toContain("agent registry disconnected");
+    expect(shellSource).not.toContain("agent registry connected");
+    expect(shellSource).not.toContain("agent registry disconnected");
+    expect(shellSource).toContain("useInfraConnectionStatus");
+    expect(shellSource).toContain("infraStatusApiUrl");
+    expect(shellSource).toContain("infraStatus.registryConnected");
     expect(shellSource).toContain("WorkspaceRunIdChip");
     expect(runIdChipSource).toContain("formatScriptRunListLabel");
     expect(runIdChipSource).toContain("workspace-topbar-run-select");
@@ -76,6 +88,10 @@ describe("workspace shell bootstrap", () => {
     expect(shellSource).toContain("workspace-panel-tight-stack");
     expect(shellSource).toContain("kgTargetsCreateUrl");
     expect(shellSource).toContain("kgTargetsDeleteUrlBase");
+    expect(shellSource).toContain("PrometheusPanel");
+    expect(shellSource).toContain("prometheusConnected");
+    expect(shellSource).toContain("prometheusIntentsApiUrl");
+    expect(shellSource).toContain("prometheusClearUrlBase");
     expect(shellSource).toContain("scriptsApiUrl");
     expect(shellSource).toContain("WorkspaceScriptSessionProvider");
     expect(shellSource).toContain("WorkspaceLeftSidebarResizable");
@@ -83,6 +99,16 @@ describe("workspace shell bootstrap", () => {
     expect(scriptRunnerSource).toContain("Run mode");
     expect(scriptRunnerSource).toContain("dry-run");
     expect(scriptRunnerSource).toContain("execute");
+    expect(scriptRunnerSource).toContain("runMode");
+    expect(scriptRunnerSource).toContain("aria-pressed");
+    expect(scriptRunnerSource).toContain("RUN_MODE_TOOLTIPS");
+    expect(scriptRunnerSource).toContain(
+      "Validate script syntax and DSL rules without calling agents or modifying the knowledge graph.",
+    );
+    expect(scriptRunnerSource).toContain(
+      "Run the script end-to-end: discover agents, create intents, extract metric catalogs, and request reports.",
+    );
+    expect(scriptRunnerSource).toContain("Dry-run: script is valid");
     expect(scriptRunnerSource).toContain("Knowledge graph target");
     expect(scriptRunnerSource).toContain("kg-avalanche-demo");
     expect(scriptRunnerSource).toContain("Run result policy");
@@ -96,25 +122,22 @@ describe("workspace shell bootstrap", () => {
     expect(workspaceSource).toContain("agentsRefreshUrl");
     expect(workspaceSource).toContain('refresh: "1"');
     expect(agentListSource).toContain("Available agents");
-    expect(agentListSource).toContain("healthyAgentCount");
-    expect(agentListSource).toContain('"use client"');
-    expect(agentListSource).toContain("Refresh");
+    expect(agentListSource).toContain("registeredAgentCount");
+    expect(agentListSource).toContain("registered");
+    expect(agentListSource).toContain("AgentHealthIcon");
+    expect(agentListSource).toContain("workspace-agent-health-icon");
+    expect(agentListSource).toContain("workspace-agent-registry-chip");
+    expect(agentListSource).toContain("registryConnected");
+    expect(agentListSource).toContain("registry disconnected");
+    expect(agentListSource).toContain('registryConnected ? "workspace-chip-live" : "workspace-chip-down"');
+    expect(agentListSource).toContain("registryPollIntervalMs");
+    expect(agentListSource).toContain("refreshAgents");
     expect(agentListSource).toContain("fetch(refreshUrl");
+    expect(agentListSource).not.toContain("Refresh");
+    expect(agentListSource).not.toContain("Refreshing...");
     expect(agentListSource).toContain("setDisplayedAgents");
+    expect(agentListSource).toContain("isHealthy === false");
     expect(agentListSource).toContain("workspace-partner-grid");
-    expect(agentListSource).toContain("workspace-partner-tile");
-    expect(agentListSource).toContain("intendproject.eu/assets/1-sintef-4b735e01.png");
-    expect(agentListSource).toContain("intendproject.eu/assets/13-telenor-860e8851.png");
-    expect(agentListSource).toContain("intendproject.eu/assets/8-ericsson-2ecdf414.png");
-    expect(agentListSource).toContain("intendproject.eu/assets/3-tuw-0f8a1ebe.png");
-    expect(agentListSource).toContain('alt="Sintef"');
-    expect(agentListSource).toContain('alt="Telenor"');
-    expect(agentListSource).toContain('alt="Ericsson"');
-    expect(agentListSource).toContain('alt="TUW"');
-    expect(agentListSource).toContain("agent.isHealthy === false");
-    expect(agentListSource).toContain("workspace-dot-down");
-    expect(agentListSource).toContain("workspace-dot-unknown");
-    expect(domainSelectorSource).toContain("Select domain:");
     expect(domainSelectorSource).toContain("workspace-section-title");
     expect(domainSelectorSource).toContain("workspace-select-compact");
     expect(domainSelectorSource).toContain("workspace-section-compact");
@@ -126,9 +149,30 @@ describe("workspace shell bootstrap", () => {
     expect(kgTargetPanelSource).toContain("selectedDomain");
     expect(kgTargetPanelSource).toContain("window.confirm");
     expect(kgTargetPanelSource).toContain("fetch(`${deleteUrlBase}/");
+    expect(kgTargetPanelSource).toContain('/empty`');
+    expect(kgTargetPanelSource).toContain('method: "POST"');
     expect(kgTargetPanelSource).toContain('method: "DELETE"');
+    expect(kgTargetPanelSource).toContain("Emptying...");
     expect(kgTargetPanelSource).toContain("Deleting...");
+    expect(kgTargetPanelSource).toContain('aria-label={`Empty ${target.displayName}`}');
     expect(kgTargetPanelSource).toContain('aria-label={`Delete ${target.displayName}`}');
+    expect(kgTargetPanelSource).toContain("graphDbConnected");
+    expect(kgTargetPanelSource).toContain('graphDbConnected ? "workspace-chip-live" : "workspace-chip-down"');
+    expect(kgTargetPanelSource).not.toContain("Empty KG removes all triples");
+    expect(kgTargetPanelSource).not.toContain("Delete repo removes the GraphDB repository");
+    expect(prometheusPanelSource).toContain('"use client"');
+    expect(prometheusPanelSource).toContain("graphDbConnected");
+    expect(prometheusPanelSource).toContain("selectedDomain");
+    expect(prometheusPanelSource).toContain("loadIntentDescription");
+    expect(prometheusPanelSource).toContain("intentHoverTitle");
+    expect(prometheusPanelSource).toContain("workspace-intent-id-label");
+    expect(prometheusPanelSource).toContain("/description");
+    expect(prometheusPanelSource).toContain(
+      'prometheusConnected ? "workspace-chip-live" : "workspace-chip-down"',
+    );
+    expect(prometheusPanelSource).toContain("No intent observation metrics found in Prometheus.");
+    expect(prometheusPanelSource).toContain("/empty");
+    expect(prometheusPanelSource).toContain("Emptying...");
     expect(kgTargetPanelSource).not.toContain(
       "Repository and named graph creation will be wired to GraphDB in the next task.",
     );

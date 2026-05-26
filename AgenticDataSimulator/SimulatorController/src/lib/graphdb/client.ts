@@ -1,3 +1,4 @@
+import { buildClearKnowledgeGraphUpdate } from "@/lib/graphdb/clear-knowledge-graph-query";
 import { loadAppEnv } from "@/lib/env";
 import type {
   GraphDbNamedGraphInput,
@@ -212,4 +213,42 @@ export async function runRepositorySparqlSelect(input: {
 
   const payload = (await response.json()) as SparqlJsonResponse;
   return payload.results?.bindings ?? [];
+}
+
+/** Run SPARQL UPDATE (e.g. CLEAR) against a repository. */
+export async function clearKnowledgeGraph(input: {
+  repositoryId: string;
+  graphIri: string;
+  timeoutMs?: number;
+}): Promise<void> {
+  const base = normalizedGraphDbBaseUrl();
+  const url = `${base}repositories/${encodeURIComponent(input.repositoryId)}`;
+  const query = buildClearKnowledgeGraphUpdate(input.graphIri);
+
+  const timeoutMs = input.timeoutMs ?? 60_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/sparql-update",
+      },
+      body: query,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`GraphDB timed out after ${timeoutMs / 1000}s during knowledge graph clear`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    throw new Error(await buildGraphDbErrorMessage(response, "knowledge graph clear"));
+  }
 }

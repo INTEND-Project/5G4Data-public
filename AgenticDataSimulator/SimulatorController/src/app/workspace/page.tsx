@@ -10,7 +10,7 @@ import { buildCompletionContext } from "@/lib/dsl/analysis/build-completion-cont
 import { loadAppEnv } from "@/lib/env";
 import { listNormalizedAgents } from "@/lib/registry/client";
 import { deriveDomains } from "@/lib/registry/normalize";
-import { getRegistryConnectionStatus } from "@/lib/registry/status";
+import { getInfraConnectionStatus } from "@/lib/infra/connection-status";
 import { listScriptsForUser } from "@/lib/scripts/repository";
 
 type WorkspacePageProps = {
@@ -48,7 +48,11 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
     "/api/registry/discover-observation-agent",
   );
   const a2aMessageSendUrl = withAppBasePath("/api/a2a/message-send");
-  const registryConnected = await getRegistryConnectionStatus();
+  const infraStatusApiUrl = withAppBasePath("/api/infra/status");
+  const prometheusIntentsApiUrl = withAppBasePath("/api/prometheus/intents");
+  const prometheusClearUrlBase = withAppBasePath("/api/prometheus/intents");
+  const { registryConnected, graphDbConnected, prometheusConnected } =
+    await getInfraConnectionStatus();
   const scripts = await listScriptsForUser(user.id, selectedDomain);
   const fallbackScript = "";
   const extractedMetricCatalogs = {
@@ -100,6 +104,11 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
       discoverObservationAgentApiUrl={discoverObservationAgentApiUrl}
       a2aMessageSendUrl={a2aMessageSendUrl}
       graphDbBaseUrl={appEnv.graphDbBaseUrl}
+      graphDbConnected={graphDbConnected}
+      infraStatusApiUrl={infraStatusApiUrl}
+      prometheusClearUrlBase={prometheusClearUrlBase}
+      prometheusConnected={prometheusConnected}
+      prometheusIntentsApiUrl={prometheusIntentsApiUrl}
       registryConnected={registryConnected}
       scripts={scripts}
       selectedDomain={selectedDomain}

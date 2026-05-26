@@ -1,4 +1,4 @@
-import type { DslStatement, ObservationStorageType } from "@/lib/dsl/types";
+import type { DslDiagnostic, DslStatement, ObservationStorageType } from "@/lib/dsl/types";
 import { DEFAULT_OBSERVATION_STORAGE, parseObservationStorageType } from "@/lib/observation-storage";
 
 const discoverIntentWorkspacePattern = /^discover intent-agent for domain as ([^\s]+)$/;
@@ -13,11 +13,19 @@ const requestStatusPattern =
 const requestObservationPattern =
   /^request observation-report using ([^\s]+) for ([^\s]+)(?: storage (graphdb|prometheus))? instructions "([\s\S]+)" as ([^\s]+)$/;
 
-export function parseScript(script: string): { statements: DslStatement[] } {
+const invalidSyntaxMessage =
+  "Unrecognized DSL statement. Expected discover, create intent, extract metric-catalog, request status-report, or request observation-report.";
+
+export function parseScript(script: string): {
+  statements: DslStatement[];
+  diagnostics: DslDiagnostic[];
+} {
   const statements: DslStatement[] = [];
+  const diagnostics: DslDiagnostic[] = [];
 
   for (const [index, rawLine] of script.split("\n").entries()) {
     const line = rawLine.trim();
+    const lineNumber = index + 1;
 
     if (line.length === 0 || line.startsWith("#")) {
       continue;
@@ -28,7 +36,7 @@ export function parseScript(script: string): { statements: DslStatement[] } {
     if (discoverIntentWorkspaceMatch) {
       statements.push({
         kind: "discover-intent-workspace-domain",
-        line: index + 1,
+        line: lineNumber,
         alias: discoverIntentWorkspaceMatch[1],
       });
       continue;
@@ -39,7 +47,7 @@ export function parseScript(script: string): { statements: DslStatement[] } {
     if (discoverMatch) {
       statements.push({
         kind: "discover",
-        line: index + 1,
+        line: lineNumber,
         agentKind: discoverMatch[1] as DslStatement["kind"] extends never
           ? never
           : "intent-agent" | "status-agent" | "observation-agent",
@@ -57,7 +65,7 @@ export function parseScript(script: string): { statements: DslStatement[] } {
         parseObservationStorageType(storageRaw) ?? DEFAULT_OBSERVATION_STORAGE;
       statements.push({
         kind: "create-intent",
-        line: index + 1,
+        line: lineNumber,
         agentAlias: createIntentMatch[1],
         storage,
         prompt: createIntentMatch[3],
@@ -71,7 +79,7 @@ export function parseScript(script: string): { statements: DslStatement[] } {
     if (extractMetricCatalogMatch) {
       statements.push({
         kind: "extract-metric-catalog",
-        line: index + 1,
+        line: lineNumber,
         intentAlias: extractMetricCatalogMatch[1],
         metricCatalogAlias: extractMetricCatalogMatch[2],
       });
@@ -83,7 +91,7 @@ export function parseScript(script: string): { statements: DslStatement[] } {
     if (requestStatusMatch) {
       statements.push({
         kind: "request-status-report",
-        line: index + 1,
+        line: lineNumber,
         agentAlias: requestStatusMatch[1],
         intentAlias: requestStatusMatch[2],
         instructions: requestStatusMatch[3],
@@ -98,15 +106,23 @@ export function parseScript(script: string): { statements: DslStatement[] } {
       const storageOverride = parseObservationStorageType(requestObservationMatch[3]);
       statements.push({
         kind: "request-observation-report",
-        line: index + 1,
+        line: lineNumber,
         agentAlias: requestObservationMatch[1],
         intentAlias: requestObservationMatch[2],
         storage: storageOverride,
         instructions: requestObservationMatch[4],
         sessionAlias: requestObservationMatch[5],
       });
+      continue;
     }
+
+    diagnostics.push({
+      line: lineNumber,
+      severity: "error",
+      code: "INVALID_SYNTAX",
+      message: invalidSyntaxMessage,
+    });
   }
 
-  return { statements };
+  return { statements, diagnostics };
 }

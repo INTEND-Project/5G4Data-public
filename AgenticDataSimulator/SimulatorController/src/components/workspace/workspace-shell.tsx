@@ -1,15 +1,19 @@
+"use client";
+
 import Image from "next/image";
 
 import { AgentList } from "@/components/workspace/agent-list";
 import { AssistantPanel } from "@/components/workspace/assistant-panel";
 import { DomainSelector } from "@/components/workspace/domain-selector";
 import { KgTargetPanel } from "@/components/workspace/kg-target-panel";
+import { PrometheusPanel } from "@/components/workspace/prometheus-panel";
 import { ScriptList } from "@/components/workspace/script-list";
 import { WorkspaceLeftSidebarResizable } from "@/components/workspace/workspace-left-sidebar-resizable";
 import { WorkspaceRightSidebarResizable } from "@/components/workspace/workspace-right-sidebar-resizable";
 import { WorkspaceRunIdChip } from "@/components/workspace/workspace-run-id-chip";
 import { WorkspaceScriptRunner } from "@/components/workspace/workspace-script-runner";
 import { WorkspaceScriptSessionProvider } from "@/components/workspace/workspace-script-session-context";
+import { useInfraConnectionStatus } from "@/components/workspace/use-infra-connection-status";
 import { withAppBasePath } from "@/lib/app-paths";
 
 type WorkspaceShellProps = {
@@ -29,6 +33,11 @@ type WorkspaceShellProps = {
   a2aMessageSendUrl: string;
   graphDbBaseUrl: string;
   registryConnected: boolean;
+  graphDbConnected: boolean;
+  prometheusConnected: boolean;
+  prometheusIntentsApiUrl: string;
+  prometheusClearUrlBase: string;
+  infraStatusApiUrl: string;
   kgTargets: Array<{
     id: string;
     displayName: string;
@@ -63,6 +72,11 @@ export function WorkspaceShell({
   a2aMessageSendUrl,
   graphDbBaseUrl,
   registryConnected,
+  graphDbConnected,
+  prometheusConnected,
+  prometheusIntentsApiUrl,
+  prometheusClearUrlBase,
+  infraStatusApiUrl,
   kgTargets,
   assistantContext,
   scripts,
@@ -83,6 +97,11 @@ export function WorkspaceShell({
     repositoryId: target.repositoryId,
     graphIri: target.graphIri,
   }));
+
+  const infraStatus = useInfraConnectionStatus(
+    { registryConnected, graphDbConnected, prometheusConnected },
+    infraStatusApiUrl,
+  );
 
   return (
     <main className="workspace-shell">
@@ -106,13 +125,6 @@ export function WorkspaceShell({
             </div>
           </div>
           <div className="workspace-top-actions">
-            <span
-              className={`workspace-chip workspace-topbar-chip ${
-                registryConnected ? "workspace-chip-live" : "workspace-chip-down"
-              }`}
-            >
-              {registryConnected ? "agent registry connected" : "agent registry disconnected"}
-            </span>
             <WorkspaceRunIdChip />
             <button className="workspace-button workspace-top-action-button" type="button">
               About/Help
@@ -141,7 +153,11 @@ export function WorkspaceShell({
                 <DomainSelector domains={domainOptions} selectedDomain={selectedDomain} />
                 <ScriptList scriptsApiUrl={scriptsApiUrl} />
               </div>
-              <AgentList agents={agents} refreshUrl={agentsRefreshUrl} />
+              <AgentList
+                agents={agents}
+                refreshUrl={agentsRefreshUrl}
+                registryConnected={infraStatus.registryConnected}
+              />
             </aside>
           </WorkspaceLeftSidebarResizable>
 
@@ -169,8 +185,16 @@ export function WorkspaceShell({
             <KgTargetPanel
               createUrl={kgTargetsCreateUrl}
               deleteUrlBase={kgTargetsDeleteUrlBase}
+              graphDbConnected={infraStatus.graphDbConnected}
               selectedDomain={selectedDomain}
               targets={kgTargets}
+            />
+            <PrometheusPanel
+              clearUrlBase={prometheusClearUrlBase}
+              graphDbConnected={infraStatus.graphDbConnected}
+              intentsApiUrl={prometheusIntentsApiUrl}
+              prometheusConnected={infraStatus.prometheusConnected}
+              selectedDomain={selectedDomain}
             />
             <AssistantPanel assistantContext={assistantContext} />
           </WorkspaceRightSidebarResizable>

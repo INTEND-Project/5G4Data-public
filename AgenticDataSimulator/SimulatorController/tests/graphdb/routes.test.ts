@@ -18,6 +18,7 @@ const graphDbClientMock = {
   createRepository: vi.fn(),
   createNamedGraph: vi.fn(),
   deleteRepository: vi.fn(),
+  clearKnowledgeGraph: vi.fn(),
   ingestIntentTurtle: vi.fn(),
 };
 
@@ -202,6 +203,68 @@ describe("kg target routes", () => {
     ).rejects.toThrow("GraphDB repository deletion failed with 500");
 
     expect(dbMock.knowledgeGraphTarget.delete).not.toHaveBeenCalled();
+  });
+
+  it("empties triples in GraphDB without removing the local KG target", async () => {
+    dbMock.knowledgeGraphTarget.findFirst.mockResolvedValue({
+      id: "kg-target-1",
+      userId: "user-1",
+      domain: "telenor.5g4data",
+      repositoryId: "telenor-5g4data-kg-avalanche-demo",
+      graphIri: "urn:intend:kg:telenor-5g4data:kg-avalanche-demo",
+      displayName: "KG Avalanche Demo",
+    });
+    graphDbClientMock.clearKnowledgeGraph.mockResolvedValue(undefined);
+
+    const routeModule = await import("../../src/app/api/kg-targets/[id]/empty/route");
+    const response = await routeModule.POST(
+      new Request("http://localhost/api/kg-targets/kg-target-1/empty", {
+        method: "POST",
+      }),
+      {
+        params: Promise.resolve({
+          id: "kg-target-1",
+        }),
+      },
+    );
+
+    expect(graphDbClientMock.clearKnowledgeGraph).toHaveBeenCalledWith({
+      repositoryId: "telenor-5g4data-kg-avalanche-demo",
+      graphIri: "urn:intend:kg:telenor-5g4data:kg-avalanche-demo",
+    });
+    expect(dbMock.knowledgeGraphTarget.delete).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      emptiedTargetId: "kg-target-1",
+    });
+  });
+
+  it("returns 502 when clearKnowledgeGraph throws", async () => {
+    dbMock.knowledgeGraphTarget.findFirst.mockResolvedValue({
+      id: "kg-target-1",
+      repositoryId: "telenor-5g4data-kg-avalanche-demo",
+      graphIri: "urn:intend:kg:telenor-5g4data:kg-avalanche-demo",
+    });
+    graphDbClientMock.clearKnowledgeGraph.mockRejectedValue(
+      new Error("GraphDB knowledge graph clear failed with 500"),
+    );
+
+    const routeModule = await import("../../src/app/api/kg-targets/[id]/empty/route");
+    const response = await routeModule.POST(
+      new Request("http://localhost/api/kg-targets/kg-target-1/empty", {
+        method: "POST",
+      }),
+      {
+        params: Promise.resolve({
+          id: "kg-target-1",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "GraphDB knowledge graph clear failed with 500",
+    });
   });
 
   it("ingests Turtle into GraphDB using the persisted repository id and named graph iri", async () => {

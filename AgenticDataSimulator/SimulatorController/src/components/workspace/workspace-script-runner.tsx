@@ -47,6 +47,15 @@ const DEFAULT_EDITOR_HEIGHT = 360;
 const MIN_EDITOR_HEIGHT = 140;
 const MAX_EDITOR_HEIGHT = 960;
 
+type RunMode = "dry-run" | "execute";
+
+const RUN_MODE_TOOLTIPS: Record<RunMode, string> = {
+  "dry-run":
+    "Validate script syntax and DSL rules without calling agents or modifying the knowledge graph.",
+  execute:
+    "Run the script end-to-end: discover agents, create intents, extract metric catalogs, and request reports.",
+};
+
 function readStoredEditorHeight(): number {
   if (typeof window === "undefined") {
     return DEFAULT_EDITOR_HEIGHT;
@@ -411,6 +420,7 @@ export function WorkspaceScriptRunner({
   /** Maps DSL intent alias → observation storage from `create intent … storage`. */
   const intentStorageByAliasRef = useRef(new Map<string, ObservationStorageType>());
   const [runBusy, setRunBusy] = useState(false);
+  const [runMode, setRunMode] = useState<RunMode>("execute");
   const [intentSession, setIntentSession] = useState<{
     wellKnownURI: string;
     prompt: string;
@@ -455,7 +465,8 @@ export function WorkspaceScriptRunner({
     beginScriptRun(activeScriptName);
     openRunLogDialog();
     try {
-      appendRunnerLog("Run Script: analysing DSL…");
+      const modeLabel = runMode === "dry-run" ? "Dry-run" : "Run Script";
+      appendRunnerLog(`${modeLabel}: analysing DSL…`);
 
       const { statements, diagnostics } = analyzeScript(activeContent);
 
@@ -467,8 +478,29 @@ export function WorkspaceScriptRunner({
         );
       }
 
+      for (const diagnostic of diagnostics.filter(
+        (diag) => diag.severity === "warning",
+      )) {
+        appendRunnerLog(
+          `[line ${diagnostic.line}, ${diagnostic.code}] ${diagnostic.message}`,
+        );
+      }
+
       if (diagnostics.some((diag) => diag.severity === "error")) {
-        appendRunnerLog("Stopping: resolve validation errors first.");
+        appendRunnerLog(
+          runMode === "dry-run"
+            ? "Dry-run: resolve validation errors first."
+            : "Stopping: resolve validation errors first.",
+        );
+        return;
+      }
+
+      if (runMode === "dry-run") {
+        const kindSummary =
+          statements.map((statement) => statement.kind).join(", ") || "(none)";
+        appendRunnerLog(
+          `Dry-run: script is valid (${statements.length} statement${statements.length === 1 ? "" : "s"}): ${kindSummary}.`,
+        );
         return;
       }
 
@@ -845,6 +877,7 @@ export function WorkspaceScriptRunner({
     graphDbBaseUrl,
     resolveSelectedGraphTargetBinding,
     setScriptExtractedMetricNames,
+    runMode,
   ]);
 
   const handleIntentDialogFinish = useCallback(() => {
@@ -935,11 +968,27 @@ export function WorkspaceScriptRunner({
       <div className="workspace-runner">
         <div className="workspace-runner-field">
           <label className="workspace-label">Run mode</label>
-          <div className="workspace-runner-modes">
-            <span className="workspace-runner-mode workspace-runner-mode-active">
+          <div aria-label="Run mode" className="workspace-runner-modes" role="group">
+            <button
+              aria-pressed={runMode === "dry-run"}
+              className={`workspace-runner-mode${runMode === "dry-run" ? " workspace-runner-mode-active" : ""}`}
+              disabled={runBusy}
+              onClick={() => setRunMode("dry-run")}
+              title={RUN_MODE_TOOLTIPS["dry-run"]}
+              type="button"
+            >
               dry-run
-            </span>
-            <span className="workspace-runner-mode">execute</span>
+            </button>
+            <button
+              aria-pressed={runMode === "execute"}
+              className={`workspace-runner-mode${runMode === "execute" ? " workspace-runner-mode-active" : ""}`}
+              disabled={runBusy}
+              onClick={() => setRunMode("execute")}
+              title={RUN_MODE_TOOLTIPS.execute}
+              type="button"
+            >
+              execute
+            </button>
           </div>
         </div>
         <div className="workspace-runner-field">

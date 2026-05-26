@@ -3,10 +3,10 @@ import { validateScript } from "@/lib/dsl/validator/validate-script";
 
 export function analyzeScript(script: string) {
   const parsed = parseScript(script);
-  const diagnostics = validateScript(parsed.statements);
+  const validationDiagnostics = validateScript(parsed.statements);
 
   return {
     statements: parsed.statements,
-    diagnostics,
+    diagnostics: [...parsed.diagnostics, ...validationDiagnostics],
   };
 }

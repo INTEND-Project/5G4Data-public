@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { localHourFromSim, parseUtcOffsetMinutes } from "../tools/syntheticPrng.js";
-import { probeSnippetValues, validateSnippetSamples } from "../tools/syntheticSnippetProbe.js";
+import {
+  inferSamplingKind,
+  looksLikeCumulativeCounter,
+  looksLikeGaugeMetric,
+  looksLikeStressDipPattern,
+  probeSequentialSnippetValues,
+  probeSnippetValues,
+  resolveCodegenModuleNames,
+  snippetLooksLikeAccumulationLoop,
+  validateSnippetSamples
+} from "../tools/syntheticSnippetProbe.js";
 
 test("parseUtcOffsetMinutes accepts UTC+2 and +02:00", () => {
   assert.equal(parseUtcOffsetMinutes("UTC+2"), 120);
@@ -64,4 +74,201 @@ test("validateSnippetSamples rejects constant output when range requested", () =
     instructionsSlice: "use value span 500-2000"
   });
   assert.equal(result.ok, false);
+});
+
+test("looksLikeCumulativeCounter uses instructions only, not metric names", () => {
+  assert.equal(looksLikeCumulativeCounter(undefined), false);
+  assert.equal(looksLikeCumulativeCounter(""), false);
+  assert.equal(looksLikeCumulativeCounter("baseline 50-80"), false);
+  assert.equal(looksLikeCumulativeCounter("monotonically increasing cumulative counter"), true);
+  assert.equal(looksLikeCumulativeCounter("accumulated running total start at 100"), true);
+  assert.equal(looksLikeCumulativeCounter("start at 100, then increase each step"), true);
+  assert.equal(looksLikeCumulativeCounter("each tick add 360 joules"), true);
+});
+
+const INCIDENT_INSTRUCTIONS =
+  "default range is between 700-1500, between 06:00 and 18:00 keep values in the 500-1000 range with daily variation and low noise. " +
+  "During stress periodes between 08:00-09:00 and 16:00-17:00 create dips down to between 200-300 for periods lasting between 3-10 minutes, at least two dips per stress periode";
+
+const INCIDENT_ACCUMULATION_SNIPPET = `
+let value = 0;
+const stressPeriods = [[8, 9], [16, 17]];
+for (let i = 0; i <= ctx.tickIndex; i++) {
+    const currentHour = (ctx.localHour + Math.floor(i * ctx.frequencySeconds / 3600)) % 24;
+    let increment;
+    if (currentHour >= 6 && currentHour < 18) {
+        increment = 500 + ctx.uniformForStep(i) * 500;
+    } else {
+        increment = 700 + ctx.uniformForStep(i) * 800;
+    }
+    for (const period of stressPeriods) {
+        if (currentHour >= period[0] && currentHour < period[1] && ctx.uniformForStep(i) < 0.5) {
+            increment = 200 + ctx.uniformForStep(i) * 100;
+            break;
+        }
+    }
+    value += increment;
+}
+return value;
+`.trim();
+
+test("classifiers detect gauge and stress patterns from incident instructions", () => {
+  assert.equal(looksLikeGaugeMetric(INCIDENT_INSTRUCTIONS, "p99-token-target_COabc"), true);
+  assert.equal(looksLikeStressDipPattern(INCIDENT_INSTRUCTIONS), true);
+  assert.equal(looksLikeCumulativeCounter(INCIDENT_INSTRUCTIONS), false);
+  assert.equal(inferSamplingKind(INCIDENT_INSTRUCTIONS, "p99-token-target_COabc"), "gauge");
+  assert.deepEqual(resolveCodegenModuleNames(INCIDENT_INSTRUCTIONS, "p99-token-target_COabc"), [
+    "gauge_codegen",
+    "stress_dip_codegen"
+  ]);
+});
+
+test("snippetLooksLikeAccumulationLoop detects incident snippet", () => {
+  assert.equal(snippetLooksLikeAccumulationLoop(INCIDENT_ACCUMULATION_SNIPPET), true);
+  assert.equal(snippetLooksLikeAccumulationLoop("return 500 + ctx.uniform01() * 500;"), false);
+});
+
+test("validateSnippetSamples rejects incident accumulation snippet", () => {
+  const result = validateSnippetSamples({
+    snippet: INCIDENT_ACCUMULATION_SNIPPET,
+    intentId: "I321e154d744b4210bab04db2b56a35ae",
+    compoundMetric: "p99-token-target_COf12213b4cd81427a897fa77bfa7b9d59",
+    mode: "historic",
+    frequencySeconds: 60,
+    historicStartIso: "2026-05-21T05:00:00.000Z",
+    historicEndIso: "2026-05-22T05:00:00.000Z",
+    instructionsSlice: INCIDENT_INSTRUCTIONS
+  });
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.reason, /ctx\.tickIndex|running total|accumulate|per-tick gauge/iu);
+});
+
+test("validateSnippetSamples accepts minimal gauge snippet for incident instructions", () => {
+  const snippet = `
+const hour = ctx.localHour;
+let value = 700 + ctx.uniform01() * 800;
+if (hour >= 6 && hour < 18) {
+  value = 500 + ctx.uniform01() * 500;
+}
+return value;
+`.trim();
+  const result = validateSnippetSamples({
+    snippet,
+    intentId: "I321e154d744b4210bab04db2b56a35ae",
+    compoundMetric: "p99-token-target_COf12213b4cd81427a897fa77bfa7b9d59",
+    mode: "historic",
+    frequencySeconds: 60,
+    historicStartIso: "2026-05-21T05:00:00.000Z",
+    historicEndIso: "2026-05-22T05:00:00.000Z",
+    instructionsSlice: INCIDENT_INSTRUCTIONS
+  });
+  assert.equal(result.ok, true);
+});
+
+test("validateSnippetSamples rejects per-tick gauge when start-at-then-increase phrasing used", () => {
+  const snippet = "return 100 + 360 * (0.9 + 0.2 * ctx.uniform01());";
+  const result = validateSnippetSamples({
+    snippet,
+    intentId: "I1",
+    compoundMetric: "some_metric_COabc",
+    mode: "historic",
+    frequencySeconds: 360,
+    historicStartIso: "2026-05-21T05:00:00.000Z",
+    historicEndIso: "2026-05-22T05:00:00.000Z",
+    instructionsSlice: "start at 100, then increase each step"
+  });
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.reason, /decreases between tick/u);
+});
+
+test("validateSnippetSamples rejects per-tick gauge when instructions request cumulative", () => {
+  const snippet = "return 100 + 360 * (0.9 + 0.2 * ctx.uniform01());";
+  const result = validateSnippetSamples({
+    snippet,
+    intentId: "I1",
+    compoundMetric: "container_cpu_joules_total_COabc",
+    mode: "historic",
+    frequencySeconds: 360,
+    historicStartIso: "2026-05-21T05:00:00.000Z",
+    historicEndIso: "2026-05-22T05:00:00.000Z",
+    instructionsSlice: "cumulative counter start at 100"
+  });
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.reason, /decreases between tick/u);
+});
+
+test("validateSnippetSamples skips monotonic check without cumulative instructions", () => {
+  const snippet = "return 100 + 360 * (0.9 + 0.2 * ctx.uniform01());";
+  const result = validateSnippetSamples({
+    snippet,
+    intentId: "I1",
+    compoundMetric: "some_metric_COabc",
+    mode: "historic",
+    frequencySeconds: 360,
+    historicStartIso: "2026-05-21T05:00:00.000Z",
+    historicEndIso: "2026-05-22T05:00:00.000Z",
+    instructionsSlice: "telemetry with random noise each tick"
+  });
+  assert.equal(result.ok, true);
+});
+
+test("validateSnippetSamples accepts running-total loop when instructions request cumulative", () => {
+  const snippet = `
+let total = 100;
+for (let i = 1; i <= ctx.tickIndex; i++) {
+  total += 360 * (0.9 + 0.2 * ctx.uniformForStep(i));
+}
+return total;
+`.trim();
+  const result = validateSnippetSamples({
+    snippet,
+    intentId: "I1",
+    compoundMetric: "container_cpu_joules_total_COabc",
+    mode: "historic",
+    frequencySeconds: 360,
+    historicStartIso: "2026-05-21T05:00:00.000Z",
+    historicEndIso: "2026-05-22T05:00:00.000Z",
+    instructionsSlice: "monotonically increasing cumulative counter"
+  });
+  assert.equal(result.ok, true);
+});
+
+test("validateSnippetSamples rejects tickIndex-times-increment pattern over full historic window", () => {
+  const snippet = "return 100 + ctx.tickIndex * 360 * (0.9 + 0.2 * ctx.uniform01());";
+  const result = validateSnippetSamples({
+    snippet,
+    intentId: "Ia2394317018641f699207402725dfc6a",
+    compoundMetric: "some_metric_COabc",
+    mode: "historic",
+    frequencySeconds: 360,
+    historicStartIso: "2026-05-21T05:00:00.000Z",
+    historicEndIso: "2026-05-22T05:00:00.000Z",
+    instructionsSlice:
+      "Monotonically increasing cumulative counter. Start at 100. running total from tick 0 through ctx.tickIndex."
+  });
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.reason, /decreases between tick/u);
+});
+
+test("probeSequentialSnippetValues walks ticks 0..n-1", () => {
+  const snippet = "return 100 + ctx.tickIndex * 10;";
+  const probe = probeSequentialSnippetValues(
+    {
+      snippet,
+      intentId: "I1",
+      compoundMetric: "container_cpu_joules_total_COabc",
+      mode: "historic",
+      frequencySeconds: 360,
+      historicStartIso: "2026-05-21T05:00:00.000Z",
+      historicEndIso: "2026-05-22T05:00:00.000Z"
+    },
+    5
+  );
+  assert.equal(probe.ok, true);
+  if (!probe.ok) return;
+  assert.deepEqual(probe.values, [100, 110, 120, 130, 140]);
 });

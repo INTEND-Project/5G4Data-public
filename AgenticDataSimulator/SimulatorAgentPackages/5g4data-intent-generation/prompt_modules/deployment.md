@@ -4,6 +4,8 @@ Deployment policy:
 - Preserve objective threshold values through repair iterations unless user overrides.
 - When presenting pre-confirmation summary, copy objective names and threshold values exactly from retrieved `values.yaml` objective entries.
 - Prefer `tmf-value-hint` when available; otherwise use `value`, and state the source explicitly.
+- Prefer `tmf-quantifier-hint` when available for the condition operator (`quan:larger`, `quan:smaller`); network-only metrics keep their defaults (latency `quan:smaller`, bandwidth `quan:larger`).
+- Prefer `tmf-unit-hint` when available for `quan:unit` on the condition constraint; emit `quan:<op> [ quan:unit "<unit>" ; rdf:value <threshold> ]` matching catalogue hints unless the user overrides.
 - For deployment reporting, use `icm:ObservationReportingExpectation` (not `icm:ReportingExpectation`).
 - Add deployment-specific reporting trigger resources: `data5g:tenMinutesDeployment` and `data5g:TenMinuteReportEventDeployment`.
 - Ensure deployment event uses `imo:eventFor` pointing to the deployment expectation and reporting uses `icm:reportTriggers` / `icm:reportDestinations` per the reporting-storage policy.

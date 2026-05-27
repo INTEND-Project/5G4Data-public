@@ -53,10 +53,21 @@ export interface SnippetCtx {
   frequencySeconds: number;
   unitHint: string;
   uniform01: () => number;
+  /** Deterministic uniform (0,1] for accumulation loop step `stepIndex` (stable across tickIndex). */
+  uniformForStep: (stepIndex: number) => number;
   /** Offset minutes east of UTC from optional `timezone` global (e.g. `UTC+2`). */
   utcOffsetMinutes: number;
   /** Hour-of-day (0–23) after applying `utcOffsetMinutes` to `simTime`. */
   localHour: number;
+}
+
+export function uniformForStepRng(
+  intentId: string,
+  compoundMetric: string,
+  mode: "streaming" | "historic",
+  stepIndex: number
+): number {
+  return mulberry32(hashSeed(`${intentId}|${compoundMetric}|${mode}|step|${stepIndex}`))();
 }
 
 function buildSnippetCtx(
@@ -74,6 +85,8 @@ function buildSnippetCtx(
     intentId: cfg.intentId,
     frequencySeconds: cfg.frequencySeconds,
     uniform01,
+    uniformForStep: (stepIndex: number) =>
+      uniformForStepRng(cfg.intentId, cfg.compoundMetric, cfg.mode, stepIndex),
     unitHint: cfg.unit,
     utcOffsetMinutes,
     localHour: localHourFromSim(simTime, utcOffsetMinutes)

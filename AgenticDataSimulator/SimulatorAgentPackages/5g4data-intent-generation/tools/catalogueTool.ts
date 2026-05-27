@@ -1,5 +1,6 @@
 import { parse as parseYaml } from "yaml";
 import { catalogueChartSchema } from "../models.js";
+import { formatMetricSummaryLine } from "./objectiveSummaryFormat.js";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -72,6 +73,8 @@ function objectivesFromValuesPayload(values: unknown): Objective[] {
 function sustainabilityFromValuesPayload(values: unknown): Objective[] {
   return extractMetricsFromValuesPayload(values, "sustainability");
 }
+
+export { formatMetricSummaryLine } from "./objectiveSummaryFormat.js";
 
 export class WorkloadCatalogueTool {
   constructor(private readonly baseUrl: string) {}
@@ -158,29 +161,13 @@ export class WorkloadCatalogueTool {
       if (objectives.length > 0) {
         lines.push("Deployment objective defaults from values.yaml objectives:");
         for (const objective of objectives) {
-          const name = String(objective.name ?? "<unnamed>").trim();
-          const hint = objective["tmf-value-hint"];
-          const measuredBy = String(objective.measuredBy ?? "").trim();
-          const threshold =
-            hint !== undefined && String(hint).trim() !== ""
-              ? String(hint).trim()
-              : String(objective.value ?? "unspecified");
-          const source = hint !== undefined && String(hint).trim() !== "" ? "tmf-value-hint" : "value";
-          lines.push(`- ${name}: threshold=${threshold} (source=${source}${measuredBy ? `, measuredBy=${measuredBy}` : ""})`);
+          lines.push(formatMetricSummaryLine(objective));
         }
       }
       if (sustainability.length > 0) {
         lines.push("Sustainability objective defaults from values.yaml sustainability:");
         for (const metric of sustainability) {
-          const name = String(metric.name ?? "<unnamed>").trim();
-          const hint = metric["tmf-value-hint"];
-          const measuredBy = String(metric.measuredBy ?? "").trim();
-          const threshold =
-            hint !== undefined && String(hint).trim() !== ""
-              ? String(hint).trim()
-              : String(metric.value ?? "unspecified");
-          const source = hint !== undefined && String(hint).trim() !== "" ? "tmf-value-hint" : "value";
-          lines.push(`- ${name}: threshold=${threshold} (source=${source}${measuredBy ? `, measuredBy=${measuredBy}` : ""})`);
+          lines.push(formatMetricSummaryLine(metric));
         }
       }
       return lines.join("\n");

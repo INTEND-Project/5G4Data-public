@@ -53,6 +53,41 @@ const RDF_FIRST = DataFactory.namedNode(`${RDF_NS}first`);
 const RDF_REST = DataFactory.namedNode(`${RDF_NS}rest`);
 const RDF_NIL = DataFactory.namedNode(`${RDF_NS}nil`);
 
+const DEFAULT_BASELINE_SPAN = { minValue: 10, maxValue: 100 };
+
+export interface ConditionConstraint {
+  threshold?: number;
+  quantifier?: string;
+}
+
+/** Derive baseline observation span from intent condition threshold and quantifier. */
+export function baselineSpanFromCondition(
+  threshold: number | undefined,
+  quantifier: string | undefined
+): { minValue: number; maxValue: number } {
+  if (threshold === undefined || !Number.isFinite(threshold) || threshold <= 0) {
+    return { ...DEFAULT_BASELINE_SPAN };
+  }
+  const q = (quantifier ?? "").toLowerCase();
+  if (q.includes("larger")) {
+    return {
+      minValue: roundSpan(threshold * 0.85),
+      maxValue: roundSpan(threshold * 1.15)
+    };
+  }
+  if (q.includes("smaller")) {
+    return {
+      minValue: roundSpan(threshold * 0.5),
+      maxValue: roundSpan(threshold * 0.95)
+    };
+  }
+  return { ...DEFAULT_BASELINE_SPAN };
+}
+
+function roundSpan(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 export class ObservationTool {
   private parseStore(intentTurtle: string): Store {
     return new Store(new Parser().parse(intentTurtle));
@@ -123,6 +158,36 @@ export class ObservationTool {
       if (unit) return unit;
     }
     return "NA";
+  }
+
+  private parseConditionConstraint(store: Store, ...nodes: Term[]): ConditionConstraint {
+    for (const node of nodes) {
+      for (const q of store.getQuads(node, null, null, null)) {
+        const predLocal = this.termLocal(q.predicate);
+        if (predLocal !== "larger" && predLocal !== "smaller") continue;
+        const valueRaw = this.objectLocalsByPredicateLocal(store, q.object, "value")[0];
+        const threshold = Number(valueRaw);
+        return {
+          quantifier: `quan:${predLocal}`,
+          threshold: Number.isFinite(threshold) ? threshold : undefined
+        };
+      }
+    }
+    return {};
+  }
+
+  parseConditionConstraintsById(intentTurtle: string): Map<string, ConditionConstraint> {
+    const store = this.parseStore(intentTurtle);
+    const out = new Map<string, ConditionConstraint>();
+    for (const condition of this.subjectsWithTypeLocal(store, "Condition")) {
+      const conditionId = this.termLocal(condition);
+      const forAllNodes = store
+        .getQuads(condition, null, null, null)
+        .filter((q) => this.termLocal(q.predicate) === "forAll")
+        .map((q) => q.object);
+      out.set(conditionId, this.parseConditionConstraint(store, condition, ...forAllNodes));
+    }
+    return out;
   }
 
   private collectConditionMetricsFromNode(
@@ -338,6 +403,7 @@ export class ObservationTool {
 
   parseReportableObservationStreams(intentTurtle: string): ReportableObservationStream[] {
     const seededMetrics = this.parseReportableConditionMetrics(intentTurtle);
+    const constraintByCondition = this.parseConditionConstraintsById(intentTurtle);
     const { expectationTargets, expectationConditions, reportTargets } =
       this.extractExpectationGraph(intentTurtle);
 
@@ -381,6 +447,8 @@ export class ObservationTool {
     return seededMetrics.map((metric) => {
       const target = conditionToTarget.get(metric.conditionId) ?? "unknown-target";
       const rep = targetToReporting.get(target);
+      const constraint = constraintByCondition.get(metric.conditionId);
+      const span = baselineSpanFromCondition(constraint?.threshold, constraint?.quantifier);
       return {
         reportingExpectationId: rep?.id ?? `RE_fallback_${target}`,
         targetLocalName: target,
@@ -389,8 +457,8 @@ export class ObservationTool {
         compoundMetric: metric.compoundMetric,
         unit: metric.unit || "NA",
         frequencySeconds: rep?.frequencySeconds ?? 600,
-        minValue: 10,
-        maxValue: 100,
+        minValue: span.minValue,
+        maxValue: span.maxValue,
         storageTypes: destinationsByTarget.get(target) ?? [DEFAULT_OBSERVATION_STORAGE]
       };
     });

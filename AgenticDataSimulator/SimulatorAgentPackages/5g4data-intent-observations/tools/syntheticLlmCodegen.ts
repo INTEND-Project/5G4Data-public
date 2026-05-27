@@ -1,4 +1,28 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { SyntheticMode } from "./syntheticPrompt.js";
+import {
+  inferSamplingKind,
+  resolveCodegenModuleNames,
+  type SamplingKind,
+  validateSnippetSamples
+} from "./syntheticSnippetProbe.js";
+import { validateGeneratedSnippet } from "./syntheticSnippetValidate.js";
+
+const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const promptModulesDir = join(packageRoot, "prompt_modules");
+
+const moduleCache = new Map<string, string>();
+
+function loadPromptModule(stem: string): string {
+  let cached = moduleCache.get(stem);
+  if (cached === undefined) {
+    cached = readFileSync(join(promptModulesDir, `${stem}.md`), "utf8").trim();
+    moduleCache.set(stem, cached);
+  }
+  return cached;
+}
 
 function envStr(k: string, fallback: string): string {
   const v = process.env[k]?.trim();
@@ -24,16 +48,44 @@ export interface SyntheticCodegenContextSlice {
     endIso: string;
   };
   timezoneHint?: string;
+  samplingKind?: SamplingKind;
+  appendedModules?: string[];
+  /** Intent-derived baseline span when instructions omit an explicit numeric range. */
+  baselineMin?: number;
+  baselineMax?: number;
 }
 
-const SYSTEM_PROMPT = `You are a codegen assistant for deterministic synthetic telemetry.
+/** True when user instructions already specify a numeric value span. */
+export function instructionsIncludeExplicitNumericRange(text?: string): boolean {
+  if (!text?.trim()) return false;
+  return (
+    /\b\d+(?:\.\d+)?\s*(?:-|to)\s*\d+(?:\.\d+)?\b/u.test(text) ||
+    /\bbetween\s+\d+(?:\.\d+)?/iu.test(text) ||
+    /\brange\s+(?:is\s+)?(?:between\s+)?\d+/iu.test(text)
+  );
+}
+
+const CODEGEN_CORE_PROMPT = `You are a codegen assistant for deterministic synthetic telemetry.
 Output strict JSON ONLY on a single line: {"snippet":"..."}.
 The snippet must be a JavaScript FUNCTION BODY (not a whole function declaration) assigned nothing.
 Given a synthetic context variable \`ctx\`, it must EXECUTE imperative statements and MUST end with returning a NUMBER (IEEE double) — the sampled observation magnitude.
 
 ALLOWED identifiers: Math, Number, Date, ctx (the only injected variable).
 
-ctx fields:
+RULES:
+- Respect requested ranges and clock windows from the context JSON as closely as reproducible deterministic code permits.
+- When instructions omit an explicit numeric range and context includes baselineMin/baselineMax, sample within that baseline span.
+- When instructions mention daytime, business hours, morning/evening, or clock times without explicit UTC, use ctx.localHour (not ctx.simTime.getUTCHours()) unless timezoneHint is absent and UTC is clearly intended.
+- Do NOT return literal 0 for off-hours/night unless instructions explicitly request zero or unavailable service. When a numeric range is given (e.g. 500-2000), use the low end or a reduced baseline off-hours instead of zero.
+- In historic mode, each tick's ctx.simTime advances through historicBounds; return one sample for the current tick.
+- Default sampling kind is per-tick gauge unless a cumulative_codegen module is appended.
+- Appended ### … codegen sections are authoritative for sampling semantics. When gauge_codegen is present, do NOT use cumulative loops over ctx.tickIndex even if tickIndex is large or mode is historic.
+- No async, no awaits, no external libraries, no filesystem or network references.
+- No comments outside // single-line sparingly OK.
+- Produce stable behavior for the same inputs (prefer ctx.uniform01 branching).`;
+
+function buildCtxApiAppendix(samplingKind: SamplingKind): string {
+  const common = `ctx fields:
 - ctx.simTime: Date (UTC instant for each simulated sample)
 - ctx.tickIndex: nonnegative integer sequence index starting at 0
 - ctx.mode: "streaming" | "historic"
@@ -43,16 +95,53 @@ ctx fields:
 - ctx.uniform01(): deterministic uniform (0,1] PRNG seeded by harness
 - ctx.unitHint: RDF unit label string (informational only)
 - ctx.utcOffsetMinutes: integer offset east of UTC from optional timezoneHint (0 when absent)
-- ctx.localHour: hour-of-day 0–23 after applying utcOffsetMinutes to ctx.simTime
+- ctx.localHour: hour-of-day 0–23 after applying utcOffsetMinutes to ctx.simTime`;
 
-RULES:
-- Respect requested ranges/window wording as closely as reproducible deterministic code permits.
-- When instructions mention daytime, business hours, morning/evening, or clock times without explicit UTC, use ctx.localHour (not ctx.simTime.getUTCHours()) unless timezoneHint is absent and UTC is clearly intended.
-- Do NOT return literal 0 for off-hours/night unless instructions explicitly request zero or unavailable service. When a numeric range is given (e.g. 500-2000), use the low end or a reduced baseline off-hours instead of zero.
-- In historic mode, historicBounds in the context JSON define the full simulated timeline; the snippet must produce meaningful non-zero samples across that span when a numeric range is requested.
-- No async, no awaits, no external libraries, no filesystem or network references.
-- No comments outside // single-line sparingly OK.
-- Produce stable behavior for the same inputs (prefer ctx.uniform01 branching).`;
+  if (samplingKind === "counter") {
+    return `${common}
+- ctx.uniformForStep(stepIndex): deterministic uniform (0,1] keyed by stepIndex; use inside the cumulative loop for per-step increments (stable when tickIndex increases)
+
+Counter sampling: ctx.tickIndex drives a running total; loop i=1..ctx.tickIndex summing positive increments with ctx.uniformForStep(i).`;
+  }
+
+  return `${common}
+- ctx.uniformForStep(stepIndex): deterministic uniform (0,1] keyed by integer stepIndex; use only as directed by appended modules (e.g. dip episode scheduling), not for summing history
+
+Gauge sampling: return the current reading only. ctx.tickIndex is NOT a loop bound. Do not sum past ticks.`;
+}
+
+const MODULE_HEADERS: Record<string, string> = {
+  gauge_codegen: "### Gauge per-tick sampling codegen",
+  stress_dip_codegen: "### Stress-period dip episodes codegen",
+  cumulative_codegen: "### Cumulative counter codegen"
+};
+
+/** System prompt for codegen; composes core, ctx appendix, and prompt_modules by instruction classifiers. */
+export function buildCodegenSystemPrompt(
+  instructionsSlice?: string,
+  compoundMetric?: string
+): string {
+  const samplingKind = inferSamplingKind(instructionsSlice, compoundMetric);
+  const moduleNames = resolveCodegenModuleNames(instructionsSlice, compoundMetric);
+
+  const parts = [CODEGEN_CORE_PROMPT, buildCtxApiAppendix(samplingKind)];
+
+  for (const name of moduleNames) {
+    const header = MODULE_HEADERS[name] ?? `### ${name}`;
+    parts.push(`${header}\n${loadPromptModule(name)}`);
+  }
+
+  return parts.join("\n\n");
+}
+
+/** Build enriched context payload for the LLM user message. */
+export function enrichCodegenContextSlice(slice: SyntheticCodegenContextSlice): SyntheticCodegenContextSlice {
+  return {
+    ...slice,
+    samplingKind: inferSamplingKind(slice.instructionsSlice, slice.compoundMetric),
+    appendedModules: resolveCodegenModuleNames(slice.instructionsSlice, slice.compoundMetric)
+  };
+}
 
 /** Parse model JSON envelope; supports fenced markdown or trailing noise. */
 export function envelopeSnippet(contentRaw: string): string | null {
@@ -78,6 +167,65 @@ export function envelopeSnippet(contentRaw: string): string | null {
   return null;
 }
 
+type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+
+function validateCodegenSnippet(
+  snippet: string,
+  slice: SyntheticCodegenContextSlice
+): { ok: true } | { ok: false; reason: string } {
+  const staticCheck = validateGeneratedSnippet(snippet);
+  if (!staticCheck.ok) return staticCheck;
+
+  return validateSnippetSamples({
+    snippet,
+    intentId: slice.intentId,
+    compoundMetric: slice.compoundMetric,
+    mode: slice.mode,
+    frequencySeconds: slice.frequencySeconds,
+    historicStartIso: slice.historicBounds?.startIso,
+    historicEndIso: slice.historicBounds?.endIso,
+    timezoneHint: slice.timezoneHint,
+    unitHint: slice.kgUnitResolved,
+    instructionsSlice: slice.instructionsSlice
+  });
+}
+
+async function requestSnippetFromLlm(
+  apiKey: string,
+  base: string,
+  model: string,
+  messages: ChatMessage[]
+): Promise<{ ok: true; snippet: string } | { ok: false; error: string }> {
+  const url = `${base}/chat/completions`;
+  const body = {
+    model,
+    temperature: 0.15,
+    max_tokens: 1200,
+    messages
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    return { ok: false, error: `LLM codegen HTTP ${res.status}: ${errText.slice(0, 512)}` };
+  }
+  const json = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const content = json.choices?.[0]?.message?.content?.trim() ?? "";
+  if (!content) return { ok: false, error: "Empty completion from model." };
+  const snippet = envelopeSnippet(content);
+  if (!snippet) return { ok: false, error: "Could not parse snippet JSON from model output." };
+  return { ok: true, snippet };
+}
+
 export async function codegenMetricSnippet(
   slice: SyntheticCodegenContextSlice
 ): Promise<{ ok: true; snippet: string } | { ok: false; error: string }> {
@@ -91,45 +239,45 @@ export async function codegenMetricSnippet(
   const base = envStr("SYNTH_OBS_OPENAI_BASE_URL", "https://api.openai.com/v1").replace(/\/$/, "");
   const model = envStr("SYNTH_OBS_MODEL", "gpt-4o-mini");
 
-  const userPayload = JSON.stringify(slice, null, 2);
+  const enriched = enrichCodegenContextSlice(slice);
+  const userPayload = JSON.stringify(enriched, null, 2);
+  const systemContent = buildCodegenSystemPrompt(slice.instructionsSlice, slice.compoundMetric);
 
-  const url = `${base}/chat/completions`;
-  const body = {
-    model,
-    temperature: 0.15,
-    max_tokens: 1200,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content:
-          `Synthesize deterministic observation sample logic.\n### Context JSON\n${userPayload}\n### Output\nReturn JSON only.`
-      }
-    ]
-  };
+  const messages: ChatMessage[] = [
+    { role: "system", content: systemContent },
+    {
+      role: "user",
+      content:
+        `Synthesize deterministic observation sample logic.\n### Context JSON\n${userPayload}\n### Output\nReturn JSON only.`
+    }
+  ];
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      return { ok: false, error: `LLM codegen HTTP ${res.status}: ${errText.slice(0, 512)}` };
-    }
-    const json = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = json.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!content) return { ok: false, error: "Empty completion from model." };
-    const snippet = envelopeSnippet(content);
-    if (!snippet) return { ok: false, error: "Could not parse snippet JSON from model output." };
+    const first = await requestSnippetFromLlm(apiKey, base, model, messages);
+    if (!first.ok) return first;
 
-    return { ok: true, snippet };
+    const firstValidation = validateCodegenSnippet(first.snippet, slice);
+    if (firstValidation.ok) {
+      return { ok: true, snippet: first.snippet };
+    }
+
+    messages.push({ role: "assistant", content: JSON.stringify({ snippet: first.snippet }) });
+    messages.push({
+      role: "user",
+      content:
+        `Validation failed: ${firstValidation.reason}\n` +
+        "Fix the snippet. Return a per-tick gauge sample for the current tick only (not a running total over ctx.tickIndex) unless samplingKind is counter. Return JSON only."
+    });
+
+    const retry = await requestSnippetFromLlm(apiKey, base, model, messages);
+    if (!retry.ok) return retry;
+
+    const retryValidation = validateCodegenSnippet(retry.snippet, slice);
+    if (!retryValidation.ok) {
+      return { ok: false, error: retryValidation.reason };
+    }
+
+    return { ok: true, snippet: retry.snippet };
   } catch (e) {
     return { ok: false, error: `Codegen request failed: ${String(e)}` };
   }

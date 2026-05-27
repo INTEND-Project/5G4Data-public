@@ -52,6 +52,16 @@ function randomInRange(min: number, max: number): number {
   return min + Math.random() * (max - min);
 }
 
+export function resolveStreamValueSpan(
+  stream: ReportableObservationStream,
+  override?: { min?: number; max?: number }
+): { min: number; max: number } {
+  return {
+    min: override?.min ?? stream.minValue,
+    max: override?.max ?? stream.maxValue
+  };
+}
+
 function streamAsConditionMetric(stream: ReportableObservationStream): ConditionMetric {
   return {
     conditionId: stream.conditionId,
@@ -73,8 +83,7 @@ async function emitTick(
   const iso = now.toISOString().replace(/\.\d{3}Z$/, "Z");
   const metric = metricName(stream);
   const override = state.overrides.get(metric);
-  const min = override?.min ?? stream.minValue;
-  const max = override?.max ?? stream.maxValue;
+  const { min, max } = resolveStreamValueSpan(stream, override);
   const value = randomInRange(min, max);
   const payload = tool.generateObservation(streamAsConditionMetric(stream), value, iso);
   const turtle = tool.toTurtle(payload);

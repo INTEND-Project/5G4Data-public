@@ -49,9 +49,9 @@ data5g:I<uuid4> a icm:Intent ;
         data5g:RE<uuid4> .
 
 data5g:CO<uuid4> a icm:Condition ;
-    dct:description "<objective-name> condition quan:smaller: <value><unit>" ;
+    dct:description "<objective-name> condition <quan-op>: <value> <unit>" ;
     set:forAll [ icm:valuesOfTargetProperty data5g:<objective-name>___ID_CONDITION_<LABEL>_1__ ;
-            quan:smaller [ quan:unit "<unit>" ;
+            <quan-op> [ quan:unit "<unit>" ;
                     rdf:value <value> ] ] .
 
 data5g:CO<uuid4> a icm:Condition ;
@@ -202,6 +202,8 @@ Rules:
 - Create one deployment condition per objective unless user narrows scope.
 - Metric stem is objective `name`, suffixed with the condition placeholder token (see naming rules below).
 - Use user-provided threshold when available; otherwise use `tmf-value-hint`.
+- Use user-provided quantifier when available; otherwise use `tmf-quantifier-hint`.
+- Use user-provided unit when available; otherwise use `tmf-unit-hint` for `quan:unit`.
 - Null runtime `value` does not block condition creation.
 - If no reliable objectives exist, ask follow-up or mark deployment-condition generation out-of-scope.
 
@@ -211,11 +213,13 @@ Example:
 objectives:
   - name: p99-token-target
     value: 0.0
-    tmf-value-hint: 400.0
+    tmf-value-hint: "400"
+    tmf-quantifier-hint: "quan:larger"
+    tmf-unit-hint: "token/s"
     measuredBy: intend/p99token
 ```
 
-Use metric `data5g:p99-token-target___ID_CONDITION_P99_1__` (same placeholder token as the condition; postprocessing yields `data5g:p99-token-target_CO<uuid4>`).
+Use metric `data5g:p99-token-target___ID_CONDITION_P99_1__` (same placeholder token as the condition; postprocessing yields `data5g:p99-token-target_CO<uuid4>`). Emit `quan:larger [ quan:unit "token/s" ; rdf:value 400 ]` from catalogue hints unless the user overrides.
 
 ## Sustainability condition extraction from Helm charts
 
@@ -224,6 +228,8 @@ Rules:
 - Create one sustainability condition per entry unless user narrows scope.
 - Metric stem is metric `name`, suffixed with the condition placeholder token (see naming rules below).
 - Use user-provided threshold when available; otherwise use `tmf-value-hint`, then `value`.
+- Use user-provided quantifier when available; otherwise use `tmf-quantifier-hint`.
+- Use user-provided unit when available; otherwise use `tmf-unit-hint` for `quan:unit`.
 - Preserve `measuredBy` from chart entries whenever present.
 - If no reliable sustainability metrics exist, ask follow-up or mark sustainability-condition generation out-of-scope.
 
@@ -231,13 +237,15 @@ Example:
 
 ```yaml
 sustainability:
-  - name: kepler_container_cpu_watts
-    value: 0.0
-    tmf-value-hint: 10000
-    measuredBy: intend/container_cpu_watts
+  - name: container-cpu-watts
+    value: "5000.0"
+    tmf-value-hint: "5000"
+    tmf-quantifier-hint: "quan:smaller"
+    tmf-unit-hint: "W"
+    measuredBy: intend/container-cpu-watts
 ```
 
-Use metric `data5g:kepler_container_cpu_watts___ID_CONDITION_CPU_WATTS_1__` (postprocessing yields `data5g:kepler_container_cpu_watts_CO<uuid4>`).
+Use metric `data5g:container-cpu-watts___ID_CONDITION_CPU_WATTS_1__` (postprocessing yields `data5g:container-cpu-watts_CO<uuid4>`). Emit `quan:smaller [ quan:unit "W" ; rdf:value 5000 ]` from catalogue hints unless the user overrides.
 
 ## Inference rules for expectation selection
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { envelopeSnippet } from "../tools/syntheticLlmCodegen.js";
+import { buildCodegenSystemPrompt, envelopeSnippet } from "../tools/syntheticLlmCodegen.js";
 import { parseDdMmYyyyUtc, parseSyntheticPrompt } from "../tools/syntheticPrompt.js";
 
 test("parseDdMmYyyyUtc parses UTC", () => {
@@ -43,4 +43,49 @@ test("parseSyntheticPrompt splits metrics and globals", () => {
 test("envelopeSnippet parses JSON fenced output", () => {
   const raw = "```json\n" + '{"snippet":"return 42;"}' + "\n```";
   assert.equal(envelopeSnippet(raw)?.trim(), "return 42;");
+});
+
+test("buildCodegenSystemPrompt appends cumulative module when instructions request running total", () => {
+  const gaugeInstructions =
+    "default range is between 700-1500, between 06:00 and 18:00 keep values in the 500-1000 range with daily variation and low noise. " +
+    "During stress periodes between 08:00-09:00 and 16:00-17:00 create dips down to between 200-300";
+  const gauge = buildCodegenSystemPrompt(
+    gaugeInstructions,
+    "p99-token-target_COf12213b4cd81427a897fa77bfa7b9d59"
+  );
+  const cumulative = buildCodegenSystemPrompt("monotonically increasing cumulative counter start at 100");
+
+  assert.match(gauge, /### Gauge per-tick sampling codegen/u);
+  assert.match(gauge, /### Stress-period dip episodes codegen/u);
+  assert.doesNotMatch(gauge, /### Cumulative counter codegen/u);
+  assert.doesNotMatch(gauge.split("### Gauge per-tick")[0] ?? gauge, /loop i=1\.\.ctx\.tickIndex/u);
+  assert.doesNotMatch(gauge.split("### Gauge per-tick")[0] ?? gauge, /accumulation loop stepIndex/u);
+  assert.match(gauge, /Gauge sampling: return the current reading only/u);
+
+  assert.match(cumulative, /### Cumulative counter codegen/u);
+  assert.doesNotMatch(cumulative, /### Gauge per-tick sampling codegen/u);
+  assert.match(cumulative, /ctx\.uniformForStep\(i\)/u);
+  assert.match(cumulative, /never decrease/u);
+  assert.match(cumulative, /Counter sampling/u);
+});
+
+test("buildCodegenSystemPrompt appends gauge module for baseline range instructions", () => {
+  const baseline = buildCodegenSystemPrompt("baseline 50-80 with daily variation");
+  assert.match(baseline, /### Gauge per-tick sampling codegen/u);
+  assert.doesNotMatch(baseline, /### Cumulative counter codegen/u);
+});
+
+test("enrichCodegenContextSlice adds samplingKind and appendedModules", async () => {
+  const { enrichCodegenContextSlice } = await import("../tools/syntheticLlmCodegen.js");
+  const enriched = enrichCodegenContextSlice({
+    fullUserPrompt: "x",
+    intentId: "I1",
+    compoundMetric: "p99-token-target_COabc",
+    kgUnitResolved: "NA",
+    instructionsSlice: "keep values in the 500-1000 range",
+    mode: "historic",
+    frequencySeconds: 60
+  });
+  assert.equal(enriched.samplingKind, "gauge");
+  assert.deepEqual(enriched.appendedModules, ["gauge_codegen"]);
 });

@@ -13,7 +13,7 @@ import type { ObservationStorageId } from "./observationStorageTypes.js";
 import { DEFAULT_OBSERVATION_STORAGE } from "./observationStorageTypes.js";
 import { looksLikeSyntheticObservationPrompt, parseSyntheticPrompt } from "./syntheticPrompt.js";
 import type { ParsedSyntheticPrompt } from "./syntheticPrompt.js";
-import { codegenMetricSnippet } from "./syntheticLlmCodegen.js";
+import { codegenMetricSnippet, instructionsIncludeExplicitNumericRange } from "./syntheticLlmCodegen.js";
 import { validateGeneratedSnippet } from "./syntheticSnippetValidate.js";
 import { validateSnippetSamples } from "./syntheticSnippetProbe.js";
 
@@ -127,7 +127,13 @@ export async function startSyntheticObservationFromParsed(args: {
               endIso: args.parsed.historicEnd.toISOString()
             }
           : undefined,
-      timezoneHint: args.parsed.timezone
+      timezoneHint: args.parsed.timezone,
+      baselineMin: instructionsIncludeExplicitNumericRange(slice.instructionsText)
+        ? undefined
+        : streamInfo?.minValue,
+      baselineMax: instructionsIncludeExplicitNumericRange(slice.instructionsText)
+        ? undefined
+        : streamInfo?.maxValue
     });
 
     if (!codegenSlice.ok) {

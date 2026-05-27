@@ -20,19 +20,22 @@ data5g:I973c6c1174844e0d9f2d41bb96b454b1 a icm:Intent ;
         data5g:REe334ce282b49454bb9bd0d9c67264d13 .
 
 data5g:COc5f7b82460cf4207a5a93ca4183ccbdf a icm:Condition ;
-    dct:description "p99-token-target condition quan:smaller: 400" ;
+    dct:description "p99-token-target condition quan:larger: 400 token/s" ;
     set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_COc5f7b82460cf4207a5a93ca4183ccbdf ;
-            quan:smaller [ rdf:value 400 ] ] .
+            quan:larger [ quan:unit "token/s" ;
+                    rdf:value 400 ] ] .
 
 data5g:CO72a1524ea1904d429ecd23cc1c536d1c a icm:Condition ;
-    dct:description "kepler_container_cpu_joules_total condition quan:smaller: 10000" ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:kepler_container_cpu_joules_total_CO72a1524ea1904d429ecd23cc1c536d1c ;
-            quan:smaller [ rdf:value 10000 ] ] .
+    dct:description "container-cpu-joules-total condition quan:larger: 5000 J" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:container-cpu-joules-total_CO72a1524ea1904d429ecd23cc1c536d1c ;
+            quan:larger [ quan:unit "J" ;
+                    rdf:value 5000 ] ] .
 
 data5g:COe71bfa4e593b4de6b7272a43c020d23c a icm:Condition ;
-    dct:description "kepler_container_cpu_watts condition quan:smaller: 10000" ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:kepler_container_cpu_watts_COe71bfa4e593b4de6b7272a43c020d23c ;
-            quan:smaller [ rdf:value 10000 ] ] .
+    dct:description "container-cpu-watts condition quan:smaller: 5000 W" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:container-cpu-watts_COe71bfa4e593b4de6b7272a43c020d23c ;
+            quan:smaller [ quan:unit "W" ;
+                    rdf:value 5000 ] ] .
 
 data5g:CX8c9a8c0dee4b41d8a02a6f64f2f37594 a icm:Context ;
     data5g:Application "LLM inference" ;

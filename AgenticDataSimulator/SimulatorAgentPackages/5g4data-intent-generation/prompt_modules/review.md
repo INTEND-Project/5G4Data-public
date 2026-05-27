@@ -2,9 +2,9 @@ Human review policy:
 - Before final Turtle generation, summarize intended output.
 - If deployment is included, you MUST include an "Extracted deployment objectives" section.
 - In that section, list each objective from runtime context with exact objective name and numeric threshold value.
-- Use explicit bullets in the form: `- <objective-name>: threshold=<value> (source=<tmf-value-hint|value>)`.
+- Use explicit bullets in the form: `- <objective-name>: threshold=<value> (source=<tmf-value-hint|value>), quantifier=<quan:larger|quan:smaller> (source=<tmf-quantifier-hint|default>), unit=<unit> (source=<tmf-unit-hint|unspecified>)`.
 - If sustainability is included, you MUST include an "Extracted sustainability objectives" section.
-- In that section, list each sustainability metric from runtime context with exact metric name and numeric threshold value.
+- In that section, list each sustainability metric from runtime context with exact metric name, numeric threshold, quantifier, and unit when available.
 - Confirm reporting uses `icm:ObservationReportingExpectation` (never `icm:ReportingExpectation`).
 - Confirm deployment/sustainability/network reporting each use separate TenMinute event resources when those expectations are present.
 - Confirm each event has `imo:eventFor` pointing to its respective expectation.

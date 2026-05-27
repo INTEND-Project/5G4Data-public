@@ -225,7 +225,7 @@
           "root_selector": "data",
           "source": "url",
           "type": "json",
-          "url": "http://start5g-1.cs.uit.no:3010/api/get-metric-reports/${condition_metrics}?start=${__from}&end=${__to}&step=${__interval}",
+          "url": "http://start5g-1.cs.uit.no:3010/api/get-metric-reports/${condition_metrics}?repository_id=${repository_id}&start=${__from}&end=${__to}&step=${__interval}",
           "url_options": {
             "data": "",
             "method": "GET"
@@ -237,7 +237,7 @@
             "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
           },
           "hide": false,
-          "queryText": "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT ?value1 ?value2\nWHERE {\n  SERVICE <repository:telenor-5g4data-simulator-demo> {\n    BIND(IRI(CONCAT(\"http://5g4data.eu/5g4data#\", \"${intent_id}\")) AS ?intent) .\n    BIND(IRI(CONCAT(\"http://5g4data.eu/5g4data#\", \"${condition_metrics}\")) AS ?metric) .\n\n    ?intent (log:allOf)+ ?condition .\n    ?condition a icm:Condition .\n    ?condition set:forAll ?forallBlock .\n    ?forallBlock icm:valuesOfTargetProperty ?metric .\n\n    OPTIONAL {\n      ?forallBlock quan:inRange ?list .\n      ?list rdf:rest ?list1 .\n      ?list1 rdf:first ?node2 .\n      ?node2 rdf:value ?rangeLower .\n\n      OPTIONAL {\n        ?list1 rdf:rest ?list2 .\n        ?list2 rdf:first ?node3 .\n        ?node3 rdf:value ?rangeUpper .\n      }\n\n      BIND(?rangeLower AS ?value1)\n      BIND(?rangeUpper AS ?value2)\n    }\n\n    OPTIONAL {\n      {\n        ?forallBlock quan:larger ?boundNode .\n        ?boundNode rdf:value ?largerValue .\n      }\n      UNION {\n        ?forallBlock quan:atLeast ?boundNode .\n        ?boundNode rdf:value ?largerValue .\n      }\n      BIND(?largerValue AS ?value1)\n      BIND(IF(?largerValue * 1000 > 1000000, ?largerValue * 1000, 1000000) AS ?value2)\n    }\n\n    OPTIONAL {\n      {\n        ?forallBlock quan:smaller ?boundNode .\n        ?boundNode rdf:value ?smallerValue .\n      }\n      UNION {\n        ?forallBlock quan:atMost ?boundNode .\n        ?boundNode rdf:value ?smallerValue .\n      }\n      BIND(1 AS ?value1)\n      BIND(?smallerValue AS ?value2)\n    }\n\n    FILTER(BOUND(?value1) && BOUND(?value2))\n  }\n}\nLIMIT 1\n",
+          "queryText": "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT ?value1 ?value2\nWHERE {\n  SERVICE <repository:${repository_id}> {\n    GRAPH <${graph_iri}> {\n    BIND(IRI(CONCAT(\"http://5g4data.eu/5g4data#\", \"${intent_id}\")) AS ?intent) .\n    BIND(IRI(CONCAT(\"http://5g4data.eu/5g4data#\", \"${condition_metrics}\")) AS ?metric) .\n\n    ?intent (log:allOf)+ ?condition .\n    ?condition a icm:Condition .\n    ?condition set:forAll ?forallBlock .\n    ?forallBlock icm:valuesOfTargetProperty ?metric .\n\n    OPTIONAL {\n      ?forallBlock quan:inRange ?list .\n      ?list rdf:rest ?list1 .\n      ?list1 rdf:first ?node2 .\n      ?node2 rdf:value ?rangeLower .\n\n      OPTIONAL {\n        ?list1 rdf:rest ?list2 .\n        ?list2 rdf:first ?node3 .\n        ?node3 rdf:value ?rangeUpper .\n      }\n\n      BIND(?rangeLower AS ?value1)\n      BIND(?rangeUpper AS ?value2)\n    }\n\n    OPTIONAL {\n      {\n        ?forallBlock quan:larger ?boundNode .\n        ?boundNode rdf:value ?largerValue .\n      }\n      UNION {\n        ?forallBlock quan:atLeast ?boundNode .\n        ?boundNode rdf:value ?largerValue .\n      }\n      BIND(?largerValue AS ?value1)\n      BIND(IF(?largerValue * 1000 > 1000000, ?largerValue * 1000, 1000000) AS ?value2)\n    }\n\n    OPTIONAL {\n      {\n        ?forallBlock quan:smaller ?boundNode .\n        ?boundNode rdf:value ?smallerValue .\n      }\n      UNION {\n        ?forallBlock quan:atMost ?boundNode .\n        ?boundNode rdf:value ?smallerValue .\n      }\n      BIND(1 AS ?value1)\n      BIND(?smallerValue AS ?value2)\n    }\n\n    FILTER(BOUND(?value1) && BOUND(?value2))\n  \n    }}\n}\nLIMIT 1\n",
           "refId": "B"
         }
       ],
@@ -356,7 +356,7 @@
             "type": "flandersmake-sparql-datasource",
             "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
           },
-          "queryText": "PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\n\nSELECT DISTINCT \n  (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n  (GROUP_CONCAT(DISTINCT ?description; separator=\"; \") AS ?intent_description)\n  (GROUP_CONCAT(DISTINCT ?condition_description; separator=\"; \") AS ?condition_descriptions)\nWHERE {\n  SERVICE <repository:telenor-5g4data-simulator-demo> {\n    BIND(data5g:${intent_id} AS ?intent)\n    ?intent rdf:type ?intentType ;\n            log:allOf ?expectation .\n\n    ?expectation rdf:type ?expectationType ;\n                 dct:description ?description .\n\n    OPTIONAL {\n      ?expectation log:allOf ?condition .\n      ?condition rdf:type icm:Condition .\n\n      OPTIONAL {\n        ?condition set:forAll [\n          icm:valuesOfTargetProperty ?metric\n        ] .\n      }\n\n      OPTIONAL {\n        ?condition dct:description ?condition_description .\n      }\n    }\n\n    FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n  }\n}\nGROUP BY ?intent\nLIMIT 10",
+          "queryText": "PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\n\nSELECT DISTINCT \n  (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n  (GROUP_CONCAT(DISTINCT ?description; separator=\"; \") AS ?intent_description)\n  (GROUP_CONCAT(DISTINCT ?condition_description; separator=\"; \") AS ?condition_descriptions)\nWHERE {\n  SERVICE <repository:${repository_id}> {\n    GRAPH <${graph_iri}> {\n    BIND(data5g:${intent_id} AS ?intent)\n    ?intent rdf:type ?intentType ;\n            log:allOf ?expectation .\n\n    ?expectation rdf:type ?expectationType ;\n                 dct:description ?description .\n\n    OPTIONAL {\n      ?expectation log:allOf ?condition .\n      ?condition rdf:type icm:Condition .\n\n      OPTIONAL {\n        ?condition set:forAll [\n          icm:valuesOfTargetProperty ?metric\n        ] .\n      }\n\n      OPTIONAL {\n        ?condition dct:description ?condition_description .\n      }\n    }\n\n    FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n  \n    }}\n}\nGROUP BY ?intent\nLIMIT 10",
           "refId": "A"
         }
       ],
@@ -468,6 +468,44 @@
           }
         ],
         "query": "I40554800be0b4d9ab03a2f97e11186bf",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "telenor-5g4data-simulator-demo",
+          "value": "telenor-5g4data-simulator-demo"
+        },
+        "hide": 2,
+        "label": "Repository ID",
+        "name": "repository_id",
+        "options": [
+          {
+            "selected": true,
+            "text": "telenor-5g4data-simulator-demo",
+            "value": "telenor-5g4data-simulator-demo"
+          }
+        ],
+        "query": "telenor-5g4data-simulator-demo",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "urn:intend:kg:telenor-5g4data:simulator-demo",
+          "value": "urn:intend:kg:telenor-5g4data:simulator-demo"
+        },
+        "hide": 2,
+        "label": "Graph IRI",
+        "name": "graph_iri",
+        "options": [
+          {
+            "selected": true,
+            "text": "urn:intend:kg:telenor-5g4data:simulator-demo",
+            "value": "urn:intend:kg:telenor-5g4data:simulator-demo"
+          }
+        ],
+        "query": "urn:intend:kg:telenor-5g4data:simulator-demo",
         "type": "textbox"
       },
       {

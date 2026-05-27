@@ -129,6 +129,8 @@ async function enrichIntentEntry(input: {
       intentId,
       conditionMetrics: compoundMetrics,
       bounds,
+      repositoryId: hasGraphTarget && owner ? owner.repositoryId : null,
+      graphIri: hasGraphTarget && owner ? owner.graphIri : null,
     }),
     repositoryId: hasGraphTarget && owner ? owner.repositoryId : null,
     graphIri: hasGraphTarget && owner ? owner.graphIri : null,

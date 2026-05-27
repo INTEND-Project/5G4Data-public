@@ -72,6 +72,44 @@ describe("intent-dashboard-url", () => {
     expect(url).not.toContain("metric_COabc,metric_COdef");
   });
 
+  it("includes kg target params when repository and graph are provided", () => {
+    const url = buildIntentGrafanaUrl({
+      intentId: "I04fb0697e3a243e7a292c6cb57e9f797",
+      conditionMetrics: [],
+      bounds: null,
+      repositoryId: "telenor-5g4data-kg-my-experiment",
+      graphIri: "urn:intend:kg:telenor-5g4data:kg-my-experiment",
+      env: {
+        baseUrl: "http://grafana.example:3001",
+        dashboardUid: "abc123",
+        dashboardSlug: "intent-dashboard",
+      },
+    });
+
+    expect(url).toContain("var-repository_id=telenor-5g4data-kg-my-experiment");
+    expect(url).toContain(
+      "var-graph_iri=urn%3Aintend%3Akg%3Atelenor-5g4data%3Akg-my-experiment",
+    );
+  });
+
+  it("omits kg target params when repository and graph are absent", () => {
+    const url = buildIntentGrafanaUrl({
+      intentId: "I04fb0697e3a243e7a292c6cb57e9f797",
+      conditionMetrics: [],
+      bounds: null,
+      repositoryId: null,
+      graphIri: null,
+      env: {
+        baseUrl: "http://grafana.example:3001",
+        dashboardUid: "abc123",
+        dashboardSlug: "intent-dashboard",
+      },
+    });
+
+    expect(url).not.toContain("var-repository_id=");
+    expect(url).not.toContain("var-graph_iri=");
+  });
+
   it("builds historic grafana url with epoch bounds", () => {
     const nowMs = Date.now();
     const bounds = {

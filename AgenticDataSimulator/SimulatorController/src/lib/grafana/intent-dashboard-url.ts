@@ -41,6 +41,8 @@ export function buildIntentGrafanaUrl(input: {
   intentId: string;
   conditionMetrics: string[];
   bounds: ObservationTimeBounds | null;
+  repositoryId?: string | null;
+  graphIri?: string | null;
   env?: GrafanaDashboardEnv;
 }): string | null {
   const env = input.env ?? grafanaDashboardEnvFromProcess();
@@ -60,6 +62,13 @@ export function buildIntentGrafanaUrl(input: {
     for (const metric of input.conditionMetrics) {
       params.append("var-condition_metrics", metric);
     }
+  }
+
+  if (input.repositoryId) {
+    params.set("var-repository_id", input.repositoryId);
+  }
+  if (input.graphIri) {
+    params.set("var-graph_iri", input.graphIri);
   }
 
   return `${base}/d/${encodeURIComponent(env.dashboardUid)}/${encodeURIComponent(env.dashboardSlug)}?${params.toString()}`;

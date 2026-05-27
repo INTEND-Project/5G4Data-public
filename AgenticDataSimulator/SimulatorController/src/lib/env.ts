@@ -36,6 +36,11 @@ const appEnvSchema = z.object({
     .default("https://start5g-1.cs.uit.no/graphdb/"),
   PROMETHEUS_URL: z.string().url().default("http://127.0.0.1:9090/"),
   PUSHGATEWAY_URL: z.string().url().default("http://127.0.0.1:9091"),
+  GRAFANA_BASE_URL: z.string().url().optional(),
+  GRAFANA_TIMESERIES_DASHBOARD_UID: z.string().default("fekk4b61d38qof"),
+  GRAFANA_TIMESERIES_DASHBOARD_SLUG: z
+    .string()
+    .default("intent-and-condition-metrics-timeseries-dashboard"),
   APP_BASE_PATH: z.string().optional(),
   ASSISTANT_MODEL: z.string().default("gpt-4.1-mini"),
   ASSISTANT_API_KEY: z.string().optional(),
@@ -50,6 +55,9 @@ export type AppEnv = {
   graphDbBaseUrl: string;
   prometheusUrl: string;
   pushgatewayUrl: string;
+  grafanaBaseUrl?: string;
+  grafanaTimeseriesDashboardUid: string;
+  grafanaTimeseriesDashboardSlug: string;
   appBasePath: string;
   assistantModel: string;
   assistantApiKey?: string;
@@ -65,6 +73,9 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     GRAPHDB_BASE_URL: source.GRAPHDB_BASE_URL,
     PROMETHEUS_URL: source.PROMETHEUS_URL,
     PUSHGATEWAY_URL: source.PUSHGATEWAY_URL,
+    GRAFANA_BASE_URL: source.GRAFANA_BASE_URL,
+    GRAFANA_TIMESERIES_DASHBOARD_UID: source.GRAFANA_TIMESERIES_DASHBOARD_UID,
+    GRAFANA_TIMESERIES_DASHBOARD_SLUG: source.GRAFANA_TIMESERIES_DASHBOARD_SLUG,
     APP_BASE_PATH: source.APP_BASE_PATH,
     ASSISTANT_MODEL: source.ASSISTANT_MODEL,
     ASSISTANT_API_KEY: source.ASSISTANT_API_KEY,
@@ -79,6 +90,9 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     graphDbBaseUrl: parsed.GRAPHDB_BASE_URL,
     prometheusUrl: parsed.PROMETHEUS_URL,
     pushgatewayUrl: parsed.PUSHGATEWAY_URL,
+    grafanaBaseUrl: parsed.GRAFANA_BASE_URL?.trim() || undefined,
+    grafanaTimeseriesDashboardUid: parsed.GRAFANA_TIMESERIES_DASHBOARD_UID,
+    grafanaTimeseriesDashboardSlug: parsed.GRAFANA_TIMESERIES_DASHBOARD_SLUG,
     appBasePath: getConfiguredAppBasePath({
       APP_BASE_PATH: parsed.APP_BASE_PATH,
     }),

@@ -7,6 +7,7 @@ import { ScriptEditor } from "@/components/editor/script-editor";
 import { IntentGenSessionDialog } from "@/components/workspace/intent-gen-session-dialog";
 import {
   defaultScriptName,
+  tabKeyForScript,
   useWorkspaceScriptSession,
 } from "@/components/workspace/workspace-script-session-context";
 import { analyzeScript } from "@/lib/dsl/analysis/analyze-script";
@@ -15,12 +16,13 @@ import type {
   ExtractMetricCatalogStatement,
   RequestObservationReportStatement,
 } from "@/lib/dsl/types";
-import { resolveMetricStemsInObservationInstructions } from "@/lib/dsl/analysis/extract-metric-catalog";
+import { resolveMetricStemsInObservationInstructions, mergeMetricCatalog } from "@/lib/dsl/analysis/extract-metric-catalog";
 import { buildObservationReportSeed } from "@/lib/dsl/observation-report-seed";
 import type { ObservationStorageType } from "@/lib/dsl/types";
 import { buildIntentGenerationStorageHint } from "@/lib/observation-storage";
 import { parseCanonicalIntentLocalId } from "@/lib/intent/extract-intent-turtle";
 import { resolveIntentIdForObservation } from "@/lib/intent/resolve-intent-ref";
+import { fetchIntentMetricCatalog } from "@/lib/kg/fetch-intent-metric-catalog-client";
 import {
   buildGraphTargetBinding,
   type GraphTargetBinding,
@@ -91,7 +93,7 @@ export function WorkspaceScriptRunner({
     closeTab,
     openScriptTab,
     migrateDraftTabToSavedScript,
-    clearDirtyForKeys,
+    commitSavedTabContent,
     selectedRunLogLines,
     appendRunnerLog,
     beginScriptRun,
@@ -273,9 +275,9 @@ export function WorkspaceScriptRunner({
           const newName = data.script?.name ?? trimmedName;
           if (newId) {
             migrateDraftTabToSavedScript(newId, newName);
+            commitSavedTabContent(tabKeyForScript(newId), activeContent);
           }
           scriptNameRef.current = trimmedName;
-          clearDirtyForKeys([activeTabKey]);
           router.refresh();
           return true;
         }
@@ -298,7 +300,7 @@ export function WorkspaceScriptRunner({
             return false;
           }
           scriptNameRef.current = trimmedName;
-          clearDirtyForKeys([activeTabKey]);
+          commitSavedTabContent(activeTabKey, activeContent);
           router.refresh();
           return true;
         }
@@ -350,7 +352,7 @@ export function WorkspaceScriptRunner({
       selectedDomain,
       router,
       migrateDraftTabToSavedScript,
-      clearDirtyForKeys,
+      commitSavedTabContent,
       openScriptTab,
     ],
   );
@@ -578,6 +580,69 @@ export function WorkspaceScriptRunner({
         );
       };
 
+      const formatMetricCatalogPreview = (metricNames: string[]): string => {
+        if (metricNames.length === 0) {
+          return "(none)";
+        }
+        if (metricNames.length <= 24) {
+          return metricNames.join(", ");
+        }
+        return `${metricNames.slice(0, 24).join(", ")} … (+${metricNames.length - 24} more)`;
+      };
+
+      const loadMetricCatalogForIntent = async (
+        intentRef: string,
+        line: number,
+        purpose: "extract" | "observation",
+      ): Promise<{ catalog: string[]; canonicalId: string } | null> => {
+        if (!selectedKgTargetId || !kgTargetsApiBaseUrl.trim()) {
+          appendRunnerLog(
+            `Line ${line}: ${purpose === "extract" ? "extract metric-catalog" : "request observation-report"} requires a knowledge graph target in the runner (same as intent storage).`,
+          );
+          return null;
+        }
+
+        const canonicalId = resolveIntentIdForObservation(
+          intentRef,
+          intentIdByAliasRef.current,
+        );
+        if (!canonicalId) {
+          appendRunnerLog(
+            `Line ${line}: No intent id for "${intentRef}". Use a canonical id (I + 32 hex) in \`for\`, or store intent Turtle to the selected knowledge graph target after \`create intent … as ${intentRef}\`.`,
+          );
+          return null;
+        }
+
+        if (catalogByIntentId.has(canonicalId)) {
+          return { catalog: catalogByIntentId.get(canonicalId)!, canonicalId };
+        }
+
+        const result = await fetchIntentMetricCatalog({
+          kgTargetsApiBaseUrl,
+          kgTargetId: selectedKgTargetId,
+          intentLocalId: canonicalId,
+        });
+
+        if (!result.ok) {
+          appendRunnerLog(
+            result.status > 0
+              ? `Line ${line}: metric-catalog request failed: ${result.error}`
+              : `Line ${line}: metric-catalog request failed (${result.error}).`,
+          );
+          return null;
+        }
+
+        const catalog = mergeMetricCatalog(catalogByIntentId, canonicalId, result.metricNames);
+
+        if (purpose === "observation") {
+          appendRunnerLog(
+            `Line ${line}: Loaded metric catalog from GraphDB for intent ${canonicalId} (${catalog.length} names) for stem resolution: ${formatMetricCatalogPreview(catalog)}`,
+          );
+        }
+
+        return { catalog, canonicalId };
+      };
+
       for (const statement of orderedStatements) {
         if (statement.kind === "discover-intent-workspace-domain") {
           appendRunnerLog(`Line ${statement.line}: Searching registry…`);
@@ -709,18 +774,16 @@ export function WorkspaceScriptRunner({
             return;
           }
 
-          const canonicalId = resolveIntentIdForObservation(
+          const loadedCatalog = await loadMetricCatalogForIntent(
             stmt.intentAlias,
-            intentIdByAliasRef.current,
+            stmt.line,
+            "observation",
           );
-          if (!canonicalId) {
-            appendRunnerLog(
-              `Line ${statement.line}: No intent id for "${stmt.intentAlias}". Use a canonical id (I + 32 hex) in \`for\`, or store intent Turtle to the selected knowledge graph target after \`create intent … as ${stmt.intentAlias}\`.`,
-            );
+          if (!loadedCatalog) {
             return;
           }
 
-          const metricCatalog = catalogByIntentId.get(canonicalId) ?? [];
+          const { catalog: metricCatalog, canonicalId } = loadedCatalog;
           const stemResolution = resolveMetricStemsInObservationInstructions(
             stmt.instructions,
             metricCatalog,
@@ -788,72 +851,43 @@ export function WorkspaceScriptRunner({
         if (statement.kind === "extract-metric-catalog") {
           const stmt: ExtractMetricCatalogStatement = statement;
 
-          if (!selectedKgTargetId || !kgTargetsApiBaseUrl.trim()) {
-            appendRunnerLog(
-              `Line ${statement.line}: extract metric-catalog requires a knowledge graph target in the runner (same as intent storage).`,
-            );
-            return;
-          }
-
-          const canonicalId = intentIdByAliasRef.current.get(stmt.intentAlias);
-          if (!canonicalId) {
-            appendRunnerLog(
-              `Line ${statement.line}: No stored intent id for alias "${stmt.intentAlias}". Store intent Turtle to the selected knowledge graph target (wait for a successful ingest) before extracting the metric catalog.`,
-            );
-            return;
-          }
-
-          const base = kgTargetsApiBaseUrl.replace(/\/+$/, "");
-          const mcUrl = `${base}/${encodeURIComponent(selectedKgTargetId)}/metric-catalog`;
-
-          const response = await fetch(mcUrl, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ intentLocalId: canonicalId }),
-          });
-
-          const data = (await response.json().catch(() => ({}))) as {
-            error?: string;
-            metricNames?: string[];
-          };
-
-          if (!response.ok) {
-            appendRunnerLog(
-              typeof data.error === "string" && data.error.length > 0
-                ? `Line ${statement.line}: metric-catalog request failed: ${data.error}`
-                : `Line ${statement.line}: metric-catalog request failed (${response.status}).`,
-            );
-            return;
-          }
-
-          const metricNames = Array.isArray(data.metricNames) ? data.metricNames : [];
-          catalogBindings.set(stmt.metricCatalogAlias, metricNames);
-          const priorCatalog = catalogByIntentId.get(canonicalId) ?? [];
-          catalogByIntentId.set(
-            canonicalId,
-            [...new Set([...priorCatalog, ...metricNames])].sort((a, b) => a.localeCompare(b)),
+          const loadedCatalog = await loadMetricCatalogForIntent(
+            stmt.intentAlias,
+            stmt.line,
+            "extract",
           );
+          if (!loadedCatalog) {
+            return;
+          }
 
-          const preview =
-            metricNames.length <= 24
-              ? metricNames.join(", ")
-              : `${metricNames.slice(0, 24).join(", ")} … (+${metricNames.length - 24} more)`;
+          const { catalog: metricNames, canonicalId } = loadedCatalog;
+          catalogBindings.set(stmt.metricCatalogAlias, metricNames);
+
           appendRunnerLog(
-            `Run Script: extract metric-catalog as "${stmt.metricCatalogAlias}" for intent ${canonicalId} (${metricNames.length} names): ${preview || "(none)"}`,
+            `Run Script: extract metric-catalog as "${stmt.metricCatalogAlias}" for intent ${canonicalId} (${metricNames.length} names): ${formatMetricCatalogPreview(metricNames)}`,
           );
           continue;
         }
       }
 
-      if (catalogBindings.size > 0) {
-        const merged = [...new Set(Array.from(catalogBindings.values()).flat())].sort((a, b) =>
-          a.localeCompare(b),
-        );
-        setScriptExtractedMetricNames(merged);
-        appendRunnerLog(
-          `Run Script: metric-catalog list aliases bound: ${Array.from(catalogBindings.keys()).join(", ")}.`,
-        );
+      const mergedMetricNames = [
+        ...new Set([
+          ...Array.from(catalogBindings.values()).flat(),
+          ...Array.from(catalogByIntentId.values()).flat(),
+        ]),
+      ].sort((a, b) => a.localeCompare(b));
+
+      if (mergedMetricNames.length > 0) {
+        setScriptExtractedMetricNames(mergedMetricNames);
+        if (catalogBindings.size > 0) {
+          appendRunnerLog(
+            `Run Script: metric-catalog list aliases bound: ${Array.from(catalogBindings.keys()).join(", ")}.`,
+          );
+        } else {
+          appendRunnerLog(
+            `Run Script: metric names loaded from GraphDB for stem resolution (${mergedMetricNames.length} unique).`,
+          );
+        }
       }
 
       appendRunnerLog("Run Script: finished scripted steps.");

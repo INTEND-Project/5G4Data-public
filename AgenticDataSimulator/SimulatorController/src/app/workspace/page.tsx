@@ -49,20 +49,14 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   );
   const a2aMessageSendUrl = withAppBasePath("/api/a2a/message-send");
   const infraStatusApiUrl = withAppBasePath("/api/infra/status");
-  const prometheusIntentsApiUrl = withAppBasePath("/api/prometheus/intents");
+  const intentsApiUrl = withAppBasePath("/api/intents");
+  const intentsUrlBase = withAppBasePath("/api/intents");
   const prometheusClearUrlBase = withAppBasePath("/api/prometheus/intents");
   const { registryConnected, graphDbConnected, prometheusConnected } =
     await getInfraConnectionStatus();
   const scripts = await listScriptsForUser(user.id, selectedDomain);
   const fallbackScript = "";
-  const extractedMetricCatalogs = {
-    avalancheMetrics: [
-      "bandwidth",
-      "detection-latency",
-      "networklatency",
-      "kepler_container_cpu_watts",
-    ],
-  };
+  const extractedMetricCatalogs: Record<string, string[]> = {};
   const completionContext = buildCompletionContext({
     script: fallbackScript,
     extractedMetricCatalogs,
@@ -106,9 +100,10 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
       graphDbBaseUrl={appEnv.graphDbBaseUrl}
       graphDbConnected={graphDbConnected}
       infraStatusApiUrl={infraStatusApiUrl}
+      intentsApiUrl={intentsApiUrl}
+      intentsUrlBase={intentsUrlBase}
       prometheusClearUrlBase={prometheusClearUrlBase}
       prometheusConnected={prometheusConnected}
-      prometheusIntentsApiUrl={prometheusIntentsApiUrl}
       registryConnected={registryConnected}
       scripts={scripts}
       selectedDomain={selectedDomain}

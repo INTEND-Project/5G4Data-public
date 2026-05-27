@@ -253,3 +253,40 @@ export async function clearKnowledgeGraph(input: {
     throw new Error(await buildGraphDbErrorMessage(response, "knowledge graph clear"));
   }
 }
+
+/** Run arbitrary SPARQL UPDATE against a repository. */
+export async function runRepositorySparqlUpdate(input: {
+  repositoryId: string;
+  query: string;
+  timeoutMs?: number;
+}): Promise<void> {
+  const base = normalizedGraphDbBaseUrl();
+  const url = `${base}repositories/${encodeURIComponent(input.repositoryId)}/statements`;
+
+  const timeoutMs = input.timeoutMs ?? 60_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/sparql-update",
+      },
+      body: input.query,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`GraphDB timed out after ${timeoutMs / 1000}s during SPARQL update`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!response.ok) {
+    throw new Error(await buildGraphDbErrorMessage(response, "SPARQL update"));
+  }
+}

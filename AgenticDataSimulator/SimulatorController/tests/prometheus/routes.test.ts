@@ -72,6 +72,9 @@ describe("prometheus routes", () => {
       pushgatewayCleared: true,
       tsdbSeriesDeleted: true,
       tombstonesCleaned: true,
+      verifiedEmpty: true,
+      samplesRemaining: 0,
+      oooRewriteFallbackUsed: false,
     });
 
     const routeModule = await import("../../src/app/api/prometheus/intents/[intentId]/empty/route");
@@ -87,6 +90,9 @@ describe("prometheus routes", () => {
         pushgatewayCleared: true,
         tsdbSeriesDeleted: true,
         tombstonesCleaned: true,
+        verifiedEmpty: true,
+        samplesRemaining: 0,
+        oooRewriteFallbackUsed: false,
       },
     });
   });

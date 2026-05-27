@@ -1,17 +1,18 @@
-const conditionSuffixPattern = /_CO[a-f0-9]+$/i;
-
-/** Condition-scoped compound metric: `<stem>_CO<32-hex>`. */
 const COMPOUND_METRIC_RE = /^(.*)_CO[a-f0-9]{32}$/i;
 
 /** Same capture shape as the observation agent synthetic prompt parser. */
 const METRIC_TOKEN_RE = /\bmetric\s*=\s*((?:[^\s.`]+|`[^`]*`))(?!=)/gi;
 
-export function extractMetricCatalog(metricPropertyNames: string[]) {
-  return Array.from(
-    new Set(
-      metricPropertyNames.map((metricName) => metricName.replace(conditionSuffixPattern, "")),
-    ),
+export function mergeMetricCatalog(
+  catalogByIntentId: Map<string, string[]>,
+  intentId: string,
+  metricNames: string[],
+): string[] {
+  const merged = [...new Set([...(catalogByIntentId.get(intentId) ?? []), ...metricNames])].sort(
+    (a, b) => a.localeCompare(b),
   );
+  catalogByIntentId.set(intentId, merged);
+  return merged;
 }
 
 export type MetricStemResolution = {

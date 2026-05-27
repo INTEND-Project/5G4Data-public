@@ -36,8 +36,8 @@ export function AssistantPanel({ assistantContext }: AssistantPanelProps) {
           </>
         ) : (
           <>
-            The AGENT ASSISTANT is using the {assistantContext.stage} stage context and fallback
-            derived metric names until you run <code>extract metric-catalog</code> successfully.
+            The AGENT ASSISTANT is using the {assistantContext.stage} stage context. Run{" "}
+            <code>extract metric-catalog</code> in a script to load metric names from GraphDB.
           </>
         )}
       </p>
@@ -53,7 +53,7 @@ export function AssistantPanel({ assistantContext }: AssistantPanelProps) {
       </label>
       <textarea
         className="workspace-textarea"
-        defaultValue="Create an observation-report snippet for bandwidth with daily variation and congestion spikes."
+        defaultValue="Create an observation-report snippet with daily variation and congestion spikes for a metric from the catalog."
         id="assistant-prompt"
         rows={5}
       />

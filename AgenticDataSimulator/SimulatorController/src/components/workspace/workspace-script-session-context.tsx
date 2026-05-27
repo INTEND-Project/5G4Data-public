@@ -107,6 +107,8 @@ export type WorkspaceScriptSessionContextValue = {
   closeTab: (tabKey: string) => void;
   migrateDraftTabToSavedScript: (scriptId: string, name: string) => void;
   clearDirtyForKeys: (keys: string[]) => void;
+  /** Pin editor content after a successful save before server props refresh. */
+  commitSavedTabContent: (tabKey: string, content: string) => void;
   /** Last 10 runs, newest first. */
   scriptRunLogs: ScriptRunLogRecord[];
   selectedScriptRunId: string | null;
@@ -288,7 +290,10 @@ export function WorkspaceScriptSessionProvider({
         if (!serverScript) {
           continue;
         }
-        if (!dirtyKeysRef.current.has(tk)) {
+        // Keep in-memory editor content once a tab has been opened or edited.
+        // After save, router.refresh() may briefly supply stale server props; overwriting
+        // a non-dirty tab here would revert the editor even though disk was updated.
+        if (!dirtyKeysRef.current.has(tk) && nextDocs[tk] === undefined) {
           nextDocs = { ...nextDocs, [tk]: serverScript.content };
         }
       }
@@ -425,6 +430,14 @@ export function WorkspaceScriptSessionProvider({
     }
   }, []);
 
+  const commitSavedTabContent = useCallback((tabKey: string, content: string) => {
+    dirtyKeysRef.current.delete(tabKey);
+    setBundle((prev) => ({
+      ...prev,
+      documents: { ...prev.documents, [tabKey]: content },
+    }));
+  }, []);
+
   const selectedRunLogLines = useMemo(() => {
     if (!selectedScriptRunId) {
       return [];
@@ -448,6 +461,7 @@ export function WorkspaceScriptSessionProvider({
       closeTab,
       migrateDraftTabToSavedScript,
       clearDirtyForKeys,
+      commitSavedTabContent,
       scriptRunLogs,
       selectedScriptRunId,
       setSelectedScriptRunId,
@@ -476,6 +490,7 @@ export function WorkspaceScriptSessionProvider({
       closeTab,
       migrateDraftTabToSavedScript,
       clearDirtyForKeys,
+      commitSavedTabContent,
       scriptRunLogs,
       selectedScriptRunId,
       selectedRunLogLines,

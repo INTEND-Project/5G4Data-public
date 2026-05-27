@@ -794,6 +794,38 @@ select.workspace-topbar-run-select:disabled {
   padding-inline: 10px;
 }
 
+.workspace-icon-badge-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workspace-icon-badge {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(6, 17, 31, 0.92);
+  border: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.workspace-icon-badge-image,
+.workspace-storage-brand-icon {
+  display: block;
+}
+
+.workspace-button-secondary .workspace-storage-brand-icon {
+  filter: none;
+}
+
 .workspace-button {
   border: 0;
   border-radius: 14px;

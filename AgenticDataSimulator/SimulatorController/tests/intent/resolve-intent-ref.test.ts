@@ -19,6 +19,11 @@ describe("resolveIntentIdForObservation", () => {
   it("returns null for unknown alias", () => {
     expect(resolveIntentIdForObservation("llmIntent", new Map())).toBeNull();
   });
+
+  it("supports canonical ids for extract-metric-catalog and observation-report for clauses", () => {
+    const canonical = "I9fde73e5715a43beb4dcd6053c7b8b82";
+    expect(resolveIntentIdForObservation(canonical, new Map())).toBe(canonical);
+  });
 });
 
 describe("observation-report seed with create-intent alias", () => {

@@ -41,6 +41,14 @@ describe("workspace shell bootstrap", () => {
       resolve(process.cwd(), "src/components/workspace/prometheus-panel.tsx"),
       "utf8",
     );
+    const intentsPanelSource = readFileSync(
+      resolve(process.cwd(), "src/components/workspace/intents-panel.tsx"),
+      "utf8",
+    );
+    const storageIconsSource = readFileSync(
+      resolve(process.cwd(), "src/components/workspace/workspace-storage-icons.tsx"),
+      "utf8",
+    );
     const globalsSource = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8");
 
     expect(loginSource).toContain("Sign in to OpenClaw Controller");
@@ -53,6 +61,7 @@ describe("workspace shell bootstrap", () => {
     expect(workspaceSource).toContain("registryConnected");
     expect(workspaceSource).toContain("graphDbConnected");
     expect(workspaceSource).toContain("prometheusConnected");
+    expect(workspaceSource).toContain('withAppBasePath("/api/intents")');
     expect(workspaceSource).toContain('withAppBasePath("/api/prometheus/intents")');
     expect(workspaceSource).toContain("kgTargetsCreateUrl");
     expect(workspaceSource).toContain("kgTargetsDeleteUrlBase");
@@ -89,8 +98,10 @@ describe("workspace shell bootstrap", () => {
     expect(shellSource).toContain("kgTargetsCreateUrl");
     expect(shellSource).toContain("kgTargetsDeleteUrlBase");
     expect(shellSource).toContain("PrometheusPanel");
+    expect(shellSource).toContain("IntentsPanel");
     expect(shellSource).toContain("prometheusConnected");
-    expect(shellSource).toContain("prometheusIntentsApiUrl");
+    expect(shellSource).toContain("intentsApiUrl");
+    expect(shellSource).toContain("intentsUrlBase");
     expect(shellSource).toContain("prometheusClearUrlBase");
     expect(shellSource).toContain("scriptsApiUrl");
     expect(shellSource).toContain("WorkspaceScriptSessionProvider");
@@ -161,23 +172,29 @@ describe("workspace shell bootstrap", () => {
     expect(kgTargetPanelSource).not.toContain("Empty KG removes all triples");
     expect(kgTargetPanelSource).not.toContain("Delete repo removes the GraphDB repository");
     expect(prometheusPanelSource).toContain('"use client"');
-    expect(prometheusPanelSource).toContain("graphDbConnected");
-    expect(prometheusPanelSource).toContain("selectedDomain");
-    expect(prometheusPanelSource).toContain("loadIntentDescription");
-    expect(prometheusPanelSource).toContain("intentHoverTitle");
-    expect(prometheusPanelSource).toContain("workspace-intent-id-label");
-    expect(prometheusPanelSource).toContain("/description");
     expect(prometheusPanelSource).toContain(
       'prometheusConnected ? "workspace-chip-live" : "workspace-chip-down"',
     );
-    expect(prometheusPanelSource).toContain("useWorkspaceScriptSession");
-    expect(prometheusPanelSource).toContain("CONNECTED_POLL_MS");
-    expect(prometheusPanelSource).toContain("No intent observation metrics found in Prometheus.");
-    expect(prometheusPanelSource).toContain("/empty");
-    expect(prometheusPanelSource).toContain("Emptying...");
+    expect(prometheusPanelSource).not.toContain("workspace-intent-id-label");
+    expect(prometheusPanelSource).toContain("Intent observation metrics are listed under Intents.");
+    expect(intentsPanelSource).toContain('"use client"');
+    expect(intentsPanelSource).toContain("<h2>Intents</h2>");
+    expect(intentsPanelSource).toContain("workspace-intent-id-label");
+    expect(intentsPanelSource).toContain("DeleteStorageIcon");
+    expect(intentsPanelSource).toContain("GrafanaIcon");
+    expect(intentsPanelSource).toContain("/description");
+    expect(intentsPanelSource).toContain("/empty-graphdb");
+    expect(intentsPanelSource).toContain("useWorkspaceScriptSession");
+    expect(intentsPanelSource).toContain("CONNECTED_POLL_MS");
+    expect(storageIconsSource).toContain("workspace-icon-badge-button");
+    expect(storageIconsSource).toContain("/icons/prometheus.svg");
+    expect(storageIconsSource).toContain("/icons/graphdb.svg");
+    expect(storageIconsSource).toContain("/icons/grafana.svg");
     expect(kgTargetPanelSource).not.toContain(
       "Repository and named graph creation will be wired to GraphDB in the next task.",
     );
+    expect(globalsSource).toContain(".workspace-icon-badge-button");
+    expect(globalsSource).toContain(".workspace-icon-badge");
     expect(globalsSource).toContain(".workspace-select-compact");
     expect(globalsSource).toContain(".workspace-section-compact");
     expect(globalsSource).toContain(".workspace-section-domain");

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { AgentList } from "@/components/workspace/agent-list";
 import { AssistantPanel } from "@/components/workspace/assistant-panel";
 import { DomainSelector } from "@/components/workspace/domain-selector";
+import { IntentsPanel } from "@/components/workspace/intents-panel";
 import { KgTargetPanel } from "@/components/workspace/kg-target-panel";
 import { PrometheusPanel } from "@/components/workspace/prometheus-panel";
 import { ScriptList } from "@/components/workspace/script-list";
@@ -35,7 +36,8 @@ type WorkspaceShellProps = {
   registryConnected: boolean;
   graphDbConnected: boolean;
   prometheusConnected: boolean;
-  prometheusIntentsApiUrl: string;
+  intentsApiUrl: string;
+  intentsUrlBase: string;
   prometheusClearUrlBase: string;
   infraStatusApiUrl: string;
   kgTargets: Array<{
@@ -74,7 +76,8 @@ export function WorkspaceShell({
   registryConnected,
   graphDbConnected,
   prometheusConnected,
-  prometheusIntentsApiUrl,
+  intentsApiUrl,
+  intentsUrlBase,
   prometheusClearUrlBase,
   infraStatusApiUrl,
   kgTargets,
@@ -189,10 +192,12 @@ export function WorkspaceShell({
               selectedDomain={selectedDomain}
               targets={kgTargets}
             />
-            <PrometheusPanel
-              clearUrlBase={prometheusClearUrlBase}
+            <PrometheusPanel prometheusConnected={infraStatus.prometheusConnected} />
+            <IntentsPanel
               graphDbConnected={infraStatus.graphDbConnected}
-              intentsApiUrl={prometheusIntentsApiUrl}
+              intentsApiUrl={intentsApiUrl}
+              intentsUrlBase={intentsUrlBase}
+              prometheusClearUrlBase={prometheusClearUrlBase}
               prometheusConnected={infraStatus.prometheusConnected}
               selectedDomain={selectedDomain}
             />

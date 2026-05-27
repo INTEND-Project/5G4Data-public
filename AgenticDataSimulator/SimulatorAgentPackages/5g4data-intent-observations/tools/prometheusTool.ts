@@ -21,7 +21,7 @@ export class PrometheusTool {
   static fromEnv(
     pushgatewayUrl = process.env.PUSHGATEWAY_URL?.trim(),
     prometheusUrl = process.env.PROMETHEUS_URL?.trim() ||
-      "http://127.0.0.1:9090/prometheus",
+      "http://127.0.0.1:9090",
     remoteWriteUrl = process.env.PROMETHEUS_REMOTE_WRITE_URL?.trim()
   ): PrometheusTool {
     const base = prometheusUrl.replace(/\/$/, "");

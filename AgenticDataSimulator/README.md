@@ -216,6 +216,8 @@ cd Prometheus
 ./stop.sh
 ```
 
+TSDB time series persist in **`Prometheus/tsdb/`** across `./stop.sh` and `./start.sh`. To wipe all Prometheus and Pushgateway metrics, run `./delete-data.sh` in `Prometheus/`.
+
 This runs Pushgateway on **9091** and Prometheus on **9090**. Prometheus scrapes Pushgateway using [`Prometheus/prometheus.yml`](Prometheus/prometheus.yml) (pushed intent metrics use job `intent_reports`; internal `pushgateway_*` metrics are dropped). The same config sets `storage.tsdb.out_of_order_time_window: 365d` so historic observation batches can remote-write samples with past `obtainedAt` timestamps.
 
 **On start5g-1** (so the Prometheus UI links work behind Caddy):

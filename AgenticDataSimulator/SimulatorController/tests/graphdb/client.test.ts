@@ -148,7 +148,9 @@ describe("graphdb client", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
 
-    expect(url).toBe("http://graphdb.example/repositories/telenor-5g4data-kg-avalanche-demo");
+    expect(url).toBe(
+      "http://graphdb.example/repositories/telenor-5g4data-kg-avalanche-demo/statements",
+    );
     expect(init.method).toBe("POST");
     expect(init.headers).toMatchObject({
       "Content-Type": "application/sparql-update",

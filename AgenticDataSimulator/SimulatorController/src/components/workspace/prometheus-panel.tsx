@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { CONNECTED_POLL_MS } from "@/components/workspace/infra-connection-status";
+import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
+
 type PrometheusPanelProps = {
   prometheusConnected: boolean;
   graphDbConnected: boolean;
@@ -38,6 +41,8 @@ export function PrometheusPanel({
   intentsApiUrl,
   clearUrlBase,
 }: PrometheusPanelProps) {
+  const { scriptRunLogs } = useWorkspaceScriptSession();
+  const latestScriptRunId = scriptRunLogs[0]?.id ?? null;
   const [intentIds, setIntentIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -55,17 +60,19 @@ export function PrometheusPanel({
     loadingDescriptionsRef.current = loadingDescriptions;
   }, [loadingDescriptions]);
 
-  const loadIntentIds = useCallback(async () => {
+  const loadIntentIds = useCallback(async (options?: { background?: boolean }) => {
     if (!prometheusConnected) {
       setIntentIds([]);
       return;
     }
 
-    setIsLoading(true);
-    setActionError(null);
+    if (!options?.background) {
+      setIsLoading(true);
+      setActionError(null);
+    }
 
     try {
-      const response = await fetch(intentsApiUrl);
+      const response = await fetch(intentsApiUrl, { cache: "no-store" });
 
       if (!response.ok) {
         throw new Error(`Prometheus intent discovery failed with ${response.status}`);
@@ -73,18 +80,60 @@ export function PrometheusPanel({
 
       const payload = (await response.json()) as { intentIds: string[] };
       setIntentIds(payload.intentIds ?? []);
+      if (!options?.background) {
+        setActionError(null);
+      }
     } catch (error) {
       console.error(error);
-      setActionError("Unable to load intent metrics from Prometheus right now.");
-      setIntentIds([]);
+      if (!options?.background) {
+        setActionError("Unable to load intent metrics from Prometheus right now.");
+        setIntentIds([]);
+      }
     } finally {
-      setIsLoading(false);
+      if (!options?.background) {
+        setIsLoading(false);
+      }
     }
   }, [intentsApiUrl, prometheusConnected]);
 
   useEffect(() => {
     void loadIntentIds();
   }, [loadIntentIds]);
+
+  useEffect(() => {
+    if (!latestScriptRunId) {
+      return;
+    }
+
+    void loadIntentIds({ background: true });
+  }, [latestScriptRunId, loadIntentIds]);
+
+  useEffect(() => {
+    if (!prometheusConnected) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) {
+        return;
+      }
+
+      void loadIntentIds({ background: true });
+    }, CONNECTED_POLL_MS);
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        void loadIntentIds({ background: true });
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [loadIntentIds, prometheusConnected]);
 
   const loadIntentDescription = useCallback(
     async (intentId: string) => {

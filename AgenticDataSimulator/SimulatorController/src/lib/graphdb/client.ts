@@ -222,7 +222,8 @@ export async function clearKnowledgeGraph(input: {
   timeoutMs?: number;
 }): Promise<void> {
   const base = normalizedGraphDbBaseUrl();
-  const url = `${base}repositories/${encodeURIComponent(input.repositoryId)}`;
+  const url =
+    `${base}repositories/${encodeURIComponent(input.repositoryId)}/statements`;
   const query = buildClearKnowledgeGraphUpdate(input.graphIri);
 
   const timeoutMs = input.timeoutMs ?? 60_000;

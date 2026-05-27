@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { listIntentIds } from "@/lib/prometheus/client";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser(request);
 

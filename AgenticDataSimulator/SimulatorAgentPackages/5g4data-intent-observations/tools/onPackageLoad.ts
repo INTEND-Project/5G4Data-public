@@ -19,7 +19,9 @@ const LEGACY_PROMETHEUS_VALUES = new Set([
   "https://start5g-1.cs.uit.no/prometheus-pushgateway",
   "http://host.docker.internal:9090",
   "http://host.docker.internal:9090/prometheus",
-  "http://host.docker.internal:9091"
+  "http://host.docker.internal:9090/prometheus/api/v1/write",
+  "http://host.docker.internal:9091",
+  "http://127.0.0.1:9090/prometheus"
 ]);
 
 function upsertEnvKey(lines: string[], key: string, value: string): string[] {

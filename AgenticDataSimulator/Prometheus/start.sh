@@ -15,6 +15,14 @@ fi
 #   export PROMETHEUS_EXTERNAL_URL=https://start5g-1.cs.uit.no/prometheus
 export PROMETHEUS_EXTERNAL_URL="${PROMETHEUS_EXTERNAL_URL:-http://127.0.0.1:9090}"
 
+TSDB_DIR="${ROOT}/tsdb"
+mkdir -p "$TSDB_DIR"
+# prom/prometheus runs as nobody (65534)
+docker run --rm --user root --entrypoint chown \
+  -v "${TSDB_DIR}:/prometheus" \
+  prom/prometheus:v2.54.1 \
+  -R 65534:65534 /prometheus
+
 docker compose up -d
 
 echo ""
@@ -22,5 +30,7 @@ echo "Pushgateway: http://127.0.0.1:9091"
 echo "             (agent PUSHGATEWAY_URL …/metrics/job/intent_reports)"
 echo "Prometheus:  http://127.0.0.1:9090"
 echo "             (agent PROMETHEUS_URL for metadata query URLs)"
+echo "             TSDB data:   ${TSDB_DIR}/"
 echo ""
-echo "Stop:  docker compose -f ${ROOT}/docker-compose.yml down"
+echo "Stop:        ./stop.sh"
+echo "Wipe data:   ./delete-data.sh"

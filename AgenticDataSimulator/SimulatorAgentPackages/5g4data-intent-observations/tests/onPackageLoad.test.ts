@@ -19,8 +19,8 @@ test("applyOnPackageLoad upserts prometheus env and merges deps", async () => {
     join(mappingsDir, "env.defaults.json"),
     JSON.stringify(
       {
-        PROMETHEUS_URL: "http://127.0.0.1:9090/prometheus",
-        PROMETHEUS_REMOTE_WRITE_URL: "http://host.docker.internal:9090/prometheus/api/v1/write",
+        PROMETHEUS_URL: "http://127.0.0.1:9090",
+        PROMETHEUS_REMOTE_WRITE_URL: "http://host.docker.internal:9090/api/v1/write",
         PUSHGATEWAY_URL: "http://host.docker.internal:9091"
       },
       null,
@@ -75,8 +75,8 @@ test("applyOnPackageLoad upserts prometheus env and merges deps", async () => {
   assert.equal(result.runtimePatches?.cliNoGraphDbFlag, true);
 
   const env = readFileSync(join(cloneDir, ".env"), "utf8");
-  assert.match(env, /PROMETHEUS_URL=http:\/\/127\.0\.0\.1:9090\/prometheus/);
-  assert.match(env, /PROMETHEUS_REMOTE_WRITE_URL=http:\/\/host\.docker\.internal:9090\/prometheus\/api\/v1\/write/);
+  assert.match(env, /PROMETHEUS_URL=http:\/\/127\.0\.0\.1:9090/);
+  assert.match(env, /PROMETHEUS_REMOTE_WRITE_URL=http:\/\/host\.docker\.internal:9090\/api\/v1\/write/);
   assert.match(env, /PUSHGATEWAY_URL=http:\/\/host\.docker\.internal:9091/);
 
   const clonePkg = JSON.parse(readFileSync(join(cloneDir, "package.json"), "utf8")) as {

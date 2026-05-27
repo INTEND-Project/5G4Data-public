@@ -170,6 +170,8 @@ describe("workspace shell bootstrap", () => {
     expect(prometheusPanelSource).toContain(
       'prometheusConnected ? "workspace-chip-live" : "workspace-chip-down"',
     );
+    expect(prometheusPanelSource).toContain("useWorkspaceScriptSession");
+    expect(prometheusPanelSource).toContain("CONNECTED_POLL_MS");
     expect(prometheusPanelSource).toContain("No intent observation metrics found in Prometheus.");
     expect(prometheusPanelSource).toContain("/empty");
     expect(prometheusPanelSource).toContain("Emptying...");

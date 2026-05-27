@@ -206,7 +206,7 @@ WHERE {
   async storePrometheusMetadata(
     /** GraphDB / Grafana linkToken compound name (may contain hyphens). */
     metricName: string,
-    prometheusUrl = process.env.PROMETHEUS_URL?.trim() || "http://127.0.0.1:9090/prometheus",
+    prometheusUrl = process.env.PROMETHEUS_URL?.trim() || "http://127.0.0.1:9090",
     opts?: { intentId?: string; conditionId?: string | null }
   ): Promise<boolean> {
     try {

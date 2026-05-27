@@ -29,7 +29,8 @@ docker compose down
 
 if [ -d "$TSDB_DIR" ]; then
   echo "Removing TSDB directory $TSDB_DIR..."
-  rm -rf "$TSDB_DIR"
+  # Prometheus writes TSDB files as nobody (65534); remove via container as root.
+  docker run --rm -v "${ROOT}:/work" alpine:3.20 sh -c 'rm -rf /work/tsdb'
 fi
 
 echo "Starting Prometheus stack..."

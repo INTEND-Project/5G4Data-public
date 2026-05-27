@@ -186,7 +186,7 @@ export class CapabilityRouter {
         if (selectedChart) {
           const objectivesSummary = await catalogue.objectivesSummaryForChart(selectedChart);
           knownMetricStems = await this.parseMetricStemsFromObjectivesSummary(objectivesSummary);
-          catalogueSummary = `${catalogueSummary}\n\n${rules.prompts.selectedWorkloadTag}\n${objectivesSummary}\nUse these objective thresholds as deployment-condition defaults unless the user overrides.`;
+          catalogueSummary = `${catalogueSummary}\n\n${rules.prompts.selectedWorkloadTag}\n${objectivesSummary}\nUse these objective thresholds, quantifiers, and units as deployment-condition defaults unless the user overrides.`;
           debug.push(`known_metric_stems=${knownMetricStems.join(",")}`);
         }
       } catch (error) {

@@ -8,7 +8,7 @@ export interface EnvUpdate {
 }
 
 /** Keys always set explicitly by `package load` for clones — never copied from `mappings/env.defaults.json`. */
-const CLONE_EXPLICIT_ENV_KEYS = new Set(["DOMAIN_PACKAGE_DIR", "SKILL_FILE"]);
+const CLONE_EXPLICIT_ENV_KEYS = new Set(["DOMAIN_PACKAGE_DIR", "SKILL_FILE", "SHACL_SHAPES_FILE"]);
 
 /**
  * Optional keys merged from `mappings/env.defaults.json` into a new clone.

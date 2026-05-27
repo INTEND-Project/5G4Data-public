@@ -116,7 +116,8 @@ export function loadConfig(): AppConfig {
   );
   const shaclShapesFile = resolve(
     process.cwd(),
-    process.env.SHACL_SHAPES_FILE ?? "../IntentAgent/HermesAgent/validation/skill_subset_intent_shapes.ttl"
+    process.env.SHACL_SHAPES_FILE ??
+      "../SimulatorAgentPackages/5g4data-intent-generation/validation/skill_subset_intent_shapes.ttl"
   );
   const llmUsageLogPath = process.env.LLM_USAGE_LOG_PATH
     ? resolve(process.cwd(), process.env.LLM_USAGE_LOG_PATH)

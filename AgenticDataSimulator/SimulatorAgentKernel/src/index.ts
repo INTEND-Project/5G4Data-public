@@ -341,12 +341,20 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   const domainPackageValue = "./";
   const deployedSkillPath = join(cloned.cloneDir, "skills", "SKILL.md");
   const skillFileValue = normalizeEnvPath(relative(cloned.cloneDir, deployedSkillPath));
-  const cloneEnvPath = join(cloned.cloneDir, ".env");
-  updateEnvFile(cloneEnvPath, [
+  const deployedShapesPath = join(cloned.cloneDir, "validation", "skill_subset_intent_shapes.ttl");
+  const cloneEnvUpdates: Array<{ key: string; value: string }> = [
     { key: "DOMAIN_PACKAGE_DIR", value: domainPackageValue },
     { key: "SKILL_FILE", value: skillFileValue },
     { key: "ENABLE_PACKAGE_LOAD", value: "false" }
-  ]);
+  ];
+  if (existsSync(deployedShapesPath)) {
+    cloneEnvUpdates.push({
+      key: "SHACL_SHAPES_FILE",
+      value: normalizeEnvPath(relative(cloned.cloneDir, deployedShapesPath))
+    });
+  }
+  const cloneEnvPath = join(cloned.cloneDir, ".env");
+  updateEnvFile(cloneEnvPath, cloneEnvUpdates);
   applyPackageMappingEnvDefaults(cloneEnvPath, installed.packageDir);
   const agentApiKey = ensureAgentApiKeyForClone(cloneEnvPath);
   const cloneConfig = loadA2AConfigFromDirectory(cloned.cloneDir);

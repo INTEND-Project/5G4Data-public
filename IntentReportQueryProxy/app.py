@@ -386,15 +386,11 @@ def format_for_grafana_infinity(sparql_results):
                 # Try to parse as timestamp if it looks like one
                 if 'time' in column.lower() or 'date' in column.lower():
                     try:
-                        # Handle Unix timestamps (seconds since epoch)
                         if value.isdigit() and len(value) >= 10:
-                            # Unix timestamp
-                            timestamp = datetime.fromtimestamp(float(value))
-                            row[column] = timestamp.isoformat()
+                            row[column] = int(float(value)) * 1000
                         else:
-                            # ISO format timestamp
                             timestamp = datetime.fromisoformat(value.replace('Z', '+00:00'))
-                            row[column] = timestamp.isoformat()
+                            row[column] = int(timestamp.timestamp() * 1000)
                     except:
                         row[column] = value
                 else:
@@ -403,6 +399,16 @@ def format_for_grafana_infinity(sparql_results):
     
     logger.info(f"Formatted {len(formatted_data)} data points for Grafana")
     return formatted_data
+
+def parse_epoch_timestamp(value):
+    """Parse Grafana __from/__to values sent as epoch seconds or milliseconds."""
+    if not value or not str(value).isdigit():
+        return None
+    numeric = int(value)
+    if numeric > 1_000_000_000_000:
+        return datetime.utcfromtimestamp(numeric / 1000)
+    return datetime.utcfromtimestamp(numeric)
+
 
 @app.route('/api/get-metric-reports/<metric_name>', methods=['GET'])
 def get_metric_reports(metric_name):
@@ -428,17 +434,17 @@ def get_metric_reports(metric_name):
             try:
                 # Check if timestamps are in Unix format (numeric) or ISO format
                 if start_time and start_time.isdigit():
-                    # Convert Unix timestamp to ISO format
-                    start_dt = datetime.fromtimestamp(int(start_time) / 1000)  # Convert milliseconds to seconds
-                    start_time = start_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+                    start_dt = parse_epoch_timestamp(start_time)
+                    if start_dt:
+                        start_time = start_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
                 elif start_time and 'T' in start_time:
                     # Already in ISO format, ensure Z format
                     start_time = start_time.replace('Z', 'Z')
                 
                 if end_time and end_time.isdigit():
-                    # Convert Unix timestamp to ISO format
-                    end_dt = datetime.fromtimestamp(int(end_time) / 1000)  # Convert milliseconds to seconds
-                    end_time = end_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+                    end_dt = parse_epoch_timestamp(end_time)
+                    if end_dt:
+                        end_time = end_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
                 elif end_time and 'T' in end_time:
                     # Already in ISO format, ensure Z format
                     end_time = end_time.replace('Z', 'Z')

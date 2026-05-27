@@ -9,6 +9,7 @@ services:
       - PYTHONUNBUFFERED=1
       - FLASK_HOST=0.0.0.0
       - FLASK_PORT=3010
+      - GRAPHDB_REPOSITORY=telenor-5g4data-simulator-demo
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:3010/health')"]

@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 import requests
 import json
 import os
+import re
 from datetime import datetime
 import logging
 
@@ -13,9 +14,21 @@ logger = logging.getLogger(__name__)
 
 # GraphDB configuration
 GRAPHDB_URL = os.environ.get('GRAPHDB_URL', "http://start5g-1.cs.uit.no:7200")
-REPOSITORY = os.environ.get('GRAPHDB_REPOSITORY', "intents_and_intent_reports")  # You may need to adjust this based on your GraphDB setup
+REPOSITORY = os.environ.get('GRAPHDB_REPOSITORY', "intents_and_intent_reports")
+REPOSITORY_ID_PATTERN = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
 
-def get_metric_query(metric_name):
+
+def resolve_repository_id(raw_repository_id):
+    """Resolve GraphDB repository from query param or env fallback."""
+    repository_id = (raw_repository_id or REPOSITORY or '').strip()
+    if not repository_id:
+        return None, 'repository_id is required (query param or GRAPHDB_REPOSITORY env)'
+    if not REPOSITORY_ID_PATTERN.match(repository_id):
+        return None, 'Invalid repository_id'
+    return repository_id, None
+
+
+def get_metric_query(metric_name, repository_id):
     """
     Retrieve the SPARQL query for a given metric name from GraphDB
     """
@@ -32,12 +45,12 @@ def get_metric_query(metric_name):
     """ % metric_name
     
     logger.info(f"Getting metric query for: {metric_name}")
-    logger.info(f"GraphDB URL: {GRAPHDB_URL}/repositories/{REPOSITORY}")
+    logger.info(f"GraphDB URL: {GRAPHDB_URL}/repositories/{repository_id}")
     
     try:
         # Make request to GraphDB
         response = requests.post(
-            f"{GRAPHDB_URL}/repositories/{REPOSITORY}",
+            f"{GRAPHDB_URL}/repositories/{repository_id}",
             headers={
                 "Content-Type": "application/sparql-query",
                 "Accept": "application/sparql-results+json"
@@ -426,7 +439,12 @@ def get_metric_reports(metric_name):
         if step == '':
             step = None
         
-        logger.info(f"Requesting metric reports for: {metric_name}")
+        repository_arg = request.args.get('repository_id') or request.args.get('repository')
+        repository_id, repo_error = resolve_repository_id(repository_arg)
+        if repo_error:
+            return jsonify({'error': repo_error, 'data': []}), 400
+
+        logger.info(f"Requesting metric reports for: {metric_name} (repository: {repository_id})")
         if start_time and end_time:
             logger.info(f"Time range: {start_time} to {end_time}")
             logger.info(f"Step parameter: {step}")
@@ -454,12 +472,12 @@ def get_metric_reports(metric_name):
                 logger.warning(f"Could not process timestamps: {e}")
         
         # Get the metric query from GraphDB
-        metric_query = get_metric_query(metric_name)
+        metric_query = get_metric_query(metric_name, repository_id)
         
         if not metric_query:
-            logger.error(f"No query found for metric: {metric_name}")
+            logger.error(f"No query found for metric: {metric_name} in repository: {repository_id}")
             return jsonify({
-                'error': f'No query found for metric: {metric_name}',
+                'error': f'No query found for metric: {metric_name} in repository: {repository_id}',
                 'data': []
             }), 404
         
@@ -487,6 +505,7 @@ def get_metric_reports(metric_name):
             'data': formatted_data,
             'meta': {
                 'metric_name': metric_name,
+                'repository_id': repository_id,
                 'query': metric_query,
                 'start_time': start_time,
                 'end_time': end_time,

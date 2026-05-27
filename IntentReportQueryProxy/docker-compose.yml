@@ -9,6 +9,7 @@ services:
       - PYTHONUNBUFFERED=1
       - FLASK_HOST=0.0.0.0
       - FLASK_PORT=3010
+      # Fallback when Grafana does not pass repository_id
       - GRAPHDB_REPOSITORY=telenor-5g4data-simulator-demo
     restart: unless-stopped
     healthcheck:

@@ -57,7 +57,9 @@ export function buildIntentGrafanaUrl(input: {
   });
 
   if (input.conditionMetrics.length > 0) {
-    params.set("var-condition_metrics", input.conditionMetrics.join(","));
+    for (const metric of input.conditionMetrics) {
+      params.append("var-condition_metrics", metric);
+    }
   }
 
   return `${base}/d/${encodeURIComponent(env.dashboardUid)}/${encodeURIComponent(env.dashboardSlug)}?${params.toString()}`;

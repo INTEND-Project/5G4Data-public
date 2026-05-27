@@ -100,7 +100,7 @@ The proxy reads metric query URLs from GraphDB (`http://intent-reports-metadata`
 | [`Grafana/SimulatorIntentDashboard.json`](Grafana/SimulatorIntentDashboard.json) | Intent overview (stats, intent list, drill-down links) |
 | [`Grafana/SimulatorIntentAndConditionMetricsTimeseriesDashboard.json`](Grafana/SimulatorIntentAndConditionMetricsTimeseriesDashboard.json) | Per-intent condition metric timeseries (opened from overview or the controller Grafana icon) |
 
-Import both JSON files into Grafana. Setup steps (plugins, datasources): [`../IntentDashboard/src/START-GRAFANA.md`](../IntentDashboard/src/START-GRAFANA.md). The controller Grafana icon uses `GRAFANA_TIMESERIES_DASHBOARD_UID=Simulator-5g4data-Metrics` (see `SimulatorController/.env.example`). Start the proxy **before** opening timeseries dashboards.
+Import both JSON files into Grafana. Setup steps (plugins, datasources): [`../IntentDashboard/src/START-GRAFANA.md`](../IntentDashboard/src/START-GRAFANA.md). The controller Grafana icon uses `GRAFANA_TIMESERIES_DASHBOARD_UID=Simulator-5g4data-Metrics` (see `SimulatorController/.env.example`). Timeseries panels call IntentReportQueryProxy with `repository_id=${repository_id}` from the dashboard URL (same KG target as SPARQL panels). Re-import dashboards after JSON changes (`./Grafana/import-dashboards.sh`). Restart the proxy after updates (`cd ../IntentReportQueryProxy && docker compose up -d --build`).
 
 **Simulator agents:**
 

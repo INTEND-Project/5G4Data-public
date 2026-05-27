@@ -55,6 +55,23 @@ describe("intent-dashboard-url", () => {
     expect(url).toContain("to=now");
   });
 
+  it("passes each condition metric as a separate grafana variable", () => {
+    const url = buildIntentGrafanaUrl({
+      intentId: "I04fb0697e3a243e7a292c6cb57e9f797",
+      conditionMetrics: ["metric_COabc", "metric_COdef"],
+      bounds: null,
+      env: {
+        baseUrl: "http://grafana.example:3001",
+        dashboardUid: "abc123",
+        dashboardSlug: "intent-dashboard",
+      },
+    });
+
+    expect(url).toContain("var-condition_metrics=metric_COabc");
+    expect(url).toContain("var-condition_metrics=metric_COdef");
+    expect(url).not.toContain("metric_COabc,metric_COdef");
+  });
+
   it("builds historic grafana url with epoch bounds", () => {
     const nowMs = Date.now();
     const bounds = {

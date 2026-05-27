@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import Editor from "@monaco-editor/react";
 
 import { registerMetricCompletions } from "@/components/editor/register-completions";
@@ -15,7 +15,7 @@ type ScriptEditorProps = {
 
 const DEFAULT_EDITOR_HEIGHT_PX = 360;
 
-export function ScriptEditor({
+export const ScriptEditor = memo(function ScriptEditor({
   value,
   metricNames,
   heightPx = DEFAULT_EDITOR_HEIGHT_PX,
@@ -65,4 +65,4 @@ export function ScriptEditor({
       />
     </div>
   );
-}
+});

@@ -110,7 +110,8 @@ describe("workspace shell bootstrap", () => {
     expect(scriptRunnerSource).toContain("Run mode");
     expect(scriptRunnerSource).toContain("dry-run");
     expect(scriptRunnerSource).toContain("execute");
-    expect(scriptRunnerSource).toContain("runMode");
+    expect(scriptRunnerSource).toContain("RunModeSelector");
+    expect(scriptRunnerSource).toContain("runModeRef");
     expect(scriptRunnerSource).toContain("aria-pressed");
     expect(scriptRunnerSource).toContain("RUN_MODE_TOOLTIPS");
     expect(scriptRunnerSource).toContain(
@@ -131,7 +132,8 @@ describe("workspace shell bootstrap", () => {
     expect(scriptRunnerSource).toContain("workspace-editor-tabs");
     expect(scriptRunnerSource).toContain("role=\"tablist\"");
     expect(workspaceSource).toContain("agentsRefreshUrl");
-    expect(workspaceSource).toContain('refresh: "1"');
+    expect(workspaceSource).not.toContain('refresh: "1"');
+    expect(agentListSource).toContain("forceRefresh: true");
     expect(agentListSource).toContain("Available agents");
     expect(agentListSource).toContain("registeredAgentCount");
     expect(agentListSource).toContain("registered");
@@ -143,8 +145,7 @@ describe("workspace shell bootstrap", () => {
     expect(agentListSource).toContain('registryConnected ? "workspace-chip-live" : "workspace-chip-down"');
     expect(agentListSource).toContain("registryPollIntervalMs");
     expect(agentListSource).toContain("refreshAgents");
-    expect(agentListSource).toContain("fetch(refreshUrl");
-    expect(agentListSource).not.toContain("Refresh");
+    expect(agentListSource).toContain("fetch(`${requestUrl.pathname}${requestUrl.search}`");
     expect(agentListSource).not.toContain("Refreshing...");
     expect(agentListSource).toContain("setDisplayedAgents");
     expect(agentListSource).toContain("isHealthy === false");
@@ -185,7 +186,11 @@ describe("workspace shell bootstrap", () => {
     expect(intentsPanelSource).toContain("/description");
     expect(intentsPanelSource).toContain("/empty-graphdb");
     expect(intentsPanelSource).toContain("useWorkspaceScriptSession");
-    expect(intentsPanelSource).toContain("CONNECTED_POLL_MS");
+    expect(intentsPanelSource).toContain("intentsEqual");
+    expect(intentsPanelSource).toContain("initialScriptRunIdRef");
+    expect(intentsPanelSource).toContain("workspace-panel-refresh-button");
+    expect(intentsPanelSource).toContain("Refresh intent list");
+    expect(intentsPanelSource).not.toContain("INTENT_LITE_POLL_MS");
     expect(storageIconsSource).toContain("workspace-icon-badge-button");
     expect(storageIconsSource).toContain("/icons/prometheus.svg");
     expect(storageIconsSource).toContain("/icons/graphdb.svg");

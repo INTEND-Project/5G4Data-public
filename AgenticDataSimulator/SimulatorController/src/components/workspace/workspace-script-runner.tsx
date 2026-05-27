@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, memo } from "react";
 import { useRouter } from "next/navigation";
 
 import { ScriptEditor } from "@/components/editor/script-editor";
@@ -58,6 +58,44 @@ const RUN_MODE_TOOLTIPS: Record<RunMode, string> = {
     "Run the script end-to-end: discover agents, create intents, extract metric catalogs, and request reports.",
 };
 
+type RunModeSelectorProps = {
+  disabled: boolean;
+  runModeRef: React.MutableRefObject<RunMode>;
+};
+
+function RunModeSelector({ disabled, runModeRef }: RunModeSelectorProps) {
+  const [runMode, setRunMode] = useState<RunMode>("execute");
+  runModeRef.current = runMode;
+
+  return (
+    <div className="workspace-runner-field">
+      <label className="workspace-label">Run mode</label>
+      <div aria-label="Run mode" className="workspace-runner-modes" role="group">
+        <button
+          aria-pressed={runMode === "dry-run"}
+          className={`workspace-runner-mode${runMode === "dry-run" ? " workspace-runner-mode-active" : ""}`}
+          disabled={disabled}
+          onClick={() => setRunMode("dry-run")}
+          title={RUN_MODE_TOOLTIPS["dry-run"]}
+          type="button"
+        >
+          dry-run
+        </button>
+        <button
+          aria-pressed={runMode === "execute"}
+          className={`workspace-runner-mode${runMode === "execute" ? " workspace-runner-mode-active" : ""}`}
+          disabled={disabled}
+          onClick={() => setRunMode("execute")}
+          title={RUN_MODE_TOOLTIPS.execute}
+          type="button"
+        >
+          execute
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function readStoredEditorHeight(): number {
   if (typeof window === "undefined") {
     return DEFAULT_EDITOR_HEIGHT;
@@ -70,7 +108,7 @@ function readStoredEditorHeight(): number {
   return Math.min(MAX_EDITOR_HEIGHT, Math.max(MIN_EDITOR_HEIGHT, n));
 }
 
-export function WorkspaceScriptRunner({
+export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   metricNames,
   scriptsApiUrl,
   kgTargetsApiBaseUrl,
@@ -380,6 +418,10 @@ export function WorkspaceScriptRunner({
   const quickSaveRef = useRef(quickSave);
   quickSaveRef.current = quickSave;
 
+  const handleEditorSave = useCallback(() => {
+    void quickSaveRef.current();
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.key !== "s") {
@@ -422,7 +464,7 @@ export function WorkspaceScriptRunner({
   /** Maps DSL intent alias → observation storage from `create intent … storage`. */
   const intentStorageByAliasRef = useRef(new Map<string, ObservationStorageType>());
   const [runBusy, setRunBusy] = useState(false);
-  const [runMode, setRunMode] = useState<RunMode>("execute");
+  const runModeRef = useRef<RunMode>("execute");
   const [intentSession, setIntentSession] = useState<{
     wellKnownURI: string;
     prompt: string;
@@ -467,7 +509,7 @@ export function WorkspaceScriptRunner({
     beginScriptRun(activeScriptName);
     openRunLogDialog();
     try {
-      const modeLabel = runMode === "dry-run" ? "Dry-run" : "Run Script";
+      const modeLabel = runModeRef.current === "dry-run" ? "Dry-run" : "Run Script";
       appendRunnerLog(`${modeLabel}: analysing DSL…`);
 
       const { statements, diagnostics } = analyzeScript(activeContent);
@@ -490,14 +532,14 @@ export function WorkspaceScriptRunner({
 
       if (diagnostics.some((diag) => diag.severity === "error")) {
         appendRunnerLog(
-          runMode === "dry-run"
+          runModeRef.current === "dry-run"
             ? "Dry-run: resolve validation errors first."
             : "Stopping: resolve validation errors first.",
         );
         return;
       }
 
-      if (runMode === "dry-run") {
+      if (runModeRef.current === "dry-run") {
         const kindSummary =
           statements.map((statement) => statement.kind).join(", ") || "(none)";
         appendRunnerLog(
@@ -911,7 +953,6 @@ export function WorkspaceScriptRunner({
     graphDbBaseUrl,
     resolveSelectedGraphTargetBinding,
     setScriptExtractedMetricNames,
-    runMode,
   ]);
 
   const handleIntentDialogFinish = useCallback(() => {
@@ -988,7 +1029,7 @@ export function WorkspaceScriptRunner({
           key={activeTabKey}
           metricNames={metricNames}
           onChange={setActiveContent}
-          onSave={() => void quickSaveRef.current()}
+          onSave={handleEditorSave}
           value={activeContent}
         />
         <div
@@ -1000,31 +1041,7 @@ export function WorkspaceScriptRunner({
         />
       </div>
       <div className="workspace-runner">
-        <div className="workspace-runner-field">
-          <label className="workspace-label">Run mode</label>
-          <div aria-label="Run mode" className="workspace-runner-modes" role="group">
-            <button
-              aria-pressed={runMode === "dry-run"}
-              className={`workspace-runner-mode${runMode === "dry-run" ? " workspace-runner-mode-active" : ""}`}
-              disabled={runBusy}
-              onClick={() => setRunMode("dry-run")}
-              title={RUN_MODE_TOOLTIPS["dry-run"]}
-              type="button"
-            >
-              dry-run
-            </button>
-            <button
-              aria-pressed={runMode === "execute"}
-              className={`workspace-runner-mode${runMode === "execute" ? " workspace-runner-mode-active" : ""}`}
-              disabled={runBusy}
-              onClick={() => setRunMode("execute")}
-              title={RUN_MODE_TOOLTIPS.execute}
-              type="button"
-            >
-              execute
-            </button>
-          </div>
-        </div>
+        <RunModeSelector disabled={runBusy} runModeRef={runModeRef} />
         <div className="workspace-runner-field">
           <label className="workspace-label" htmlFor="runner-kg-target">
             Knowledge graph target
@@ -1239,4 +1256,4 @@ export function WorkspaceScriptRunner({
       />
     </>
   );
-}
+});

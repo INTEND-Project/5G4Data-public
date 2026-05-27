@@ -46,11 +46,11 @@ describe("infraPollIntervalMs", () => {
 });
 
 describe("registryPollIntervalMs", () => {
-  it("uses fast polling when the registry is disconnected", () => {
-    expect(registryPollIntervalMs(false)).toBe(DISCONNECTED_POLL_MS);
+  it("does not poll when the registry is connected", () => {
+    expect(registryPollIntervalMs(true)).toBeNull();
   });
 
-  it("uses slow polling when the registry is connected", () => {
-    expect(registryPollIntervalMs(true)).toBe(CONNECTED_POLL_MS);
+  it("uses fast polling when the registry is disconnected", () => {
+    expect(registryPollIntervalMs(false)).toBe(DISCONNECTED_POLL_MS);
   });
 });

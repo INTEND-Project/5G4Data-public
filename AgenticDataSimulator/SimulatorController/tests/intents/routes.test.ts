@@ -64,6 +64,18 @@ describe("intents routes", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(listIntentsMock.listIntentsForDomain).toHaveBeenCalledWith(
+      [
+        {
+          repositoryId: "repo-1",
+          graphIri: "http://example/graph",
+        },
+      ],
+      {
+        mode: "full",
+        cacheKey: undefined,
+      },
+    );
     await expect(response.json()).resolves.toEqual({
       intents: [
         {
@@ -75,6 +87,29 @@ describe("intents routes", () => {
         },
       ],
     });
+  });
+
+  it("lists intents in lite mode with cache key", async () => {
+    listIntentsMock.listIntentsForDomain.mockResolvedValue([]);
+
+    const routeModule = await import("../../src/app/api/intents/route");
+    const response = await routeModule.GET(
+      new Request("http://localhost/api/intents?domain=telenor.5g4data&lite=1"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(listIntentsMock.listIntentsForDomain).toHaveBeenCalledWith(
+      [
+        {
+          repositoryId: "repo-1",
+          graphIri: "http://example/graph",
+        },
+      ],
+      {
+        mode: "lite",
+        cacheKey: "telenor.5g4data:repo-1|http://example/graph",
+      },
+    );
   });
 
   it("returns 400 when domain is missing", async () => {

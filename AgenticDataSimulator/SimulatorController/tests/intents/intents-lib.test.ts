@@ -56,9 +56,13 @@ describe("intent-dashboard-url", () => {
   });
 
   it("builds historic grafana url with epoch bounds", () => {
-    const bounds = { minMs: 1_700_000_000_000, maxMs: 1_700_010_000_000 };
+    const nowMs = Date.now();
+    const bounds = {
+      minMs: nowMs - 7 * 24 * 60 * 60 * 1000,
+      maxMs: nowMs - 24 * 60 * 60 * 1000,
+    };
     const time = buildGrafanaTimeParams(bounds);
-    expect(isStreamingBounds(bounds, 1_700_020_000_000)).toBe(false);
+    expect(isStreamingBounds(bounds, nowMs)).toBe(false);
     expect(time.from).not.toBe("now-3h");
     expect(Number(time.from)).toBeLessThan(bounds.minMs);
     expect(Number(time.to)).toBeGreaterThan(bounds.maxMs);
@@ -95,12 +99,16 @@ describe("clear-intent-observations-query", () => {
 
 describe("observation-time-bounds helpers", () => {
   it("adds padding around historic windows", () => {
-    const window = historicGrafanaWindow({
-      minMs: 1_000_000,
-      maxMs: 1_100_000,
-    });
+    const nowMs = 1_700_020_000_000;
+    const window = historicGrafanaWindow(
+      {
+        minMs: 1_700_000_000_000,
+        maxMs: 1_700_010_000_000,
+      },
+      nowMs,
+    );
 
-    expect(window.fromMs).toBeLessThan(1_000_000);
-    expect(window.toMs).toBeGreaterThan(1_100_000);
+    expect(window.fromMs).toBeLessThan(1_700_000_000_000);
+    expect(window.toMs).toBeGreaterThan(1_700_010_000_000);
   });
 });

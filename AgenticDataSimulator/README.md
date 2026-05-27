@@ -9,13 +9,14 @@ Multi-agent data generation simulator stack for the 5G4Data project.
 | `SimulatorAgentKernel` | Generic runtime kernel; loads domain packages and creates package-bound agent clones |
 | `SimulatorAgentPackages` | Domain package registry (intent generation, observations, templates) |
 | `SimulatorController` | Web workspace for script authoring, agent discovery, and execution |
+| `Grafana` | Grafana dashboard exports for the simulator (avalanche demo) |
 | `a2a-registry` | Agent-to-agent registry for discovery and registration |
 
 See also [`README-a2a-registry.md`](README-a2a-registry.md) for deployment and Caddy/UFW integration notes.
 
 ## External dependencies and startup order
 
-The simulator **agents** and **controller** rely on several other services. Start dependencies **before** `./agent-control start` and before `SimulatorController` (`npm run dev`). On **start5g-1**, many of these run as shared lab infrastructure behind Caddy; locally you start only what you need.
+The simulator **agents** and **controller** rely on several other services. Start dependencies **before** `./agent-control start` and before [SimulatorController](#simulatorcontroller). On **start5g-1**, many of these run as shared lab infrastructure behind Caddy; locally you start only what you need.
 
 ### Dependency overview
 
@@ -28,7 +29,7 @@ The simulator **agents** and **controller** rely on several other services. Star
 | **Caddy reverse proxy** | Public HTTPS for agents, GraphDB, registry, Prometheus | start5g-1 deployment only | See [Infrastructure on start5g-1](#infrastructure-on-start5g-1-caddy) | Optional locally (use direct ports instead) |
 | **Prometheus + Pushgateway** | Observation agent (`storage prometheus`) | Prometheus observation storage only | `…/prometheus`, `…/prometheus-pushgateway` | [`Prometheus/`](Prometheus/) — `./start.sh` (`:9090`, `:9091`) |
 | **IntentReportQueryProxy** | Grafana timeseries panels (Infinity datasource) | Viewing metrics in Grafana only | `http://start5g-1.cs.uit.no:3010` | [`../IntentReportQueryProxy/`](../IntentReportQueryProxy/) — `docker compose up -d` |
-| **Grafana** (+ SPARQL & Infinity plugins) | Dashboards in [`../IntentDashboard/`](../IntentDashboard/) | Visualization only | `http://start5g-1.cs.uit.no:3001` (example) | See [`../IntentDashboard/src/START-GRAFANA.md`](../IntentDashboard/src/START-GRAFANA.md) |
+| **Grafana** (+ SPARQL & Infinity plugins) | Dashboards in [`Grafana/`](Grafana/) | Visualization only | `http://start5g-1.cs.uit.no:3002` (example) | See [`Grafana/`](Grafana/) and [`../IntentDashboard/src/START-GRAFANA.md`](../IntentDashboard/src/START-GRAFANA.md) |
 | **LLM provider** (OpenAI / Anthropic) | Both agents | Running agent turns | API keys in agent clone `.env` | — |
 
 **Not started by this repo:** GraphDB, workload catalogue, Caddy, and Grafana are usually operated separately on the lab host. This repository provides `./agent-control`, `Prometheus/`, `a2a-registry/`, and the controller app.
@@ -43,7 +44,8 @@ The simulator **agents** and **controller** rely on several other services. Star
 5. IntentReportQueryProxy           (only if using Grafana timeseries dashboards)
 6. Grafana                          (only for dashboards)
 7. Simulator agents                 ./agent-control start
-8. SimulatorController              cd SimulatorController && npm run dev
+8. SimulatorController              cd SimulatorController && npm run build && npm run start
+                                    (or `npm run dev` for development with hot reload)
 ```
 
 After **re-cloning agents** (`package load`), restart the controller so it loads fresh `AGENT_API_KEYS` from `SimulatorController/.env`.
@@ -91,7 +93,14 @@ curl -sf http://127.0.0.1:3010/health
 
 The proxy reads metric query URLs from GraphDB (`http://intent-reports-metadata`) and forwards range queries to Prometheus or GraphDB. Restart it after code changes: `docker compose up -d --build`.
 
-**Grafana** — install SPARQL and Infinity datasource plugins, then import dashboards from [`../IntentDashboard/src/`](../IntentDashboard/src/). Full steps: [`../IntentDashboard/src/START-GRAFANA.md`](../IntentDashboard/src/START-GRAFANA.md). Start the proxy **before** opening timeseries dashboards.
+**Grafana** — install SPARQL and Infinity datasource plugins, then import the **simulator dashboards from [`Grafana/`](Grafana/)** (these are the ones to use with this stack; older exports under [`../IntentDashboard/src/`](../IntentDashboard/src/) are superseded for the avalanche demo):
+
+| File | Purpose |
+|------|---------|
+| [`Grafana/SimulatorIntentDashboard.json`](Grafana/SimulatorIntentDashboard.json) | Intent overview (stats, intent list, drill-down links) |
+| [`Grafana/SimulatorIntentAndConditionMetricsTimeseriesDashboard.json`](Grafana/SimulatorIntentAndConditionMetricsTimeseriesDashboard.json) | Per-intent condition metric timeseries (opened from overview or the controller Grafana icon) |
+
+Import both JSON files into Grafana. Setup steps (plugins, datasources): [`../IntentDashboard/src/START-GRAFANA.md`](../IntentDashboard/src/START-GRAFANA.md). The controller Grafana icon uses `GRAFANA_TIMESERIES_DASHBOARD_UID=Simulator-5g4data-Metrics` (see `SimulatorController/.env.example`). Start the proxy **before** opening timeseries dashboards.
 
 **Simulator agents:**
 
@@ -101,7 +110,29 @@ curl -sf http://127.0.0.1:3011/health
 curl -sf http://127.0.0.1:3012/health
 ```
 
-**SimulatorController:**
+### SimulatorController
+
+Copy and edit `.env` from `.env.example` before the first run (`APP_BASE_PATH`, GraphDB/registry URLs, `AGENT_API_KEYS`, etc.).
+
+**Production (recommended)** — faster and more responsive, especially when using the UI from a remote browser:
+
+```bash
+cd SimulatorController
+npm install          # first time only
+npm run build
+npm run start
+```
+
+To accept connections from other hosts (e.g. start5g-1 behind a reverse proxy), bind on all interfaces:
+
+```bash
+npm run build
+npx next start -H 0.0.0.0 -p 3000
+```
+
+Re-run `npm run build` after controller code changes, then restart `npm run start`.
+
+**Development** — hot reload while editing the controller; can feel sluggish over high-latency remote links:
 
 ```bash
 cd SimulatorController

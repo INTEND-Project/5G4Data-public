@@ -37,7 +37,6 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   const agentsRefreshUrl = withAppBasePath(
     `/api/agents?${new URLSearchParams({
       domain: selectedDomain,
-      refresh: "1",
     }).toString()}`,
   );
   const kgTargetsCreateUrl = withAppBasePath("/api/kg-targets");

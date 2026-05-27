@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useMemo } from "react";
 
 import { AgentList } from "@/components/workspace/agent-list";
 import { AssistantPanel } from "@/components/workspace/assistant-panel";
@@ -94,12 +95,21 @@ export function WorkspaceShell({
     content: script.content,
   }));
 
-  const scriptRunnerKgTargets = kgTargets.map((target) => ({
-    id: target.id,
-    displayName: target.displayName,
-    repositoryId: target.repositoryId,
-    graphIri: target.graphIri,
-  }));
+  const scriptRunnerKgTargets = useMemo(
+    () =>
+      kgTargets.map((target) => ({
+        id: target.id,
+        displayName: target.displayName,
+        repositoryId: target.repositoryId,
+        graphIri: target.graphIri,
+      })),
+    [kgTargets],
+  );
+
+  const scriptRunnerMetricNames = useMemo(
+    () => assistantContext.metricNames,
+    [assistantContext.metricNames],
+  );
 
   const infraStatus = useInfraConnectionStatus(
     { registryConnected, graphDbConnected, prometheusConnected },
@@ -179,7 +189,7 @@ export function WorkspaceShell({
               graphDbBaseUrl={graphDbBaseUrl}
               kgTargets={scriptRunnerKgTargets}
               kgTargetsApiBaseUrl={kgTargetsDeleteUrlBase}
-              metricNames={assistantContext.metricNames}
+              metricNames={scriptRunnerMetricNames}
               scriptsApiUrl={scriptsApiUrl}
             />
           </section>

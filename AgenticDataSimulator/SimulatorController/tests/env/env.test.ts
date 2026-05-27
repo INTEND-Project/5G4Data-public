@@ -27,9 +27,9 @@ describe("loadAppEnv", () => {
     expect(env.graphDbBaseUrl).toBe("https://start5g-1.cs.uit.no/graphdb/");
     expect(env.prometheusUrl).toBe("http://127.0.0.1:9090/");
     expect(env.pushgatewayUrl).toBe("http://127.0.0.1:9091");
-    expect(env.grafanaTimeseriesDashboardUid).toBe("fekk4b61d38qof");
+    expect(env.grafanaTimeseriesDashboardUid).toBe("Simulator-5g4data-Metrics");
     expect(env.grafanaTimeseriesDashboardSlug).toBe(
-      "intent-and-condition-metrics-timeseries-dashboard",
+      "simulator-intent-and-condition-metrics-timeseries-dashboard",
     );
     expect(env.grafanaBaseUrl).toBeUndefined();
     expect(env.appBasePath).toBe("/tmf-simulator");

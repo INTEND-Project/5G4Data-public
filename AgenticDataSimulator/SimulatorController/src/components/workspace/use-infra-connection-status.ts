@@ -14,6 +14,7 @@ export function useInfraConnectionStatus(
 ): InfraConnectionStatus {
   const [status, setStatus] = useState(initialStatus);
   const statusRef = useRef(status);
+  const intervalIdRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   useEffect(() => {
     setStatus(initialStatus);
@@ -46,19 +47,17 @@ export function useInfraConnectionStatus(
     }
   }, [statusApiUrl]);
 
+  const schedule = useCallback(() => {
+    if (intervalIdRef.current !== undefined) {
+      clearInterval(intervalIdRef.current);
+    }
+
+    intervalIdRef.current = setInterval(() => {
+      void fetchStatus();
+    }, infraPollIntervalMs(statusRef.current));
+  }, [fetchStatus]);
+
   useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval> | undefined;
-
-    const schedule = () => {
-      if (intervalId !== undefined) {
-        clearInterval(intervalId);
-      }
-
-      intervalId = setInterval(() => {
-        void fetchStatus();
-      }, infraPollIntervalMs(statusRef.current));
-    };
-
     schedule();
 
     const onVisibilityChange = () => {
@@ -71,12 +70,16 @@ export function useInfraConnectionStatus(
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
-      if (intervalId !== undefined) {
-        clearInterval(intervalId);
+      if (intervalIdRef.current !== undefined) {
+        clearInterval(intervalIdRef.current);
       }
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [fetchStatus, status]);
+  }, [fetchStatus, schedule]);
+
+  useEffect(() => {
+    schedule();
+  }, [status, schedule]);
 
   return status;
 }

@@ -30,7 +30,7 @@ export function buildGrafanaTimeParams(bounds: ObservationTimeBounds | null): {
     return { from: "now-3h", to: "now" };
   }
 
-  const window = historicGrafanaWindow(bounds);
+  const window = historicGrafanaWindow(bounds, Date.now());
   return {
     from: String(window.fromMs),
     to: String(window.toMs),

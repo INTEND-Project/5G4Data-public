@@ -90,13 +90,18 @@ export function AgentList({ agents, refreshUrl, registryConnected }: AgentListPr
     registryConnectedRef.current = registryConnected;
   }, [registryConnected]);
 
-  const refreshAgents = useCallback(async () => {
+  const refreshAgents = useCallback(async (options?: { forceRefresh?: boolean }) => {
     if (typeof document !== "undefined" && document.hidden) {
       return;
     }
 
     try {
-      const response = await fetch(refreshUrl, {
+      const requestUrl = new URL(refreshUrl, window.location.origin);
+      if (options?.forceRefresh) {
+        requestUrl.searchParams.set("refresh", "1");
+      }
+
+      const response = await fetch(`${requestUrl.pathname}${requestUrl.search}`, {
         cache: "no-store",
       });
 
@@ -124,14 +129,20 @@ export function AgentList({ agents, refreshUrl, registryConnected }: AgentListPr
     const schedule = () => {
       if (intervalId !== undefined) {
         clearInterval(intervalId);
+        intervalId = undefined;
+      }
+
+      const intervalMs = registryPollIntervalMs(registryConnectedRef.current);
+      if (intervalMs === null) {
+        return;
       }
 
       intervalId = setInterval(() => {
         void refreshAgents();
-      }, registryPollIntervalMs(registryConnectedRef.current));
+      }, intervalMs);
     };
 
-    void refreshAgents();
+    void refreshAgents({ forceRefresh: true });
     schedule();
 
     const onVisibilityChange = () => {

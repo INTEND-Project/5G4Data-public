@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
-import { CONNECTED_POLL_MS } from "@/components/workspace/infra-connection-status";
 import {
   deleteInStorageConfirmMessage,
   deleteInStorageLabel,
@@ -10,23 +10,20 @@ import {
   GrafanaIcon,
 } from "@/components/workspace/workspace-storage-icons";
 import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
-import type { ObservationStorageType } from "@/lib/observation-storage";
+import { intentsEqual, type IntentListEntryLike } from "@/lib/intents/intent-list-equality";
 
-type IntentListEntry = {
-  intentId: string;
-  storage: ObservationStorageType;
-  grafanaUrl: string | null;
-};
+type IntentListEntry = IntentListEntryLike;
 
 type IntentsPanelProps = {
   selectedDomain: string;
   graphDbConnected: boolean;
   prometheusConnected: boolean;
   intentsApiUrl: string;
-  intentsApiUrl: string;
   intentsUrlBase: string;
   prometheusClearUrlBase: string;
 };
+
+const GRAFANA_CLICK_FEEDBACK_MS = 2000;
 
 export function IntentsPanel({
   selectedDomain,
@@ -38,10 +35,14 @@ export function IntentsPanel({
 }: IntentsPanelProps) {
   const { scriptRunLogs } = useWorkspaceScriptSession();
   const latestScriptRunId = scriptRunLogs[0]?.id ?? null;
+  const initialScriptRunIdRef = useRef(latestScriptRunId);
   const [intents, setIntents] = useState<IntentListEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deletingIntentId, setDeletingIntentId] = useState<string | null>(null);
+  const [pendingGrafanaIntentIds, setPendingGrafanaIntentIds] = useState<Set<string>>(() => new Set());
+  const pendingGrafanaIntentIdsRef = useRef<Set<string>>(new Set());
+  const grafanaFeedbackTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [intentDescriptions, setIntentDescriptions] = useState<Record<string, string | null>>({});
   const [loadingDescriptions, setLoadingDescriptions] = useState<Record<string, boolean>>({});
   const intentDescriptionsRef = useRef(intentDescriptions);
@@ -54,6 +55,18 @@ export function IntentsPanel({
   useEffect(() => {
     loadingDescriptionsRef.current = loadingDescriptions;
   }, [loadingDescriptions]);
+
+  useEffect(() => {
+    const timeouts = grafanaFeedbackTimeoutsRef.current;
+
+    return () => {
+      for (const timeoutId of timeouts.values()) {
+        clearTimeout(timeoutId);
+      }
+      timeouts.clear();
+      pendingGrafanaIntentIdsRef.current.clear();
+    };
+  }, []);
 
   const loadIntents = useCallback(
     async (options?: { background?: boolean }) => {
@@ -71,7 +84,10 @@ export function IntentsPanel({
         }
 
         const payload = (await response.json()) as { intents: IntentListEntry[] };
-        setIntents(payload.intents ?? []);
+        const nextIntents = payload.intents ?? [];
+        setIntents((currentIntents) =>
+          intentsEqual(currentIntents, nextIntents) ? currentIntents : nextIntents,
+        );
         if (!options?.background) {
           setActionError(null);
         }
@@ -91,39 +107,12 @@ export function IntentsPanel({
   );
 
   useEffect(() => {
-    void loadIntents();
-  }, [loadIntents]);
-
-  useEffect(() => {
-    if (!latestScriptRunId) {
+    if (!latestScriptRunId || latestScriptRunId === initialScriptRunIdRef.current) {
       return;
     }
 
     void loadIntents({ background: true });
   }, [latestScriptRunId, loadIntents]);
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) {
-        return;
-      }
-
-      void loadIntents({ background: true });
-    }, CONNECTED_POLL_MS);
-
-    const onVisibilityChange = () => {
-      if (!document.hidden) {
-        void loadIntents({ background: true });
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
-    return () => {
-      clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [loadIntents]);
 
   const loadIntentDescription = useCallback(
     async (intentId: string) => {
@@ -189,6 +178,31 @@ export function IntentsPanel({
     return description ?? "No intent description found in GraphDB";
   }
 
+  function handleGrafanaClick(event: React.MouseEvent<HTMLAnchorElement>, intentId: string) {
+    if (pendingGrafanaIntentIdsRef.current.has(intentId)) {
+      event.preventDefault();
+      return;
+    }
+
+    pendingGrafanaIntentIdsRef.current.add(intentId);
+    flushSync(() => {
+      setPendingGrafanaIntentIds(new Set(pendingGrafanaIntentIdsRef.current));
+    });
+
+    const existingTimeout = grafanaFeedbackTimeoutsRef.current.get(intentId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+
+    const timeoutId = setTimeout(() => {
+      grafanaFeedbackTimeoutsRef.current.delete(intentId);
+      pendingGrafanaIntentIdsRef.current.delete(intentId);
+      setPendingGrafanaIntentIds(new Set(pendingGrafanaIntentIdsRef.current));
+    }, GRAFANA_CLICK_FEEDBACK_MS);
+
+    grafanaFeedbackTimeoutsRef.current.set(intentId, timeoutId);
+  }
+
   async function handleDelete(intent: IntentListEntry) {
     if (!window.confirm(deleteInStorageConfirmMessage(intent.intentId, intent.storage))) {
       return;
@@ -229,6 +243,16 @@ export function IntentsPanel({
     <section className="workspace-section">
       <div className="workspace-heading-row">
         <h2>Intents</h2>
+        <button
+          aria-label="Refresh intent list"
+          className="workspace-button workspace-button-secondary workspace-panel-refresh-button"
+          disabled={!hasAnyBackend || isLoading}
+          onClick={() => void loadIntents()}
+          title="Load intents from GraphDB and Prometheus"
+          type="button"
+        >
+          {isLoading ? "Refreshing…" : "Refresh"}
+        </button>
       </div>
       {actionError ? (
         <p aria-live="polite" className="workspace-hint">
@@ -247,8 +271,8 @@ export function IntentsPanel({
           </article>
         ) : intents.length === 0 ? (
           <article className="workspace-card">
-            <strong>No intents found yet</strong>
-            <p>Create intents in a knowledge graph target or run observation reports.</p>
+            <strong>No intents loaded yet</strong>
+            <p>Click Refresh to load intents from GraphDB and Prometheus, or run a script.</p>
           </article>
         ) : null}
         {intents.map((intent) => (
@@ -264,12 +288,22 @@ export function IntentsPanel({
               <div className="workspace-kg-target-actions">
                 {intent.grafanaUrl ? (
                   <a
+                    aria-busy={pendingGrafanaIntentIds.has(intent.intentId)}
                     aria-label={`Open Grafana dashboard for ${intent.intentId}`}
-                    className="workspace-button workspace-button-secondary workspace-kg-target-action"
+                    className={`workspace-button workspace-button-secondary workspace-kg-target-action${
+                      pendingGrafanaIntentIds.has(intent.intentId)
+                        ? " workspace-kg-target-action-grafana-pending"
+                        : ""
+                    }`}
                     href={intent.grafanaUrl}
+                    onClick={(event) => handleGrafanaClick(event, intent.intentId)}
                     rel="noopener noreferrer"
                     target="_blank"
-                    title="Open Grafana timeseries dashboard for this intent"
+                    title={
+                      pendingGrafanaIntentIds.has(intent.intentId)
+                        ? "Opening Grafana dashboard…"
+                        : "Open Grafana timeseries dashboard for this intent"
+                    }
                   >
                     <GrafanaIcon />
                   </a>

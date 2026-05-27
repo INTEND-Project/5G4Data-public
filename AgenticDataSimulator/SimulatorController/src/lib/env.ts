@@ -37,10 +37,10 @@ const appEnvSchema = z.object({
   PROMETHEUS_URL: z.string().url().default("http://127.0.0.1:9090/"),
   PUSHGATEWAY_URL: z.string().url().default("http://127.0.0.1:9091"),
   GRAFANA_BASE_URL: z.string().url().optional(),
-  GRAFANA_TIMESERIES_DASHBOARD_UID: z.string().default("fekk4b61d38qof"),
+  GRAFANA_TIMESERIES_DASHBOARD_UID: z.string().default("Simulator-5g4data-Metrics"),
   GRAFANA_TIMESERIES_DASHBOARD_SLUG: z
     .string()
-    .default("intent-and-condition-metrics-timeseries-dashboard"),
+    .default("simulator-intent-and-condition-metrics-timeseries-dashboard"),
   APP_BASE_PATH: z.string().optional(),
   ASSISTANT_MODEL: z.string().default("gpt-4.1-mini"),
   ASSISTANT_API_KEY: z.string().optional(),

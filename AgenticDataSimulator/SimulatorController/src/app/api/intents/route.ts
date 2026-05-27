@@ -32,8 +32,16 @@ export async function GET(request: Request) {
     },
   });
 
+  const lite = searchParams.get("lite") === "1" || searchParams.get("lite") === "true";
+  const cacheKey = lite
+    ? `${domain}:${targets.map((target) => `${target.repositoryId}|${target.graphIri}`).join(";")}`
+    : undefined;
+
   try {
-    const intents = await listIntentsForDomain(targets);
+    const intents = await listIntentsForDomain(targets, {
+      mode: lite ? "lite" : "full",
+      cacheKey,
+    });
     return NextResponse.json({ intents });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Intent discovery failed";

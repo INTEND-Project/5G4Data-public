@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Control OpenClaw simulator agents (intent generation + observations).
 #
-#   agent-control start    Load or start agent containers (build only when needed).
+#   agent-control start    Load or start agent containers (reload clone when package or kernel changed).
 #   agent-control stop     Stop and remove agent containers.
-#   agent-control restart  Create missing agents, or rebuild and restart when sources changed.
+#   agent-control restart  Create missing agents, reload when package/kernel changed, or rebuild clone sources.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,6 +15,38 @@ AGENTS=(
   "5g4data-intent-observations|5g4data-intent-observation-generating-agent|3012|5g4data-intent-observation-generating-agent"
 )
 
+# Paths copied from SimulatorAgentPackages into each clone (see packageCloneDeployer.ts).
+DEPLOY_REL_PATHS=(
+  manifest.json
+  workflow.dsl.json
+  compatibility.json
+  checksums.txt
+  rules
+  validators
+  tools
+  prompts
+  prompt_modules
+  skills
+  dependencies
+  schemas
+  validation
+  examples
+  tests
+  mappings
+  metadata
+)
+
+# Baseline kernel paths copied into each clone (see agentCloneManager.ts).
+# Exclude package.json / package-lock.json: the clone merges package deps on load and
+# would otherwise look newer than the baseline kernel without a real kernel change.
+KERNEL_REL_PATHS=(
+  src
+  scripts
+  Dockerfile
+  .dockerignore
+  tsconfig.json
+)
+
 usage() {
   cat <<EOF
 Usage: agent-control {start|stop|restart}
@@ -22,9 +54,10 @@ Usage: agent-control {start|stop|restart}
 Run from the AgenticDataSimulator directory as ./agent-control,
 or add AgenticDataSimulator/bin to PATH (see README.md).
 
-  start    Create clones if missing, build images when sources changed, start containers.
+  start    Create clones if missing; when package or SimulatorAgentKernel sources changed,
+           remove existing clone(s), package load, and start containers.
   stop     Stop and remove running agent containers.
-  restart  Create missing agents (like start), or rebuild and restart when sources changed.
+  restart  Like start for missing or package/kernel-changed agents; otherwise rebuild when clone sources changed.
 
 Agents:
   - 5g4data-intent-generating-agent (port 3011)
@@ -43,9 +76,15 @@ require_docker() {
   fi
 }
 
+clone_base_dir() {
+  local suffix="$1"
+  printf '%s/SimulatorAgentKernel-%s\n' "$ROOT" "$suffix"
+}
+
 find_clone_dir() {
   local suffix="$1"
-  local base="$ROOT/SimulatorAgentKernel-${suffix}"
+  local base
+  base="$(clone_base_dir "$suffix")"
   if [[ -d "$base" ]]; then
     printf '%s\n' "$base"
     return 0
@@ -59,6 +98,148 @@ find_clone_dir() {
   if [[ -n "$latest" ]]; then
     printf '%s\n' "$latest"
   fi
+}
+
+find_newest_file_epoch() {
+  local path="$1"
+  find "$path" \
+    \( -path '*/node_modules/*' -o -path '*/logs/*' -o -path '*/dist/*' -o -path '*/.git/*' \) -prune \
+    -o -type f -printf '%T@\n' 2>/dev/null \
+    | sort -n \
+    | tail -1 \
+    | cut -d. -f1
+}
+
+newest_epoch_under_rel_paths() {
+  local root="$1"
+  shift
+  local max=0
+  local rel path epoch
+
+  for rel in "$@"; do
+    path="$root/$rel"
+    [[ -e "$path" ]] || continue
+    epoch="$(find_newest_file_epoch "$path" || true)"
+    if [[ -n "$epoch" && "$epoch" -gt "$max" ]]; then
+      max="$epoch"
+    fi
+  done
+
+  if (( max > 0 )); then
+    printf '%s\n' "$max"
+  fi
+}
+
+newest_epoch_under_deploy_paths() {
+  newest_epoch_under_rel_paths "$1" "${DEPLOY_REL_PATHS[@]}"
+}
+
+kernel_newest_epoch() {
+  newest_epoch_under_rel_paths "$KERNEL" "${KERNEL_REL_PATHS[@]}"
+}
+
+clone_kernel_newest_epoch() {
+  local clone_dir="$1"
+  newest_epoch_under_rel_paths "$clone_dir" "${KERNEL_REL_PATHS[@]}"
+}
+
+needs_package_reload() {
+  local package_dir="$1"
+  local clone_dir="${2:-}"
+
+  [[ -d "$package_dir" ]] || return 1
+  [[ -n "$clone_dir" && -d "$clone_dir" ]] || return 1
+
+  local package_epoch clone_epoch
+  package_epoch="$(newest_epoch_under_deploy_paths "$package_dir" || true)"
+  clone_epoch="$(newest_epoch_under_deploy_paths "$clone_dir" || true)"
+
+  [[ -n "$package_epoch" ]] || return 1
+  [[ -n "$clone_epoch" ]] || return 0
+
+  (( package_epoch > clone_epoch ))
+}
+
+needs_kernel_reload() {
+  local clone_dir="${1:-}"
+
+  [[ -d "$KERNEL" ]] || return 1
+  [[ -n "$clone_dir" && -d "$clone_dir" ]] || return 1
+
+  local kernel_epoch clone_epoch
+  kernel_epoch="$(kernel_newest_epoch || true)"
+  clone_epoch="$(clone_kernel_newest_epoch "$clone_dir" || true)"
+
+  [[ -n "$kernel_epoch" ]] || return 1
+  [[ -n "$clone_epoch" ]] || return 0
+
+  (( kernel_epoch > clone_epoch ))
+}
+
+needs_clone_reload() {
+  local package_dir="$1"
+  local clone_dir="${2:-}"
+
+  needs_package_reload "$package_dir" "$clone_dir" && return 0
+  needs_kernel_reload "$clone_dir" && return 0
+  return 1
+}
+
+remove_clone_dir() {
+  local dir="$1"
+  [[ -d "$dir" ]] || return 0
+
+  if [[ -f "$dir/docker-compose.yml" ]]; then
+    echo "    Stopping container in ${dir} ..."
+    (cd "$dir" && docker compose down --remove-orphans) || true
+  fi
+
+  echo "    Removing ${dir} ..."
+  rm -rf "$dir" 2>/dev/null || true
+  if [[ ! -d "$dir" ]]; then
+    return 0
+  fi
+
+  # Container bind-mount writes under logs/ are often root-owned on the host.
+  echo "    Clearing root-owned clone files via Docker ..."
+  local parent name
+  parent="$(cd "$(dirname "$dir")" && pwd)"
+  name="$(basename "$dir")"
+  if docker run --rm -v "${parent}:/parent" alpine:3.20 rm -rf "/parent/${name}"; then
+    return 0
+  fi
+
+  echo "ERROR: could not remove ${dir} (permission denied)." >&2
+  return 1
+}
+
+remove_all_clones_for_suffix() {
+  local suffix="$1"
+  local base dir version=2
+  local -a dirs=()
+
+  base="$(clone_base_dir "$suffix")"
+  [[ -d "$base" ]] && dirs+=("$base")
+  while [[ -d "${base}-v${version}" ]]; do
+    dirs+=("${base}-v${version}")
+    version=$((version + 1))
+  done
+
+  for dir in "${dirs[@]}"; do
+    remove_clone_dir "$dir" || return 1
+  done
+}
+
+load_agent_package() {
+  local package="$1"
+  local label="$2"
+
+  echo "==> Loading ${label} from package ${package}"
+  if [[ ! -d "$KERNEL/node_modules" ]]; then
+    echo "    Installing kernel dependencies ..."
+    (cd "$KERNEL" && npm install)
+  fi
+  (cd "$KERNEL" && npx tsx src/index.ts package load "$PACKAGES/$package")
 }
 
 compose_image_created_epoch() {
@@ -126,10 +307,28 @@ start_agent() {
   local port="$3"
   local label="$4"
 
+  local package_dir="$PACKAGES/$package"
   local clone_dir
   clone_dir="$(find_clone_dir "$clone_suffix" || true)"
 
-  if [[ -n "$clone_dir" && -f "$clone_dir/docker-compose.yml" ]]; then
+  if [[ -n "$clone_dir" ]] && needs_clone_reload "$package_dir" "$clone_dir"; then
+    if needs_kernel_reload "$clone_dir"; then
+      echo "==> SimulatorAgentKernel changed; reloading ${label}"
+    else
+      echo "==> Package ${package} changed; reloading ${label}"
+    fi
+    remove_all_clones_for_suffix "$clone_suffix"
+    clone_dir=""
+  fi
+
+  if [[ -z "$clone_dir" || ! -f "$clone_dir/docker-compose.yml" ]]; then
+    load_agent_package "$package" "$label"
+    clone_dir="$(find_clone_dir "$clone_suffix" || true)"
+    if [[ -z "$clone_dir" ]]; then
+      echo "ERROR: clone directory not found after package load for ${label}" >&2
+      exit 1
+    fi
+  else
     echo "==> Starting ${label} in ${clone_dir}"
     if needs_image_build "$clone_dir"; then
       echo "    Build required (sources newer than image or image missing)"
@@ -138,18 +337,6 @@ start_agent() {
       echo "    Image up to date; skipping build"
     fi
     (cd "$clone_dir" && docker compose up -d)
-  else
-    echo "==> Loading ${label} from package ${package}"
-    if [[ ! -d "$KERNEL/node_modules" ]]; then
-      echo "    Installing kernel dependencies ..."
-      (cd "$KERNEL" && npm install)
-    fi
-    (cd "$KERNEL" && npx tsx src/index.ts package load "$PACKAGES/$package")
-    clone_dir="$(find_clone_dir "$clone_suffix" || true)"
-    if [[ -z "$clone_dir" ]]; then
-      echo "ERROR: clone directory not found after package load for ${label}" >&2
-      exit 1
-    fi
   fi
 
   wait_for_health "$port" "$label"
@@ -164,12 +351,33 @@ restart_agent() {
   local port="$3"
   local label="$4"
 
+  local package_dir="$PACKAGES/$package"
   local clone_dir
   clone_dir="$(find_clone_dir "$clone_suffix" || true)"
 
   if [[ -z "$clone_dir" || ! -f "$clone_dir/docker-compose.yml" ]]; then
     echo "==> ${label}: not created yet; loading from package ${package}"
     start_agent "$package" "$clone_suffix" "$port" "$label"
+    return 0
+  fi
+
+  if needs_clone_reload "$package_dir" "$clone_dir"; then
+    if needs_kernel_reload "$clone_dir"; then
+      echo "==> ${label}: SimulatorAgentKernel changed; reloading clone"
+    else
+      echo "==> ${label}: package ${package} changed; reloading clone"
+    fi
+    remove_all_clones_for_suffix "$clone_suffix"
+    load_agent_package "$package" "$label"
+    clone_dir="$(find_clone_dir "$clone_suffix" || true)"
+    if [[ -z "$clone_dir" ]]; then
+      echo "ERROR: clone directory not found after package load for ${label}" >&2
+      exit 1
+    fi
+    wait_for_health "$port" "$label"
+    echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
+    echo "Agent log files: ${clone_dir}/logs/"
+    echo
     return 0
   fi
 
@@ -240,7 +448,7 @@ cmd_stop() {
 
 cmd_restart() {
   require_docker
-  echo "Checking OpenClaw simulator agents for rebuild from ${ROOT}"
+  echo "Checking OpenClaw simulator agents for package, kernel, or clone changes from ${ROOT}"
   echo
 
   local entry package clone_suffix port label updated=0

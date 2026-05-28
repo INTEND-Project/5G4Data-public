@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AgentList } from "@/components/workspace/agent-list";
 import { AssistantPanel } from "@/components/workspace/assistant-panel";
@@ -63,8 +63,16 @@ type WorkspaceShellProps = {
     userId: string;
     shared: boolean;
     lastRunMode: string | null;
+    createdAt: Date;
     ownerUsername?: string;
   }>;
+};
+
+type KgTargetRecord = {
+  id: string;
+  displayName: string;
+  repositoryId: string;
+  graphIri: string;
 };
 
 export function WorkspaceShell({
@@ -94,29 +102,66 @@ export function WorkspaceShell({
   assistantContext,
   scripts,
 }: WorkspaceShellProps) {
+  const [kgTargetsList, setKgTargetsList] = useState<KgTargetRecord[]>(kgTargets);
+  const [selectedKgTargetId, setSelectedKgTargetId] = useState("");
+
+  useEffect(() => {
+    setKgTargetsList(kgTargets);
+  }, [kgTargets]);
+
+  useEffect(() => {
+    if (kgTargetsList.length === 0) {
+      setSelectedKgTargetId("");
+      return;
+    }
+    setSelectedKgTargetId((prev) =>
+      prev && kgTargetsList.some((t) => t.id === prev) ? prev : kgTargetsList[0].id,
+    );
+  }, [kgTargetsList]);
+
   const domainOptions = Array.from(new Set([selectedDomain, ...domains]));
   /** Empty until the user selects a script or types in the draft tab. */
   const draftContent = "";
 
-  const scriptsPayload = scripts.map((script) => ({
-    id: script.id,
-    name: script.name,
-    content: script.content,
-    userId: script.userId,
-    shared: script.shared,
-    ownerUsername: script.ownerUsername,
-  }));
+  const scriptsPayload = useMemo(
+    () =>
+      scripts.map((script) => ({
+        id: script.id,
+        name: script.name,
+        content: script.content,
+        userId: script.userId,
+        shared: script.shared,
+        createdAt: script.createdAt.toISOString(),
+        ownerUsername: script.ownerUsername,
+      })),
+    [scripts],
+  );
 
   const scriptRunnerKgTargets = useMemo(
     () =>
-      kgTargets.map((target) => ({
+      kgTargetsList.map((target) => ({
         id: target.id,
         displayName: target.displayName,
         repositoryId: target.repositoryId,
         graphIri: target.graphIri,
       })),
-    [kgTargets],
+    [kgTargetsList],
   );
+
+  const handleKgTargetCreated = (target: KgTargetRecord) => {
+    setKgTargetsList((current) => [target, ...current]);
+    setSelectedKgTargetId(target.id);
+  };
+
+  const handleKgTargetDeleted = (targetId: string) => {
+    setKgTargetsList((current) => {
+      const remaining = current.filter((t) => t.id !== targetId);
+      setSelectedKgTargetId((prev) =>
+        prev !== targetId ? prev : (remaining[0]?.id ?? ""),
+      );
+      return remaining;
+    });
+  };
 
   const scriptRunnerMetricNames = useMemo(
     () => assistantContext.metricNames,
@@ -205,7 +250,9 @@ export function WorkspaceShell({
               kgTargets={scriptRunnerKgTargets}
               kgTargetsApiBaseUrl={kgTargetsDeleteUrlBase}
               metricNames={scriptRunnerMetricNames}
+              onSelectedKgTargetIdChange={setSelectedKgTargetId}
               scriptsApiUrl={scriptsApiUrl}
+              selectedKgTargetId={selectedKgTargetId}
             />
           </section>
 
@@ -214,8 +261,11 @@ export function WorkspaceShell({
               createUrl={kgTargetsCreateUrl}
               deleteUrlBase={kgTargetsDeleteUrlBase}
               graphDbConnected={infraStatus.graphDbConnected}
+              onTargetCreated={handleKgTargetCreated}
+              onTargetDeleted={handleKgTargetDeleted}
               selectedDomain={selectedDomain}
-              targets={kgTargets}
+              targets={kgTargetsList}
+              username={username}
             />
             <PrometheusPanel prometheusConnected={infraStatus.prometheusConnected} />
             <IntentsPanel

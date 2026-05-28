@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+scripts/grafana-user-passwords.env
+scripts/grafana-assigned-passwords.env
+scripts/grafana-admin.env
 
 # local sqlite database
 dev.db

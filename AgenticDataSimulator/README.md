@@ -112,7 +112,7 @@ curl -sf http://127.0.0.1:3012/health
 
 ### SimulatorController
 
-Copy and edit `.env` from `.env.example` before the first run (`APP_BASE_PATH`, GraphDB/registry URLs, `AGENT_API_KEYS`, etc.).
+Copy and edit `.env` from `.env.example` before the first run (`APP_BASE_PATH`, GraphDB/registry URLs, `AGENT_API_KEYS`, etc.). When both `GRAFANA_BASE_URL` and `GRAFANA_ADMIN_PASSWORD` are set, registering a Controller user also creates a Grafana account with the same username and password (via the Grafana Admin API and the `admin` credentials in `.env`). For users created before that feature, run `cd SimulatorController && npm run grafana:provision-users` with `--password` or `scripts/grafana-user-passwords.env` (see `scripts/grafana-user-passwords.env.example`). For one-click Grafana from the Intents panel (no separate Grafana login), set `GRAFANA_JWT_SECRET` in `.env` and run `./Grafana/configure-jwt-auth.sh` to enable JWT URL login on the Grafana instance.
 
 **Production (recommended)** — faster and more responsive, especially when using the UI from a remote browser:
 

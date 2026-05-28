@@ -1,4 +1,5 @@
 import { loadAppEnv } from "@/lib/env";
+import { createGrafanaLoginToken } from "@/lib/grafana/jwt-login-token";
 import {
   historicGrafanaWindow,
   isStreamingBounds,
@@ -44,12 +45,16 @@ export function buildIntentGrafanaUrl(input: {
   repositoryId?: string | null;
   graphIri?: string | null;
   env?: GrafanaDashboardEnv;
+  /** When set with GRAFANA_JWT_SECRET, appends auth_token for automatic Grafana login. */
+  loginUsername?: string | null;
+  envSource?: Partial<Record<string, string | undefined>>;
 }): string | null {
-  const env = input.env ?? grafanaDashboardEnvFromProcess();
+  const env = input.env ?? grafanaDashboardEnvFromProcess(input.envSource);
   if (!env.baseUrl) {
     return null;
   }
 
+  const appEnv = loadAppEnv(input.envSource ?? process.env);
   const base = env.baseUrl.replace(/\/$/, "");
   const time = buildGrafanaTimeParams(input.bounds);
   const params = new URLSearchParams({
@@ -69,6 +74,19 @@ export function buildIntentGrafanaUrl(input: {
   }
   if (input.graphIri) {
     params.set("var-graph_iri", input.graphIri);
+  }
+
+  const loginUsername = input.loginUsername?.trim();
+  if (loginUsername && appEnv.grafanaJwtSecret) {
+    params.set(
+      "auth_token",
+      createGrafanaLoginToken({
+        username: loginUsername,
+        emailDomain: appEnv.grafanaUserEmailDomain,
+        secret: appEnv.grafanaJwtSecret,
+        ttlSeconds: appEnv.grafanaJwtTtlSeconds,
+      }),
+    );
   }
 
   return `${base}/d/${encodeURIComponent(env.dashboardUid)}/${encodeURIComponent(env.dashboardSlug)}?${params.toString()}`;

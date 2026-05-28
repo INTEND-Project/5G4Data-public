@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
 import {
+  AuthValidationError,
   buildAuthErrorResponse,
   buildAuthSuccessResponse,
   parseAuthRequestBody,
@@ -13,6 +14,10 @@ import {
   createSessionToken,
   hashSessionToken,
 } from "@/lib/auth/session";
+import {
+  GrafanaProvisioningError,
+  provisionGrafanaUser,
+} from "@/lib/grafana/provision-user";
 
 const registerBodySchema = z.object({
   username: z.string().trim().min(3).max(64),
@@ -20,10 +25,25 @@ const registerBodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const { body, isFormSubmission } = await parseAuthRequestBody(
-    request,
-    registerBodySchema,
+  const isFormSubmission = (request.headers.get("content-type") ?? "").includes(
+    "application/x-www-form-urlencoded",
   );
+  let body: z.infer<typeof registerBodySchema>;
+
+  try {
+    ({ body } = await parseAuthRequestBody(request, registerBodySchema));
+  } catch (error) {
+    if (error instanceof AuthValidationError) {
+      return buildAuthErrorResponse(
+        request,
+        isFormSubmission,
+        { error: error.message },
+        400,
+      );
+    }
+
+    throw error;
+  }
 
   const existingUser = await db.user.findUnique({
     where: {
@@ -51,6 +71,30 @@ export async function POST(request: Request) {
       username: true,
     },
   });
+
+  try {
+    await provisionGrafanaUser({
+      login: body.username,
+      password: body.password,
+      name: body.username,
+    });
+  } catch (error) {
+    await db.user.delete({ where: { id: user.id } });
+
+    if (error instanceof GrafanaProvisioningError) {
+      return buildAuthErrorResponse(
+        request,
+        isFormSubmission,
+        {
+          error:
+            "Could not create the Grafana account for this user. Check Grafana configuration or try again later.",
+        },
+        503,
+      );
+    }
+
+    throw error;
+  }
 
   const sessionToken = createSessionToken();
 

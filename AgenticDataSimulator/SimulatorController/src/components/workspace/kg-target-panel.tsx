@@ -1,19 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+
+type KgTargetRecord = {
+  id: string;
+  displayName: string;
+  repositoryId: string;
+  graphIri: string;
+};
 
 type KgTargetPanelProps = {
   selectedDomain: string;
+  username: string;
   createUrl: string;
   deleteUrlBase: string;
   graphDbConnected: boolean;
-  targets: Array<{
-    id: string;
-    displayName: string;
-    repositoryId: string;
-    graphIri: string;
-  }>;
+  onTargetCreated: (target: KgTargetRecord) => void;
+  onTargetDeleted: (targetId: string) => void;
+  targets: KgTargetRecord[];
 };
+
+function defaultKgDisplayName(username: string): string {
+  return `${username}-test`;
+}
 
 function EmptyKgIcon() {
   return (
@@ -49,21 +58,19 @@ function DeleteRepoIcon() {
 
 export function KgTargetPanel({
   selectedDomain,
+  username,
   createUrl,
   deleteUrlBase,
   graphDbConnected,
+  onTargetCreated,
+  onTargetDeleted,
   targets,
 }: KgTargetPanelProps) {
-  const [displayName, setDisplayName] = useState("kg-avalanche-demo");
-  const [displayedTargets, setDisplayedTargets] = useState(targets);
+  const [displayName, setDisplayName] = useState(() => defaultKgDisplayName(username));
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingTargetId, setDeletingTargetId] = useState<string | null>(null);
   const [emptyingTargetId, setEmptyingTargetId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setDisplayedTargets(targets);
-  }, [targets]);
 
   async function handleCreate() {
     const trimmedName = displayName.trim();
@@ -101,8 +108,8 @@ export function KgTargetPanel({
         };
       };
 
-      setDisplayedTargets((currentTargets) => [payload.target, ...currentTargets]);
-      setDisplayName("");
+      onTargetCreated(payload.target);
+      setDisplayName(defaultKgDisplayName(username));
     } catch (error) {
       console.error(error);
       setCreateError("Unable to create the knowledge graph target right now.");
@@ -160,9 +167,7 @@ export function KgTargetPanel({
         throw new Error(`KG deletion failed with ${response.status}`);
       }
 
-      setDisplayedTargets((currentTargets) =>
-        currentTargets.filter((currentTarget) => currentTarget.id !== target.id),
-      );
+      onTargetDeleted(target.id);
     } catch (error) {
       console.error(error);
       setCreateError("Unable to delete the knowledge graph target right now.");
@@ -210,13 +215,13 @@ export function KgTargetPanel({
         </p>
       ) : null}
       <div className="workspace-stack">
-        {displayedTargets.length === 0 ? (
+        {targets.length === 0 ? (
           <article className="workspace-card">
             <strong>No knowledge graph targets yet</strong>
             <p>Create a repository and named graph for the selected domain.</p>
           </article>
         ) : null}
-        {displayedTargets.map((target) => (
+        {targets.map((target) => (
           <article className="workspace-card" key={target.id}>
             <div className="workspace-heading-row">
               <strong>{target.displayName}</strong>

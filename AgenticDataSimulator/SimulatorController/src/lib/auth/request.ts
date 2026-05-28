@@ -8,6 +8,53 @@ type AuthRequestParseResult<T> = {
   isFormSubmission: boolean;
 };
 
+export class AuthValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthValidationError";
+  }
+}
+
+export function formatAuthBodyValidationError(error: z.ZodError) {
+  for (const issue of error.issues) {
+    const field = issue.path[0];
+
+    if (field === "username" && issue.code === "too_small") {
+      const minimum = "minimum" in issue ? issue.minimum : undefined;
+      return minimum === 1
+        ? "Username is required."
+        : "Username must be at least 3 characters.";
+    }
+
+    if (field === "password" && issue.code === "too_small") {
+      const minimum = "minimum" in issue ? issue.minimum : undefined;
+      return minimum === 1
+        ? "Password is required."
+        : "Password must be at least 8 characters.";
+    }
+
+    if (field === "username") {
+      return "Username is required.";
+    }
+
+    if (field === "password") {
+      return "Password is required.";
+    }
+  }
+
+  return "Please check your username and password and try again.";
+}
+
+function parseAuthBody<T>(schema: z.ZodType<T>, rawBody: unknown): T {
+  const parsed = schema.safeParse(rawBody);
+
+  if (!parsed.success) {
+    throw new AuthValidationError(formatAuthBodyValidationError(parsed.error));
+  }
+
+  return parsed.data;
+}
+
 export async function parseAuthRequestBody<T>(
   request: Request,
   schema: z.ZodType<T>,
@@ -17,7 +64,7 @@ export async function parseAuthRequestBody<T>(
 
   if (isFormSubmission) {
     const formData = await request.formData();
-    const body = schema.parse({
+    const body = parseAuthBody(schema, {
       username: formData.get("username"),
       password: formData.get("password"),
     });
@@ -29,7 +76,7 @@ export async function parseAuthRequestBody<T>(
   }
 
   return {
-    body: schema.parse(await request.json()),
+    body: parseAuthBody(schema, await request.json()),
     isFormSubmission: false,
   };
 }

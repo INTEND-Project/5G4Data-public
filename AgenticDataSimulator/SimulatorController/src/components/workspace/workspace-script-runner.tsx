@@ -45,6 +45,8 @@ type WorkspaceScriptRunnerProps = {
     repositoryId: string;
     graphIri: string;
   }>;
+  selectedKgTargetId: string;
+  onSelectedKgTargetIdChange: (targetId: string) => void;
   graphDbBaseUrl: string;
   discoverIntentAgentApiUrl: string;
   discoverObservationAgentApiUrl: string;
@@ -122,6 +124,8 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   intentsRegisterUrl,
   kgTargetsApiBaseUrl,
   kgTargets,
+  selectedKgTargetId,
+  onSelectedKgTargetIdChange,
   graphDbBaseUrl,
   discoverIntentAgentApiUrl,
   discoverObservationAgentApiUrl,
@@ -571,22 +575,8 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, []);
 
-  const runnerKgTargets =
-    kgTargets.length > 0
-      ? kgTargets
-      : [{ id: "", displayName: "kg-avalanche-demo" }];
-
-  const [selectedKgTargetId, setSelectedKgTargetId] = useState("");
-
-  useEffect(() => {
-    if (kgTargets.length === 0) {
-      setSelectedKgTargetId("");
-      return;
-    }
-    setSelectedKgTargetId((prev) =>
-      prev && kgTargets.some((t) => t.id === prev) ? prev : kgTargets[0].id,
-    );
-  }, [kgTargets]);
+  const hasKgTarget =
+    kgTargets.length > 0 && selectedKgTargetId.trim().length > 0;
 
   const persistIntentStoreUrl =
     selectedKgTargetId.length > 0 && kgTargetsApiBaseUrl.trim().length > 0
@@ -600,6 +590,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   /** Maps DSL intent alias → observation storage from `create intent … storage`. */
   const intentStorageByAliasRef = useRef(new Map<string, ObservationStorageType>());
   const [runBusy, setRunBusy] = useState(false);
+  const [kgRequiredDialogOpen, setKgRequiredDialogOpen] = useState(false);
   const runModeRef = useRef<RunMode>("execute");
   const [intentSession, setIntentSession] = useState<{
     wellKnownURI: string;
@@ -668,6 +659,13 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     });
     openRunLogDialog();
     try {
+      if (kgTargets.length === 0 || !selectedKgTargetId.trim()) {
+        appendRunnerLog(
+          "Create a knowledge graph target in the KG target panel before running scripts.",
+        );
+        return;
+      }
+
       const modeLabel = runModeRef.current === "dry-run" ? "Dry-run" : "Run Script";
       appendRunnerLog(`${modeLabel}: analysing DSL…`);
 
@@ -1135,6 +1133,11 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       return;
     }
 
+    if (!hasKgTarget) {
+      setKgRequiredDialogOpen(true);
+      return;
+    }
+
     void (async () => {
       setRunBusy(true);
       try {
@@ -1143,7 +1146,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         setRunBusy(false);
       }
     })();
-  }, [handleRunScript, runBusy]);
+  }, [handleRunScript, hasKgTarget, runBusy]);
 
   return (
     <>
@@ -1212,17 +1215,20 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           </label>
           <select
             className="workspace-select workspace-runner-select"
-            disabled={runnerKgTargets.length === 1 && runnerKgTargets[0]?.id === ""}
+            disabled={kgTargets.length === 0}
             id="runner-kg-target"
-            onChange={(event) => setSelectedKgTargetId(event.target.value)}
+            onChange={(event) => onSelectedKgTargetIdChange(event.target.value)}
             value={
-              runnerKgTargets.some((t) => t.id === selectedKgTargetId)
+              kgTargets.some((t) => t.id === selectedKgTargetId)
                 ? selectedKgTargetId
-                : runnerKgTargets[0]?.id ?? ""
+                : ""
             }
           >
-            {runnerKgTargets.map((target) => (
-              <option key={target.id || target.displayName} value={target.id}>
+            {kgTargets.length === 0 ? (
+              <option value="">Create a KG first</option>
+            ) : null}
+            {kgTargets.map((target) => (
+              <option key={target.id} value={target.id}>
                 {target.displayName}
               </option>
             ))}
@@ -1275,6 +1281,38 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         <p className="workspace-save-error" role="alert">
           {saveError}
         </p>
+      ) : null}
+
+      {kgRequiredDialogOpen ? (
+        <div
+          className="workspace-save-name-dialog-backdrop"
+          onClick={() => setKgRequiredDialogOpen(false)}
+          role="presentation"
+        >
+          <div
+            aria-labelledby="workspace-kg-required-dialog-title"
+            aria-modal="true"
+            className="workspace-save-name-dialog"
+            onClick={(event) => event.stopPropagation()}
+            role="alertdialog"
+          >
+            <h3 id="workspace-kg-required-dialog-title">Knowledge graph required</h3>
+            <p className="workspace-save-as-dialog-hint">
+              Create a knowledge graph target in the KG target panel (right
+              sidebar) before running scripts. Enter a name under &quot;Create
+              new KG with name&quot; and click Create.
+            </p>
+            <div className="workspace-save-name-dialog-actions">
+              <button
+                className="workspace-button"
+                onClick={() => setKgRequiredDialogOpen(false)}
+                type="button"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {saveAsDialogOpen ? (

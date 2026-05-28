@@ -4,33 +4,32 @@ import {
   buildGrafanaTimeParams,
   buildIntentGrafanaUrl,
 } from "../../src/lib/grafana/intent-dashboard-url";
-import { parseStorageFromIntentTurtle, resolveIntentStorage } from "../../src/lib/intents/resolve-intent-storage";
+import { resolveObservationStorageFromMetadata } from "../../src/lib/kg/metric-query-metadata";
 import {
   historicGrafanaWindow,
   isStreamingBounds,
 } from "../../src/lib/intents/observation-time-bounds";
 import { buildClearIntentObservationsUpdate } from "../../src/lib/intents/clear-intent-observations-query";
 
-describe("resolve-intent-storage", () => {
-  it("prefers prometheus when reportDestinations includes prometheus", () => {
-    const turtle = `
-@prefix icm: <http://example/icm/> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-
-_:x icm:reportDestinations [ a rdfs:Container ;
-            rdfs:member data5g:prometheus ] ;
-`.trim();
-
-    expect(parseStorageFromIntentTurtle(turtle)).toBe("prometheus");
-    expect(resolveIntentStorage({ intentTurtle: turtle, inPrometheus: false })).toBe("prometheus");
+describe("resolveObservationStorageFromMetadata", () => {
+  it("derives prometheus from intent-reports-metadata PromQL URLs", () => {
+    expect(
+      resolveObservationStorageFromMetadata(
+        [
+          {
+            compoundMetric: "p99-token-target_COabc",
+            queryUrl: "http://127.0.0.1:9090/api/v1/query?query=metric",
+            backend: "prometheus",
+          },
+        ],
+        false,
+      ),
+    ).toBe("prometheus");
   });
 
-  it("falls back to prometheus when only present in Prometheus", () => {
-    expect(resolveIntentStorage({ intentTurtle: null, inPrometheus: true })).toBe("prometheus");
-  });
-
-  it("defaults to graphdb when turtle and prometheus are absent", () => {
-    expect(resolveIntentStorage({ intentTurtle: null, inPrometheus: false })).toBe("graphdb");
+  it("falls back to prometheus label membership when metadata is absent", () => {
+    expect(resolveObservationStorageFromMetadata([], true)).toBe("prometheus");
+    expect(resolveObservationStorageFromMetadata([], false)).toBe("graphdb");
   });
 });
 

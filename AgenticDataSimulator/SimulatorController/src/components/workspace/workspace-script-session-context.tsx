@@ -18,6 +18,7 @@ export type ServerScript = {
   content: string;
   userId: string;
   shared: boolean;
+  createdAt?: string;
   ownerUsername?: string;
 };
 
@@ -25,6 +26,14 @@ export const DRAFT_TAB_KEY = "draft";
 
 export function tabKeyForScript(id: string) {
   return `script:${id}`;
+}
+
+/** Stable key for when the server script id set changes (not array reference). */
+export function scriptListRevision(scripts: ServerScript[]): string {
+  return scripts
+    .map((script) => script.id)
+    .sort()
+    .join(",");
 }
 
 export function defaultScriptName(domain: string) {
@@ -88,6 +97,8 @@ export type WorkspaceScriptSessionContextValue = {
   openScriptTab: (script: ServerScript) => void;
   /** Remove a script from the sidebar list after a successful DELETE. */
   removeScriptFromList: (scriptId: string) => void;
+  /** Replace the sidebar script list (e.g. after refetching GET /api/scripts). */
+  replaceServerScripts: (scripts: ServerScript[]) => void;
   selectTab: (tabKey: string) => void;
   closeTab: (tabKey: string) => void;
   migrateDraftTabToSavedScript: (scriptId: string, name: string) => void;
@@ -142,10 +153,22 @@ export function WorkspaceScriptSessionProvider({
   );
   const [serverScripts, setServerScripts] = useState(scripts);
   const dirtyKeysRef = useRef<Set<string>>(new Set());
+  const removedScriptIdsRef = useRef<Set<string>>(new Set());
+  const scriptsRevision = useMemo(() => scriptListRevision(scripts), [scripts]);
+  const prevScriptsRevisionRef = useRef(scriptsRevision);
+
+  const applyScriptsFromProps = useCallback((incoming: ServerScript[]) => {
+    const filtered = incoming.filter((script) => !removedScriptIdsRef.current.has(script.id));
+    prevScriptsRevisionRef.current = scriptListRevision(filtered);
+    setServerScripts(filtered);
+  }, []);
 
   useEffect(() => {
-    setServerScripts(scripts);
-  }, [scripts]);
+    if (prevScriptsRevisionRef.current === scriptsRevision) {
+      return;
+    }
+    applyScriptsFromProps(scripts);
+  }, [scripts, scriptsRevision, applyScriptsFromProps]);
 
   const [scriptRunLogs, setScriptRunLogs] = useState<ScriptRunLogRecord[]>([]);
   const [selectedScriptRunId, setSelectedScriptRunId] = useState<string | null>(null);
@@ -324,11 +347,13 @@ export function WorkspaceScriptSessionProvider({
   useEffect(() => {
     if (prevDomainRef.current !== selectedDomain) {
       prevDomainRef.current = selectedDomain;
+      removedScriptIdsRef.current = new Set();
       dirtyKeysRef.current = new Set();
+      applyScriptsFromProps(scripts);
       setBundle(buildInitialTabs(draftContent, selectedDomain));
       setScriptExtractedMetricNames([]);
     }
-  }, [selectedDomain, draftContent]);
+  }, [selectedDomain, draftContent, scripts, applyScriptsFromProps]);
 
   const serverById = useMemo(
     () => new Map(serverScripts.map((s) => [s.id, s])),
@@ -336,7 +361,21 @@ export function WorkspaceScriptSessionProvider({
   );
 
   const removeScriptFromList = useCallback((scriptId: string) => {
-    setServerScripts((prev) => prev.filter((script) => script.id !== scriptId));
+    removedScriptIdsRef.current.add(scriptId);
+    setServerScripts((prev) => {
+      const next = prev.filter((script) => script.id !== scriptId);
+      prevScriptsRevisionRef.current = scriptListRevision(next);
+      return next;
+    });
+  }, []);
+
+  const replaceServerScripts = useCallback((next: ServerScript[]) => {
+    const removed = removedScriptIdsRef.current;
+    for (const script of next) {
+      removed.delete(script.id);
+    }
+    prevScriptsRevisionRef.current = scriptListRevision(next);
+    setServerScripts(next);
   }, []);
 
   useEffect(() => {
@@ -543,6 +582,7 @@ export function WorkspaceScriptSessionProvider({
       setActiveContent,
       openScriptTab,
       removeScriptFromList,
+      replaceServerScripts,
       selectTab,
       closeTab,
       migrateDraftTabToSavedScript,
@@ -573,6 +613,7 @@ export function WorkspaceScriptSessionProvider({
       setActiveContent,
       openScriptTab,
       removeScriptFromList,
+      replaceServerScripts,
       selectTab,
       closeTab,
       migrateDraftTabToSavedScript,

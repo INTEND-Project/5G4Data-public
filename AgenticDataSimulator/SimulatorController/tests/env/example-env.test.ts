@@ -7,5 +7,6 @@ describe(".env.example", () => {
     const source = readFileSync(resolve(process.cwd(), ".env.example"), "utf8");
 
     expect(source).toContain('DATABASE_URL="file:./dev.db"');
+    expect(source).toContain("GRAFANA_ADMIN_PASSWORD");
   });
 });

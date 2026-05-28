@@ -4,6 +4,7 @@ const dbMock = {
   user: {
     findUnique: vi.fn(),
     create: vi.fn(),
+    delete: vi.fn(),
   },
   session: {
     create: vi.fn(),
@@ -26,6 +27,10 @@ const sessionMock = {
   hashSessionToken: vi.fn(),
 };
 
+const grafanaProvisionMock = {
+  provisionGrafanaUser: vi.fn(),
+};
+
 vi.mock("../../src/lib/db", () => ({
   db: dbMock,
 }));
@@ -33,6 +38,17 @@ vi.mock("../../src/lib/db", () => ({
 vi.mock("../../src/lib/auth/password", () => passwordMock);
 
 vi.mock("../../src/lib/auth/session", () => sessionMock);
+
+vi.mock("../../src/lib/grafana/provision-user", async () => {
+  const actual = await vi.importActual<typeof import("../../src/lib/grafana/provision-user")>(
+    "../../src/lib/grafana/provision-user",
+  );
+
+  return {
+    ...actual,
+    provisionGrafanaUser: grafanaProvisionMock.provisionGrafanaUser,
+  };
+});
 
 beforeEach(() => {
   vi.resetModules();
@@ -63,6 +79,8 @@ beforeEach(() => {
       maxAge: 0,
     },
   }));
+  grafanaProvisionMock.provisionGrafanaUser.mockResolvedValue({ provisioned: false });
+  dbMock.user.delete.mockResolvedValue({ id: "user-1" });
 });
 
 afterEach(() => {
@@ -137,6 +155,47 @@ describe("auth route handlers", () => {
     expect(response.headers.get("set-cookie")).toContain(
       "openclaw-controller-session=session-token",
     );
+    expect(grafanaProvisionMock.provisionGrafanaUser).toHaveBeenCalledWith({
+      login: "alice",
+      password: "secret-password",
+      name: "alice",
+    });
+  });
+
+  it("rolls back controller user creation when grafana provisioning fails", async () => {
+    const { GrafanaProvisioningError } = await import("../../src/lib/grafana/provision-user");
+
+    dbMock.user.findUnique.mockResolvedValue(null);
+    passwordMock.hashPassword.mockResolvedValue("hashed-password");
+    dbMock.user.create.mockResolvedValue({
+      id: "user-1",
+      username: "alice",
+    });
+    grafanaProvisionMock.provisionGrafanaUser.mockRejectedValue(
+      new GrafanaProvisioningError("Unauthorized", 401),
+    );
+
+    const routeModule = await import("../../src/app/api/auth/register/route");
+    const response = await routeModule.POST(
+      new Request("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          username: "alice",
+          password: "secret-password",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error:
+        "Could not create the Grafana account for this user. Check Grafana configuration or try again later.",
+    });
+    expect(dbMock.user.delete).toHaveBeenCalledWith({ where: { id: "user-1" } });
+    expect(dbMock.session.create).not.toHaveBeenCalled();
   });
 
   it("logs in an existing user from a browser form post and redirects to workspace", async () => {
@@ -278,5 +337,49 @@ describe("auth route handlers", () => {
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/tmf-simulator/login");
     expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+  });
+
+  it("returns a validation error for invalid register form input", async () => {
+    const routeModule = await import("../../src/app/api/auth/register/route");
+    const response = await routeModule.POST(
+      new Request("http://localhost/tmf-simulator/api/auth/register", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          username: "alice",
+          password: "short",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(
+      "/tmf-simulator/login?error=Password+must+be+at+least+8+characters.",
+    );
+    expect(dbMock.user.create).not.toHaveBeenCalled();
+  });
+
+  it("returns a validation error for invalid register json input", async () => {
+    const routeModule = await import("../../src/app/api/auth/register/route");
+    const response = await routeModule.POST(
+      new Request("http://localhost/api/auth/register", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          username: "alice",
+          password: "short",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Password must be at least 8 characters.",
+    });
+    expect(dbMock.user.create).not.toHaveBeenCalled();
   });
 });

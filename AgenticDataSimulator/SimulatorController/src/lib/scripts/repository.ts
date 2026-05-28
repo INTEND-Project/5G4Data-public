@@ -8,6 +8,7 @@ export type ScriptRecord = {
   content: string;
   shared: boolean;
   lastRunMode: string | null;
+  createdAt: Date;
   ownerUsername?: string;
 };
 
@@ -19,6 +20,7 @@ const scriptSelect = {
   content: true,
   shared: true,
   lastRunMode: true,
+  createdAt: true,
   user: {
     select: {
       username: true,
@@ -34,6 +36,7 @@ function mapScriptRow(row: {
   content: string;
   shared: boolean;
   lastRunMode: string | null;
+  createdAt: Date;
   user: {
     username: string;
   };
@@ -46,6 +49,7 @@ function mapScriptRow(row: {
     content: row.content,
     shared: row.shared,
     lastRunMode: row.lastRunMode,
+    createdAt: row.createdAt,
     ownerUsername: row.user?.username,
   };
 }
@@ -58,7 +62,7 @@ export async function listVisibleScripts(userId: string, domain?: string): Promi
     },
     select: scriptSelect,
     orderBy: {
-      updatedAt: "desc",
+      name: "asc",
     },
   });
 

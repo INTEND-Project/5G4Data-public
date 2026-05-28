@@ -9,7 +9,8 @@
     "lint": "eslint . --ignore-pattern .next --ignore-pattern next-env.d.ts",
     "test": "vitest run",
     "prisma:generate": "prisma generate",
-    "db:clear-data": "scripts/clear-controller-data.sh"
+    "db:clear-data": "scripts/clear-controller-data.sh",
+    "grafana:provision-users": "tsx scripts/provision-grafana-users.ts"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -29,6 +30,7 @@
     "eslint": "^9",
     "eslint-config-next": "^15.5.18",
     "prisma": "^6.19.3",
+    "tsx": "^4.20.5",
     "typescript": "^5",
     "vitest": "^4.1.5"
   }

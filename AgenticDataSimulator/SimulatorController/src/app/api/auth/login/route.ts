@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { verifyPassword } from "@/lib/auth/password";
 import {
+  AuthValidationError,
   buildAuthErrorResponse,
   buildAuthSuccessResponse,
   parseAuthRequestBody,
@@ -20,10 +21,25 @@ const loginBodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const { body, isFormSubmission } = await parseAuthRequestBody(
-    request,
-    loginBodySchema,
+  const isFormSubmission = (request.headers.get("content-type") ?? "").includes(
+    "application/x-www-form-urlencoded",
   );
+  let body: z.infer<typeof loginBodySchema>;
+
+  try {
+    ({ body } = await parseAuthRequestBody(request, loginBodySchema));
+  } catch (error) {
+    if (error instanceof AuthValidationError) {
+      return buildAuthErrorResponse(
+        request,
+        isFormSubmission,
+        { error: error.message },
+        400,
+      );
+    }
+
+    throw error;
+  }
 
   const user = await db.user.findUnique({
     where: {

@@ -5,6 +5,12 @@ import {
   graphIriForSparqlAngleBrackets,
   parseIntentLocalIdForMetricCatalog,
 } from "@/lib/kg/metric-catalog-query";
+import {
+  compoundMetricsForBackend,
+  fetchMetricQueryMetadata,
+  metadataUsesBackend,
+  type MetricQueryMetadata,
+} from "@/lib/kg/metric-query-metadata";
 import { normalizePrometheusBaseUrl } from "@/lib/prometheus/urls";
 
 export type ObservationTimeBounds = {
@@ -166,6 +172,75 @@ export async function fetchPrometheusObservationBounds(intentId: string): Promis
   }
 
   return clampBoundsForGrafana({ minMs, maxMs }, nowMs);
+}
+
+function mergeObservationBounds(
+  left: ObservationTimeBounds | null,
+  right: ObservationTimeBounds | null,
+): ObservationTimeBounds | null {
+  if (!left) {
+    return right;
+  }
+  if (!right) {
+    return left;
+  }
+
+  return {
+    minMs: Math.min(left.minMs, right.minMs),
+    maxMs: Math.max(left.maxMs, right.maxMs),
+  };
+}
+
+/**
+ * Resolves Grafana time bounds using `intent-reports-metadata` (`data5g:hasQuery`) to
+ * decide whether to probe Prometheus or GraphDB. Falls back to both when metadata is missing.
+ */
+export async function resolveObservationTimeBounds(input: {
+  intentId: string;
+  repositoryId?: string | null;
+  graphIri?: string | null;
+  compoundMetrics: string[];
+  metricMetadata?: MetricQueryMetadata[];
+}): Promise<ObservationTimeBounds | null> {
+  const repositoryId = input.repositoryId?.trim();
+  const graphIri = input.graphIri?.trim();
+
+  const metadata =
+    input.metricMetadata ??
+    (repositoryId
+      ? await fetchMetricQueryMetadata(repositoryId, input.compoundMetrics)
+      : []);
+
+  const usePrometheus =
+    metadata.length === 0 || metadataUsesBackend(metadata, "prometheus");
+  const useGraphDb =
+    metadata.length === 0 || metadataUsesBackend(metadata, "graphdb");
+
+  let bounds: ObservationTimeBounds | null = null;
+
+  if (usePrometheus) {
+    bounds = mergeObservationBounds(bounds, await fetchPrometheusObservationBounds(input.intentId));
+  }
+
+  if (useGraphDb && repositoryId && graphIri) {
+    const graphdbMetrics =
+      metadata.length > 0
+        ? compoundMetricsForBackend(metadata, "graphdb")
+        : input.compoundMetrics;
+
+    if (graphdbMetrics.length > 0) {
+      bounds = mergeObservationBounds(
+        bounds,
+        await fetchGraphDbObservationBounds({
+          repositoryId,
+          graphIri,
+          compoundMetrics: graphdbMetrics,
+        }),
+      );
+    }
+  }
+
+  return bounds;
 }
 
 export function isStreamingBounds(bounds: ObservationTimeBounds | null, nowMs = Date.now()): boolean {

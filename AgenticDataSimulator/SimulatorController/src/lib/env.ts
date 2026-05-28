@@ -37,6 +37,13 @@ const appEnvSchema = z.object({
   PROMETHEUS_URL: z.string().url().default("http://127.0.0.1:9090/"),
   PUSHGATEWAY_URL: z.string().url().default("http://127.0.0.1:9091"),
   GRAFANA_BASE_URL: z.string().url().optional(),
+  GRAFANA_ADMIN_USER: z.string().default("admin"),
+  GRAFANA_ADMIN_PASSWORD: z.string().optional(),
+  GRAFANA_API_KEY: z.string().optional(),
+  GRAFANA_USER_EMAIL_DOMAIN: z.string().default("simulator.local"),
+  GRAFANA_ORG_ID: z.coerce.number().int().positive().optional(),
+  GRAFANA_JWT_SECRET: z.string().optional(),
+  GRAFANA_JWT_TTL_SECONDS: z.coerce.number().int().positive().max(3600).default(300),
   GRAFANA_TIMESERIES_DASHBOARD_UID: z.string().default("Simulator-5g4data-Metrics"),
   GRAFANA_TIMESERIES_DASHBOARD_SLUG: z
     .string()
@@ -56,6 +63,13 @@ export type AppEnv = {
   prometheusUrl: string;
   pushgatewayUrl: string;
   grafanaBaseUrl?: string;
+  grafanaAdminUser: string;
+  grafanaAdminPassword?: string;
+  grafanaApiKey?: string;
+  grafanaUserEmailDomain: string;
+  grafanaOrgId?: number;
+  grafanaJwtSecret?: string;
+  grafanaJwtTtlSeconds: number;
   grafanaTimeseriesDashboardUid: string;
   grafanaTimeseriesDashboardSlug: string;
   appBasePath: string;
@@ -74,6 +88,13 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     PROMETHEUS_URL: source.PROMETHEUS_URL,
     PUSHGATEWAY_URL: source.PUSHGATEWAY_URL,
     GRAFANA_BASE_URL: source.GRAFANA_BASE_URL,
+    GRAFANA_ADMIN_USER: source.GRAFANA_ADMIN_USER,
+    GRAFANA_ADMIN_PASSWORD: source.GRAFANA_ADMIN_PASSWORD,
+    GRAFANA_API_KEY: source.GRAFANA_API_KEY,
+    GRAFANA_USER_EMAIL_DOMAIN: source.GRAFANA_USER_EMAIL_DOMAIN,
+    GRAFANA_ORG_ID: source.GRAFANA_ORG_ID,
+    GRAFANA_JWT_SECRET: source.GRAFANA_JWT_SECRET,
+    GRAFANA_JWT_TTL_SECONDS: source.GRAFANA_JWT_TTL_SECONDS,
     GRAFANA_TIMESERIES_DASHBOARD_UID: source.GRAFANA_TIMESERIES_DASHBOARD_UID,
     GRAFANA_TIMESERIES_DASHBOARD_SLUG: source.GRAFANA_TIMESERIES_DASHBOARD_SLUG,
     APP_BASE_PATH: source.APP_BASE_PATH,
@@ -91,6 +112,13 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     prometheusUrl: parsed.PROMETHEUS_URL,
     pushgatewayUrl: parsed.PUSHGATEWAY_URL,
     grafanaBaseUrl: parsed.GRAFANA_BASE_URL?.trim() || undefined,
+    grafanaAdminUser: parsed.GRAFANA_ADMIN_USER,
+    grafanaAdminPassword: parsed.GRAFANA_ADMIN_PASSWORD?.trim() || undefined,
+    grafanaApiKey: parsed.GRAFANA_API_KEY?.trim() || undefined,
+    grafanaUserEmailDomain: parsed.GRAFANA_USER_EMAIL_DOMAIN,
+    grafanaOrgId: parsed.GRAFANA_ORG_ID,
+    grafanaJwtSecret: parsed.GRAFANA_JWT_SECRET?.trim() || undefined,
+    grafanaJwtTtlSeconds: parsed.GRAFANA_JWT_TTL_SECONDS,
     grafanaTimeseriesDashboardUid: parsed.GRAFANA_TIMESERIES_DASHBOARD_UID,
     grafanaTimeseriesDashboardSlug: parsed.GRAFANA_TIMESERIES_DASHBOARD_SLUG,
     appBasePath: getConfiguredAppBasePath({

@@ -1,11 +1,14 @@
 import { buildIntentGrafanaUrl } from "@/lib/grafana/intent-dashboard-url";
 import {
   fetchCompoundMetricsForIntent,
-  fetchGraphDbObservationBounds,
-  fetchPrometheusObservationBounds,
+  resolveObservationTimeBounds,
 } from "@/lib/intents/observation-time-bounds";
-import { resolveIntentStorage } from "@/lib/intents/resolve-intent-storage";
-import { fetchIntentTurtle, listIntentIdsFromGraph } from "@/lib/kg/fetch-intent-turtle";
+import {
+  fetchMetricQueryMetadata,
+  resolveObservationStorageFromMetadata,
+  type MetricQueryMetadata,
+} from "@/lib/kg/metric-query-metadata";
+import { listIntentIdsFromGraph } from "@/lib/kg/fetch-intent-turtle";
 import type { ObservationStorageType } from "@/lib/observation-storage";
 import { getPrometheusConnectionStatus } from "@/lib/prometheus/status";
 import { listIntentIds } from "@/lib/prometheus/client";
@@ -29,6 +32,8 @@ export type ListIntentsOptions = {
   mode?: ListIntentsMode;
   cacheKey?: string;
   ownedIntentIds?: string[];
+  /** Controller username — used for Grafana JWT auto-login on dashboard links. */
+  grafanaLoginUsername?: string | null;
 };
 
 const LITE_LIST_CACHE_TTL_MS = 15_000;
@@ -84,44 +89,36 @@ async function enrichIntentEntry(input: {
   owner: IntentTargetRef | undefined;
   prometheusSet: Set<string>;
   mode: ListIntentsMode;
+  grafanaLoginUsername?: string | null;
 }): Promise<IntentListEntry> {
-  const { intentId, owner, prometheusSet, mode } = input;
+  const { intentId, owner, prometheusSet, mode, grafanaLoginUsername } = input;
   const hasGraphTarget = Boolean(owner?.repositoryId && owner.graphIri);
 
-  let intentTurtle: string | null = null;
   let compoundMetrics: string[] = [];
+  let metricMetadata: MetricQueryMetadata[] = [];
 
   if (hasGraphTarget && owner) {
-    if (mode === "full") {
-      intentTurtle = await fetchIntentTurtle({
-        repositoryId: owner.repositoryId,
-        graphIri: owner.graphIri,
-        intentId,
-      });
-    }
-
     compoundMetrics = await fetchCompoundMetricsForIntent({
       repositoryId: owner.repositoryId,
       graphIri: owner.graphIri,
       intentId,
     });
+
+    metricMetadata = await fetchMetricQueryMetadata(owner.repositoryId, compoundMetrics);
   }
 
-  const storage = resolveIntentStorage({
-    intentTurtle,
-    inPrometheus: prometheusSet.has(intentId),
-  });
+  const storage = resolveObservationStorageFromMetadata(
+    metricMetadata,
+    prometheusSet.has(intentId),
+  );
 
-  const bounds =
-    storage === "prometheus"
-      ? await fetchPrometheusObservationBounds(intentId)
-      : hasGraphTarget && owner
-        ? await fetchGraphDbObservationBounds({
-            repositoryId: owner.repositoryId,
-            graphIri: owner.graphIri,
-            compoundMetrics,
-          })
-        : null;
+  const bounds = await resolveObservationTimeBounds({
+    intentId,
+    repositoryId: hasGraphTarget && owner ? owner.repositoryId : null,
+    graphIri: hasGraphTarget && owner ? owner.graphIri : null,
+    compoundMetrics,
+    metricMetadata,
+  });
 
   return {
     intentId,
@@ -132,6 +129,7 @@ async function enrichIntentEntry(input: {
       bounds,
       repositoryId: hasGraphTarget && owner ? owner.repositoryId : null,
       graphIri: hasGraphTarget && owner ? owner.graphIri : null,
+      loginUsername: grafanaLoginUsername,
     }),
     repositoryId: hasGraphTarget && owner ? owner.repositoryId : null,
     graphIri: hasGraphTarget && owner ? owner.graphIri : null,
@@ -203,6 +201,7 @@ export async function listIntentsForDomain(
       owner: intentOwners.get(intentId),
       prometheusSet,
       mode,
+      grafanaLoginUsername: options.grafanaLoginUsername,
     }),
   );
 

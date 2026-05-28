@@ -44,6 +44,7 @@ export async function GET(request: Request) {
       mode: lite ? "lite" : "full",
       cacheKey,
       ownedIntentIds,
+      grafanaLoginUsername: user.username,
     });
     return NextResponse.json({ intents });
   } catch (error) {

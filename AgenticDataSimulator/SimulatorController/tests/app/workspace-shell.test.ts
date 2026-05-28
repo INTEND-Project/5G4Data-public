@@ -97,6 +97,11 @@ describe("workspace shell bootstrap", () => {
     expect(shellSource).toContain("workspace-panel-tight-stack");
     expect(shellSource).toContain("kgTargetsCreateUrl");
     expect(shellSource).toContain("kgTargetsDeleteUrlBase");
+    expect(shellSource).toContain("kgTargetsList");
+    expect(shellSource).toContain("selectedKgTargetId");
+    expect(shellSource).toContain("handleKgTargetCreated");
+    expect(shellSource).toContain("handleKgTargetDeleted");
+    expect(shellSource).toContain("onSelectedKgTargetIdChange");
     expect(shellSource).toContain("PrometheusPanel");
     expect(shellSource).toContain("IntentsPanel");
     expect(shellSource).toContain("prometheusConnected");
@@ -122,7 +127,17 @@ describe("workspace shell bootstrap", () => {
     );
     expect(scriptRunnerSource).toContain("Dry-run: script is valid");
     expect(scriptRunnerSource).toContain("Knowledge graph target");
-    expect(scriptRunnerSource).toContain("kg-avalanche-demo");
+    expect(scriptRunnerSource).toContain("selectedKgTargetId");
+    expect(scriptRunnerSource).toContain("onSelectedKgTargetIdChange");
+    expect(scriptRunnerSource).toContain("Create a KG first");
+    expect(scriptRunnerSource).toContain("hasKgTarget");
+    expect(scriptRunnerSource).toContain("kgRequiredDialogOpen");
+    expect(scriptRunnerSource).toContain("Knowledge graph required");
+    expect(scriptRunnerSource).toContain('role="alertdialog"');
+    expect(scriptRunnerSource).toContain(
+      "Create a knowledge graph target in the KG target panel before running scripts.",
+    );
+    expect(scriptRunnerSource).not.toContain("kg-avalanche-demo");
     expect(scriptRunnerSource).toContain("Run result policy");
     expect(scriptRunnerSource).toContain("stop on first error");
     expect(scriptRunnerSource).toContain("Run Script");
@@ -156,8 +171,12 @@ describe("workspace shell bootstrap", () => {
     expect(domainSelectorSource).toContain("workspace-section-domain");
     expect(domainSelectorSource).toContain("workspace-select-tight");
     expect(kgTargetPanelSource).toContain('"use client"');
+    expect(kgTargetPanelSource).toContain('useState("")');
+    expect(kgTargetPanelSource).not.toContain('useState("kg-avalanche-demo")');
     expect(kgTargetPanelSource).toContain("fetch(createUrl");
-    expect(kgTargetPanelSource).toContain("setDisplayedTargets");
+    expect(kgTargetPanelSource).toContain("onTargetCreated");
+    expect(kgTargetPanelSource).toContain("onTargetDeleted");
+    expect(kgTargetPanelSource).not.toContain("setDisplayedTargets");
     expect(kgTargetPanelSource).toContain("selectedDomain");
     expect(kgTargetPanelSource).toContain("window.confirm");
     expect(kgTargetPanelSource).toContain("fetch(`${deleteUrlBase}/");

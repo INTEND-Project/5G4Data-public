@@ -7,14 +7,17 @@ When the first "working" version of the AgenticDataSimulator was up and running 
 - [ ] The different tools (inCoord, inSustain, inExplain) may have requirements on how the timeseries needs to be created that is currently not supported. We need to include support for those requirements both in scripts (extend the DSL, add support for freetext key words, etc.) and in the SimulatorAgentPackages/5g4data-intent-observations agent package. Support in the agent can be implemented using more prompt modules (e.g SimulatorAgentPackages/5g4data-intent-observations/prompt_modules), as code (parse keywords in structured and freetext used in "request observation-report ..." commands in scripts and add code to support it), as refinements of the agent SKILL.md file, as agent tools, etc.
 
 ### Easy TODO´s?
-- [ ] When clicking the "Delete script" button/icon in the list of scripts the list should be updated after the deletion.
-- [ ] Make it mandatory to create a KG before any scripts are executed
+- [x] Sort the scipt list alfabetically as default, but make it possible to sort based on when it was created (newest first)
 - [ ] Dockerize the Controller
-- [ ] Users need a Grafana user to view the dashboards. Create demo user.
 - [ ] It is not obvious that it is possible to change the size of the different panels or scroll sideway to see all button/icons. Maybe also add the possibility to hide panels to make more room?
 - [ ] Add a dev version for further development on a different port so that the prod version does not go up/down for users all the time
 
 ## Closed
+- [x] Users need a Grafana user to view the dashboards. Create a seamless transition form Controller to Grafana.
+- [x] When a user creates a KG, update the "Knowledge graph target" selection imediately to select it as the target and update the GUI so that it is visible without a refresh of the browser window.
+- [x] Make the delete buttons for GraphDB and Prometheus user specific
+- [x] When clicking the "Delete script" button/icon in the list of scripts the list should be updated after the deletion.
+- [x] Make it mandatory to create a KG before any scripts are executed
 - [x] Give an understandable error message when password is to short when creating a new user.
 - [x] Improve isolation between users:
   - Add persistent storage (server side) of script run logs per user (store only the 10 last runs)

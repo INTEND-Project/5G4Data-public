@@ -32,6 +32,12 @@ describe("loadAppEnv", () => {
       "simulator-intent-and-condition-metrics-timeseries-dashboard",
     );
     expect(env.grafanaBaseUrl).toBeUndefined();
+    expect(env.grafanaAdminUser).toBe("admin");
+    expect(env.grafanaAdminPassword).toBeUndefined();
+    expect(env.grafanaUserEmailDomain).toBe("simulator.local");
+    expect(env.grafanaOrgId).toBeUndefined();
+    expect(env.grafanaJwtSecret).toBeUndefined();
+    expect(env.grafanaJwtTtlSeconds).toBe(300);
     expect(env.appBasePath).toBe("/tmf-simulator");
     expect(env.assistantModel).toBe("gpt-4.1-mini");
     expect(env.assistantApiKey).toBeUndefined();
@@ -53,6 +59,8 @@ describe("loadAppEnv", () => {
       PROMETHEUS_URL: "http://prometheus.example.test:9090/",
       PUSHGATEWAY_URL: "http://pushgateway.example.test:9091",
       GRAFANA_BASE_URL: "http://grafana.example.test:3001",
+      GRAFANA_ADMIN_PASSWORD: "grafana-admin-secret",
+      GRAFANA_ORG_ID: "2",
       APP_BASE_PATH: "/controller",
       ASSISTANT_MODEL: "claude-3-7-sonnet",
       ASSISTANT_API_KEY: "secret",
@@ -65,6 +73,8 @@ describe("loadAppEnv", () => {
       prometheusUrl: "http://prometheus.example.test:9090/",
       pushgatewayUrl: "http://pushgateway.example.test:9091",
       grafanaBaseUrl: "http://grafana.example.test:3001",
+      grafanaAdminPassword: "grafana-admin-secret",
+      grafanaOrgId: 2,
       appBasePath: "/controller",
       assistantModel: "claude-3-7-sonnet",
       assistantApiKey: "secret",

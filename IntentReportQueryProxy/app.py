@@ -370,10 +370,27 @@ def parse_xml_response(xml_text):
         logger.error(f"Error parsing XML response: {str(e)}")
         return None
 
-def format_for_grafana_infinity(sparql_results):
+def is_legacy_api_request(repository_arg):
+    """Legacy callers omit repository_id and use env-default repo + ISO timestamps."""
+    return repository_arg is None or not str(repository_arg).strip()
+
+
+def format_timestamp_value(value, legacy_api=False):
+    if not value.isdigit() or len(value) < 10:
+        timestamp = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        if legacy_api:
+            return timestamp.isoformat()
+        return int(timestamp.timestamp() * 1000)
+
+    if legacy_api:
+        return datetime.fromtimestamp(float(value)).isoformat()
+    return int(float(value)) * 1000
+
+
+def format_for_grafana_infinity(sparql_results, legacy_api=False):
     """
-    Format SPARQL results for Grafana Infinity data source
-    Returns data in a format that Infinity can parse for timeseries graphs
+    Format SPARQL results for Grafana Infinity data source.
+    legacy_api=True keeps the original ISO timestamp strings and meta shape.
     """
     logger.info(f"Formatting for Grafana Infinity - input: {sparql_results is not None}")
     if not sparql_results or 'results' not in sparql_results:
@@ -399,11 +416,7 @@ def format_for_grafana_infinity(sparql_results):
                 # Try to parse as timestamp if it looks like one
                 if 'time' in column.lower() or 'date' in column.lower():
                     try:
-                        if value.isdigit() and len(value) >= 10:
-                            row[column] = int(float(value)) * 1000
-                        else:
-                            timestamp = datetime.fromisoformat(value.replace('Z', '+00:00'))
-                            row[column] = int(timestamp.timestamp() * 1000)
+                        row[column] = format_timestamp_value(value, legacy_api=legacy_api)
                     except:
                         row[column] = value
                 else:
@@ -440,11 +453,15 @@ def get_metric_reports(metric_name):
             step = None
         
         repository_arg = request.args.get('repository_id') or request.args.get('repository')
+        legacy_api = is_legacy_api_request(repository_arg)
         repository_id, repo_error = resolve_repository_id(repository_arg)
         if repo_error:
             return jsonify({'error': repo_error, 'data': []}), 400
 
-        logger.info(f"Requesting metric reports for: {metric_name} (repository: {repository_id})")
+        logger.info(
+            f"Requesting metric reports for: {metric_name} "
+            f"(repository: {repository_id}, legacy_api: {legacy_api})"
+        )
         if start_time and end_time:
             logger.info(f"Time range: {start_time} to {end_time}")
             logger.info(f"Step parameter: {step}")
@@ -475,9 +492,17 @@ def get_metric_reports(metric_name):
         metric_query = get_metric_query(metric_name, repository_id)
         
         if not metric_query:
-            logger.error(f"No query found for metric: {metric_name} in repository: {repository_id}")
+            logger.error(
+                f"No query found for metric: {metric_name}"
+                + (f" in repository: {repository_id}" if not legacy_api else "")
+            )
+            error_message = (
+                f'No query found for metric: {metric_name}'
+                if legacy_api
+                else f'No query found for metric: {metric_name} in repository: {repository_id}'
+            )
             return jsonify({
-                'error': f'No query found for metric: {metric_name} in repository: {repository_id}',
+                'error': error_message,
                 'data': []
             }), 404
         
@@ -498,20 +523,23 @@ def get_metric_reports(metric_name):
             }), 500
         
         # Format results for Grafana Infinity
-        formatted_data = format_for_grafana_infinity(observation_results)
+        formatted_data = format_for_grafana_infinity(observation_results, legacy_api=legacy_api)
         
         # Return data in format suitable for Grafana Infinity
+        meta = {
+            'metric_name': metric_name,
+            'query': metric_query,
+            'start_time': start_time,
+            'end_time': end_time,
+            'step': step,
+            'timestamp': datetime.now().isoformat()
+        }
+        if not legacy_api:
+            meta['repository_id'] = repository_id
+
         response_data = {
             'data': formatted_data,
-            'meta': {
-                'metric_name': metric_name,
-                'repository_id': repository_id,
-                'query': metric_query,
-                'start_time': start_time,
-                'end_time': end_time,
-                'step': step,
-                'timestamp': datetime.now().isoformat()
-            }
+            'meta': meta,
         }
         
         return jsonify(response_data)
@@ -543,6 +571,7 @@ def root():
         'version': '1.0.0',
         'endpoints': {
             'get_metric_reports': '/api/get-metric-reports/<metric_name>',
+            'get_metric_reports_legacy': '/api/get-metric-reports/<metric_name>?start=&end=&step= (no repository_id)',
             'health': '/health'
         }
     })

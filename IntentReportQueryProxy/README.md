@@ -58,18 +58,36 @@ Returns service status and timestamp.
 
 ### Get Metric Reports
 ```
-GET /api/get-metric-reports/<metric_name>?start=<start_time>&end=<end_time>&step=<step>
+GET /api/get-metric-reports/<metric_name>?repository_id=<graphdb_repo>&start=<start_time>&end=<end_time>&step=<step>
 ```
 
 **Parameters:**
 - `metric_name`: The metric identifier (e.g., `computelatency_CO70ae24ceec1b473abab9cbffa94223a8`)
+- `repository_id` (optional): GraphDB repository where observation metadata was stored. Alias: `repository`. When omitted, the proxy uses the legacy API shape and falls back to `GRAPHDB_REPOSITORY`.
 - `start` (optional): Start time in Unix timestamp or ISO format
 - `end` (optional): End time in Unix timestamp or ISO format  
 - `step` (optional): Step interval for time-series data (e.g., `15s`, `1m`, `1h`)
 
-**Example:**
+**Legacy API (backward compatible):**
+
+Requests **without** `repository_id` / `repository` keep the original response shape:
+
+- Timestamps in `data[]` are ISO-8601 strings
+- `meta` omits `repository_id`
+- 404 errors use `No query found for metric: <metric_name>`
+
+**Modern API (Grafana dashboards):**
+
+Requests **with** `repository_id` return epoch-millisecond timestamps for Infinity `timestamp_epoch` panels and include `meta.repository_id`.
+
+**Example (legacy):**
 ```bash
 curl "http://localhost:3010/api/get-metric-reports/computelatency_CO70ae24ceec1b473abab9cbffa94223a8?start=1760693216851&end=1760704016851&step=20s"
+```
+
+**Example (with repository):**
+```bash
+curl "http://localhost:3010/api/get-metric-reports/computelatency_CO70ae24ceec1b473abab9cbffa94223a8?repository_id=telenor-5g4data-simulator-demo&start=1760693216851&end=1760704016851&step=20s"
 ```
 
 **Response Format:**
@@ -100,7 +118,7 @@ curl "http://localhost:3010/api/get-metric-reports/computelatency_CO70ae24ceec1b
 The application can be configured using environment variables:
 
 - `GRAPHDB_URL`: GraphDB instance URL (default: `http://start5g-1.cs.uit.no:7200`)
-- `GRAPHDB_REPOSITORY`: GraphDB repository name (default: `intents_and_intent_reports`)
+- `GRAPHDB_REPOSITORY`: Optional fallback GraphDB repository when `repository_id` is omitted (default: `intents_and_intent_reports`)
 - `FLASK_HOST`: Flask host binding (default: `0.0.0.0`)
 - `FLASK_PORT`: Flask port (default: `3010`)
 

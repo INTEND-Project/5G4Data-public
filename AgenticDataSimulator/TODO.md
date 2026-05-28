@@ -7,13 +7,15 @@ When the first "working" version of the AgenticDataSimulator was up and running 
 - [ ] The different tools (inCoord, inSustain, inExplain) may have requirements on how the timeseries needs to be created that is currently not supported. We need to include support for those requirements both in scripts (extend the DSL, add support for freetext key words, etc.) and in the SimulatorAgentPackages/5g4data-intent-observations agent package. Support in the agent can be implemented using more prompt modules (e.g SimulatorAgentPackages/5g4data-intent-observations/prompt_modules), as code (parse keywords in structured and freetext used in "request observation-report ..." commands in scripts and add code to support it), as refinements of the agent SKILL.md file, as agent tools, etc.
 
 ### Easy TODO´s?
-- [x] Sort the scipt list alfabetically as default, but make it possible to sort based on when it was created (newest first)
 - [ ] Dockerize the Controller
 - [ ] It is not obvious that it is possible to change the size of the different panels or scroll sideway to see all button/icons. Maybe also add the possibility to hide panels to make more room?
 - [ ] Add a dev version for further development on a different port so that the prod version does not go up/down for users all the time
 
 ## Closed
-- [x] Users need a Grafana user to view the dashboards. Create a seamless transition form Controller to Grafana.
+- [x] The agent registry does not seem to detect health/uptime for agents after we added authentication.Could be a problem related to the new key based authentication scheme that we added.
+- [x] The direct interaction with an agent from the a2a-registry fails, probably because it does not use the key. Needs to be fixed (not vital, but nice to demo).
+- [x] Users need a Grafana user to view the dashboards. Create a seamless transition from SimulatorController to Grafana.
+- [x] Sort the scipt list alfabetically as default, but make it possible to sort based on when it was created (newest first)
 - [x] When a user creates a KG, update the "Knowledge graph target" selection imediately to select it as the target and update the GUI so that it is visible without a refresh of the browser window.
 - [x] Make the delete buttons for GraphDB and Prometheus user specific
 - [x] When clicking the "Delete script" button/icon in the list of scripts the list should be updated after the deletion.
@@ -42,3 +44,4 @@ When the first "working" version of the AgenticDataSimulator was up and running 
 - [x] Update the IntentReportQueryProxy API to Accepts repository_id (or repository) on /api/get-metric-reports/<metric_name> (i.e. /api/get-metric-reports/${metric_name}?repository_id=${repository_id}&start=...)
 - [x] Add support of the old API style (without repository_id in the URL) in the Proxy for backward compatibility
 - [x] Move the IntentReportQueryProxy (the link between Grafana and GraphDB/Prometheus) to AgenticDataSimulator
+

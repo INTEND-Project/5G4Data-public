@@ -162,3 +162,25 @@ curl -sS http://localhost:17001/api/agents
 ```
 
 Expected: empty `agents` list.
+
+## Live terminal chat proxy authentication (fork divergence)
+
+Upstream [A2A Registry](https://github.com/a2aproject/a2a-registry) `POST /agents/{id}/chat` (website **Live terminal**) proxies to the agent via the a2a-sdk **without** sending API keys on the outbound httpx client.
+
+This fork adds the same **`AGENT_API_KEYS` / `X-Api-Key`** handling used by the health worker and registration smoke test, so Live terminal works against SimulatorAgentKernel clones that require A2A v0.3 API key auth.
+
+### Behavior
+
+- `backend/app/main.py` → `chat_with_agent` calls `build_agent_auth_headers(wellKnownURI, agent.name)` and passes the result as default headers on the httpx client used by `ClientFactory.create_from_url`.
+- Keys are read from `AGENT_API_KEYS` in `backend/.env` (synced on `package load`); the browser never sees them.
+- After updating keys, restart **`api`** (and **`worker`**) so the API process reloads settings.
+
+### Upstream divergence
+
+| Path | Upstream | This fork |
+|------|----------|-----------|
+| Health worker | N/A (upstream agents often public) | Uses `AGENT_API_KEYS` |
+| Registration / smoke test | No auth headers | Uses `AGENT_API_KEYS` |
+| Live terminal chat proxy | No auth headers | Uses `AGENT_API_KEYS` |
+
+When merging upstream changes to `main.py`, preserve the auth header wiring in `chat_with_agent` or Live terminal will return **401** for protected agents.

@@ -21,6 +21,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from .agent_auth import build_agent_auth_headers
 from .config import settings
 from .database import db
 from .db_migrations import run_pending_sql_migrations
@@ -604,10 +605,16 @@ async def chat_with_agent(agent_id: UUID, body: ChatRequest, request: Request):
     )
 
     health_repo = HealthCheckRepository(db)
+    well_known_uri = str(agent.wellKnownURI)
+    auth_headers = build_agent_auth_headers(well_known_uri, agent.name)
     start = time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=30.0) as http_client:
-            parsed = urlparse(str(agent.wellKnownURI))
+        async with httpx.AsyncClient(
+            timeout=30.0,
+            follow_redirects=True,
+            headers=auth_headers,
+        ) as http_client:
+            parsed = urlparse(well_known_uri)
             agent_base_url = f"{parsed.scheme}://{parsed.netloc}"
             card_path = parsed.path or None
             factory = ClientFactory(

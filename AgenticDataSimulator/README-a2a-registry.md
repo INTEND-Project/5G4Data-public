@@ -177,4 +177,18 @@ Relevant fixes in **`src/index.ts`**:
 
 ---
 
+## 10. Fork divergence: agent API key auth
+
+Simulator agents require **`X-Api-Key`** on agent-card and JSON-RPC endpoints. This fork wires `AGENT_API_KEYS` from `backend/.env` into:
+
+- health worker (`worker.py`)
+- registration / card fetch (`utils.py`, `smoke_test.py`)
+- **Live terminal** chat proxy (`POST /api/agents/{id}/chat` in `main.py`)
+
+Upstream open-source A2A Registry does **not** attach registry-held keys to the Live terminal proxy; see **`README-changes.md`** (section *Live terminal chat proxy authentication*) for merge notes.
+
+After `package load` updates `backend/.env`, restart **`docker compose restart api worker`**.
+
+---
+
 *Document generated for operational handoff; adjust hostnames, paths, and ports to match your deployment.*

@@ -139,18 +139,37 @@ class TurtleParser:
             self._logger.error("Failed to find ReportingExpectations: %s", exc, exc_info=True)
             return []
 
-    def find_all_expectations(self, turtle_data: str) -> Tuple[Optional[URIRef], Optional[URIRef], List[URIRef]]:
+    def find_sustainability_expectation(self, turtle_data: str) -> Optional[URIRef]:
+        """Find the SustainabilityExpectation node in the Turtle data."""
+        try:
+            graph = Graph()
+            graph.parse(data=turtle_data, format="turtle")
+            graph.bind("data5g", self.DATA5G_NS, override=False)
+
+            data5g_sustainability_expectation = URIRef(f"{self.DATA5G_NS}SustainabilityExpectation")
+
+            for subject in graph.subjects(RDF.type, data5g_sustainability_expectation):
+                self._logger.debug("Found SustainabilityExpectation: %s", subject)
+                return subject
+
+            return None
+        except Exception as exc:
+            self._logger.error("Failed to find SustainabilityExpectation: %s", exc, exc_info=True)
+            return None
+
+    def find_all_expectations(self, turtle_data: str) -> Tuple[Optional[URIRef], Optional[URIRef], Optional[URIRef], List[URIRef]]:
         """
         Find all expectation types in the Turtle data.
-        
+
         Returns:
-            Tuple of (NetworkExpectation, DeploymentExpectation, List[RequirementExpectation])
+            Tuple of (NetworkExpectation, DeploymentExpectation, SustainabilityExpectation, List[RequirementExpectation])
         """
         ne = self.find_network_expectation(turtle_data)
         de = self.find_deployment_expectation(turtle_data)
+        se = self.find_sustainability_expectation(turtle_data)
         re_list = self.find_requirement_expectations(turtle_data)
-        
-        return (ne, de, re_list)
+
+        return (ne, de, se, re_list)
 
     def _find_context_for_expectation(
         self, graph: Graph, expectation: URIRef

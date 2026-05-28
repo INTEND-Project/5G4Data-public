@@ -7,6 +7,8 @@ workloads/*
 !workloads/ai-server/
 # Exception: include avalance-object-detection workload
 !workloads/avalance-object-detection/
+# Exception: include telenor-workload (InSustain energy-latency demo)
+!workloads/telenor-workload/
 # Python virtual environments
 venv/
 .venv/

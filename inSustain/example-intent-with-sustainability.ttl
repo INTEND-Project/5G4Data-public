@@ -1,0 +1,106 @@
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Intent: Deploy LLM inference near Tromso with energy monitoring via InSustain.
+# The sustainability conditions use abstract metrics (powerConsumption,
+# energyConsumption) -- InSustain resolves these to Kepler internally.
+
+data5g:I7f3a91c2b8e04d6e a icm:Intent ;
+    dct:description "Deploy a small LLM inference service near Tromso with energy-aware monitoring." ;
+    imo:handler "inServ" ;
+    imo:owner "inChat" ;
+    log:allOf data5g:DE4c8b2a1f90e7,
+        data5g:SEa3d7f1e50b42,
+        data5g:RE61f8c4b2d903,
+        data5g:RE82a4e7c6f015 .
+
+# --- Deployment Expectation ---
+
+data5g:COd92f4a1b73e6 a icm:Condition ;
+    dct:description "p99-token-target condition quan:smaller: 400ms" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_COd92f4a1b73e6 ;
+            quan:smaller [ quan:unit "ms" ;
+                    rdf:value 400.0 ] ] .
+
+data5g:CX5e1a9c3d7b08 a icm:Context ;
+    data5g:Application "LLM inference" ;
+    data5g:DataCenter "EC_31" ;
+    data5g:DeploymentDescriptor "https://start5g-1.cs.uit.no/wchartmuseum/api/charts/rusty-llm/0.1.19" .
+
+data5g:DE4c8b2a1f90e7 a data5g:DeploymentExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
+    dct:description "Deploy rusty-llm workload near Tromso edge." ;
+    icm:target data5g:deployment ;
+    log:allOf data5g:COd92f4a1b73e6,
+        data5g:CX5e1a9c3d7b08 .
+
+# --- Sustainability Expectation (handled by InSustain) ---
+# Metrics are abstract (powerConsumption, energyConsumption).
+# NOT Kepler-specific names. InSustain maps these internally.
+
+data5g:COf6b3e8a21d04 a icm:Condition ;
+    dct:description "Power consumption must remain below 50 W" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:powerConsumption_COf6b3e8a21d04 ;
+            quan:smaller [ quan:unit "W" ;
+                    rdf:value 50.0 ] ] .
+
+data5g:CO83c7d5e49f12 a icm:Condition ;
+    dct:description "Energy consumption must remain below 3000 J per reporting interval" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:energyConsumption_CO83c7d5e49f12 ;
+            quan:smaller [ quan:unit "J" ;
+                    rdf:value 3000.0 ] ] .
+
+data5g:SEa3d7f1e50b42 a data5g:SustainabilityExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
+    dct:description "Ensure sustainable operation of LLM workload." ;
+    icm:target data5g:sustainability ;
+    log:allOf data5g:COf6b3e8a21d04,
+        data5g:CO83c7d5e49f12,
+        data5g:CX5e1a9c3d7b08 .
+
+# --- Reporting Expectations ---
+
+data5g:tenMinutesDeployment a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventDeployment a rdfs:Class ;
+    rdfs:subClassOf imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:tenMinutesDeployment ) ;
+    imo:eventFor data5g:DE4c8b2a1f90e7 .
+
+data5g:RE61f8c4b2d903 a icm:ObservationReportingExpectation ;
+    dct:description "Deployment observation reports every 10 minutes." ;
+    icm:target data5g:deployment ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventDeployment ] .
+
+data5g:tenMinutesSustainability a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventSustainability a rdfs:Class ;
+    rdfs:subClassOf imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:tenMinutesSustainability ) ;
+    imo:eventFor data5g:SEa3d7f1e50b42 .
+
+data5g:RE82a4e7c6f015 a icm:ObservationReportingExpectation ;
+    dct:description "Sustainability observation reports every 10 minutes via InSustain." ;
+    icm:target data5g:sustainability ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:insustain ] ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventSustainability ] .

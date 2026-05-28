@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "telenor-workload.fullname" . }}
+  labels:
+    {{- include "telenor-workload.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.latencyExporter.port }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+    - port: {{ .Values.nginx.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "telenor-workload.selectorLabels" . | nindent 4 }}

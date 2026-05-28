@@ -28,6 +28,8 @@ class AppConfig:
     datacenter_port_base: int = 4000
     api_path: str = "/tmf-api/intentManagement/v5/"
     innet_base_url: str = "http://intend.eu/inNet"
+    insustain_base_url: str = "http://intend.eu/inSustain"
+    insustain_ready: bool = True
     # When enabled, inServ will not forward intents to inOrch-TMF-Proxy
     # but will only log that they were received.
     test_mode: bool = False
@@ -62,4 +64,6 @@ class AppConfig:
             datacenter_port_base=int(os.getenv("DATACENTER_PORT_BASE", "4000")),
             api_path=os.getenv("API_PATH", "/tmf-api/intentManagement/v5/"),
             innet_base_url=os.getenv("INNET_BASE_URL", "http://intend.eu/inNet"),
+            insustain_base_url=os.getenv("INSUSTAIN_BASE_URL", "http://intend.eu/inSustain"),
+            insustain_ready=_str_to_bool(os.getenv("INSERV_INSUSTAIN_READY"), True),
         )

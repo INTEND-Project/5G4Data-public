@@ -1,0 +1,70 @@
+# Sustainability Metrics for 5G4Data Use Case v0.2.0
+# Provided by InSustain (Ericsson) for integration with 5G4Data intent system.
+#
+# These metrics define WHAT InSustain can monitor. The internal binding to
+# observability sources (Kepler, RAPL, etc.) is an InSustain implementation
+# detail and is NOT exposed in the intent vocabulary.
+#
+# Usage in intents:
+#   - Use data5g:SustainabilityExpectation as the expectation class
+#   - Reference sus:powerConsumption or sus:energyConsumption in conditions
+#   - InSustain will resolve the concrete data source internally
+
+@prefix sus:  <http://tio.models.tmforum.org/tio/v3.6.0/SustainabilityMetrics/> .
+@prefix icm:  <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix met:  <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix imo:  <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<http://tio.models.tmforum.org/tio/v3.6.0/SustainabilityMetrics/>
+  rdf:type imo:IntentExtensionModel ;
+  rdfs:label "Sustainability Metrics for 5G4Data"@en ;
+  rdfs:comment "This intent extension model defines energy sustainability metrics for cloud-native workloads in the 5G4Data use case. Units follow the International System of Units (SI)."@en ;
+  dct:title "Sustainability Metrics for 5G4Data"@en ;
+  dct:description "Defines power and energy consumption metrics observable at container, pod, application or node level in Kubernetes clusters. InSustain resolves these abstract metrics to concrete observability sources (e.g., Kepler) internally."@en ;
+  dct:subject "sustainability"@en ,
+              "energy consumption"@en ,
+              "power consumption"@en ;
+  dct:identifier <http://tio.models.tmforum.org/tio/v3.6.0/SustainabilityMetrics/> ;
+  dct:created "2025-02-13"^^xsd:date ;
+  dct:modified "2025-05-22"^^xsd:date ;
+  dct:license <http://www.apache.org/licenses/LICENSE-2.0> ;
+  skos:changeNote "2025-02-13 - initial version with powerConsumption and energyConsumption"@en ;
+  skos:changeNote "2025-05-12 - added SustainabilityExpectation class"@en ;
+  skos:changeNote "2025-05-22 - clarified abstract metric contract (no Kepler binding in intent)"@en
+.
+
+sus:SustainabilityExpectation
+  rdfs:label "Sustainability Expectation Class"@en ;
+  rdfs:comment "The class sus:SustainabilityExpectation expresses that its instance is a special type of expectation for specifying sustainability requirements such as power and energy consumption limits. Its presence in an intent signals that sustainability monitoring should be activated for the associated targets."@en ;
+  rdf:type rdfs:Class ;
+  rdfs:subClassOf icm:PropertyExpectation
+.
+
+sus:powerConsumption
+  rdfs:label "Power Consumption"@en ;
+  rdfs:comment "Instantaneous power draw of a workload. Observed values are expressed as quantities with SI unit W (watt). InSustain resolves this to the appropriate hardware-level power metric for the target cluster."@en ;
+  rdf:type rdf:Property ;
+  rdfs:subPropertyOf met:metric
+.
+
+sus:energyConsumption
+  rdfs:label "Energy Consumption"@en ;
+  rdfs:comment "Cumulative energy usage of a workload over a time interval. Observed values are expressed as quantities with SI unit J (joule). InSustain resolves this to the appropriate hardware-level energy metric for the target cluster."@en ;
+  rdf:type rdf:Property ;
+  rdfs:subPropertyOf met:metric
+.
+
+sus:Vocabulary
+  rdfs:label "Sustainability Metrics Vocabulary"@en ;
+  rdfs:comment "The object sus:Vocabulary is a container of all model elements."@en ;
+  rdf:type rdfs:Container ;
+  rdfs:member sus:SustainabilityExpectation ,
+              sus:powerConsumption ,
+              sus:energyConsumption
+.

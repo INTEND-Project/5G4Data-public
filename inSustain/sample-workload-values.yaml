@@ -1,0 +1,19 @@
+# Sample Helm chart values.yaml sustainability section.
+# This is the contract between the Workload Catalog and InSustain.
+#
+# When a chart includes this section, the IntentAgent knows it can
+# generate a SustainabilityExpectation for this workload and InSustain
+# can monitor it.
+#
+# Metrics use abstract names (powerConsumption, energyConsumption) --
+# NOT Kepler-specific metric names.
+
+sustainability:
+  - name: powerConsumption
+    value: null
+    tmf-value-hint: 45.0
+    unit: W
+  - name: energyConsumption
+    value: null
+    tmf-value-hint: 2700.0
+    unit: J

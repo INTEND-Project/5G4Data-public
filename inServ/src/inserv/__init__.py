@@ -98,6 +98,8 @@ def create_app(config: AppConfig | None = None) -> "connexion.App":
         test_mode=getattr(config, "test_mode", False),
         innet_base_url=getattr(config, "innet_base_url", "http://intend.eu/inNet"),
         innet_ready=getattr(config, "innet_ready", True),
+        insustain_base_url=getattr(config, "insustain_base_url", "http://intend.eu/inSustain"),
+        insustain_ready=getattr(config, "insustain_ready", True),
         graphdb_client=graphdb_client,
     )
 

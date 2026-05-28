@@ -1,0 +1,92 @@
+replicaCount: 1
+
+nginx:
+  image:
+    repository: nginx
+    tag: alpine
+    pullPolicy: IfNotPresent
+  port: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
+latencyExporter:
+  image:
+    repository: python
+    tag: "3.12-slim"
+    pullPolicy: IfNotPresent
+  port: 9101
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+loadgen:
+  minRPS: 10
+  maxRPS: 100
+  pattern: "sine"
+  periodSeconds: 300
+  targetUrl: "http://localhost:80/"
+
+global:
+  monitoring:
+    labels:
+      release: monitoring
+
+serviceMonitor:
+  enabled: true
+  interval: "15s"
+  portName: metrics
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9101"
+  prometheus.io/path: "/metrics"
+
+serviceAccount:
+  create: true
+  name: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# inOrch compatibility — agent deployment via ChartMuseum
+intent:
+  enabled: true
+  name: "telenor-workload-intent"
+  priority: 1.0
+  targetRef:
+    name: ""
+  objectives:
+    - name: p99-latency-target
+      value: 0.0
+      measuredBy: intend/p99latency
+
+kpiProfile:
+  enabled: true
+  name: "p99latency"
+  type: "latency"
+  description: "P99 request latency to nginx"
+  query: "histogram_quantile(0.99, sum(rate(nginx_request_duration_seconds_bucket[30s])) by (le))"
+  props: {}
+
+# InSustain sustainability contract
+sustainability:
+  metrics:
+    - name: powerConsumption
+      tmf-value-hint: "50"
+      unit: W
+    - name: energyConsumption
+      tmf-value-hint: "3000"
+      unit: J

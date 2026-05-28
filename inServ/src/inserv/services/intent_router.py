@@ -10,12 +10,14 @@ from inserv.services.turtle_parser import TurtleParser
 class IntentRouter:
     """Service to route intents to the appropriate handler (inOrch-TMF-Proxy or inNet)."""
 
-    def __init__(self, infrastructure_service, test_mode: bool = False, innet_base_url: str = "http://intend.eu/inNet", innet_ready: bool = True, graphdb_client=None):
+    def __init__(self, infrastructure_service, test_mode: bool = False, innet_base_url: str = "http://intend.eu/inNet", innet_ready: bool = True, insustain_base_url: str = "http://intend.eu/inSustain", insustain_ready: bool = True, graphdb_client=None):
         self._infrastructure_service = infrastructure_service
         self._logger = logging.getLogger(self.__class__.__name__)
         self._test_mode = test_mode
         self._innet_base_url = innet_base_url.rstrip("/")
         self._innet_ready = innet_ready
+        self._insustain_base_url = insustain_base_url.rstrip("/")
+        self._insustain_ready = insustain_ready
         self._graphdb_client = graphdb_client
         self._turtle_parser = TurtleParser()
 
@@ -51,19 +53,24 @@ class IntentRouter:
             return self._route_to_inorch(intent_data, datacenter)
         
         # Detect expectations
-        ne, de, re_list = self._turtle_parser.find_all_expectations(turtle_expr)
-        
+        ne, de, se, re_list = self._turtle_parser.find_all_expectations(turtle_expr)
+
         # Determine routing strategy
         has_ne = ne is not None
         has_de = de is not None
-        
+        has_se = se is not None
+
         # Log what was detected
-        if has_ne and has_de:
-            self._logger.info("Parsing: Detected both network (NE) and deployment (DE) expectations")
-        elif has_ne:
-            self._logger.info("Parsing: Detected network (NE) expectation only")
-        elif has_de:
-            self._logger.info("Parsing: Detected deployment (DE) expectation only")
+        expectations_found = []
+        if has_ne:
+            expectations_found.append("NE")
+        if has_de:
+            expectations_found.append("DE")
+        if has_se:
+            expectations_found.append("SE")
+
+        if expectations_found:
+            self._logger.info("Parsing: Detected expectations: %s", ", ".join(expectations_found))
         else:
             self._logger.info("Parsing: No expectations detected, using fallback routing")
         
@@ -113,7 +120,13 @@ class IntentRouter:
                     datacenter,
                     intent_data,
                 )
-            
+
+            if has_se:
+                handlers.append("inSustain")
+                self._logger.info(
+                    "Test mode enabled - SE detected, would also forward full intent to inSustain"
+                )
+
             # Return test response (bundle if split)
             if has_ne and has_de:
                 response_data = {
@@ -126,20 +139,32 @@ class IntentRouter:
             headers: dict = {}
             return response_data, 200, headers
         
+        # When SE is present, forward the full intent to inSustain in parallel
+        # with the normal NE/DE routing. InSustain extracts only the
+        # SustainabilityExpectation and ignores the rest.
+        insustain_response = None
+        if has_se:
+            insustain_response = self._route_to_insustain(intent_data, turtle_expr)
+
         # Route based on expectations
         if has_ne and has_de:
             # Both present: split and route to both
-            return self._split_and_route(intent_data, datacenter, turtle_expr)
+            primary_response = self._split_and_route(intent_data, datacenter, turtle_expr)
         elif has_ne:
             # Only NE: route to inNet
-            return self._route_to_innet(intent_data, turtle_expr)
+            primary_response = self._route_to_innet(intent_data, turtle_expr)
         elif has_de:
             # Only DE: route to inOrch
-            return self._route_to_inorch(intent_data, datacenter)
+            primary_response = self._route_to_inorch(intent_data, datacenter)
+        elif has_se:
+            # Only SE: inSustain already handled above, return its response
+            return insustain_response
         else:
             # No expectations detected: fallback to inOrch
             self._logger.warning("No expectations detected, falling back to inOrch routing")
-            return self._route_to_inorch(intent_data, datacenter)
+            primary_response = self._route_to_inorch(intent_data, datacenter)
+
+        return primary_response
 
     def _route_to_inorch(
         self, intent_data: dict, datacenter: str
@@ -232,6 +257,40 @@ class IntentRouter:
         
         return self._send_request(target_url, intent_data, None, "inNet")
     
+    def _route_to_insustain(
+        self, intent_data: dict, turtle_expr: str
+    ) -> tuple[dict | None, int, dict]:
+        """Route full intent to inSustain for sustainability monitoring.
+
+        InSustain receives the complete intent and extracts only the
+        SustainabilityExpectation. Other expectations are ignored.
+        """
+        target_url = f"{self._insustain_base_url}/intent"
+
+        self._logger.info(
+            "Routing: Sending full intent (with SE) to inSustain at %s",
+            target_url,
+        )
+
+        if not self._insustain_ready:
+            intent_id = self._store_intent_in_graphdb(turtle_expr)
+            if intent_id:
+                self._logger.info(
+                    "Routing: inSustain not ready, stored intent in GraphDB (ID: %s)",
+                    intent_id,
+                )
+            return (
+                {
+                    "@type": "Intent",
+                    "id": intent_id,
+                    "description": "Intent accepted for sustainability monitoring (inSustain offline, stored in GraphDB)",
+                },
+                200,
+                {},
+            )
+
+        return self._send_request(target_url, intent_data, None, "inSustain")
+
     def _store_intent_in_graphdb(self, turtle_data: str) -> Optional[str]:
         """Store intent turtle data in GraphDB and return the intent ID."""
         import re

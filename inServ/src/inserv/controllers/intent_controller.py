@@ -68,18 +68,24 @@ def create_intent(body, fields=None):  # noqa: E501
             logger.warning("Intent expressionValue is empty")
             return _error_response("Intent expressionValue cannot be empty", 400)
         
-        # Parse DataCenter from turtle
+        # Parse DataCenter from turtle (may be None for sustainability-only intents)
         turtle_parser = _turtle_parser()
         datacenter = turtle_parser.parse_datacenter(turtle_data)
-        
+
+        # Check if a SustainabilityExpectation is present — if so, datacenter
+        # is not required (InSustain handles it without a target cluster).
         if not datacenter:
-            logger.error("Could not extract DataCenter from turtle expression")
-            return _error_response(
-                "Could not extract DataCenter from intent expression",
-                400,
-            )
-        
-        logger.debug("Extracted DataCenter: %s from intent", datacenter)
+            se = turtle_parser.find_sustainability_expectation(turtle_data)
+            if not se:
+                logger.error("Could not extract DataCenter from turtle expression")
+                return _error_response(
+                    "Could not extract DataCenter from intent expression",
+                    400,
+                )
+            logger.info("No DataCenter in intent but SustainabilityExpectation found, proceeding")
+
+        if datacenter:
+            logger.debug("Extracted DataCenter: %s from intent", datacenter)
         
         # Route intent to appropriate proxy
         intent_router = _intent_router()

@@ -26,3 +26,11 @@ Workload-Catalog/workloads/ai-server/rusty-llm-0.1.1.tgz
 inOrch-TMF-Proxy/llm-intent.yaml
 inOrch-TMF-Proxy/prompt.txt
 inOrch-TMF-Proxy/TODO.md
+AgenticDataSimulator/SimulatorAgentKernel-*/
+AgenticDataSimulator/a2a-t.md
+AgenticDataSimulator/Grafana/import-dashboards.sh
+AgenticDataSimulator/SimulatorController/prisma/dev.db
+inServ/setup_video_environment.md
+inServ/testlog.txt
+AgentSyntheticTimeseriesGeneration/
+IntentAgent/

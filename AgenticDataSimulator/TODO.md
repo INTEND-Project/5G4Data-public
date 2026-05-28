@@ -8,10 +8,14 @@ When the first "working" version of the AgenticDataSimulator was up and running 
 
 ### Easy TODO´s?
 - [ ] When clicking the "Delete script" button/icon in the list of scripts the list should be updated after the deletion.
+- [ ] Make it mandatory to create a KG before any scripts are executed
 - [ ] Dockerize the Controller
+- [ ] Users need a Grafana user to view the dashboards. Create demo user.
+- [ ] It is not obvious that it is possible to change the size of the different panels or scroll sideway to see all button/icons. Maybe also add the possibility to hide panels to make more room?
+- [ ] Add a dev version for further development on a different port so that the prod version does not go up/down for users all the time
 
 ## Closed
-
+- [x] Give an understandable error message when password is to short when creating a new user.
 - [x] Improve isolation between users:
   - Add persistent storage (server side) of script run logs per user (store only the 10 last runs)
   - Track userid/intentId when scripts are executed and only list intents that were created by the current user in the Intents list panel

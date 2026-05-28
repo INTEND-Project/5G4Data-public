@@ -131,7 +131,23 @@ intent:
   objectives:
     - name: p99-token-target
       value: 0.0  # Set to null so that TMF-proxy can set it during deployment based on value in TMF intent
+      tmf-value-hint: "400"
+      tmf-quantifier-hint: "quan:larger"
+      tmf-unit-hint: "token/s"
       measuredBy: intend/p99token
+  sustainability:
+    - name: container-cpu-joules-total
+      value: "5000.0"
+      tmf-value-hint: "5000"
+      tmf-quantifier-hint: "quan:larger"
+      tmf-unit-hint: "J"
+      measuredBy: intend/container-cpu-joules-total
+    - name: container-cpu-watts
+      value: "5000.0"
+      tmf-value-hint: "5000"
+      tmf-quantifier-hint: "quan:smaller"
+      tmf-unit-hint: "W"
+      measuredBy: intend/container-cpu-watts
   labels: {}
 
 # KPIProfile configuration for INTEND system

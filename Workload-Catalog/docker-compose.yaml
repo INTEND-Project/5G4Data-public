@@ -2,6 +2,7 @@ version: "3.8"
 
 services:
   chartmuseum:
+    restart: unless-stopped
     image: chartmuseum/chartmuseum:latest
     ports:
       - 8080:8080
@@ -14,6 +15,7 @@ services:
       STORAGE_LOCAL_ROOTDIR: /charts
 
   workloads:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile

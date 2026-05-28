@@ -1,4 +1,5 @@
-charts/
+charts/*
+charts.old/*
 # Extracted chart icons and manifest (runtime; created by the web app)
 public/chart-icons/
 test/

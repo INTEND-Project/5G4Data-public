@@ -16,7 +16,7 @@ export function WorkspaceRunIdChip() {
       <div className="workspace-run-history-controls">
         <select
           aria-label="Run script history"
-          className="workspace-chip workspace-topbar-chip workspace-topbar-run-select"
+          className="workspace-chip workspace-script-run-select"
           disabled
           title="No script runs yet"
         >
@@ -24,7 +24,7 @@ export function WorkspaceRunIdChip() {
         </select>
         <button
           aria-label="Open run script log"
-          className="workspace-chip workspace-topbar-chip workspace-run-log-open-button"
+          className="workspace-chip workspace-run-log-open-button"
           disabled
           title="No script runs yet"
           type="button"
@@ -39,7 +39,7 @@ export function WorkspaceRunIdChip() {
     <div className="workspace-run-history-controls">
       <select
         aria-label="Run script history"
-        className="workspace-chip workspace-topbar-chip workspace-topbar-run-select"
+        className="workspace-chip workspace-script-run-select"
         id="workspace-script-run-history"
         onChange={(event) => setSelectedScriptRunId(event.target.value)}
         title="Last 10 Run Script executions (newest first). Choose one to inspect in the log."
@@ -53,7 +53,7 @@ export function WorkspaceRunIdChip() {
       </select>
       <button
         aria-label="Open run script log"
-        className="workspace-chip workspace-topbar-chip workspace-run-log-open-button"
+        className="workspace-chip workspace-run-log-open-button"
         onClick={openRunLogDialog}
         type="button"
       >

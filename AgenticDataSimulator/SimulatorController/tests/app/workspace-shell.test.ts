@@ -80,9 +80,14 @@ describe("workspace shell bootstrap", () => {
     expect(shellSource).toContain("useInfraConnectionStatus");
     expect(shellSource).toContain("infraStatusApiUrl");
     expect(shellSource).toContain("infraStatus.registryConnected");
-    expect(shellSource).toContain("WorkspaceRunIdChip");
+    expect(shellSource).not.toContain("WorkspaceRunIdChip");
     expect(runIdChipSource).toContain("formatScriptRunListLabel");
-    expect(runIdChipSource).toContain("workspace-topbar-run-select");
+    expect(runIdChipSource).toContain("workspace-script-run-select");
+    expect(scriptRunnerSource).toContain("WorkspaceRunIdChip");
+    expect(scriptRunnerSource).toContain("workspace-editor-toolbar");
+    expect(scriptRunnerSource).toContain("Run mode");
+    expect(scriptRunnerSource).toContain("Knowledge graph target");
+    expect(scriptRunnerSource).not.toContain("Run result policy");
     expect(runIdChipSource).toContain("scriptRunLogs");
     expect(scriptSessionContextSource).toContain("slice(0, 10)");
     expect(shellSource).toContain("About/Help");
@@ -138,10 +143,16 @@ describe("workspace shell bootstrap", () => {
       "Create a knowledge graph target in the KG target panel before running scripts.",
     );
     expect(scriptRunnerSource).not.toContain("kg-avalanche-demo");
-    expect(scriptRunnerSource).toContain("Run result policy");
-    expect(scriptRunnerSource).toContain("stop on first error");
+    expect(scriptRunnerSource).not.toContain("continue with warnings");
     expect(scriptRunnerSource).toContain("Run Script");
-    expect(scriptRunnerSource).toContain("selectedRunLogLines");
+    expect(scriptRunnerSource).toContain("WorkspaceRunLogDialog");
+    const runLogDialogSource = readFileSync(
+      resolve(process.cwd(), "src/components/workspace/workspace-run-log-dialog.tsx"),
+      "utf8",
+    );
+    expect(runLogDialogSource).toContain("selectedRunLogLines");
+    expect(scriptSessionContextSource).toContain("scheduleLiveRunLogRevision");
+    expect(scriptSessionContextSource).toContain("WorkspaceRunLogUiContext");
     expect(scriptRunnerSource).toContain("Save As");
     expect(scriptRunnerSource).toContain("workspace-editor-height-resizer");
     expect(scriptRunnerSource).toContain("workspace-editor-tabs");
@@ -150,14 +161,12 @@ describe("workspace shell bootstrap", () => {
     expect(workspaceSource).not.toContain('refresh: "1"');
     expect(agentListSource).toContain("forceRefresh: true");
     expect(agentListSource).toContain("Available agents");
-    expect(agentListSource).toContain("registeredAgentCount");
     expect(agentListSource).toContain("registered");
     expect(agentListSource).toContain("AgentHealthIcon");
     expect(agentListSource).toContain("workspace-agent-health-icon");
     expect(agentListSource).toContain("workspace-agent-registry-chip");
     expect(agentListSource).toContain("registryConnected");
-    expect(agentListSource).toContain("registry disconnected");
-    expect(agentListSource).toContain('registryConnected ? "workspace-chip-live" : "workspace-chip-down"');
+    expect(agentListSource).not.toContain("registeredAgentCount");
     expect(agentListSource).toContain("registryPollIntervalMs");
     expect(agentListSource).toContain("refreshAgents");
     expect(agentListSource).toContain("fetch(`${requestUrl.pathname}${requestUrl.search}`");
@@ -200,6 +209,9 @@ describe("workspace shell bootstrap", () => {
     expect(intentsPanelSource).toContain('"use client"');
     expect(intentsPanelSource).toContain("<h2>Intents</h2>");
     expect(intentsPanelSource).toContain("workspace-intent-id-label");
+    expect(intentsPanelSource).toContain("workspace-card-intent");
+    expect(globalsSource).toContain(".workspace-card-intent");
+    expect(globalsSource).toContain("container-name: intent-card");
     expect(intentsPanelSource).toContain("DeleteStorageIcon");
     expect(intentsPanelSource).toContain("GrafanaIcon");
     expect(intentsPanelSource).toContain("/description");
@@ -253,7 +265,8 @@ describe("workspace shell bootstrap", () => {
     expect(globalsSource).toContain(".workspace-user-controls");
     expect(globalsSource).toContain(".workspace-user-label");
     expect(globalsSource).toContain(".workspace-run-history-controls");
-    expect(globalsSource).toContain("select.workspace-topbar-run-select");
+    expect(globalsSource).toContain("select.workspace-script-run-select");
+    expect(globalsSource).toContain(".workspace-editor-toolbar");
     expect(globalsSource).toContain(".workspace-chip-live");
     expect(globalsSource).toContain(".workspace-chip-down");
     expect(globalsSource).toContain(".workspace-runner");
@@ -263,7 +276,7 @@ describe("workspace shell bootstrap", () => {
     expect(globalsSource).toContain(".workspace-runner-mode-active");
     expect(globalsSource).toContain(".workspace-sidebar-column");
     expect(globalsSource).toContain(".workspace-sidebar-resizer");
-    expect(globalsSource).toContain("grid-template-columns: auto 8px minmax(0, 1fr) 8px auto");
+    expect(globalsSource).toContain("grid-template-columns: auto 12px minmax(0, 1fr) 12px auto");
     expect(globalsSource).toContain(".workspace-script-name");
     expect(globalsSource).toContain(".workspace-editor-tab-active");
     expect(globalsSource).toContain(".workspace-editor-height-resizer");
@@ -272,6 +285,7 @@ describe("workspace shell bootstrap", () => {
     expect(globalsSource).toContain("font-size: 2.3rem;");
     expect(globalsSource).toContain("font-size: 1.64rem;");
     expect(globalsSource).toContain("font-size: 1.5rem;");
-    expect(globalsSource).toContain("font-size: 1.6rem;");
+    expect(globalsSource).toContain(".workspace-top-action-button");
+    expect(globalsSource).toContain("font-size: 1.2rem;");
   });
 });

@@ -80,7 +80,6 @@ function AgentHealthIcon({ isHealthy }: { isHealthy: boolean | null }) {
 export function AgentList({ agents, refreshUrl, registryConnected }: AgentListProps) {
   const [displayedAgents, setDisplayedAgents] = useState(agents);
   const registryConnectedRef = useRef(registryConnected);
-  const registeredAgentCount = displayedAgents.length;
 
   useEffect(() => {
     setDisplayedAgents(agents);
@@ -166,13 +165,6 @@ export function AgentList({ agents, refreshUrl, registryConnected }: AgentListPr
     <div className="workspace-section">
       <div className="workspace-heading-row">
         <h2>Available agents</h2>
-        <span
-          className={`workspace-chip ${
-            registryConnected ? "workspace-chip-live" : "workspace-chip-down"
-          }`}
-        >
-          {registryConnected ? `${registeredAgentCount} registered` : "registry disconnected"}
-        </span>
       </div>
       <div className="workspace-stack">
         {displayedAgents.map((agent) => (

@@ -33,8 +33,7 @@ export function IntentsPanel({
   intentsUrlBase,
   prometheusClearUrlBase,
 }: IntentsPanelProps) {
-  const { scriptRunLogs } = useWorkspaceScriptSession();
-  const latestScriptRunId = scriptRunLogs[0]?.id ?? null;
+  const latestScriptRunId = useWorkspaceScriptSession().scriptRunLogs[0]?.id ?? null;
   const initialScriptRunIdRef = useRef(latestScriptRunId);
   const [intents, setIntents] = useState<IntentListEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -276,8 +275,8 @@ export function IntentsPanel({
           </article>
         ) : null}
         {intents.map((intent) => (
-          <article className="workspace-card" key={intent.intentId}>
-            <div className="workspace-heading-row">
+          <article className="workspace-card workspace-card-intent" key={intent.intentId}>
+            <div className="workspace-heading-row workspace-intent-card-heading">
               <strong
                 className="workspace-intent-id-label"
                 onMouseEnter={() => void loadIntentDescription(intent.intentId)}

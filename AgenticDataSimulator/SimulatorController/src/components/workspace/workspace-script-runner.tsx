@@ -10,6 +10,8 @@ import {
   tabKeyForScript,
   useWorkspaceScriptSession,
 } from "@/components/workspace/workspace-script-session-context";
+import { WorkspaceRunIdChip } from "@/components/workspace/workspace-run-id-chip";
+import { WorkspaceRunLogDialog } from "@/components/workspace/workspace-run-log-dialog";
 import { analyzeScript } from "@/lib/dsl/analysis/analyze-script";
 import type {
   CreateIntentStatement,
@@ -146,13 +148,10 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     openScriptTab,
     migrateDraftTabToSavedScript,
     commitSavedTabContent,
-    selectedRunLogLines,
     appendRunnerLog,
     beginScriptRun,
     endActiveScriptRun,
     openRunLogDialog,
-    runLogDialogOpen,
-    closeRunLogDialog,
     setScriptExtractedMetricNames,
   } = useWorkspaceScriptSession();
 
@@ -269,21 +268,6 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     document.addEventListener("keydown", onEscape);
     return () => document.removeEventListener("keydown", onEscape);
   }, [saveAsDialogOpen, saving]);
-
-  useEffect(() => {
-    if (!runLogDialogOpen) {
-      return;
-    }
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") {
-        return;
-      }
-      event.preventDefault();
-      closeRunLogDialog();
-    };
-    document.addEventListener("keydown", onEscape);
-    return () => document.removeEventListener("keydown", onEscape);
-  }, [runLogDialogOpen, closeRunLogDialog]);
 
   useEffect(() => {
     if (!shareAsDialogOpen) {
@@ -1150,6 +1134,40 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
   return (
     <>
+      <div className="workspace-editor-header">
+        <div className="workspace-heading-row">
+          <h2>Script editor</h2>
+          <div className="workspace-editor-toolbar">
+            <WorkspaceRunIdChip />
+            <RunModeSelector disabled={runBusy} runModeRef={runModeRef} />
+            <div className="workspace-runner-field">
+              <label className="workspace-label" htmlFor="runner-kg-target">
+                Knowledge graph target
+              </label>
+              <select
+                className="workspace-select workspace-runner-select"
+                disabled={kgTargets.length === 0}
+                id="runner-kg-target"
+                onChange={(event) => onSelectedKgTargetIdChange(event.target.value)}
+                value={
+                  kgTargets.some((t) => t.id === selectedKgTargetId)
+                    ? selectedKgTargetId
+                    : ""
+                }
+              >
+                {kgTargets.length === 0 ? (
+                  <option value="">Create a KG first</option>
+                ) : null}
+                {kgTargets.map((target) => (
+                  <option key={target.id} value={target.id}>
+                    {target.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
       {openTabs.length >= 2 ? (
         <div
           aria-label="Open scripts"
@@ -1208,47 +1226,6 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         />
       </div>
       <div className="workspace-runner">
-        <RunModeSelector disabled={runBusy} runModeRef={runModeRef} />
-        <div className="workspace-runner-field">
-          <label className="workspace-label" htmlFor="runner-kg-target">
-            Knowledge graph target
-          </label>
-          <select
-            className="workspace-select workspace-runner-select"
-            disabled={kgTargets.length === 0}
-            id="runner-kg-target"
-            onChange={(event) => onSelectedKgTargetIdChange(event.target.value)}
-            value={
-              kgTargets.some((t) => t.id === selectedKgTargetId)
-                ? selectedKgTargetId
-                : ""
-            }
-          >
-            {kgTargets.length === 0 ? (
-              <option value="">Create a KG first</option>
-            ) : null}
-            {kgTargets.map((target) => (
-              <option key={target.id} value={target.id}>
-                {target.displayName}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="workspace-runner-field">
-          <label className="workspace-label" htmlFor="runner-result-policy">
-            Run result policy
-          </label>
-          <select
-            className="workspace-select workspace-runner-select"
-            defaultValue="stop on first error"
-            id="runner-result-policy"
-          >
-            <option value="stop on first error">stop on first error</option>
-            <option value="continue with warnings">
-              continue with warnings
-            </option>
-          </select>
-        </div>
         <div className="workspace-runner-actions">
           <button
             className="workspace-button workspace-runner-button"
@@ -1465,56 +1442,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         </div>
       ) : null}
 
-      {runLogDialogOpen ? (
-        <div
-          className="workspace-save-name-dialog-backdrop"
-          onClick={closeRunLogDialog}
-          role="presentation"
-        >
-          <div
-            aria-labelledby="workspace-run-log-dialog-title"
-            aria-modal="true"
-            className="workspace-run-log-dialog"
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-          >
-            <h3 id="workspace-run-log-dialog-title">Run script log</h3>
-            <p className="workspace-save-as-dialog-hint">
-              Output for the run selected in the top bar (up to the last 10
-              script runs).
-            </p>
-            <div
-              aria-label="Run script output"
-              className="workspace-runner-log workspace-run-log-dialog-body"
-              role="log"
-            >
-              {selectedRunLogLines.length === 0 ? (
-                <p className="workspace-runner-log-empty">
-                  No script run output for this selection.
-                </p>
-              ) : (
-                selectedRunLogLines.map((line, index) => (
-                  <p
-                    className="workspace-runner-log-entry"
-                    key={`runner-dialog-${index}`}
-                  >
-                    {line}
-                  </p>
-                ))
-              )}
-            </div>
-            <div className="workspace-save-name-dialog-actions">
-              <button
-                className="workspace-button"
-                onClick={closeRunLogDialog}
-                type="button"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <WorkspaceRunLogDialog />
 
       <IntentGenSessionDialog
         a2aMessageSendUrl={a2aMessageSendUrl}

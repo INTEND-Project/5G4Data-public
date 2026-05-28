@@ -12,7 +12,6 @@ import { PrometheusPanel } from "@/components/workspace/prometheus-panel";
 import { ScriptList } from "@/components/workspace/script-list";
 import { WorkspaceLeftSidebarResizable } from "@/components/workspace/workspace-left-sidebar-resizable";
 import { WorkspaceRightSidebarResizable } from "@/components/workspace/workspace-right-sidebar-resizable";
-import { WorkspaceRunIdChip } from "@/components/workspace/workspace-run-id-chip";
 import { WorkspaceScriptRunner } from "@/components/workspace/workspace-script-runner";
 import { WorkspaceScriptSessionProvider } from "@/components/workspace/workspace-script-session-context";
 import { useInfraConnectionStatus } from "@/components/workspace/use-infra-connection-status";
@@ -196,7 +195,6 @@ export function WorkspaceShell({
             </div>
           </div>
           <div className="workspace-top-actions">
-            <WorkspaceRunIdChip />
             <button className="workspace-button workspace-top-action-button" type="button">
               About/Help
             </button>
@@ -233,13 +231,6 @@ export function WorkspaceShell({
           </WorkspaceLeftSidebarResizable>
 
           <section className="workspace-panel workspace-editor-panel">
-            <div className="workspace-heading-row">
-              <h2>Script editor</h2>
-              <div className="workspace-stage-row">
-                <span className="workspace-chip">Dry-run</span>
-                <span className="workspace-chip">Execute</span>
-              </div>
-            </div>
             <WorkspaceScriptRunner
               a2aMessageSendUrl={a2aMessageSendUrl}
               currentUserId={currentUserId}

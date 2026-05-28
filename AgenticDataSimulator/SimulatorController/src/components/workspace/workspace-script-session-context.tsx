@@ -109,12 +109,9 @@ export type WorkspaceScriptSessionContextValue = {
   scriptRunLogs: ScriptRunLogRecord[];
   selectedScriptRunId: string | null;
   setSelectedScriptRunId: (id: string | null) => void;
-  /** Lines for the currently selected run (for the log dialog). */
-  selectedRunLogLines: string[];
   beginScriptRun: (scriptName: string, input?: { mode?: "dry-run" | "execute"; scriptId?: string | null }) => void;
   appendRunnerLog: (entry: string) => void;
   endActiveScriptRun: (input: PersistRunLogInput) => Promise<void>;
-  runLogDialogOpen: boolean;
   openRunLogDialog: () => void;
   closeRunLogDialog: () => void;
   /** Non-empty after a Run Script executes `extract metric-catalog` (flattened metric names); drives Agent assistant chips. */
@@ -125,6 +122,13 @@ export type WorkspaceScriptSessionContextValue = {
 const WorkspaceScriptSessionContext = createContext<WorkspaceScriptSessionContextValue | null>(
   null,
 );
+
+type WorkspaceRunLogUiContextValue = {
+  selectedRunLogLines: string[];
+  runLogDialogOpen: boolean;
+};
+
+const WorkspaceRunLogUiContext = createContext<WorkspaceRunLogUiContextValue | null>(null);
 
 function buildInitialTabs(draftBody: string, domain: string): Bundle {
   const defaultName = defaultScriptName(domain);
@@ -174,7 +178,49 @@ export function WorkspaceScriptSessionProvider({
   const [selectedScriptRunId, setSelectedScriptRunId] = useState<string | null>(null);
   const [runLogDialogOpen, setRunLogDialogOpen] = useState(false);
   const [scriptExtractedMetricNames, setScriptExtractedMetricNames] = useState<string[]>([]);
+  /** Bumps when the active run log buffer changes and the log dialog should repaint. */
+  const [liveRunLogRevision, setLiveRunLogRevision] = useState(0);
   const activeRunRef = useRef<ActiveRunState | null>(null);
+  const runLogDialogOpenRef = useRef(false);
+  const liveRunLogFlushTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    runLogDialogOpenRef.current = runLogDialogOpen;
+  }, [runLogDialogOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (liveRunLogFlushTimerRef.current !== undefined) {
+        clearTimeout(liveRunLogFlushTimerRef.current);
+      }
+    };
+  }, []);
+
+  const bumpLiveRunLogRevision = useCallback(() => {
+    setLiveRunLogRevision((revision) => revision + 1);
+  }, []);
+
+  const scheduleLiveRunLogRevision = useCallback(() => {
+    if (liveRunLogFlushTimerRef.current !== undefined) {
+      return;
+    }
+    liveRunLogFlushTimerRef.current = setTimeout(() => {
+      liveRunLogFlushTimerRef.current = undefined;
+      bumpLiveRunLogRevision();
+    }, 200);
+  }, [bumpLiveRunLogRevision]);
+
+  const syncActiveRunLinesToList = useCallback(() => {
+    const activeRun = activeRunRef.current;
+    if (!activeRun) {
+      return;
+    }
+    setScriptRunLogs((prev) =>
+      prev.map((run) =>
+        run.id === activeRun.id ? { ...run, lines: activeRun.lines } : run,
+      ),
+    );
+  }, []);
 
   const beginScriptRun = useCallback(
     (scriptName: string, input?: { mode?: "dry-run" | "execute"; scriptId?: string | null }) => {
@@ -200,18 +246,19 @@ export function WorkspaceScriptSessionProvider({
     [],
   );
 
-  const appendRunnerLog = useCallback((entry: string) => {
-    const activeRun = activeRunRef.current;
-    if (!activeRun) {
-      return;
-    }
-    activeRun.lines = [...activeRun.lines, entry];
-    setScriptRunLogs((prev) =>
-      prev.map((r) =>
-        r.id === activeRun.id ? { ...r, lines: activeRun.lines } : r,
-      ),
-    );
-  }, []);
+  const appendRunnerLog = useCallback(
+    (entry: string) => {
+      const activeRun = activeRunRef.current;
+      if (!activeRun) {
+        return;
+      }
+      activeRun.lines = [...activeRun.lines, entry];
+      if (runLogDialogOpenRef.current) {
+        scheduleLiveRunLogRevision();
+      }
+    },
+    [scheduleLiveRunLogRevision],
+  );
 
   const endActiveScriptRun = useCallback(
     async (input: PersistRunLogInput) => {
@@ -222,6 +269,7 @@ export function WorkspaceScriptSessionProvider({
       }
 
       const lines = activeRun.lines;
+      let persistedToServer = false;
 
       try {
         const response = await fetch(runLogsApiUrl, {
@@ -249,6 +297,7 @@ export function WorkspaceScriptSessionProvider({
           };
           const persisted = body.runLog;
           if (persisted) {
+            persistedToServer = true;
             setScriptRunLogs((prev) => {
               const withoutActive = prev.filter((run) => run.id !== activeRun.id);
               return [
@@ -267,15 +316,20 @@ export function WorkspaceScriptSessionProvider({
       } catch {
         // Keep in-memory log if persistence fails.
       } finally {
+        if (!persistedToServer) {
+          syncActiveRunLinesToList();
+        }
         activeRunRef.current = null;
+        bumpLiveRunLogRevision();
       }
     },
-    [runLogsApiUrl, selectedDomain],
+    [bumpLiveRunLogRevision, runLogsApiUrl, selectedDomain, syncActiveRunLinesToList],
   );
 
   const openRunLogDialog = useCallback(() => {
+    bumpLiveRunLogRevision();
     setRunLogDialogOpen(true);
-  }, []);
+  }, [bumpLiveRunLogRevision]);
 
   const closeRunLogDialog = useCallback(() => {
     setRunLogDialogOpen(false);
@@ -566,10 +620,14 @@ export function WorkspaceScriptSessionProvider({
     if (!selectedScriptRunId) {
       return [];
     }
+    const activeRun = activeRunRef.current;
+    if (activeRun?.id === selectedScriptRunId) {
+      return activeRun.lines;
+    }
     return scriptRunLogs.find((r) => r.id === selectedScriptRunId)?.lines ?? [];
-  }, [scriptRunLogs, selectedScriptRunId]);
+  }, [liveRunLogRevision, scriptRunLogs, selectedScriptRunId]);
 
-  const value = useMemo(
+  const sessionValue = useMemo(
     (): WorkspaceScriptSessionContextValue => ({
       selectedDomain,
       scriptsFromServer: serverScripts,
@@ -591,11 +649,9 @@ export function WorkspaceScriptSessionProvider({
       scriptRunLogs,
       selectedScriptRunId,
       setSelectedScriptRunId,
-      selectedRunLogLines,
       beginScriptRun,
       appendRunnerLog,
       endActiveScriptRun,
-      runLogDialogOpen,
       openRunLogDialog,
       closeRunLogDialog,
       scriptExtractedMetricNames,
@@ -621,11 +677,9 @@ export function WorkspaceScriptSessionProvider({
       commitSavedTabContent,
       scriptRunLogs,
       selectedScriptRunId,
-      selectedRunLogLines,
       beginScriptRun,
       appendRunnerLog,
       endActiveScriptRun,
-      runLogDialogOpen,
       openRunLogDialog,
       closeRunLogDialog,
       scriptExtractedMetricNames,
@@ -633,9 +687,19 @@ export function WorkspaceScriptSessionProvider({
     ],
   );
 
+  const runLogUiValue = useMemo(
+    (): WorkspaceRunLogUiContextValue => ({
+      selectedRunLogLines,
+      runLogDialogOpen,
+    }),
+    [liveRunLogRevision, runLogDialogOpen, selectedRunLogLines],
+  );
+
   return (
-    <WorkspaceScriptSessionContext.Provider value={value}>
-      {children}
+    <WorkspaceScriptSessionContext.Provider value={sessionValue}>
+      <WorkspaceRunLogUiContext.Provider value={runLogUiValue}>
+        {children}
+      </WorkspaceRunLogUiContext.Provider>
     </WorkspaceScriptSessionContext.Provider>
   );
 }
@@ -644,6 +708,14 @@ export function useWorkspaceScriptSession(): WorkspaceScriptSessionContextValue 
   const ctx = useContext(WorkspaceScriptSessionContext);
   if (!ctx) {
     throw new Error("useWorkspaceScriptSession must be used within WorkspaceScriptSessionProvider");
+  }
+  return ctx;
+}
+
+export function useWorkspaceRunLogUi(): WorkspaceRunLogUiContextValue {
+  const ctx = useContext(WorkspaceRunLogUiContext);
+  if (!ctx) {
+    throw new Error("useWorkspaceRunLogUi must be used within WorkspaceScriptSessionProvider");
   }
   return ctx;
 }

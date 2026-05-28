@@ -7,9 +7,10 @@ When the first "working" version of the AgenticDataSimulator was up and running 
 - [ ] The different tools (inCoord, inSustain, inExplain) may have requirements on how the timeseries needs to be created that is currently not supported. We need to include support for those requirements both in scripts (extend the DSL, add support for freetext key words, etc.) and in the SimulatorAgentPackages/5g4data-intent-observations agent package. Support in the agent can be implemented using more prompt modules (e.g SimulatorAgentPackages/5g4data-intent-observations/prompt_modules), as code (parse keywords in structured and freetext used in "request observation-report ..." commands in scripts and add code to support it), as refinements of the agent SKILL.md file, as agent tools, etc.
 
 ### Easy TODO´s?
-- [ ] Dockerize the Controller
-- [ ] It is not obvious that it is possible to change the size of the different panels or scroll sideway to see all button/icons. Maybe also add the possibility to hide panels to make more room?
+- [x] Move the log selector and "Show selected log" to the "Script editor" panel
+- [x] It is not obvious that it is possible to change the size of the different panels or scroll sideway to see all button/icons. Maybe also add the possibility to hide panels to make more room?
 - [ ] Add a dev version for further development on a different port so that the prod version does not go up/down for users all the time
+- [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed
 - [x] The agent registry does not seem to detect health/uptime for agents after we added authentication.Could be a problem related to the new key based authentication scheme that we added.

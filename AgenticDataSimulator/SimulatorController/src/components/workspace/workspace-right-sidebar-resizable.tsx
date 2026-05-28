@@ -43,7 +43,9 @@ export function WorkspaceRightSidebarResizable({ children }: WorkspaceRightSideb
 
     const onMove = (ev: MouseEvent) => {
       const delta = ev.clientX - startX;
-      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startW + delta));
+      // Invert delta: this handle sits on the right panel's left edge, so dragging
+      // right should shrink the right sidebar and give space to the editor on the left.
+      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startW - delta));
       setWidth(next);
     };
 

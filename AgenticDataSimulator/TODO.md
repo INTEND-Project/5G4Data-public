@@ -7,10 +7,17 @@ When the first "working" version of the AgenticDataSimulator was up and running 
 - [ ] The different tools (inCoord, inSustain, inExplain) may have requirements on how the timeseries needs to be created that is currently not supported. We need to include support for those requirements both in scripts (extend the DSL, add support for freetext key words, etc.) and in the SimulatorAgentPackages/5g4data-intent-observations agent package. Support in the agent can be implemented using more prompt modules (e.g SimulatorAgentPackages/5g4data-intent-observations/prompt_modules), as code (parse keywords in structured and freetext used in "request observation-report ..." commands in scripts and add code to support it), as refinements of the agent SKILL.md file, as agent tools, etc.
 
 ### Easy TODO´s?
+- [ ] When clicking the "Delete script" button/icon in the list of scripts the list should be updated after the deletion.
 - [ ] Dockerize the Controller
 
 ## Closed
 
+- [x] Improve isolation between users:
+  - Add persistent storage (server side) of script run logs per user (store only the 10 last runs)
+  - Track userid/intentId when scripts are executed and only list intents that were created by the current user in the Intents list panel
+  - Include user id or username in created repository/graph names
+- [x] Add visability of shared scripts
+  - Add a "Share" button next to "Save As" button. When this button is used, the script will be visible for all users. When user hovers over the button, explain the semantics.
 - [x] Add Grafana integration: The intent list now under Prometheus in the right panel should be listed separately from Prometheus (since we can also store in GraphDB, and later maybe in InFluxDB or other storage options). I.e. add a "Intents" header. For each intent under the "Intents" header, add a Grafana button (use small grafana icon) and either a "delete in Prometehus" or "delete in GraphDB", depending on where the data is stored.
 - [x] Add quantifier in values.yaml for workloads to asure that conditions are formed correct? e.g: 
 *objectives:

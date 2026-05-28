@@ -28,7 +28,7 @@ The simulator **agents** and **controller** rely on several other services. Star
 | **A2A registry** | Agents (register on startup), controller (discover agents) | Controller script `discover …` lines | `https://start5g-1.cs.uit.no/a2a-registry` | [`a2a-registry/`](a2a-registry/) — `docker compose up -d` (`:17001` API) |
 | **Caddy reverse proxy** | Public HTTPS for agents, GraphDB, registry, Prometheus | start5g-1 deployment only | See [Infrastructure on start5g-1](#infrastructure-on-start5g-1-caddy) | Optional locally (use direct ports instead) |
 | **Prometheus + Pushgateway** | Observation agent (`storage prometheus`) | Prometheus observation storage only | `…/prometheus`, `…/prometheus-pushgateway` | [`Prometheus/`](Prometheus/) — `./start.sh` (`:9090`, `:9091`) |
-| **IntentReportQueryProxy** | Grafana timeseries panels (Infinity datasource) | Viewing metrics in Grafana only | `http://start5g-1.cs.uit.no:3010` | [`../IntentReportQueryProxy/`](../IntentReportQueryProxy/) — `docker compose up -d` |
+| **IntentReportQueryProxy** | Grafana timeseries panels (Infinity datasource) | Viewing metrics in Grafana only | `http://start5g-1.cs.uit.no:3010` | [`./IntentReportQueryProxy/`](./IntentReportQueryProxy/) — `docker compose up -d` |
 | **Grafana** (+ SPARQL & Infinity plugins) | Dashboards in [`Grafana/`](Grafana/) | Visualization only | `http://start5g-1.cs.uit.no:3002` (example) | See [`Grafana/`](Grafana/) and [`../IntentDashboard/src/START-GRAFANA.md`](../IntentDashboard/src/START-GRAFANA.md) |
 | **LLM provider** (OpenAI / Anthropic) | Both agents | Running agent turns | API keys in agent clone `.env` | — |
 
@@ -86,7 +86,7 @@ curl -sf http://127.0.0.1:9091/metrics | head
 **IntentReportQueryProxy** (for Grafana metric panels):
 
 ```bash
-cd ../IntentReportQueryProxy
+cd IntentReportQueryProxy
 docker compose up -d --build
 curl -sf http://127.0.0.1:3010/health
 ```
@@ -100,7 +100,7 @@ The proxy reads metric query URLs from GraphDB (`http://intent-reports-metadata`
 | [`Grafana/SimulatorIntentDashboard.json`](Grafana/SimulatorIntentDashboard.json) | Intent overview (stats, intent list, drill-down links) |
 | [`Grafana/SimulatorIntentAndConditionMetricsTimeseriesDashboard.json`](Grafana/SimulatorIntentAndConditionMetricsTimeseriesDashboard.json) | Per-intent condition metric timeseries (opened from overview or the controller Grafana icon) |
 
-Import both JSON files into Grafana. Setup steps (plugins, datasources): [`../IntentDashboard/src/START-GRAFANA.md`](../IntentDashboard/src/START-GRAFANA.md). The controller Grafana icon uses `GRAFANA_TIMESERIES_DASHBOARD_UID=Simulator-5g4data-Metrics` (see `SimulatorController/.env.example`). Timeseries panels call IntentReportQueryProxy with `repository_id=${repository_id}` from the dashboard URL (same KG target as SPARQL panels). Re-import dashboards after JSON changes (`./Grafana/import-dashboards.sh`). Restart the proxy after updates (`cd ../IntentReportQueryProxy && docker compose up -d --build`).
+Import both JSON files into Grafana. Setup steps (plugins, datasources): [`../IntentDashboard/src/START-GRAFANA.md`](../IntentDashboard/src/START-GRAFANA.md). The controller Grafana icon uses `GRAFANA_TIMESERIES_DASHBOARD_UID=Simulator-5g4data-Metrics` (see `SimulatorController/.env.example`). Timeseries panels call IntentReportQueryProxy with `repository_id=${repository_id}` from the dashboard URL (same KG target as SPARQL panels). Re-import dashboards after JSON changes (`./Grafana/import-dashboards.sh`). Restart the proxy after updates (`cd IntentReportQueryProxy && docker compose up -d --build`).
 
 **Simulator agents:**
 

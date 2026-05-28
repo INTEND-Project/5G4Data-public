@@ -18,7 +18,7 @@ Grafana Dashboard → Intent Report Query Proxy → GraphDB (metadata) → Data 
                                                       ↓
                                               Prometheus/GraphDB/etc.
 ```
-Example Grafana dashboards can be found in ../IntentDashboard (e.g the Intent and Condition Metrics Timeseries Dashboard.json uses the proxy)
+Example Grafana dashboards can be found in [`../../IntentDashboard/`](../../IntentDashboard/) (simulator dashboards under [`../Grafana/`](../Grafana/) also use the proxy).
 
 # Quick Start
 
@@ -30,10 +30,10 @@ Example Grafana dashboards can be found in ../IntentDashboard (e.g the Intent an
 
 ### Build and Run
 
-1. **Clone the repository**
+1. **Clone the repository and enter the proxy directory**
    ```bash
    git clone <repository-url>
-   cd IntentReportQueryProxy
+   cd AgenticDataSimulator/IntentReportQueryProxy
    ```
 
 2. **Build and start the service**

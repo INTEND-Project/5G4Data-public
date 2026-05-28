@@ -66,7 +66,13 @@ docker exec 5g4data-tutorial-reverse-proxy-1 wget -qO- -T 3 "http://host.docker.
 # Expect: {"status":"ok"}
 ```
 
-If subnets change (new compose network), inspect the container and allow the corresponding **`172.x.0.0/16`** or use **`docker network inspect <name>`**.
+If you run a **second** agent (e.g. observations on **3012**), add a matching UFW rule for that port from the same Docker subnet.
+
+```bash
+sudo ufw allow from 172.21.0.0/16 to any port 3012 proto tcp comment 'Observation agent from 5g4data-tutorial-app-network'
+```
+
+If you use an optional unified proxy on **18080** (§4.2), allow that port from the same Docker subnet as well.
 
 ---
 
@@ -74,20 +80,34 @@ If subnets change (new compose network), inspect the container and allow the cor
 
 **Location (example):** `INTEND-Project/5G4Data-public/5G4Data-Tutorial/Caddyfile` — site block `start5g-1.cs.uit.no`.
 
-**Intent agent route** (path prefix; `handle_path` strips the prefix before proxying):
+### 4.1 Per-agent Caddy routes (default)
+
+Route each simulator agent clone directly to its host port (see `5G4Data-Tutorial/Caddyfile`):
 
 ```caddyfile
-handle_path /5g4data-intent-generation-agent/* {
+handle_path /5g4data-intent-generating-agent/* {
     reverse_proxy http://host.docker.internal:3011 {
         header_up Host localhost:3011
     }
 }
+
+handle_path /5g4data-intent-observation-generating-agent/* {
+    reverse_proxy http://host.docker.internal:3012 {
+        header_up Host localhost:3012
+    }
+}
 ```
+
+Set **`A2A_AGENT_BASE_URL`** in each clone’s `.env` to the matching public path (for example `https://start5g-1.cs.uit.no/5g4data-intent-generating-agent`).
+
+### 4.2 Optional unified proxy (legacy, not in this repository)
+
+Some deployments use a registry-backed reverse proxy under a single prefix such as `/openclaw-agents/*` → `host.docker.internal:18080`. That proxy is **not** part of `AgenticDataSimulator/`; if you run it locally, document its path in your own ops notes. Prefer **§4.1** for new setups.
 
 - **Upstream:** `host.docker.internal` reaches the **host** from the Caddy container (requires `extra_hosts: host.docker.internal:host-gateway` or equivalent in Compose).
 - **`header_up Host localhost:3011`:** Some stacks expect `Host` to match what the Node server would see locally; adjust if your HTTP stack validates `Host`.
 
-**Ordering:** Keep this **above** the catch-all `handle { reverse_proxy flask-app … }` so `/5g4data-intent-generation-agent/…` is not swallowed by Flask.
+**Ordering:** Keep agent routes **above** the catch-all `handle { reverse_proxy flask-app … }` so they are not swallowed by Flask.
 
 **Reload after edits:**
 
@@ -107,19 +127,20 @@ docker compose restart reverse-proxy
 | `API_SERVER_ENABLED=true` | Serve OpenAPI + agent card on `API_SERVER_PORT` (e.g. **3011**) |
 | `A2A_ENABLED=true` | Build card + registration |
 | `A2A_REGISTRY_BASE_URL` | e.g. `https://start5g-1.cs.uit.no/a2a-registry` (registry API base; registration uses `POST …/api/agents/register`) |
-| `A2A_AGENT_BASE_URL` | **Public** HTTPS URL **including** Caddy path prefix, **no** `:3011` — e.g. `https://start5g-1.cs.uit.no/5g4data-intent-generation-agent` |
+| `A2A_AGENT_BASE_URL` | **Public** HTTPS URL **including** Caddy path prefix, **no** host port — e.g. `https://start5g-1.cs.uit.no/5g4data-intent-generating-agent` |
 | `A2A_AGENT_CARD_PATH` | Default `/.well-known/agent-card.json` → full **`wellKnownURI`** = base + path |
 
 **Registration semantics:** The registry receives **`POST {"wellKnownURI": "<URL>"}`** and **GETs that URL** server-side; it does not receive the JSON body of the card in that request.
 
 ---
 
-## 6. SimulatorAgentKernel kernel changes (`AgenticDataSimulator/SimulatorAgentKernel`)
+## 6. SimulatorAgentKernel changes (`AgenticDataSimulator/SimulatorAgentKernel`)
 
 Relevant fixes in **`src/index.ts`**:
 
 1. **Defer A2A registration until after HTTP listen** when `apiServerEnabled && !options.prompt`, so the registry never hits `:3011` before the server binds.
 2. **Registration after `await server.listen()`** for the API-server path, with optional **retries** and a short **hint** on persistent **5xx** / gateway errors.
+3. **`package load` containerizes clones** by default: each clone gets a `Dockerfile` (from the baseline kernel) and a generated `docker-compose.yml`, then `docker compose up -d --build` runs automatically. Containers publish `API_SERVER_PORT` to the **host**, so Caddy can still reach agents via **`host.docker.internal:<port>`** without compose network changes. Use **`--no-container`** or **`CONTAINER_LOAD=false`** to skip Docker.
 
 ---
 
@@ -127,7 +148,7 @@ Relevant fixes in **`src/index.ts`**:
 
 | Action | Method | Example |
 |--------|--------|---------|
-| Fetch agent card (browser / curl) | GET | `https://start5g-1.cs.uit.no/5g4data-intent-generation-agent/.well-known/agent-card.json` |
+| Fetch agent card (browser / curl) | GET | `https://start5g-1.cs.uit.no/5g4data-intent-generating-agent/.well-known/agent-card.json` |
 | Register agent card | POST | `https://start5g-1.cs.uit.no/a2a-registry/api/agents/register` with `{"wellKnownURI":"<HTTPS card URL>"}` |
 
 ---
@@ -135,9 +156,9 @@ Relevant fixes in **`src/index.ts`**:
 ## 8. Checklist for a new environment
 
 1. Postgres: migrations **002–006** applied (automatic on API/worker startup after `db_migrations` change, or manual `psql` if needed).
-2. Agent: **`A2A_AGENT_BASE_URL`** matches Caddy path; agent listens **`0.0.0.0:3011`** (default **`API_SERVER_HOST`**).
-3. Caddy: **`handle_path`** for the agent + **`reverse_proxy`** to **`host.docker.internal:<port>`**; reload Caddy.
-4. UFW: allow TCP **3011** (or your API port) **from the Docker network subnet** that hosts Caddy (confirm with `docker inspect <reverse-proxy-container>`).
+2. Agent: **`A2A_AGENT_BASE_URL`** matches the public Caddy path; each agent listens on its **`API_SERVER_HOST` / `API_SERVER_PORT`** (e.g. 3011 vs 3012). With **`package load`**, agents run in Docker but still publish those ports on the **host**.
+3. Caddy: per-agent `handle_path` routes (§4.1) or optional unified proxy (§4.2); reload Caddy.
+4. UFW: allow TCP **3011** / **3012** (agents) **from the Docker network subnet** that hosts Caddy.
 5. From Caddy container: **`wget http://host.docker.internal:3011/health`** succeeds.
 6. From internet or host: **HTTPS** agent-card URL returns **200** JSON.
 7. Start agent: log shows **`OpenAPI server running`** then **`[A2A] … Registered successfully`** and correct **`wellKnownURI`**.
@@ -151,7 +172,7 @@ Relevant fixes in **`src/index.ts`**:
 | `a2a-registry/backend/app/db_migrations.py` | Startup SQL migrations |
 | `a2a-registry/backend/app/main.py`, `worker.py` | Call migrations before DB pool |
 | `a2a-registry/docker-compose.yml` | Postgres init comment |
-| `5G4Data-Tutorial/Caddyfile` | `/5g4data-intent-generation-agent/` route |
+| `5G4Data-Tutorial/Caddyfile` | Per-agent routes to `host.docker.internal:<port>` |
 | `AgenticDataSimulator/SimulatorAgentKernel/src/index.ts` | A2A registration after listen |
 
 ---

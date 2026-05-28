@@ -86,10 +86,8 @@ function loadEnvFile(path: string): void {
 export function loadConfig(): AppConfig {
   // Load env values in this precedence:
   // 1) shell/exported vars (highest, already in process.env)
-  // 2) SimulatorAgentKernel/.env
-  // 3) IntentAgent/HermesAgent/.env
+  // 2) SimulatorAgentKernel/.env (or clone .env)
   loadEnvFile(resolve(process.cwd(), ".env"));
-  loadEnvFile(resolve(process.cwd(), "../IntentAgent/HermesAgent/.env"));
 
   const llmProvider = (process.env.LLM_PROVIDER ?? "openai").trim().toLowerCase() as
     | "openai"

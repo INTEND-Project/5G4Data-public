@@ -194,7 +194,7 @@ Then recreate the container (for example `./agent-control restart` or `docker co
 
 Cloned agents enforce **API key authentication** on HTTP/A2A endpoints (A2A v0.3 `securitySchemes`). Keys are generated on `package load` and synced into `SimulatorController/.env` and `a2a-registry/backend/.env` as `AGENT_API_KEYS`. See [`SimulatorAgentKernel/README.md`](SimulatorAgentKernel/README.md#authentication) for details.
 
-Some shared assets remain under `IntentAgent/` (for example `HermesAgent/`). The kernel system prompt lives at `SimulatorAgentKernel/SYSTEM_PROMPT.md`.
+Configure the kernel via `SimulatorAgentKernel/.env` (see `.env.example`). The system prompt lives at `SimulatorAgentKernel/SYSTEM_PROMPT.md`.
 
 ## Observation storage (GraphDB vs Prometheus)
 

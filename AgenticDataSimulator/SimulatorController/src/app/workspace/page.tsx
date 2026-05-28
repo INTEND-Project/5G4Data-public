@@ -11,7 +11,7 @@ import { loadAppEnv } from "@/lib/env";
 import { listNormalizedAgents } from "@/lib/registry/client";
 import { deriveDomains } from "@/lib/registry/normalize";
 import { getInfraConnectionStatus } from "@/lib/infra/connection-status";
-import { listScriptsForUser } from "@/lib/scripts/repository";
+import { listVisibleScripts } from "@/lib/scripts/repository";
 
 type WorkspacePageProps = {
   searchParams?: Promise<{
@@ -42,6 +42,8 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   const kgTargetsCreateUrl = withAppBasePath("/api/kg-targets");
   const kgTargetsDeleteUrlBase = withAppBasePath("/api/kg-targets");
   const scriptsApiUrl = withAppBasePath("/api/scripts");
+  const runLogsApiUrl = withAppBasePath("/api/run-logs");
+  const intentsRegisterUrl = withAppBasePath("/api/intents/register");
   const discoverIntentAgentApiUrl = withAppBasePath("/api/registry/discover-intent-agent");
   const discoverObservationAgentApiUrl = withAppBasePath(
     "/api/registry/discover-observation-agent",
@@ -53,7 +55,7 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   const prometheusClearUrlBase = withAppBasePath("/api/prometheus/intents");
   const { registryConnected, graphDbConnected, prometheusConnected } =
     await getInfraConnectionStatus();
-  const scripts = await listScriptsForUser(user.id, selectedDomain);
+  const scripts = await listVisibleScripts(user.id, selectedDomain);
   const fallbackScript = "";
   const extractedMetricCatalogs: Record<string, string[]> = {};
   const completionContext = buildCompletionContext({
@@ -92,6 +94,9 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
       kgTargetsCreateUrl={kgTargetsCreateUrl}
       kgTargetsDeleteUrlBase={kgTargetsDeleteUrlBase}
       kgTargets={kgTargets}
+      currentUserId={user.id}
+      intentsRegisterUrl={intentsRegisterUrl}
+      runLogsApiUrl={runLogsApiUrl}
       scriptsApiUrl={scriptsApiUrl}
       discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
       discoverObservationAgentApiUrl={discoverObservationAgentApiUrl}

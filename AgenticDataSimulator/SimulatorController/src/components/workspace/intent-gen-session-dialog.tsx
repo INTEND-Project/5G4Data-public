@@ -27,6 +27,9 @@ export type IntentGenSessionDialogProps = {
   seedPrompt?: string | null;
   /** When set, Turtle extracted from agent replies is POSTed here (selected KG target ingest endpoint). */
   persistIntentStoreUrl?: string | null;
+  /** When set, canonical intent ids from agent Turtle are registered for the current user. */
+  intentsRegisterUrl?: string | null;
+  registerIntentDomain?: string;
   /** Optional hook for correlating ingest with script run logs. */
   onIntentPersistLog?: (line: string) => void;
   /** Mirror each user/agent transcript turn to the run script log (e.g. workspace Log dialog). */
@@ -53,6 +56,8 @@ export function IntentGenSessionDialog({
   variant = "intent-generation",
   seedPrompt,
   persistIntentStoreUrl,
+  intentsRegisterUrl,
+  registerIntentDomain,
   onIntentPersistLog,
   onTranscriptTurn,
   onKgIntentStored,
@@ -228,7 +233,33 @@ export function IntentGenSessionDialog({
         onTranscriptTurn?.({ role: "agent", text: reply });
 
         const ingestUrl = persistIntentStoreUrl?.trim();
-        const turtlePayload = ingestUrl ? extractIntentTurtle(replyRaw) : null;
+        const turtleFromReply = extractIntentTurtle(replyRaw);
+        const turtlePayload = ingestUrl ? turtleFromReply : null;
+
+        const registerCanonicalIntent = async (
+          canonical: string,
+          storage?: "graphdb" | "prometheus",
+        ) => {
+          const registerUrl = intentsRegisterUrl?.trim();
+          const domain = registerIntentDomain?.trim();
+          if (!registerUrl || !domain) {
+            return;
+          }
+          try {
+            await fetch(registerUrl, {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                domain,
+                intentId: canonical,
+                storage,
+              }),
+            });
+          } catch {
+            // Registration is best-effort; store-intent also registers graphdb path.
+          }
+        };
 
         if (ingestUrl && turtlePayload) {
           try {
@@ -256,6 +287,7 @@ export function IntentGenSessionDialog({
                   canonical,
                   createIntentStorage ?? undefined,
                 );
+                await registerCanonicalIntent(canonical, createIntentStorage ?? undefined);
               }
             } else if (typeof ingestBody.error === "string" && ingestBody.error.length > 0) {
               onIntentPersistLog?.(
@@ -271,6 +303,20 @@ export function IntentGenSessionDialog({
               `[${intentArtifactLabel}] Knowledge graph ingest error: ${String(err)}`,
             );
           }
+        } else if (
+          variant === "intent-generation" &&
+          turtleFromReply &&
+          !ingestUrl
+        ) {
+          const canonical = extractIntentLocalIdFromTurtle(turtleFromReply);
+          if (canonical) {
+            onKgIntentStored?.(
+              intentArtifactLabel,
+              canonical,
+              createIntentStorage ?? undefined,
+            );
+            await registerCanonicalIntent(canonical, createIntentStorage ?? undefined);
+          }
         }
       } finally {
         setSending(false);
@@ -280,6 +326,8 @@ export function IntentGenSessionDialog({
       a2aMessageSendUrl,
       agentCardWellKnownURI,
       persistIntentStoreUrl,
+      intentsRegisterUrl,
+      registerIntentDomain,
       intentArtifactLabel,
       variant,
       onIntentPersistLog,

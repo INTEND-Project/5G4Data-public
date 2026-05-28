@@ -5,6 +5,10 @@ const authenticatedUser = {
   username: "alice",
 };
 
+const userIntentRegistryMock = {
+  assertUserOwnsIntent: vi.fn(),
+};
+
 const prometheusClientMock = {
   listIntentIds: vi.fn(),
   clearIntentMetrics: vi.fn(),
@@ -15,6 +19,7 @@ const guardMock = {
   getAuthenticatedUser: vi.fn(),
 };
 
+vi.mock("../../src/lib/intents/user-intent-registry", () => userIntentRegistryMock);
 vi.mock("../../src/lib/prometheus/client", () => prometheusClientMock);
 vi.mock("../../src/lib/auth/guards", () => guardMock);
 
@@ -22,6 +27,7 @@ beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   guardMock.getAuthenticatedUser.mockResolvedValue(authenticatedUser);
+  userIntentRegistryMock.assertUserOwnsIntent.mockResolvedValue(true);
   prometheusClientMock.validateIntentIdForPrometheusClear.mockImplementation(
     (value: string) => (/^I[a-f0-9]{32}$/i.test(value) ? value : null),
   );
@@ -83,6 +89,7 @@ describe("prometheus routes", () => {
     });
 
     expect(response.status).toBe(200);
+    expect(userIntentRegistryMock.assertUserOwnsIntent).toHaveBeenCalledWith("user-1", intentId);
     await expect(response.json()).resolves.toEqual({
       clearedIntentId: intentId,
       result: {

@@ -28,6 +28,7 @@ export type ListIntentsMode = "lite" | "full";
 export type ListIntentsOptions = {
   mode?: ListIntentsMode;
   cacheKey?: string;
+  ownedIntentIds?: string[];
 };
 
 const LITE_LIST_CACHE_TTL_MS = 15_000;
@@ -137,22 +138,15 @@ async function enrichIntentEntry(input: {
   };
 }
 
-export async function listIntentsForDomain(
+async function resolveIntentOwners(
   targets: IntentTargetRef[],
-  options: ListIntentsOptions = {},
-): Promise<IntentListEntry[]> {
-  const mode = options.mode ?? "full";
-
-  if (mode === "lite" && options.cacheKey) {
-    const cached = liteListCache.get(options.cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.intents;
-    }
-  }
-
+  intentIds: string[],
+): Promise<Map<string, IntentTargetRef>> {
   const intentOwners = new Map<string, IntentTargetRef>();
-  const prometheusIntentIds = await listPrometheusIntentIds();
-  const prometheusSet = new Set(prometheusIntentIds);
+
+  if (targets.length === 0 || intentIds.length === 0) {
+    return intentOwners;
+  }
 
   const targetIntentIdLists = await Promise.all(
     targets.map(async (target) => ({
@@ -161,21 +155,47 @@ export async function listIntentsForDomain(
     })),
   );
 
+  const ownedSet = new Set(intentIds);
+
   for (const { target, ids } of targetIntentIdLists) {
     for (const intentId of ids) {
-      if (!intentOwners.has(intentId)) {
+      if (ownedSet.has(intentId) && !intentOwners.has(intentId)) {
         intentOwners.set(intentId, target);
       }
     }
   }
 
-  for (const intentId of prometheusIntentIds) {
+  for (const intentId of intentIds) {
     if (!intentOwners.has(intentId)) {
       intentOwners.set(intentId, { repositoryId: "", graphIri: "" });
     }
   }
 
-  const intentIds = [...intentOwners.keys()].sort((left, right) => left.localeCompare(right));
+  return intentOwners;
+}
+
+export async function listIntentsForDomain(
+  targets: IntentTargetRef[],
+  options: ListIntentsOptions = {},
+): Promise<IntentListEntry[]> {
+  const mode = options.mode ?? "full";
+  const ownedIntentIds = options.ownedIntentIds ?? [];
+
+  if (mode === "lite" && options.cacheKey) {
+    const cached = liteListCache.get(options.cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.intents;
+    }
+  }
+
+  if (ownedIntentIds.length === 0) {
+    return [];
+  }
+
+  const prometheusIntentIds = await listPrometheusIntentIds();
+  const prometheusSet = new Set(prometheusIntentIds);
+  const intentOwners = await resolveIntentOwners(targets, ownedIntentIds);
+  const intentIds = [...ownedIntentIds].sort((left, right) => left.localeCompare(right));
 
   const entries = await mapWithConcurrency(intentIds, INTENT_ENRICH_CONCURRENCY, (intentId) =>
     enrichIntentEntry({

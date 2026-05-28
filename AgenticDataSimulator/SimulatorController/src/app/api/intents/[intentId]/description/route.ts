@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { lookupIntentDescription } from "@/lib/kg/lookup-intent-description";
+import { assertUserOwnsIntent } from "@/lib/intents/user-intent-registry";
 import { validateIntentIdForPrometheusClear } from "@/lib/prometheus/client";
 
 type RouteContext = {
@@ -32,6 +33,11 @@ export async function GET(request: Request, context: RouteContext) {
 
   if (!domain) {
     return NextResponse.json({ error: "domain query parameter is required" }, { status: 400 });
+  }
+
+  const ownsIntent = await assertUserOwnsIntent(user.id, intentId);
+  if (!ownsIntent) {
+    return NextResponse.json({ description: null });
   }
 
   const targets = await db.knowledgeGraphTarget.findMany({

@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from "@/lib/auth/guards";
 import {
   deleteScriptForUser,
   getScriptForUser,
+  getVisibleScript,
   updateScriptForUser,
 } from "@/lib/scripts/repository";
 
@@ -36,7 +37,7 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const script = await getScriptForUser(user.id, id);
+  const script = await getVisibleScript(user.id, id);
 
   if (!script) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -56,7 +57,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const existingScript = await getScriptForUser(user.id, id);
 
   if (!existingScript) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "Not found" }, { status: 403 });
   }
 
   const body = updateScriptBodySchema.parse(await request.json());

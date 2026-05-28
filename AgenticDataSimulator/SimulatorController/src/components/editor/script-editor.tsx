@@ -9,6 +9,7 @@ type ScriptEditorProps = {
   value: string;
   metricNames: string[];
   heightPx?: number;
+  readOnly?: boolean;
   onChange?: (value: string) => void;
   onSave?: () => void;
 };
@@ -19,6 +20,7 @@ export const ScriptEditor = memo(function ScriptEditor({
   value,
   metricNames,
   heightPx = DEFAULT_EDITOR_HEIGHT_PX,
+  readOnly = false,
   onChange,
   onSave,
 }: ScriptEditorProps) {
@@ -46,10 +48,11 @@ export const ScriptEditor = memo(function ScriptEditor({
         options={{
           automaticLayout: true,
           minimap: { enabled: false },
+          readOnly,
           scrollBeyondLastLine: false,
           wordWrap: "on",
         }}
-        onChange={(nextValue) => onChange?.(nextValue ?? "")}
+        onChange={readOnly ? undefined : (nextValue) => onChange?.(nextValue ?? "")}
         onMount={(editor, monaco) => {
           completionRegistrationRef.current?.dispose();
           completionRegistrationRef.current = registerMetricCompletions(

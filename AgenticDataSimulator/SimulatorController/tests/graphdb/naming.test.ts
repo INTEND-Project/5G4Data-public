@@ -19,10 +19,10 @@ describe("GraphDB naming", () => {
     }
 
     expect(
-      loaded.buildRepositoryId("telenor.5g4data", "KG Avalanche Demo"),
-    ).toBe("telenor-5g4data-kg-avalanche-demo");
+      loaded.buildRepositoryId("telenor.5g4data", "KG Avalanche Demo", "alice"),
+    ).toBe("telenor-5g4data-alice-kg-avalanche-demo");
     expect(
-      loaded.buildGraphIri("telenor.5g4data", "KG Avalanche Demo"),
-    ).toBe("urn:intend:kg:telenor-5g4data:kg-avalanche-demo");
+      loaded.buildGraphIri("telenor.5g4data", "KG Avalanche Demo", "alice"),
+    ).toBe("urn:intend:kg:telenor-5g4data:alice:kg-avalanche-demo");
   });
 });

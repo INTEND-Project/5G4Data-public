@@ -30,6 +30,9 @@ type WorkspaceShellProps = {
   kgTargetsCreateUrl: string;
   kgTargetsDeleteUrlBase: string;
   scriptsApiUrl: string;
+  runLogsApiUrl: string;
+  intentsRegisterUrl: string;
+  currentUserId: string;
   discoverIntentAgentApiUrl: string;
   discoverObservationAgentApiUrl: string;
   a2aMessageSendUrl: string;
@@ -57,7 +60,10 @@ type WorkspaceShellProps = {
     id: string;
     name: string;
     content: string;
+    userId: string;
+    shared: boolean;
     lastRunMode: string | null;
+    ownerUsername?: string;
   }>;
 };
 
@@ -70,6 +76,9 @@ export function WorkspaceShell({
   kgTargetsCreateUrl,
   kgTargetsDeleteUrlBase,
   scriptsApiUrl,
+  runLogsApiUrl,
+  intentsRegisterUrl,
+  currentUserId,
   discoverIntentAgentApiUrl,
   discoverObservationAgentApiUrl,
   a2aMessageSendUrl,
@@ -93,6 +102,9 @@ export function WorkspaceShell({
     id: script.id,
     name: script.name,
     content: script.content,
+    userId: script.userId,
+    shared: script.shared,
+    ownerUsername: script.ownerUsername,
   }));
 
   const scriptRunnerKgTargets = useMemo(
@@ -120,6 +132,7 @@ export function WorkspaceShell({
     <main className="workspace-shell">
       <WorkspaceScriptSessionProvider
         draftContent={draftContent}
+        runLogsApiUrl={runLogsApiUrl}
         scripts={scriptsPayload}
         selectedDomain={selectedDomain}
       >
@@ -164,7 +177,7 @@ export function WorkspaceShell({
             <aside className="workspace-panel">
               <div className="workspace-panel-tight-stack">
                 <DomainSelector domains={domainOptions} selectedDomain={selectedDomain} />
-                <ScriptList scriptsApiUrl={scriptsApiUrl} />
+                <ScriptList currentUserId={currentUserId} scriptsApiUrl={scriptsApiUrl} />
               </div>
               <AgentList
                 agents={agents}
@@ -184,9 +197,11 @@ export function WorkspaceShell({
             </div>
             <WorkspaceScriptRunner
               a2aMessageSendUrl={a2aMessageSendUrl}
+              currentUserId={currentUserId}
               discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
               discoverObservationAgentApiUrl={discoverObservationAgentApiUrl}
               graphDbBaseUrl={graphDbBaseUrl}
+              intentsRegisterUrl={intentsRegisterUrl}
               kgTargets={scriptRunnerKgTargets}
               kgTargetsApiBaseUrl={kgTargetsDeleteUrlBase}
               metricNames={scriptRunnerMetricNames}

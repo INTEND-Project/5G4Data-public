@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { ingestIntentTurtle } from "@/lib/graphdb/client";
 import { extractIntentLocalIdFromTurtle } from "@/lib/intent/extract-intent-turtle";
+import { registerUserIntent } from "@/lib/intents/user-intent-registry";
 
 const bodySchema = z.object({
   turtle: z.string().min(1),
@@ -38,6 +39,7 @@ export async function POST(request: Request, context: RouteContext) {
     },
     select: {
       id: true,
+      domain: true,
       repositoryId: true,
       graphIri: true,
     },
@@ -65,6 +67,16 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const intentId = extractIntentLocalIdFromTurtle(body.turtle);
+
+  if (intentId) {
+    await registerUserIntent({
+      userId: user.id,
+      domain: target.domain,
+      intentId,
+      storage: "graphdb",
+      graphTargetId: target.id,
+    });
+  }
 
   return NextResponse.json({
     ok: true,

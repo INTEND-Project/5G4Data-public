@@ -11,6 +11,10 @@ const dbMock = {
   },
 };
 
+const userIntentRegistryMock = {
+  assertUserOwnsIntent: vi.fn(),
+};
+
 const lookupIntentDescriptionMock = vi.fn();
 
 const guardMock = {
@@ -20,6 +24,8 @@ const guardMock = {
 vi.mock("../../src/lib/db", () => ({
   db: dbMock,
 }));
+
+vi.mock("../../src/lib/intents/user-intent-registry", () => userIntentRegistryMock);
 
 vi.mock("../../src/lib/kg/lookup-intent-description", () => ({
   lookupIntentDescription: lookupIntentDescriptionMock,
@@ -31,6 +37,7 @@ beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   guardMock.getAuthenticatedUser.mockResolvedValue(authenticatedUser);
+  userIntentRegistryMock.assertUserOwnsIntent.mockResolvedValue(true);
 });
 
 describe("GET /api/prometheus/intents/[intentId]/description", () => {

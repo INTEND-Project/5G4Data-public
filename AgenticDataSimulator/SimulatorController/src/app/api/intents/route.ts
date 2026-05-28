@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { listIntentsForDomain } from "@/lib/intents/list-intents";
+import { listOwnedIntentIdsForUser } from "@/lib/intents/user-intent-registry";
 
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser(request);
@@ -32,15 +33,17 @@ export async function GET(request: Request) {
     },
   });
 
+  const ownedIntentIds = await listOwnedIntentIdsForUser(user.id, domain);
   const lite = searchParams.get("lite") === "1" || searchParams.get("lite") === "true";
   const cacheKey = lite
-    ? `${domain}:${targets.map((target) => `${target.repositoryId}|${target.graphIri}`).join(";")}`
+    ? `${user.id}:${domain}:${ownedIntentIds.join(",")}:${targets.map((target) => `${target.repositoryId}|${target.graphIri}`).join(";")}`
     : undefined;
 
   try {
     const intents = await listIntentsForDomain(targets, {
       mode: lite ? "lite" : "full",
       cacheKey,
+      ownedIntentIds,
     });
     return NextResponse.json({ intents });
   } catch (error) {

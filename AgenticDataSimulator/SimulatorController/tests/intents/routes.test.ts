@@ -16,6 +16,11 @@ const listIntentsMock = {
   resolveIntentOwner: vi.fn(),
 };
 
+const userIntentRegistryMock = {
+  listOwnedIntentIdsForUser: vi.fn(),
+  assertUserOwnsIntent: vi.fn(),
+};
+
 const graphdbClientMock = {
   runRepositorySparqlUpdate: vi.fn(),
 };
@@ -30,6 +35,7 @@ const guardMock = {
 
 vi.mock("../../src/lib/db", () => ({ db: dbMock }));
 vi.mock("../../src/lib/intents/list-intents", () => listIntentsMock);
+vi.mock("../../src/lib/intents/user-intent-registry", () => userIntentRegistryMock);
 vi.mock("../../src/lib/graphdb/client", () => graphdbClientMock);
 vi.mock("../../src/lib/intents/observation-time-bounds", () => observationBoundsMock);
 vi.mock("../../src/lib/auth/guards", () => guardMock);
@@ -44,6 +50,10 @@ beforeEach(() => {
       graphIri: "http://example/graph",
     },
   ]);
+  userIntentRegistryMock.listOwnedIntentIdsForUser.mockResolvedValue([
+    "I04fb0697e3a243e7a292c6cb57e9f797",
+  ]);
+  userIntentRegistryMock.assertUserOwnsIntent.mockResolvedValue(true);
 });
 
 describe("intents routes", () => {
@@ -64,6 +74,10 @@ describe("intents routes", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(userIntentRegistryMock.listOwnedIntentIdsForUser).toHaveBeenCalledWith(
+      "user-1",
+      "telenor.5g4data",
+    );
     expect(listIntentsMock.listIntentsForDomain).toHaveBeenCalledWith(
       [
         {
@@ -74,6 +88,7 @@ describe("intents routes", () => {
       {
         mode: "full",
         cacheKey: undefined,
+        ownedIntentIds: ["I04fb0697e3a243e7a292c6cb57e9f797"],
       },
     );
     await expect(response.json()).resolves.toEqual({
@@ -107,7 +122,9 @@ describe("intents routes", () => {
       ],
       {
         mode: "lite",
-        cacheKey: "telenor.5g4data:repo-1|http://example/graph",
+        cacheKey:
+          "user-1:telenor.5g4data:I04fb0697e3a243e7a292c6cb57e9f797:repo-1|http://example/graph",
+        ownedIntentIds: ["I04fb0697e3a243e7a292c6cb57e9f797"],
       },
     );
   });
@@ -139,6 +156,7 @@ describe("intents routes", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(userIntentRegistryMock.assertUserOwnsIntent).toHaveBeenCalledWith("user-1", intentId);
     expect(graphdbClientMock.runRepositorySparqlUpdate).toHaveBeenCalledTimes(1);
     await expect(response.json()).resolves.toEqual({
       clearedIntentId: intentId,

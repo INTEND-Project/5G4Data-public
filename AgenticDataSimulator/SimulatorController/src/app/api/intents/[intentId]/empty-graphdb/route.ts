@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { runRepositorySparqlUpdate } from "@/lib/graphdb/client";
 import { buildClearIntentObservationsUpdate } from "@/lib/intents/clear-intent-observations-query";
 import { resolveIntentOwner } from "@/lib/intents/list-intents";
+import { assertUserOwnsIntent } from "@/lib/intents/user-intent-registry";
 import { fetchCompoundMetricsForIntent } from "@/lib/intents/observation-time-bounds";
 import { validateIntentIdForPrometheusClear } from "@/lib/prometheus/client";
 
@@ -35,6 +36,11 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (!domain) {
     return NextResponse.json({ error: "domain query parameter is required" }, { status: 400 });
+  }
+
+  const ownsIntent = await assertUserOwnsIntent(user.id, intentId);
+  if (!ownsIntent) {
+    return NextResponse.json({ error: "Intent not found" }, { status: 404 });
   }
 
   const targets = await db.knowledgeGraphTarget.findMany({

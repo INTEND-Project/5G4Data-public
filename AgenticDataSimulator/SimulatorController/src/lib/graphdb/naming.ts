@@ -5,10 +5,10 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export function buildRepositoryId(domain: string, displayName: string) {
-  return `${slugify(domain)}-${slugify(displayName)}`;
+export function buildRepositoryId(domain: string, displayName: string, ownerSlug: string) {
+  return `${slugify(domain)}-${slugify(ownerSlug)}-${slugify(displayName)}`;
 }
 
-export function buildGraphIri(domain: string, displayName: string) {
-  return `urn:intend:kg:${slugify(domain)}:${slugify(displayName)}`;
+export function buildGraphIri(domain: string, displayName: string, ownerSlug: string) {
+  return `urn:intend:kg:${slugify(domain)}:${slugify(ownerSlug)}:${slugify(displayName)}`;
 }

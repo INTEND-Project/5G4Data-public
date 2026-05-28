@@ -49,8 +49,8 @@ export async function POST(request: Request) {
   }
 
   const body = createTargetBodySchema.parse(await request.json());
-  const repositoryId = buildRepositoryId(body.domain, body.displayName);
-  const graphIri = buildGraphIri(body.domain, body.displayName);
+  const repositoryId = buildRepositoryId(body.domain, body.displayName, user.username);
+  const graphIri = buildGraphIri(body.domain, body.displayName, user.username);
 
   await createRepository({
     repositoryId,

@@ -27,10 +27,17 @@ import {
   buildGraphTargetBinding,
   type GraphTargetBinding,
 } from "@/lib/kg/graph-target-binding";
+import {
+  buildSharedScriptName,
+  defaultSharedNameSuffix,
+  SHARED_PREFIX,
+} from "@/lib/scripts/shared-name";
 
 type WorkspaceScriptRunnerProps = {
   metricNames: string[];
   scriptsApiUrl: string;
+  currentUserId: string;
+  intentsRegisterUrl: string;
   kgTargetsApiBaseUrl: string;
   kgTargets: Array<{
     id: string;
@@ -111,6 +118,8 @@ function readStoredEditorHeight(): number {
 export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   metricNames,
   scriptsApiUrl,
+  currentUserId,
+  intentsRegisterUrl,
   kgTargetsApiBaseUrl,
   kgTargets,
   graphDbBaseUrl,
@@ -121,6 +130,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   const router = useRouter();
   const {
     selectedDomain,
+    scriptsFromServer,
     activeContent,
     activeScriptId,
     activeScriptName,
@@ -205,19 +215,41 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   const [saveAsDialogOpen, setSaveAsDialogOpen] = useState(false);
   const [saveAsScriptName, setSaveAsScriptName] = useState("");
   const [saveAsError, setSaveAsError] = useState<string | null>(null);
+  const [shareAsDialogOpen, setShareAsDialogOpen] = useState(false);
+  const [shareAsNameSuffix, setShareAsNameSuffix] = useState("");
+  const [shareAsError, setShareAsError] = useState<string | null>(null);
 
   const saveAsInputRef = useRef<HTMLInputElement>(null);
+  const shareAsInputRef = useRef<HTMLInputElement>(null);
   const saveAsDialogOpenRef = useRef(false);
+  const shareAsDialogOpenRef = useRef(false);
+
+  const activeScriptMeta = activeScriptId
+    ? scriptsFromServer.find((script) => script.id === activeScriptId)
+    : undefined;
+  const isReadOnlyScript = Boolean(
+    activeScriptMeta && activeScriptMeta.userId !== currentUserId,
+  );
 
   useEffect(() => {
     saveAsDialogOpenRef.current = saveAsDialogOpen;
   }, [saveAsDialogOpen]);
 
   useEffect(() => {
+    shareAsDialogOpenRef.current = shareAsDialogOpen;
+  }, [shareAsDialogOpen]);
+
+  useEffect(() => {
     if (!saveAsDialogOpen) {
       setSaveAsScriptName(activeScriptName);
     }
   }, [activeScriptName, activeTabKey, saveAsDialogOpen]);
+
+  useEffect(() => {
+    if (!shareAsDialogOpen) {
+      setShareAsNameSuffix(defaultSharedNameSuffix(activeScriptName));
+    }
+  }, [activeScriptName, activeTabKey, shareAsDialogOpen]);
 
   useEffect(() => {
     if (!saveAsDialogOpen) {
@@ -250,6 +282,14 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   }, [runLogDialogOpen, closeRunLogDialog]);
 
   useEffect(() => {
+    if (!shareAsDialogOpen) {
+      return;
+    }
+    shareAsInputRef.current?.focus();
+    shareAsInputRef.current?.select();
+  }, [shareAsDialogOpen]);
+
+  useEffect(() => {
     if (!saveAsDialogOpen) {
       return;
     }
@@ -261,6 +301,11 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
   const submitSave = useCallback(
     async (nameInput: string) => {
+      if (isReadOnlyScript) {
+        setSaveError("This shared script is read-only. Use Save As to create your own copy.");
+        return false;
+      }
+
       const trimmedName = nameInput.trim();
       if (!trimmedName) {
         setSaveError("Script name is required.");
@@ -373,6 +418,8 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           id: created.id,
           name: created.name ?? trimmedName,
           content: activeContent,
+          userId: currentUserId,
+          shared: false,
         });
         router.refresh();
         return true;
@@ -392,8 +439,80 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       migrateDraftTabToSavedScript,
       commitSavedTabContent,
       openScriptTab,
+      currentUserId,
+      isReadOnlyScript,
     ],
   );
+
+  const submitShareAs = useCallback(async () => {
+    const suffix = shareAsNameSuffix.trim();
+    if (!suffix) {
+      setShareAsError("Enter a name after the shared- prefix.");
+      return false;
+    }
+
+    if (savingLockRef.current) {
+      return false;
+    }
+
+    savingLockRef.current = true;
+    setShareAsError(null);
+    setSaving(true);
+
+    try {
+      const response = await fetch(scriptsApiUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          domain: selectedDomain,
+          nameSuffix: suffix,
+          content: activeContent,
+          shared: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const message =
+          typeof body?.error === "string"
+            ? body.error
+            : `Share As failed (${response.status})`;
+        setShareAsError(message);
+        return false;
+      }
+
+      const data = (await response.json()) as {
+        script?: { id: string; name: string };
+      };
+      const created = data.script;
+      if (!created?.id) {
+        setShareAsError("Share As failed: server did not return a script id.");
+        return false;
+      }
+
+      openScriptTab({
+        id: created.id,
+        name: created.name ?? buildSharedScriptName(suffix),
+        content: activeContent,
+        userId: currentUserId,
+        shared: true,
+      });
+      router.refresh();
+      return true;
+    } finally {
+      savingLockRef.current = false;
+      setSaving(false);
+    }
+  }, [
+    activeContent,
+    currentUserId,
+    openScriptTab,
+    router,
+    scriptsApiUrl,
+    selectedDomain,
+    shareAsNameSuffix,
+  ]);
 
   const openSaveAsDialog = useCallback(() => {
     setSaveAsError(null);
@@ -409,11 +528,28 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     }
   }, [saveAsScriptName, submitSave]);
 
+  const openShareAsDialog = useCallback(() => {
+    setShareAsError(null);
+    setShareAsNameSuffix(defaultSharedNameSuffix(activeScriptName));
+    setShareAsDialogOpen(true);
+  }, [activeScriptName]);
+
+  const confirmShareAsFromDialog = useCallback(async () => {
+    setShareAsError(null);
+    const ok = await submitShareAs();
+    if (ok) {
+      setShareAsDialogOpen(false);
+    }
+  }, [submitShareAs]);
+
   const quickSave = useCallback(() => {
+    if (isReadOnlyScript) {
+      return;
+    }
     const fallback = defaultScriptName(selectedDomain);
     const name = scriptNameRef.current.trim() || fallback;
     void submitSave(name);
-  }, [submitSave, selectedDomain]);
+  }, [submitSave, selectedDomain, isReadOnlyScript]);
 
   const quickSaveRef = useRef(quickSave);
   quickSaveRef.current = quickSave;
@@ -501,12 +637,35 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       if (storage) {
         intentStorageByAliasRef.current.set(_dslAlias, storage);
       }
+
+      const registerUrl = intentsRegisterUrl.trim();
+      if (!registerUrl) {
+        return;
+      }
+
+      void fetch(registerUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          domain: selectedDomain,
+          intentId: canonicalIntentId,
+          storage,
+          graphTargetId: selectedKgTargetId || undefined,
+        }),
+      }).catch(() => {
+        // Best-effort; store-intent and intent dialog also register.
+      });
     },
-    [],
+    [intentsRegisterUrl, selectedDomain, selectedKgTargetId],
   );
 
   const handleRunScript = useCallback(async () => {
-    beginScriptRun(activeScriptName);
+    const runMode = runModeRef.current;
+    beginScriptRun(activeScriptName, {
+      mode: runMode,
+      scriptId: activeScriptId,
+    });
     openRunLogDialog();
     try {
       const modeLabel = runModeRef.current === "dry-run" ? "Dry-run" : "Run Script";
@@ -934,10 +1093,14 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
       appendRunnerLog("Run Script: finished scripted steps.");
     } finally {
-      endActiveScriptRun();
+      await endActiveScriptRun({
+        mode: runModeRef.current,
+        scriptId: activeScriptId,
+      });
     }
   }, [
     activeContent,
+    activeScriptId,
     activeScriptName,
     appendRunnerLog,
     beginScriptRun,
@@ -1029,7 +1192,8 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           key={activeTabKey}
           metricNames={metricNames}
           onChange={setActiveContent}
-          onSave={handleEditorSave}
+          onSave={isReadOnlyScript ? undefined : handleEditorSave}
+          readOnly={isReadOnlyScript}
           value={activeContent}
         />
         <div
@@ -1095,6 +1259,15 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
             type="button"
           >
             {saving ? "Saving…" : "Save As"}
+          </button>
+          <button
+            className="workspace-button workspace-runner-button"
+            disabled={saving}
+            onClick={openShareAsDialog}
+            title="Publish a copy of this script for all users. The shared copy will be named with a shared- prefix (shown before you confirm)."
+            type="button"
+          >
+            {saving ? "Sharing…" : "Share As"}
           </button>
         </div>
       </div>
@@ -1176,6 +1349,84 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         </div>
       ) : null}
 
+      {shareAsDialogOpen ? (
+        <div
+          className="workspace-save-name-dialog-backdrop"
+          onClick={() => {
+            if (!saving) {
+              setShareAsDialogOpen(false);
+            }
+          }}
+          role="presentation"
+        >
+          <div
+            aria-labelledby="workspace-share-as-dialog-title"
+            aria-modal="true"
+            className="workspace-save-name-dialog"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <h3 id="workspace-share-as-dialog-title">Share As</h3>
+            <p className="workspace-save-as-dialog-hint">
+              Shared scripts are visible to all users as read-only. Choose a name
+              after the {SHARED_PREFIX} prefix.
+            </p>
+            <div>
+              <label
+                className="workspace-label"
+                htmlFor="workspace-share-as-script-name"
+              >
+                Shared script name
+              </label>
+              <div className="workspace-share-as-name-row">
+                <span className="workspace-share-as-prefix">{SHARED_PREFIX}</span>
+                <input
+                  ref={shareAsInputRef}
+                  autoComplete="off"
+                  className="workspace-input workspace-share-as-name-input"
+                  id="workspace-share-as-script-name"
+                  onChange={(event) => setShareAsNameSuffix(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void confirmShareAsFromDialog();
+                    }
+                  }}
+                  type="text"
+                  value={shareAsNameSuffix}
+                />
+              </div>
+              <p className="workspace-share-as-preview">
+                Full name: {buildSharedScriptName(shareAsNameSuffix || "…")}
+              </p>
+            </div>
+            {shareAsError ? (
+              <p className="workspace-save-name-dialog-error" role="alert">
+                {shareAsError}
+              </p>
+            ) : null}
+            <div className="workspace-save-name-dialog-actions">
+              <button
+                className="workspace-button"
+                disabled={saving}
+                onClick={() => setShareAsDialogOpen(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="workspace-button"
+                disabled={saving || !shareAsNameSuffix.trim()}
+                onClick={() => void confirmShareAsFromDialog()}
+                type="button"
+              >
+                {saving ? "Sharing…" : "Share"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {runLogDialogOpen ? (
         <div
           className="workspace-save-name-dialog-backdrop"
@@ -1230,14 +1481,16 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       <IntentGenSessionDialog
         a2aMessageSendUrl={a2aMessageSendUrl}
         agentCardWellKnownURI={intentSession?.wellKnownURI ?? ""}
+        createIntentStorage={intentSession?.storage ?? null}
         intentArtifactLabel={intentSession?.intentArtifactLabel ?? ""}
+        intentsRegisterUrl={intentsRegisterUrl}
         onFinished={handleIntentDialogFinish}
         onIntentPersistLog={appendRunnerLog}
-        onTranscriptTurn={appendA2ATranscriptTurn}
         onKgIntentStored={handleKgIntentStored}
+        onTranscriptTurn={appendA2ATranscriptTurn}
         open={intentSession !== null}
         persistIntentStoreUrl={persistIntentStoreUrl}
-        createIntentStorage={intentSession?.storage ?? null}
+        registerIntentDomain={selectedDomain}
         seedPrompt={intentSession?.prompt ?? null}
       />
       <IntentGenSessionDialog

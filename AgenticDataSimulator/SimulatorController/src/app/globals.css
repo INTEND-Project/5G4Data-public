@@ -450,6 +450,53 @@ a {
   color: #ff9a9a;
 }
 
+.workspace-share-as-name-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 6px;
+}
+
+.workspace-share-as-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92rem;
+  white-space: nowrap;
+}
+
+.workspace-share-as-name-input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 0 8px 8px 0;
+}
+
+.workspace-share-as-preview {
+  margin: 8px 0 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.workspace-script-shared-chip {
+  margin-left: 8px;
+  font-size: 0.72rem;
+  vertical-align: middle;
+}
+
+.workspace-script-owner {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 button.workspace-run-log-open-button {
   font: inherit;
   border: 0;

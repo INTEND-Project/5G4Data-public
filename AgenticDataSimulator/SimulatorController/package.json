@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern next-env.d.ts",
     "test": "vitest run",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "db:clear-data": "scripts/clear-controller-data.sh"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

@@ -1,12 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
 
 type ScriptListProps = {
   scriptsApiUrl: string;
+  currentUserId: string;
 };
 
 function TrashIcon() {
@@ -32,9 +32,9 @@ function TrashIcon() {
   );
 }
 
-export function ScriptList({ scriptsApiUrl }: ScriptListProps) {
-  const router = useRouter();
-  const { scriptsFromServer, activeScriptId, openScriptTab } = useWorkspaceScriptSession();
+export function ScriptList({ scriptsApiUrl, currentUserId }: ScriptListProps) {
+  const { scriptsFromServer, activeScriptId, openScriptTab, removeScriptFromList } =
+    useWorkspaceScriptSession();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = useCallback(
@@ -62,12 +62,12 @@ export function ScriptList({ scriptsApiUrl }: ScriptListProps) {
           window.alert(message);
           return;
         }
-        router.refresh();
+        removeScriptFromList(script.id);
       } finally {
         setDeletingId(null);
       }
     },
-    [scriptsApiUrl, router],
+    [scriptsApiUrl, removeScriptFromList],
   );
 
   return (
@@ -83,35 +83,46 @@ export function ScriptList({ scriptsApiUrl }: ScriptListProps) {
             <p>Create a script in the selected domain to start stage 1 authoring.</p>
           </article>
         ) : null}
-        {scriptsFromServer.map((script) => (
-          <article
-            className={`workspace-card workspace-card-script ${script.id === activeScriptId ? "workspace-card-active" : ""}`}
-            key={script.id}
-          >
-            <div className="workspace-script-row">
-              <button
-                className="workspace-script-open"
-                onClick={() => openScriptTab(script)}
-                title={`Open ${script.name}`}
-                type="button"
-              >
-                <span className="workspace-script-name" title={script.name}>
-                  {script.name}
-                </span>
-              </button>
-              <button
-                aria-label={`Delete ${script.name}`}
-                className="workspace-script-delete"
-                disabled={deletingId === script.id}
-                onClick={() => void handleDelete(script)}
-                title="Delete script"
-                type="button"
-              >
-                <TrashIcon />
-              </button>
-            </div>
-          </article>
-        ))}
+        {scriptsFromServer.map((script) => {
+          const isOwned = script.userId === currentUserId;
+          return (
+            <article
+              className={`workspace-card workspace-card-script ${script.id === activeScriptId ? "workspace-card-active" : ""}`}
+              key={script.id}
+            >
+              <div className="workspace-script-row">
+                <button
+                  className="workspace-script-open"
+                  onClick={() => openScriptTab(script)}
+                  title={`Open ${script.name}`}
+                  type="button"
+                >
+                  <span className="workspace-script-name" title={script.name}>
+                    {script.name}
+                  </span>
+                  {script.shared ? (
+                    <span className="workspace-chip workspace-script-shared-chip">Shared</span>
+                  ) : null}
+                  {!isOwned && script.ownerUsername ? (
+                    <span className="workspace-script-owner">by {script.ownerUsername}</span>
+                  ) : null}
+                </button>
+                {isOwned ? (
+                  <button
+                    aria-label={`Delete ${script.name}`}
+                    className="workspace-script-delete"
+                    disabled={deletingId === script.id}
+                    onClick={() => void handleDelete(script)}
+                    title="Delete script"
+                    type="button"
+                  >
+                    <TrashIcon />
+                  </button>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
       </div>
     </div>
   );

@@ -16,6 +16,9 @@ export type ServerScript = {
   id: string;
   name: string;
   content: string;
+  userId: string;
+  shared: boolean;
+  ownerUsername?: string;
 };
 
 export const DRAFT_TAB_KEY = "draft";
@@ -46,39 +49,19 @@ export type ScriptRunLogRecord = {
   lines: string[];
 };
 
-const SCRIPT_RUN_LOGS_STORAGE_PREFIX = "openclaw.workspace.scriptRunLogs.v1:";
+type ActiveRunState = {
+  id: string;
+  scriptName: string;
+  startedAt: number;
+  mode: "dry-run" | "execute";
+  scriptId: string | null;
+  lines: string[];
+};
 
-function scriptRunLogsStorageKey(domain: string): string {
-  return `${SCRIPT_RUN_LOGS_STORAGE_PREFIX}${encodeURIComponent(domain)}`;
-}
-
-function parseStoredScriptRunLogs(raw: string | null): ScriptRunLogRecord[] {
-  if (!raw) {
-    return [];
-  }
-  try {
-    const data = JSON.parse(raw) as unknown;
-    if (!Array.isArray(data)) {
-      return [];
-    }
-    const rows = data.filter((row): row is ScriptRunLogRecord => {
-      if (!row || typeof row !== "object") {
-        return false;
-      }
-      const r = row as ScriptRunLogRecord;
-      return (
-        typeof r.id === "string" &&
-        typeof r.scriptName === "string" &&
-        typeof r.startedAt === "number" &&
-        Array.isArray(r.lines) &&
-        r.lines.every((line) => typeof line === "string")
-      );
-    });
-    return rows.slice(0, 10);
-  } catch {
-    return [];
-  }
-}
+type PersistRunLogInput = {
+  mode: "dry-run" | "execute";
+  scriptId?: string | null;
+};
 
 type OpenTab = {
   tabKey: string;
@@ -103,6 +86,8 @@ export type WorkspaceScriptSessionContextValue = {
   activeScriptName: string;
   setActiveContent: (content: string) => void;
   openScriptTab: (script: ServerScript) => void;
+  /** Remove a script from the sidebar list after a successful DELETE. */
+  removeScriptFromList: (scriptId: string) => void;
   selectTab: (tabKey: string) => void;
   closeTab: (tabKey: string) => void;
   migrateDraftTabToSavedScript: (scriptId: string, name: string) => void;
@@ -115,9 +100,9 @@ export type WorkspaceScriptSessionContextValue = {
   setSelectedScriptRunId: (id: string | null) => void;
   /** Lines for the currently selected run (for the log dialog). */
   selectedRunLogLines: string[];
-  beginScriptRun: (scriptName: string) => void;
+  beginScriptRun: (scriptName: string, input?: { mode?: "dry-run" | "execute"; scriptId?: string | null }) => void;
   appendRunnerLog: (entry: string) => void;
-  endActiveScriptRun: () => void;
+  endActiveScriptRun: (input: PersistRunLogInput) => Promise<void>;
   runLogDialogOpen: boolean;
   openRunLogDialog: () => void;
   closeRunLogDialog: () => void;
@@ -144,52 +129,126 @@ export function WorkspaceScriptSessionProvider({
   selectedDomain,
   scripts,
   draftContent,
+  runLogsApiUrl,
 }: {
   children: ReactNode;
   selectedDomain: string;
   scripts: ServerScript[];
   draftContent: string;
+  runLogsApiUrl: string;
 }) {
   const [bundle, setBundle] = useState<Bundle>(() =>
     buildInitialTabs(draftContent, selectedDomain),
   );
+  const [serverScripts, setServerScripts] = useState(scripts);
   const dirtyKeysRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    setServerScripts(scripts);
+  }, [scripts]);
 
   const [scriptRunLogs, setScriptRunLogs] = useState<ScriptRunLogRecord[]>([]);
   const [selectedScriptRunId, setSelectedScriptRunId] = useState<string | null>(null);
   const [runLogDialogOpen, setRunLogDialogOpen] = useState(false);
   const [scriptExtractedMetricNames, setScriptExtractedMetricNames] = useState<string[]>([]);
-  const activeRunIdRef = useRef<string | null>(null);
+  const activeRunRef = useRef<ActiveRunState | null>(null);
 
-  const beginScriptRun = useCallback((scriptName: string) => {
-    const id =
-      typeof globalThis.crypto !== "undefined" &&
-      typeof globalThis.crypto.randomUUID === "function"
-        ? globalThis.crypto.randomUUID()
-        : `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    const startedAt = Date.now();
-    activeRunIdRef.current = id;
-    setScriptRunLogs((prev) =>
-      [{ id, scriptName, startedAt, lines: [] }, ...prev].slice(0, 10),
-    );
-    setSelectedScriptRunId(id);
-  }, []);
+  const beginScriptRun = useCallback(
+    (scriptName: string, input?: { mode?: "dry-run" | "execute"; scriptId?: string | null }) => {
+      const id =
+        typeof globalThis.crypto !== "undefined" &&
+        typeof globalThis.crypto.randomUUID === "function"
+          ? globalThis.crypto.randomUUID()
+          : `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const startedAt = Date.now();
+      activeRunRef.current = {
+        id,
+        scriptName,
+        startedAt,
+        mode: input?.mode ?? "execute",
+        scriptId: input?.scriptId ?? null,
+        lines: [],
+      };
+      setScriptRunLogs((prev) =>
+        [{ id, scriptName, startedAt, lines: [] }, ...prev].slice(0, 10),
+      );
+      setSelectedScriptRunId(id);
+    },
+    [],
+  );
 
   const appendRunnerLog = useCallback((entry: string) => {
-    const targetId = activeRunIdRef.current;
-    if (!targetId) {
+    const activeRun = activeRunRef.current;
+    if (!activeRun) {
       return;
     }
+    activeRun.lines = [...activeRun.lines, entry];
     setScriptRunLogs((prev) =>
       prev.map((r) =>
-        r.id === targetId ? { ...r, lines: [...r.lines, entry] } : r,
+        r.id === activeRun.id ? { ...r, lines: activeRun.lines } : r,
       ),
     );
   }, []);
 
-  const endActiveScriptRun = useCallback(() => {
-    activeRunIdRef.current = null;
-  }, []);
+  const endActiveScriptRun = useCallback(
+    async (input: PersistRunLogInput) => {
+      const activeRun = activeRunRef.current;
+      if (!activeRun || !runLogsApiUrl.trim()) {
+        activeRunRef.current = null;
+        return;
+      }
+
+      const lines = activeRun.lines;
+
+      try {
+        const response = await fetch(runLogsApiUrl, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            domain: selectedDomain,
+            scriptName: activeRun.scriptName,
+            scriptId: input.scriptId ?? activeRun.scriptId ?? undefined,
+            mode: input.mode,
+            lines,
+            startedAt: new Date(activeRun.startedAt).toISOString(),
+          }),
+        });
+
+        if (response.ok) {
+          const body = (await response.json()) as {
+            runLog?: {
+              id: string;
+              scriptName: string;
+              lines: string[];
+              startedAt: string;
+            };
+          };
+          const persisted = body.runLog;
+          if (persisted) {
+            setScriptRunLogs((prev) => {
+              const withoutActive = prev.filter((run) => run.id !== activeRun.id);
+              return [
+                {
+                  id: persisted.id,
+                  scriptName: persisted.scriptName,
+                  startedAt: new Date(persisted.startedAt).getTime(),
+                  lines: persisted.lines,
+                },
+                ...withoutActive,
+              ].slice(0, 10);
+            });
+            setSelectedScriptRunId(persisted.id);
+          }
+        }
+      } catch {
+        // Keep in-memory log if persistence fails.
+      } finally {
+        activeRunRef.current = null;
+      }
+    },
+    [runLogsApiUrl, selectedDomain],
+  );
 
   const openRunLogDialog = useCallback(() => {
     setRunLogDialogOpen(true);
@@ -200,34 +259,53 @@ export function WorkspaceScriptSessionProvider({
   }, []);
 
   useLayoutEffect(() => {
-    if (typeof globalThis.window === "undefined") {
-      return;
-    }
-    activeRunIdRef.current = null;
-    try {
-      setScriptRunLogs(
-        parseStoredScriptRunLogs(
-          globalThis.window.localStorage.getItem(scriptRunLogsStorageKey(selectedDomain)),
-        ),
-      );
-    } catch {
+    activeRunRef.current = null;
+    if (!runLogsApiUrl.trim()) {
       setScriptRunLogs([]);
-    }
-  }, [selectedDomain]);
-
-  useEffect(() => {
-    if (typeof globalThis.window === "undefined") {
       return;
     }
-    try {
-      globalThis.window.localStorage.setItem(
-        scriptRunLogsStorageKey(selectedDomain),
-        JSON.stringify(scriptRunLogs),
-      );
-    } catch {
-      // Ignore quota errors and private mode.
-    }
-  }, [selectedDomain, scriptRunLogs]);
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const params = new URLSearchParams({ domain: selectedDomain });
+        const response = await fetch(`${runLogsApiUrl}?${params.toString()}`, {
+          credentials: "same-origin",
+        });
+        if (!response.ok || cancelled) {
+          return;
+        }
+        const body = (await response.json()) as {
+          runLogs?: Array<{
+            id: string;
+            scriptName: string;
+            lines: string[];
+            startedAt: string;
+          }>;
+        };
+        if (cancelled) {
+          return;
+        }
+        setScriptRunLogs(
+          (body.runLogs ?? []).map((run) => ({
+            id: run.id,
+            scriptName: run.scriptName,
+            startedAt: new Date(run.startedAt).getTime(),
+            lines: run.lines,
+          })),
+        );
+      } catch {
+        if (!cancelled) {
+          setScriptRunLogs([]);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [runLogsApiUrl, selectedDomain]);
 
   useEffect(() => {
     if (scriptRunLogs.length === 0) {
@@ -252,11 +330,18 @@ export function WorkspaceScriptSessionProvider({
     }
   }, [selectedDomain, draftContent]);
 
-  const serverById = useMemo(() => new Map(scripts.map((s) => [s.id, s])), [scripts]);
+  const serverById = useMemo(
+    () => new Map(serverScripts.map((s) => [s.id, s])),
+    [serverScripts],
+  );
+
+  const removeScriptFromList = useCallback((scriptId: string) => {
+    setServerScripts((prev) => prev.filter((script) => script.id !== scriptId));
+  }, []);
 
   useEffect(() => {
     setBundle((prev) => {
-      const serverIds = new Set(scripts.map((s) => s.id));
+      const serverIds = new Set(serverScripts.map((s) => s.id));
 
       let nextTabs = prev.openTabs.filter(
         (t) => t.scriptId === null || serverIds.has(t.scriptId),
@@ -309,7 +394,7 @@ export function WorkspaceScriptSessionProvider({
         activeTabKey: nextActive,
       };
     });
-  }, [scripts, draftContent, selectedDomain, serverById]);
+  }, [serverScripts, draftContent, selectedDomain, serverById]);
 
   const { openTabs, documents, activeTabKey } = bundle;
 
@@ -448,7 +533,7 @@ export function WorkspaceScriptSessionProvider({
   const value = useMemo(
     (): WorkspaceScriptSessionContextValue => ({
       selectedDomain,
-      scriptsFromServer: scripts,
+      scriptsFromServer: serverScripts,
       draftContentTemplate: draftContent,
       openTabs,
       activeTabKey,
@@ -457,6 +542,7 @@ export function WorkspaceScriptSessionProvider({
       activeScriptName,
       setActiveContent,
       openScriptTab,
+      removeScriptFromList,
       selectTab,
       closeTab,
       migrateDraftTabToSavedScript,
@@ -477,7 +563,7 @@ export function WorkspaceScriptSessionProvider({
     }),
     [
       selectedDomain,
-      scripts,
+      serverScripts,
       draftContent,
       openTabs,
       activeTabKey,
@@ -486,6 +572,7 @@ export function WorkspaceScriptSessionProvider({
       activeScriptName,
       setActiveContent,
       openScriptTab,
+      removeScriptFromList,
       selectTab,
       closeTab,
       migrateDraftTabToSavedScript,

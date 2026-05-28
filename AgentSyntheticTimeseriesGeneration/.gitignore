@@ -1,0 +1,29 @@
+# Local IDE/agent state
+.cursor/
+.openhands/
+bash_events/
+conversations/
+
+# Python environments and caches
+.venv/
+.venv-pptx/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local secrets and credentials
+OpenAI-key.txt
+.env
+.env.*
+*.pem
+*.key
+
+# Generic transient files
+*.log
+*.tmp
+*.bak
+*~

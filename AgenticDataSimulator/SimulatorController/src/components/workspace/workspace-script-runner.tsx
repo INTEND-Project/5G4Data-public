@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { ScriptEditor } from "@/components/editor/script-editor";
 import { IntentGenSessionDialog } from "@/components/workspace/intent-gen-session-dialog";
+import { ShowMetricsDialog } from "@/components/workspace/show-metrics-dialog";
 import {
   defaultScriptName,
   tabKeyForScript,
@@ -13,6 +14,8 @@ import {
 import { WorkspaceRunIdChip } from "@/components/workspace/workspace-run-id-chip";
 import { WorkspaceRunLogDialog } from "@/components/workspace/workspace-run-log-dialog";
 import { analyzeScript } from "@/lib/dsl/analysis/analyze-script";
+import { findCreateIntentStatements } from "@/lib/dsl/analysis/find-create-intent-statements";
+import type { CreateIntentCandidate } from "@/lib/dsl/analysis/find-create-intent-statements";
 import type {
   CreateIntentStatement,
   ExtractMetricCatalogStatement,
@@ -24,16 +27,20 @@ import type { ObservationStorageType } from "@/lib/dsl/types";
 import { buildIntentGenerationStorageHint } from "@/lib/observation-storage";
 import { parseCanonicalIntentLocalId } from "@/lib/intent/extract-intent-turtle";
 import { resolveIntentIdForObservation } from "@/lib/intent/resolve-intent-ref";
+import {
+  buildSharedScriptName,
+  defaultSharedNameSuffix,
+  SHARED_PREFIX,
+} from "@/lib/scripts/shared-name";
 import { fetchIntentMetricCatalog } from "@/lib/kg/fetch-intent-metric-catalog-client";
 import {
   buildGraphTargetBinding,
   type GraphTargetBinding,
 } from "@/lib/kg/graph-target-binding";
 import {
-  buildSharedScriptName,
-  defaultSharedNameSuffix,
-  SHARED_PREFIX,
-} from "@/lib/scripts/shared-name";
+  fetchWorkloadPreviewMetrics,
+  type WorkloadPreviewMetrics,
+} from "@/lib/workload-catalogue/preview-metrics-client";
 
 type WorkspaceScriptRunnerProps = {
   metricNames: string[];
@@ -53,6 +60,7 @@ type WorkspaceScriptRunnerProps = {
   discoverIntentAgentApiUrl: string;
   discoverObservationAgentApiUrl: string;
   a2aMessageSendUrl: string;
+  previewMetricsApiUrl: string;
 };
 
 const EDITOR_HEIGHT_STORAGE_KEY = "openclaw-workspace-editor-height-px";
@@ -132,6 +140,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   discoverIntentAgentApiUrl,
   discoverObservationAgentApiUrl,
   a2aMessageSendUrl,
+  previewMetricsApiUrl,
 }: WorkspaceScriptRunnerProps) {
   const router = useRouter();
   const {
@@ -152,7 +161,9 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     beginScriptRun,
     endActiveScriptRun,
     openRunLogDialog,
+    closeRunLogDialog,
     setScriptExtractedMetricNames,
+    setWorkloadPreviewMetricStems,
   } = useWorkspaceScriptSession();
 
   const appendA2ATranscriptTurn = useCallback(
@@ -221,6 +232,18 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   const [shareAsDialogOpen, setShareAsDialogOpen] = useState(false);
   const [shareAsNameSuffix, setShareAsNameSuffix] = useState("");
   const [shareAsError, setShareAsError] = useState<string | null>(null);
+  const [showMetricsBusy, setShowMetricsBusy] = useState(false);
+  const [showMetricsError, setShowMetricsError] = useState<string | null>(null);
+  const [createIntentPickerOpen, setCreateIntentPickerOpen] = useState(false);
+  const [createIntentCandidates, setCreateIntentCandidates] = useState<CreateIntentCandidate[]>(
+    [],
+  );
+  const [selectedCreateIntentIndex, setSelectedCreateIntentIndex] = useState(0);
+  const [showMetricsDialogOpen, setShowMetricsDialogOpen] = useState(false);
+  const [showMetricsPreview, setShowMetricsPreview] = useState<WorkloadPreviewMetrics | null>(
+    null,
+  );
+  const [showMetricsPromptPreview, setShowMetricsPromptPreview] = useState("");
 
   const saveAsInputRef = useRef<HTMLInputElement>(null);
   const shareAsInputRef = useRef<HTMLInputElement>(null);
@@ -529,6 +552,65 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       setShareAsDialogOpen(false);
     }
   }, [submitShareAs]);
+
+  const runShowMetricsPreview = useCallback(
+    async (prompt: string) => {
+      setShowMetricsBusy(true);
+      setShowMetricsError(null);
+      try {
+        const result = await fetchWorkloadPreviewMetrics({
+          previewMetricsApiUrl,
+          prompt,
+          domain: selectedDomain,
+        });
+        if (!result.ok) {
+          setShowMetricsError(result.error);
+          return;
+        }
+        setShowMetricsPromptPreview(prompt);
+        setShowMetricsPreview(result.preview);
+        setWorkloadPreviewMetricStems(result.preview.metricStems);
+        setShowMetricsDialogOpen(true);
+      } finally {
+        setShowMetricsBusy(false);
+      }
+    },
+    [previewMetricsApiUrl, selectedDomain, setWorkloadPreviewMetricStems],
+  );
+
+  const handleShowMetrics = useCallback(() => {
+    setShowMetricsError(null);
+    const { diagnostics } = analyzeScript(activeContent);
+    for (const diagnostic of diagnostics.filter((diag) => diag.severity === "error")) {
+      setShowMetricsError(`[line ${diagnostic.line}, ${diagnostic.code}] ${diagnostic.message}`);
+      return;
+    }
+
+    const candidates = findCreateIntentStatements(activeContent);
+    if (candidates.length === 0) {
+      setShowMetricsError("Script has no create intent statement.");
+      return;
+    }
+
+    if (candidates.length === 1) {
+      void runShowMetricsPreview(candidates[0]!.prompt);
+      return;
+    }
+
+    setCreateIntentCandidates(candidates);
+    setSelectedCreateIntentIndex(0);
+    setCreateIntentPickerOpen(true);
+  }, [activeContent, runShowMetricsPreview]);
+
+  const confirmCreateIntentPicker = useCallback(() => {
+    const candidate = createIntentCandidates[selectedCreateIntentIndex];
+    if (!candidate) {
+      setShowMetricsError("Select a create intent statement.");
+      return;
+    }
+    setCreateIntentPickerOpen(false);
+    void runShowMetricsPreview(candidate.prompt);
+  }, [createIntentCandidates, runShowMetricsPreview, selectedCreateIntentIndex]);
 
   const quickSave = useCallback(() => {
     if (isReadOnlyScript) {
@@ -1252,8 +1334,22 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           >
             {saving ? "Sharing…" : "Share As"}
           </button>
+          <button
+            className="workspace-button workspace-runner-button"
+            disabled={showMetricsBusy || runBusy}
+            onClick={handleShowMetrics}
+            title="Preview workload catalogue metrics for the create intent prompt without generating an intent."
+            type="button"
+          >
+            {showMetricsBusy ? "Loading…" : "Show metrics"}
+          </button>
         </div>
       </div>
+      {showMetricsError ? (
+        <p className="workspace-save-error" role="alert">
+          {showMetricsError}
+        </p>
+      ) : null}
       {saveError ? (
         <p className="workspace-save-error" role="alert">
           {saveError}
@@ -1472,6 +1568,72 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         persistIntentStoreUrl={null}
         seedPrompt={observationSession?.seedPrompt ?? null}
         variant="observation-report"
+      />
+
+      {createIntentPickerOpen ? (
+        <div
+          className="workspace-save-name-dialog-backdrop"
+          onClick={() => setCreateIntentPickerOpen(false)}
+          role="presentation"
+        >
+          <div
+            aria-labelledby="workspace-create-intent-picker-title"
+            aria-modal="true"
+            className="workspace-save-name-dialog"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <h3 id="workspace-create-intent-picker-title">Choose create intent</h3>
+            <p className="workspace-save-as-dialog-hint">
+              This script has multiple create intent statements. Select which prompt to preview.
+            </p>
+            <label className="workspace-label" htmlFor="workspace-create-intent-picker-select">
+              Create intent statement
+            </label>
+            <select
+              className="workspace-input workspace-create-intent-picker-select"
+              id="workspace-create-intent-picker-select"
+              onChange={(event) => setSelectedCreateIntentIndex(Number(event.target.value))}
+              value={selectedCreateIntentIndex}
+            >
+              {createIntentCandidates.map((candidate, index) => (
+                <option key={`${candidate.line}-${candidate.intentAlias}`} value={index}>
+                  Line {candidate.line}: as {candidate.intentAlias}
+                </option>
+              ))}
+            </select>
+            {createIntentCandidates[selectedCreateIntentIndex] ? (
+              <p className="workspace-show-metrics-prompt">
+                <span className="workspace-label">Prompt</span>
+                <em>{createIntentCandidates[selectedCreateIntentIndex]!.prompt}</em>
+              </p>
+            ) : null}
+            <div className="workspace-save-name-dialog-actions">
+              <button
+                className="workspace-button"
+                onClick={() => setCreateIntentPickerOpen(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="workspace-button"
+                disabled={showMetricsBusy}
+                onClick={confirmCreateIntentPicker}
+                type="button"
+              >
+                {showMetricsBusy ? "Loading…" : "Show metrics"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <ShowMetricsDialog
+        onClose={() => setShowMetricsDialogOpen(false)}
+        open={showMetricsDialogOpen}
+        preview={showMetricsPreview}
+        promptPreview={showMetricsPromptPreview}
       />
     </>
   );

@@ -117,6 +117,9 @@ export type WorkspaceScriptSessionContextValue = {
   /** Non-empty after a Run Script executes `extract metric-catalog` (flattened metric names); drives Agent assistant chips. */
   scriptExtractedMetricNames: string[];
   setScriptExtractedMetricNames: (names: string[]) => void;
+  /** Non-empty after Show metrics previews catalogue stems for a create-intent prompt. */
+  workloadPreviewMetricStems: string[];
+  setWorkloadPreviewMetricStems: (stems: string[]) => void;
 };
 
 const WorkspaceScriptSessionContext = createContext<WorkspaceScriptSessionContextValue | null>(
@@ -178,6 +181,7 @@ export function WorkspaceScriptSessionProvider({
   const [selectedScriptRunId, setSelectedScriptRunId] = useState<string | null>(null);
   const [runLogDialogOpen, setRunLogDialogOpen] = useState(false);
   const [scriptExtractedMetricNames, setScriptExtractedMetricNames] = useState<string[]>([]);
+  const [workloadPreviewMetricStems, setWorkloadPreviewMetricStems] = useState<string[]>([]);
   /** Bumps when the active run log buffer changes and the log dialog should repaint. */
   const [liveRunLogRevision, setLiveRunLogRevision] = useState(0);
   const activeRunRef = useRef<ActiveRunState | null>(null);
@@ -406,6 +410,7 @@ export function WorkspaceScriptSessionProvider({
       applyScriptsFromProps(scripts);
       setBundle(buildInitialTabs(draftContent, selectedDomain));
       setScriptExtractedMetricNames([]);
+      setWorkloadPreviewMetricStems([]);
     }
   }, [selectedDomain, draftContent, scripts, applyScriptsFromProps]);
 
@@ -656,6 +661,8 @@ export function WorkspaceScriptSessionProvider({
       closeRunLogDialog,
       scriptExtractedMetricNames,
       setScriptExtractedMetricNames,
+      workloadPreviewMetricStems,
+      setWorkloadPreviewMetricStems,
     }),
     [
       selectedDomain,
@@ -684,6 +691,8 @@ export function WorkspaceScriptSessionProvider({
       closeRunLogDialog,
       scriptExtractedMetricNames,
       setScriptExtractedMetricNames,
+      workloadPreviewMetricStems,
+      setWorkloadPreviewMetricStems,
     ],
   );
 

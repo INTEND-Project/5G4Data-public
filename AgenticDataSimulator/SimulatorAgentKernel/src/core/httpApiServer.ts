@@ -13,6 +13,10 @@ import type { AgentTurnResult, ChatSession } from "../models.js";
 
 interface RuntimeApi {
   runTurn(session: ChatSession, userText: string): Promise<AgentTurnResult>;
+  resolveWorkloadPreview?(
+    prompt: string,
+    graphTargetBinding?: import("../models.js").GraphTargetBinding | null
+  ): Promise<import("./capabilityRouter.js").WorkloadPreviewResult>;
   getDomainPackage(): {
     manifest: { name: string; version: string };
     controlApiExtension?: { paths?: Record<string, unknown> };
@@ -33,6 +37,10 @@ interface OpenApiServerOptions {
 
 interface TurnBody {
   userText: string;
+}
+
+interface WorkloadPreviewBody {
+  prompt: string;
 }
 
 function jsonHeaders(): Record<string, string> {
@@ -341,6 +349,28 @@ export function startOpenApiServer(options: OpenApiServerOptions) {
         const result = await options.runtime.runTurn(session, body.userText);
         response.writeHead(200, jsonHeaders());
         response.end(JSON.stringify(result));
+        return;
+      }
+
+      if (method === "POST" && path === "/v1/control/workload-preview") {
+        if (typeof options.runtime.resolveWorkloadPreview !== "function") {
+          response.writeHead(501, jsonHeaders());
+          response.end(
+            JSON.stringify({
+              error: "Workload preview is not supported by this agent runtime.",
+            })
+          );
+          return;
+        }
+        const body = await readJsonBody<WorkloadPreviewBody>(request);
+        if (!body.prompt || !body.prompt.trim()) {
+          response.writeHead(400, jsonHeaders());
+          response.end(JSON.stringify({ error: "prompt is required." }));
+          return;
+        }
+        const preview = await options.runtime.resolveWorkloadPreview(body.prompt.trim());
+        response.writeHead(200, jsonHeaders());
+        response.end(JSON.stringify(preview));
         return;
       }
 

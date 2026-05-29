@@ -194,6 +194,14 @@ export class TurnOrchestrator {
     return this.config;
   }
 
+  async resolveWorkloadPreview(
+    userText: string,
+    graphTargetBinding?: import("../models.js").GraphTargetBinding | null
+  ) {
+    const intentFlags = this.workflowEngine.classifyIntent(userText);
+    return this.contextBuilder.resolveWorkloadPreview(userText, intentFlags, graphTargetBinding);
+  }
+
   private validateAndRepairWithShacl(args: {
     text: string;
     warnings: string[];

@@ -6,10 +6,11 @@
     "dev": "next dev --turbopack --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ignore-pattern .next --ignore-pattern next-env.d.ts",
+    "lint": "eslint . --ignore-pattern .next --ignore-pattern .next-dev --ignore-pattern next-env.d.ts",
     "test": "vitest run",
     "prisma:generate": "prisma generate",
-    "db:clear-data": "scripts/clear-controller-data.sh",
+    "dev:lab": "bash scripts/run-dev-lab.sh",
+    "db:sync-from-prod": "bash scripts/sync-prod-db-to-dev.sh",
     "grafana:provision-users": "tsx scripts/provision-grafana-users.ts"
   },
   "dependencies": {

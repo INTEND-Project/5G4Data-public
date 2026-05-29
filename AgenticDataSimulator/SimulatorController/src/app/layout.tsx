@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   description: "Controller workspace for two-stage OpenClaw script authoring and execution.",
 };
 
+const isDevEnvironment = process.env.NODE_ENV === "development";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -24,7 +26,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable}${
+          isDevEnvironment ? " dev-environment" : ""
+        }`}
+      >
         {children}
       </body>
     </html>

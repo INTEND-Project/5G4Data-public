@@ -11,6 +11,13 @@ const FULL_CATALOG_LLM_MATCH_THRESHOLD = 50;
 type JsonValue = unknown;
 type Objective = Record<string, unknown>;
 
+export type ChartMetrics = {
+  chartName: string;
+  version: string;
+  objectives: Objective[];
+  sustainability: Objective[];
+};
+
 async function getJson(url: string): Promise<JsonValue> {
   const response = await fetch(url, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`HTTP ${response.status} from ${url}`);
@@ -132,7 +139,7 @@ export class WorkloadCatalogueTool {
     return getJson(`${this.baseUrl.replace(/\/$/, "")}/api/charts/${encodeURIComponent(name)}`);
   }
 
-  async objectivesSummaryForChart(chartName: string): Promise<string> {
+  async metricsForChart(chartName: string): Promise<ChartMetrics | null> {
     const payload = await this.getChartVersions(chartName);
     const entries = Array.isArray(payload)
       ? payload.filter((item) => item && typeof item === "object")
@@ -157,22 +164,30 @@ export class WorkloadCatalogueTool {
         if (sustainability.length === 0) sustainability = archiveMetrics.sustainability;
       }
       if (objectives.length === 0 && sustainability.length === 0) continue;
-      const lines = [`Selected chart: ${chartName} (version ${version})`];
-      if (objectives.length > 0) {
-        lines.push("Deployment objective defaults from values.yaml objectives:");
-        for (const objective of objectives) {
-          lines.push(formatMetricSummaryLine(objective));
-        }
-      }
-      if (sustainability.length > 0) {
-        lines.push("Sustainability objective defaults from values.yaml sustainability:");
-        for (const metric of sustainability) {
-          lines.push(formatMetricSummaryLine(metric));
-        }
-      }
-      return lines.join("\n");
+      return { chartName, version, objectives, sustainability };
     }
-    return `Selected chart: ${chartName}. Could not extract deployment objectives or sustainability metrics from chart values.yaml. Ask for thresholds only if defaults cannot be retrieved.`;
+    return null;
+  }
+
+  async objectivesSummaryForChart(chartName: string): Promise<string> {
+    const metrics = await this.metricsForChart(chartName);
+    if (!metrics) {
+      return `Selected chart: ${chartName}. Could not extract deployment objectives or sustainability metrics from chart values.yaml. Ask for thresholds only if defaults cannot be retrieved.`;
+    }
+    const lines = [`Selected chart: ${metrics.chartName} (version ${metrics.version})`];
+    if (metrics.objectives.length > 0) {
+      lines.push("Deployment objective defaults from values.yaml objectives:");
+      for (const objective of metrics.objectives) {
+        lines.push(formatMetricSummaryLine(objective));
+      }
+    }
+    if (metrics.sustainability.length > 0) {
+      lines.push("Sustainability objective defaults from values.yaml sustainability:");
+      for (const metric of metrics.sustainability) {
+        lines.push(formatMetricSummaryLine(metric));
+      }
+    }
+    return lines.join("\n");
   }
 
   private async metricsFromArchiveUrls(urls: string[]): Promise<{ objectives: Objective[]; sustainability: Objective[] }> {

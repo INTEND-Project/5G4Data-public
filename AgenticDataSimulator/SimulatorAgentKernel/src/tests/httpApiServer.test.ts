@@ -160,3 +160,64 @@ test("JSON-RPC listens on /v1 when advertised card.url pathname includes proxy p
     await server.close();
   }
 });
+
+test("OpenAPI server handles workload preview control endpoint", async () => {
+  const runtime = {
+    async runTurn() {
+      return {
+        response: "ok",
+        warnings: [],
+        debug: [],
+      };
+    },
+    async resolveWorkloadPreview(prompt: string) {
+      return {
+        selectedChart: "rusty-llm",
+        version: "0.1.0",
+        objectives: [{ name: "p99-token-target" }],
+        sustainability: [],
+        metricStems: ["p99-token-target"],
+        intentFlags: { deployment: true, sustainability: false, locality: false, networkQos: false },
+        warnings: prompt.length ? [] : ["empty"],
+      };
+    },
+    getDomainPackage() {
+      return { manifest: { name: "demo", version: "0.1.0" } };
+    },
+    getAppConfig() {
+      return { openClawModel: "demo-model" };
+    },
+  };
+  const agentCard: AgentCard = {
+    protocolVersion: "0.3.0",
+    name: "demo",
+    description: "demo",
+    url: "http://localhost/v1",
+    version: "0.1.0",
+    capabilities: { streaming: false, pushNotifications: false, stateTransitionHistory: false },
+    defaultInputModes: ["text/plain"],
+    defaultOutputModes: ["text/plain"],
+    skills: [],
+  };
+  const server = startOpenApiServer({
+    runtime,
+    host: "127.0.0.1",
+    port: 0,
+    agentCardPath: "/.well-known/agent-card.json",
+    agentCard,
+  });
+  const address = await server.listen();
+  try {
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const previewRes = await fetch(`${baseUrl}/v1/control/workload-preview`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt: "small llm sustainable" }),
+    });
+    assert.equal(previewRes.status, 200);
+    const preview = (await previewRes.json()) as { selectedChart: string };
+    assert.equal(preview.selectedChart, "rusty-llm");
+  } finally {
+    await server.close();
+  }
+});

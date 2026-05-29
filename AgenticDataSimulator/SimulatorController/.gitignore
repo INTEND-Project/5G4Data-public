@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-dev/
 /out/
 
 # production
@@ -38,7 +39,10 @@ scripts/grafana-admin.env
 
 # local sqlite database
 dev.db
+dev-lab.db
+dev-lab.db.bak.*
 prisma/dev.db
+prisma/dev-lab.db
 
 # vercel
 .vercel

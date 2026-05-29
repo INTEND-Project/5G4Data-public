@@ -35,6 +35,7 @@ type WorkspaceShellProps = {
   discoverIntentAgentApiUrl: string;
   discoverObservationAgentApiUrl: string;
   a2aMessageSendUrl: string;
+  previewMetricsApiUrl: string;
   graphDbBaseUrl: string;
   registryConnected: boolean;
   graphDbConnected: boolean;
@@ -89,6 +90,7 @@ export function WorkspaceShell({
   discoverIntentAgentApiUrl,
   discoverObservationAgentApiUrl,
   a2aMessageSendUrl,
+  previewMetricsApiUrl,
   graphDbBaseUrl,
   registryConnected,
   graphDbConnected,
@@ -242,6 +244,7 @@ export function WorkspaceShell({
               kgTargetsApiBaseUrl={kgTargetsDeleteUrlBase}
               metricNames={scriptRunnerMetricNames}
               onSelectedKgTargetIdChange={setSelectedKgTargetId}
+              previewMetricsApiUrl={previewMetricsApiUrl}
               scriptsApiUrl={scriptsApiUrl}
               selectedKgTargetId={selectedKgTargetId}
             />

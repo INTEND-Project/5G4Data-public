@@ -6,6 +6,7 @@ const configuredBasePath = getConfiguredAppBasePath(process.env);
 
 const nextConfig: NextConfig = {
   ...(configuredBasePath ? { basePath: configuredBasePath } : {}),
+  distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
   allowedDevOrigins: ["start5g-1.cs.uit.no"],
   images: {
     remotePatterns: [

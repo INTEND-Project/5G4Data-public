@@ -154,6 +154,11 @@ describe("workspace shell bootstrap", () => {
     expect(scriptSessionContextSource).toContain("scheduleLiveRunLogRevision");
     expect(scriptSessionContextSource).toContain("WorkspaceRunLogUiContext");
     expect(scriptRunnerSource).toContain("Save As");
+    expect(scriptRunnerSource).toContain("Show metrics");
+    expect(scriptRunnerSource).toContain("ShowMetricsDialog");
+    expect(scriptRunnerSource).toContain("findCreateIntentStatements");
+    expect(workspaceSource).toContain("previewMetricsApiUrl");
+    expect(workspaceSource).toContain("/api/workload-catalogue/preview-metrics");
     expect(scriptRunnerSource).toContain("workspace-editor-height-resizer");
     expect(scriptRunnerSource).toContain("workspace-editor-tabs");
     expect(scriptRunnerSource).toContain("role=\"tablist\"");

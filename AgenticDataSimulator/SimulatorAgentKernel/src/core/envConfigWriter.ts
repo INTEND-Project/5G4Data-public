@@ -167,6 +167,7 @@ export interface SyncAgentApiKeyResult {
 
 export interface SyncAgentApiKeyTargets {
   controllerEnvPath: string;
+  controllerDevEnvPath: string;
   registryEnvPath: string;
 }
 
@@ -174,6 +175,7 @@ export function defaultAgentApiKeySyncTargets(baselineAgentDir: string): SyncAge
   const root = resolve(baselineAgentDir, "..");
   return {
     controllerEnvPath: join(root, "SimulatorController", ".env"),
+    controllerDevEnvPath: join(root, "SimulatorController", ".env.dev"),
     registryEnvPath: join(root, "a2a-registry", "backend", ".env")
   };
 }
@@ -205,8 +207,12 @@ export function syncAgentApiKeyToConsumers(
     ...defaultAgentApiKeySyncTargets(baselineAgentDir),
     ...targets
   };
-  return [
+  const results = [
     syncAgentApiKeyToEnvFile(resolved.controllerEnvPath, agentName, apiKey),
     syncAgentApiKeyToEnvFile(resolved.registryEnvPath, agentName, apiKey)
   ];
+  if (existsSync(resolved.controllerDevEnvPath)) {
+    results.push(syncAgentApiKeyToEnvFile(resolved.controllerDevEnvPath, agentName, apiKey));
+  }
+  return results;
 }

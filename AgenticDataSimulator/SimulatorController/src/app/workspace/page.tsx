@@ -49,6 +49,7 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
     "/api/registry/discover-observation-agent",
   );
   const a2aMessageSendUrl = withAppBasePath("/api/a2a/message-send");
+  const previewMetricsApiUrl = withAppBasePath("/api/workload-catalogue/preview-metrics");
   const infraStatusApiUrl = withAppBasePath("/api/infra/status");
   const intentsApiUrl = withAppBasePath("/api/intents");
   const intentsUrlBase = withAppBasePath("/api/intents");
@@ -101,6 +102,7 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
       discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
       discoverObservationAgentApiUrl={discoverObservationAgentApiUrl}
       a2aMessageSendUrl={a2aMessageSendUrl}
+      previewMetricsApiUrl={previewMetricsApiUrl}
       graphDbBaseUrl={appEnv.graphDbBaseUrl}
       graphDbConnected={graphDbConnected}
       infraStatusApiUrl={infraStatusApiUrl}

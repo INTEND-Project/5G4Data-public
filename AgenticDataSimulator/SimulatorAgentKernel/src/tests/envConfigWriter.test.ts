@@ -77,3 +77,24 @@ test("syncAgentApiKeyToConsumers updates controller and registry env files", () 
   assert.equal(readAgentApiKeysMap(controllerEnv)["demo-agent"], "secret-key");
   assert.equal(readAgentApiKeysMap(registryEnv)["demo-agent"], "secret-key");
 });
+
+test("syncAgentApiKeyToConsumers updates .env.dev when present", () => {
+  const root = mkdtempSync(join(tmpdir(), "env-sync-dev-"));
+  const baseline = join(root, "SimulatorAgentKernel");
+  const controllerEnv = join(root, "SimulatorController", ".env");
+  const controllerDevEnv = join(root, "SimulatorController", ".env.dev");
+  const registryEnv = join(root, "a2a-registry", "backend", ".env");
+  mkdirSync(baseline, { recursive: true });
+  mkdirSync(join(root, "SimulatorController"), { recursive: true });
+  mkdirSync(join(root, "a2a-registry", "backend"), { recursive: true });
+  writeFileSync(join(baseline, ".env"), "LLM_PROVIDER=openai\n", "utf8");
+  writeFileSync(controllerEnv, "DATABASE_URL=file:./dev.db\n", "utf8");
+  writeFileSync(controllerDevEnv, "DATABASE_URL=file:./dev-lab.db\n", "utf8");
+  writeFileSync(registryEnv, "API_HOST=0.0.0.0\n", "utf8");
+
+  const results = syncAgentApiKeyToConsumers(baseline, "demo-agent", "secret-key");
+  assert.equal(results.length, 3);
+  assert.equal(results.every((result) => result.updated), true);
+
+  assert.equal(readAgentApiKeysMap(controllerDevEnv)["demo-agent"], "secret-key");
+});

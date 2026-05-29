@@ -2,6 +2,7 @@ import type { AppConfig } from "../config.js";
 import type { GraphTargetBinding } from "../models.js";
 import type { ContextRules, LoadedDomainPackage } from "./packageLoader.js";
 import type { IntentFlags } from "./workflowEngine.js";
+import { selectChartFromCatalogue } from "./workloadSelection.js";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -15,6 +16,12 @@ type CatalogueApi = {
   listCharts: () => Promise<Array<Record<string, unknown>>>;
   catalogueSummaryForLlm: () => Promise<string>;
   objectivesSummaryForChart: (chartName: string) => Promise<string>;
+  metricsForChart?: (chartName: string) => Promise<{
+    chartName: string;
+    version: string;
+    objectives: Record<string, unknown>[];
+    sustainability: Record<string, unknown>[];
+  } | null>;
 };
 
 type GraphDbApi = {
@@ -33,6 +40,16 @@ type LocalityApi = {
   haversineKm: (lat1: number, lon1: number, lat2: number, lon2: number) => number;
   bboxPolygonWkt: (lat: number, lon: number, deltaDeg?: number) => string;
 };
+
+export interface WorkloadPreviewResult {
+  selectedChart: string | null;
+  version: string | null;
+  objectives: Record<string, unknown>[];
+  sustainability: Record<string, unknown>[];
+  metricStems: string[];
+  intentFlags: IntentFlags;
+  warnings: string[];
+}
 
 export interface CapabilityContext {
   ontologySummary: string;
@@ -246,6 +263,107 @@ export class CapabilityRouter {
     };
   }
 
+  async resolveWorkloadPreview(
+    userText: string,
+    intentFlags: IntentFlags,
+    _graphTargetBinding?: GraphTargetBinding | null
+  ): Promise<WorkloadPreviewResult> {
+    const warnings: string[] = [];
+    const rules: ContextRules = this.domainPackage.contextRules;
+    const capabilities = new Set(rules.baseCapabilities);
+    for (const [flag, capList] of Object.entries(rules.intentCapabilities)) {
+      if (intentFlags[flag]) {
+        for (const capability of capList) capabilities.add(capability);
+      }
+    }
+
+    if (!capabilities.has("selected_workload_objectives")) {
+      return {
+        selectedChart: null,
+        version: null,
+        objectives: [],
+        sustainability: [],
+        metricStems: [],
+        intentFlags,
+        warnings: [
+          "Prompt does not imply deployment or sustainability; no catalogue workload selection performed.",
+        ],
+      };
+    }
+
+    try {
+      const catalogue = await this.createCatalogueApi();
+      const selectedChart = await this.selectChart(userText, catalogue);
+      if (!selectedChart) {
+        return {
+          selectedChart: null,
+          version: null,
+          objectives: [],
+          sustainability: [],
+          metricStems: [],
+          intentFlags,
+          warnings: ["No matching workload chart found in catalogue for this prompt."],
+        };
+      }
+
+      if (typeof catalogue.metricsForChart === "function") {
+        const metrics = await catalogue.metricsForChart(selectedChart);
+        if (metrics) {
+          const metricStems = this.metricStemsFromEntries(
+            metrics.objectives,
+            metrics.sustainability
+          );
+          return {
+            selectedChart: metrics.chartName,
+            version: metrics.version,
+            objectives: metrics.objectives,
+            sustainability: metrics.sustainability,
+            metricStems,
+            intentFlags,
+            warnings,
+          };
+        }
+      }
+
+      const objectivesSummary = await catalogue.objectivesSummaryForChart(selectedChart);
+      const metricStems = await this.parseMetricStemsFromObjectivesSummary(objectivesSummary);
+      return {
+        selectedChart,
+        version: null,
+        objectives: [],
+        sustainability: [],
+        metricStems,
+        intentFlags,
+        warnings: warnings.length
+          ? warnings
+          : ["Could not extract structured metrics from selected chart values.yaml."],
+      };
+    } catch (error) {
+      warnings.push("Selected workload objective extraction failed.");
+      return {
+        selectedChart: null,
+        version: null,
+        objectives: [],
+        sustainability: [],
+        metricStems: [],
+        intentFlags,
+        warnings: [...warnings, String(error)],
+      };
+    }
+  }
+
+  private metricStemsFromEntries(
+    objectives: Record<string, unknown>[],
+    sustainability: Record<string, unknown>[]
+  ): string[] {
+    const stems = new Set<string>();
+    for (const entry of [...objectives, ...sustainability]) {
+      const name = String(entry.name ?? "").trim();
+      if (name) stems.add(name);
+    }
+    return [...stems].sort();
+  }
+
   private async graphDbSummary(
     userText: string,
     intentFlags: IntentFlags,
@@ -315,48 +433,7 @@ export class CapabilityRouter {
 
   private async selectChart(userText: string, catalogue: CatalogueApi): Promise<string | null> {
     const charts = await catalogue.listCharts();
-    const lowered = userText.toLowerCase();
-    const normalizedQuery = lowered.replace(/[^a-z0-9]+/g, " ");
-    const queryTokens = new Set(normalizedQuery.split(/\s+/).filter((token) => token.length >= 3));
-
-    const names = [...new Set(charts.map((c) => String(c.name ?? "").trim()).filter(Boolean))].sort();
-    for (const name of names) {
-      if (lowered.includes(name.toLowerCase())) return name;
-    }
-
-    // Fallback: lexical score over chart name + description when user uses generic wording
-    // (for example "small llm") instead of exact chart identifiers.
-    let best: { name: string; score: number } | null = null;
-    for (const chart of charts) {
-      const name = String(chart.name ?? "").trim();
-      if (!name) continue;
-      const description = String(chart.description ?? "").trim();
-      const haystack = `${name} ${description}`.toLowerCase().replace(/[^a-z0-9]+/g, " ");
-      const hayTokens = new Set(haystack.split(/\s+/).filter((token) => token.length >= 3));
-
-      let score = 0;
-      for (const token of queryTokens) {
-        if (hayTokens.has(token)) {
-          score += 2;
-        } else if (haystack.includes(token)) {
-          score += 1;
-        }
-      }
-      if (queryTokens.has("llm") && /(^|[^a-z0-9])llm([^a-z0-9]|$)/.test(haystack)) {
-        score += 3;
-      }
-      if (queryTokens.has("small") && /(small|mini|tiny|light)/.test(haystack)) {
-        score += 1;
-      }
-
-      if (!best || score > best.score) {
-        best = { name, score };
-      }
-    }
-    if (best && best.score > 0) {
-      return best.name;
-    }
-    return null;
+    return selectChartFromCatalogue(userText, charts);
   }
 
   private extractIntentId(userText: string): string | null {

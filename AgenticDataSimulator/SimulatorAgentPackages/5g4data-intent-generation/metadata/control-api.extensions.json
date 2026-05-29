@@ -1,9 +1,9 @@
 {
   "paths": {
-    "/v1/control/intent-generation/preview": {
+    "/v1/control/workload-preview": {
       "post": {
-        "operationId": "previewIntentGeneration",
-        "summary": "Preview generation directives without persisting changes.",
+        "operationId": "previewWorkloadMetrics",
+        "summary": "Resolve catalogue workload and metric names for a prompt without generating an intent.",
         "requestBody": {
           "required": true,
           "content": {
@@ -11,8 +11,7 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "prompt": { "type": "string" },
-                  "strictValidation": { "type": "boolean" }
+                  "prompt": { "type": "string" }
                 },
                 "required": ["prompt"]
               }
@@ -20,7 +19,11 @@
           }
         },
         "responses": {
-          "501": { "description": "Extension declared by package; route not implemented in kernel runtime." }
+          "200": {
+            "description": "Selected chart and objectives/sustainability metrics from values.yaml"
+          },
+          "400": { "description": "Missing prompt" },
+          "501": { "description": "Runtime does not support workload preview" }
         }
       }
     }

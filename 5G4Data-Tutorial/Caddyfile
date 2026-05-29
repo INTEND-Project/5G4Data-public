@@ -15,9 +15,19 @@ start5g-1.cs.uit.no {
         reverse_proxy http://host.docker.internal:8080
     }
 
-    # OpenClaw Controller (dev server on host port 3000)
+    # OpenClaw Controller production (host port 3000)
     handle /tmf-simulator* {
         reverse_proxy http://host.docker.internal:3000 {
+            header_up Host {host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+
+    # OpenClaw Controller dev (host port 3001)
+    handle /tmf-simulator-dev* {
+        reverse_proxy http://host.docker.internal:3001 {
             header_up Host {host}
             header_up X-Forwarded-Host {host}
             header_up X-Forwarded-Proto {scheme}

@@ -143,7 +143,7 @@ sudo systemctl restart simulator-controller   # if using systemd
 
 After recreating Grafana with [`Grafana/configure-jwt-auth.sh`](Grafana/configure-jwt-auth.sh), the container keeps `--restart unless-stopped`; or run `docker update --restart unless-stopped grafana-3002-dev` on an existing container.
 
-**Development** — hot reload while editing the controller; can feel sluggish over high-latency remote links:
+**Development (local hot reload)** — single instance on port 3000; can feel sluggish over high-latency remote links:
 
 ```bash
 cd SimulatorController
@@ -152,6 +152,35 @@ npm run dev
 ```
 
 Open `http://localhost:3000/tmf-simulator` (see `APP_BASE_PATH` in `SimulatorController/.env`).
+
+**Development lab instance (port 3001)** — run alongside prod so users on port 3000 are not disrupted. Dev uses `.env.dev`, base path `/tmf-simulator-dev`, and a separate SQLite file seeded from prod:
+
+| | Production | Dev lab |
+|---|------------|---------|
+| Port | 3000 | 3001 |
+| Process | `next start` (systemd) | `next dev` (`npm run dev:lab`) |
+| Env | `.env` | `.env.dev` |
+| Base path | `/tmf-simulator` | `/tmf-simulator-dev` |
+| SQLite | prod DB (e.g. `dev.db`) | `dev-lab.db` (copy of prod) |
+| Backends | GraphDB, registry, Prometheus, Grafana | same URLs as prod |
+
+First-time setup:
+
+```bash
+cd SimulatorController
+cp .env.dev.example .env.dev
+# Copy AGENT_API_KEYS, GRAFANA_* secrets from prod .env
+npm run db:sync-from-prod    # copy prod SQLite → dev-lab.db
+npm run dev:lab
+```
+
+Refresh dev users/scripts from prod (stop dev first): `npm run db:sync-from-prod`
+
+HTTPS (start5g-1): `https://start5g-1.cs.uit.no/tmf-simulator-dev/` via Caddy → port 3001 (see [`5G4Data-Tutorial/Caddyfile`](../5G4Data-Tutorial/Caddyfile)).
+
+Optional always-on dev under systemd: [`scripts/systemd/simulator-controller-dev.service.example`](scripts/systemd/simulator-controller-dev.service.example).
+
+Source edits on dev are picked up via hot reload; prod is unchanged until you `npm run build` and restart `simulator-controller`.
 
 ### Minimal stacks
 

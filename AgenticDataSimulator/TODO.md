@@ -11,6 +11,7 @@ When the first "working" version of the AgenticDataSimulator was up and running 
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed
+- [x] Configure so that all services needed will restart when server reboots (use --restart unless-stopped for all containerized services and systemd setup for non containerized services)
 - [x] Move the log selector and "Show selected log" to the "Script editor" panel
 - [x] It is not obvious that it is possible to change the size of the different panels or scroll sideway to see all button/icons. Maybe also add the possibility to hide panels to make more room?
 - [x] The agent registry does not seem to detect health/uptime for agents after we added authentication.Could be a problem related to the new key based authentication scheme that we added.

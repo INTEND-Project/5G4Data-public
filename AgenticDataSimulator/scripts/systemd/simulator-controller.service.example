@@ -1,0 +1,25 @@
+# Example systemd unit for SimulatorController on start5g-1.
+# Install:
+#   sudo cp scripts/systemd/simulator-controller.service.example /etc/systemd/system/simulator-controller.service
+#   # Edit User, paths, and npm path if needed
+#   cd SimulatorController && npm run build
+#   sudo systemctl daemon-reload && sudo systemctl enable --now simulator-controller
+
+[Unit]
+Description=SimulatorController (Next.js)
+After=network-online.target graphdb.service docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telco
+WorkingDirectory=/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorController
+Environment=NODE_ENV=production
+Environment=PATH=/home/telco/.nvm/versions/node/v20.20.2/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorController/.env
+ExecStart=/home/telco/.nvm/versions/node/v20.20.2/bin/npm run start -- -H 0.0.0.0 -p 3000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

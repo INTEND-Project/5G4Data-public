@@ -132,6 +132,8 @@ npx next start -H 0.0.0.0 -p 3000
 
 Re-run `npm run build` after controller code changes, then restart `npm run start`.
 
+**Surviving server reboot (start5g-1)** — Docker stacks in this repo use `restart: unless-stopped` once started with `docker compose up -d` (Prometheus, a2a-registry, IntentReportQueryProxy, Workload-Catalog, agent clones). GraphDB is a native install (e.g. `~/arneme/GraphDB/graphdb-11.1.1`) and should run under `graphdb.service`. For production, run the Controller under systemd: copy [`scripts/systemd/simulator-controller.service.example`](scripts/systemd/simulator-controller.service.example), adjust paths, `npm run build`, then `systemctl enable --now simulator-controller`. After recreating Grafana with [`Grafana/configure-jwt-auth.sh`](Grafana/configure-jwt-auth.sh), the container keeps `--restart unless-stopped`; or run `docker update --restart unless-stopped grafana-3002-dev` on an existing container.
+
 **Development** — hot reload while editing the controller; can feel sluggish over high-latency remote links:
 
 ```bash

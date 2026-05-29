@@ -65,6 +65,7 @@ VOLUME="$(docker inspect "${CONTAINER_NAME}" --format '{{range .Mounts}}{{if eq 
 docker rm "${CONTAINER_NAME}" >/dev/null
 
 CONTAINER_ID="$(docker run -d \
+  --restart unless-stopped \
   --network=host \
   --name="${CONTAINER_NAME}" \
   -e GF_SERVER_HTTP_PORT=3002 \

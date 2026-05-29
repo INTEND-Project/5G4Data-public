@@ -7,8 +7,9 @@ When the first "working" version of the AgenticDataSimulator was up and running 
 - [ ] The different tools (inCoord, inSustain, inExplain) may have requirements on how the timeseries needs to be created that is currently not supported. We need to include support for those requirements both in scripts (extend the DSL, add support for freetext key words, etc.) and in the SimulatorAgentPackages/5g4data-intent-observations agent package. Support in the agent can be implemented using more prompt modules (e.g SimulatorAgentPackages/5g4data-intent-observations/prompt_modules), as code (parse keywords in structured and freetext used in "request observation-report ..." commands in scripts and add code to support it), as refinements of the agent SKILL.md file, as agent tools, etc.
 
 ### Easy TODO´s?
-- [ ] Add a dev version for further development on a different port so that the prod version does not go up/down for users all the time
+- [ ] Add a dev version for further development on a different port so that the prod version does not go up/down for users all the time during development
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
+- [ ] Add to the workload catalogue the posibility to view the metric names for the objectives and sustainability part of the values.yaml file. This will make it easier to see what the metric names in the request commands should be.
 
 ## Closed
 - [x] Configure so that all services needed will restart when server reboots (use --restart unless-stopped for all containerized services and systemd setup for non containerized services)

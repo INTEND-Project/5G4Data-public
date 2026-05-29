@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/arne-munch-ellingsen/intend-5g4data-workload-catalog/internal/charticon"
+	"github.com/arne-munch-ellingsen/intend-5g4data-workload-catalog/internal/chartintent"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -38,6 +39,7 @@ func RegisterChartMuseumRoutes(router fiber.Router) {
 	api := router.Group("/api")
 
 	api.Get("/chart-icon/:name/:version", serveChartIcon)
+	api.Get("/chart-intent/:name/:version", serveChartIntent)
 
 	// GET /webapp/api/charts
 	api.Get("/charts", getChartsFromChartMuseum)
@@ -335,4 +337,30 @@ func sendChartIconFile(c *fiber.Ctx, fullPath string) error {
 	body, ct := charticon.IconResponseBody(data)
 	c.Set("Content-Type", ct)
 	return c.Send(body)
+}
+
+func serveChartIntent(c *fiber.Ctx) error {
+	name := c.Params("name")
+	version := c.Params("version")
+	if name == "" || version == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "missing chart name or version",
+		})
+	}
+
+	tgz, status, err := charticon.FetchChartTGZ(chartMuseumBaseURL, name, version)
+	if err != nil || status != http.StatusOK {
+		log.Printf("chart intent fetch %s-%s: %v http=%d", name, version, err, status)
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+
+	info, err := chartintent.ExtractIntentFromChartTGZ(tgz)
+	if err != nil {
+		log.Printf("chart intent extract %s-%s: %v", name, version, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to parse chart intent",
+		})
+	}
+
+	return c.JSON(info)
 }

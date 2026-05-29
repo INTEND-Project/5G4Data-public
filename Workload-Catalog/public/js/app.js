@@ -59,6 +59,144 @@ document.addEventListener("DOMContentLoaded", () => {
             });
     }
 
+    const intentModal = document.getElementById("intent-modal");
+    const intentModalTitle = document.getElementById("intent-modal-title");
+    const intentModalBody = document.getElementById("intent-modal-body");
+    const intentModalClose = document.getElementById("intent-modal-close");
+    let intentFetchInProgress = false;
+
+    function closeIntentModal() {
+        if (intentModal) {
+            intentModal.hidden = true;
+        }
+        if (intentModalBody) {
+            intentModalBody.innerHTML = "";
+        }
+        intentFetchInProgress = false;
+    }
+
+    function renderIntentSection(title, names) {
+        const section = document.createElement("div");
+        section.className = "intent-section";
+
+        const heading = document.createElement("h3");
+        heading.textContent = title;
+        section.appendChild(heading);
+
+        if (names && names.length > 0) {
+            const list = document.createElement("ul");
+            names.forEach((name) => {
+                const item = document.createElement("li");
+                item.textContent = name;
+                list.appendChild(item);
+            });
+            section.appendChild(list);
+        } else {
+            const empty = document.createElement("p");
+            empty.className = "empty";
+            empty.textContent = "None defined";
+            section.appendChild(empty);
+        }
+
+        return section;
+    }
+
+    function renderIntentModal(name, version, data) {
+        intentModalTitle.textContent = `${name} (${version})`;
+        intentModalBody.innerHTML = "";
+        intentModalBody.appendChild(renderIntentSection("Objectives", data.objectives));
+        intentModalBody.appendChild(renderIntentSection("Sustainability", data.sustainability));
+        intentModal.hidden = false;
+    }
+
+    function openIntentModal(name, version, button) {
+        if (intentFetchInProgress) {
+            return;
+        }
+        intentFetchInProgress = true;
+        if (button) {
+            button.disabled = true;
+        }
+
+        intentModalTitle.textContent = `${name} (${version})`;
+        intentModalBody.innerHTML = "<p>Loading...</p>";
+        intentModal.hidden = false;
+
+        fetch(`/api/chart-intent/${encodeURIComponent(name)}/${encodeURIComponent(version)}`)
+            .then((res) => {
+                if (!res.ok) {
+                    throw new Error("Failed to load intent data");
+                }
+                return res.json();
+            })
+            .then((data) => {
+                renderIntentModal(name, version, data);
+            })
+            .catch((err) => {
+                console.error("Failed to load intent:", err);
+                intentModalTitle.textContent = `${name} (${version})`;
+                intentModalBody.innerHTML = '<p class="intent-error">Failed to load intent data.</p>';
+            })
+            .finally(() => {
+                intentFetchInProgress = false;
+                if (button) {
+                    button.disabled = false;
+                }
+            });
+    }
+
+    if (intentModalClose) {
+        intentModalClose.addEventListener("click", closeIntentModal);
+    }
+
+    if (intentModal) {
+        intentModal.addEventListener("click", (e) => {
+            if (e.target === intentModal) {
+                closeIntentModal();
+            }
+        });
+    }
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && intentModal && !intentModal.hidden) {
+            closeIntentModal();
+        }
+    });
+
+    function createActionIcon(src, alt) {
+        const img = document.createElement("img");
+        img.src = src;
+        img.alt = alt;
+        img.className = "action-icon";
+        img.width = 20;
+        img.height = 20;
+        return img;
+    }
+
+    function createMetricsButton(name, version) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "metrics-btn action-btn";
+        btn.title = "View workload metrics";
+        btn.setAttribute("aria-label", "View workload metrics");
+        btn.dataset.name = name;
+        btn.dataset.version = version;
+        btn.appendChild(createActionIcon("images/eye.svg", "View metrics"));
+        return btn;
+    }
+
+    function createDeleteButton(name, version) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "delete-btn action-btn";
+        btn.title = "Delete chart";
+        btn.setAttribute("aria-label", "Delete chart");
+        btn.dataset.name = name;
+        btn.dataset.version = version;
+        btn.appendChild(createActionIcon("images/trash.svg", "Delete"));
+        return btn;
+    }
+
     function showChartDetails(name) {
         const section = document.getElementById("chart-details");
         const title = document.getElementById("chart-details-name");
@@ -135,14 +273,14 @@ document.addEventListener("DOMContentLoaded", () => {
         tdApp.textContent = chart.appVersion || "N/A";
         row.appendChild(tdApp);
 
+        const tdMetrics = document.createElement("td");
+        tdMetrics.className = "action-col";
+        tdMetrics.appendChild(createMetricsButton(chart.name || "", chart.version || ""));
+        row.appendChild(tdMetrics);
+
         const tdDel = document.createElement("td");
-        const delBtn = document.createElement("button");
-        delBtn.className = "delete-btn";
-        delBtn.title = "Delete chart";
-        delBtn.textContent = "🗑️";
-        delBtn.dataset.name = chart.name || "";
-        delBtn.dataset.version = chart.version || "";
-        tdDel.appendChild(delBtn);
+        tdDel.className = "action-col";
+        tdDel.appendChild(createDeleteButton(chart.name || "", chart.version || ""));
         row.appendChild(tdDel);
 
         return row;
@@ -234,10 +372,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     tbody.addEventListener("click", function (e) {
-        if (e.target.classList.contains("delete-btn")) {
-            const button = e.target;
-            const name = button.dataset.name;
-            const version = button.dataset.version;
+        const deleteBtn = e.target.closest(".delete-btn");
+        if (deleteBtn) {
+            const name = deleteBtn.dataset.name;
+            const version = deleteBtn.dataset.version;
 
             if (confirm(`Delete chart "${name}" version "${version}"?`)) {
                 fetch(`/api/charts/${encodeURIComponent(name)}/${encodeURIComponent(version)}`, {
@@ -259,9 +397,17 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             return;
         }
-        if (e.target.classList.contains("chart-name")) {
+
+        const metricsBtn = e.target.closest(".metrics-btn");
+        if (metricsBtn) {
+            openIntentModal(metricsBtn.dataset.name, metricsBtn.dataset.version, metricsBtn);
+            return;
+        }
+
+        const chartNameEl = e.target.closest(".chart-name");
+        if (chartNameEl) {
             e.preventDefault();
-            showChartDetails(e.target.dataset.name);
+            showChartDetails(chartNameEl.dataset.name);
         }
     });
 });

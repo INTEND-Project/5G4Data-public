@@ -1,9 +1,12 @@
-# Example systemd unit for SimulatorController on start5g-1.
+# Example systemd unit for SimulatorController on start5g-1 (production: next start).
 # Install:
 #   sudo cp scripts/systemd/simulator-controller.service.example /etc/systemd/system/simulator-controller.service
 #   # Edit User, paths, and npm path if needed
 #   cd SimulatorController && npm run build
 #   sudo systemctl daemon-reload && sudo systemctl enable --now simulator-controller
+#
+# After code changes: npm run build, then sudo systemctl restart simulator-controller
+# (the unit does not rebuild on start; without build + restart you keep serving the old .next output)
 
 [Unit]
 Description=SimulatorController (Next.js)

@@ -7,15 +7,15 @@ intent:
       tmf-unit-hint: "ms"
       measuredBy: intend/detectionlatency
   sustainability:
-    - name: container-cpu-joules-total
-      value: "5000.0"
-      tmf-value-hint: "5000"
+    - name: energy-consumption
+      value: "50"
+      tmf-value-hint: "50"
       tmf-quantifier-hint: "quan:larger"
       tmf-unit-hint: "J"
-      measuredBy: intend/container-cpu-joules-total
-    - name: container-cpu-watts
-      value: "5000.0"
-      tmf-value-hint: "5000"
+      measuredBy: intend/energy-consumption
+    - name: power-consumption
+      value: "3000"
+      tmf-value-hint: "3000"
       tmf-quantifier-hint: "quan:smaller"
       tmf-unit-hint: "W"
-      measuredBy: intend/container-cpu_watts
+      measuredBy: intend/power-consumption

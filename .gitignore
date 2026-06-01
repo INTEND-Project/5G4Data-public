@@ -34,3 +34,7 @@ inServ/setup_video_environment.md
 inServ/testlog.txt
 AgentSyntheticTimeseriesGeneration/
 IntentAgent/
+AgenticDataSimulator/.venv-python/
+AgenticDataSimulator/fetch_intent_turtle.py
+AgenticDataSimulator/fetch_intent_turtle.sh
+AgenticDataSimulator/requirements-python.txt

@@ -25,8 +25,9 @@ Example Grafana dashboards can be found in [`../../IntentDashboard/`](../../Inte
 ### Prerequisites
 
 - Docker and Docker Compose installed
-- Access to GraphDB instance at `http://start5g-1.cs.uit.no:7200`
-- GraphDB repository: `intents_and_intent_reports`
+- Access to GraphDB at `https://start5g-1.cs.uit.no/graphdb` (or port 7200 on the host)
+- GraphDB credentials in `SimulatorController/.env` (`GRAPHDB_USERNAME`, `GRAPHDB_PASSWORD`) — loaded via `env_file` in `docker-compose.yml`
+- GraphDB repository: `intents_and_intent_reports` (or per-target repo via `repository_id`)
 
 ### Build and Run
 

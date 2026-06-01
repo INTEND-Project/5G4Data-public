@@ -3,6 +3,7 @@ import requests
 import json
 import os
 import re
+import base64
 from datetime import datetime
 import logging
 
@@ -13,9 +14,22 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # GraphDB configuration
-GRAPHDB_URL = os.environ.get('GRAPHDB_URL', "http://start5g-1.cs.uit.no:7200")
+GRAPHDB_URL = os.environ.get('GRAPHDB_URL', "https://start5g-1.cs.uit.no/graphdb").rstrip('/')
+GRAPHDB_USERNAME = os.environ.get('GRAPHDB_USERNAME', '').strip()
+GRAPHDB_PASSWORD = os.environ.get('GRAPHDB_PASSWORD', '')
 REPOSITORY = os.environ.get('GRAPHDB_REPOSITORY', "intents_and_intent_reports")
 REPOSITORY_ID_PATTERN = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
+
+
+def graphdb_auth_headers(extra=None):
+    """HTTP Basic auth when GRAPHDB_USERNAME and GRAPHDB_PASSWORD are set."""
+    headers = dict(extra or {})
+    if GRAPHDB_USERNAME and GRAPHDB_PASSWORD:
+        token = base64.b64encode(
+            f"{GRAPHDB_USERNAME}:{GRAPHDB_PASSWORD}".encode('utf-8')
+        ).decode('ascii')
+        headers['Authorization'] = f'Basic {token}'
+    return headers
 
 
 def resolve_repository_id(raw_repository_id):
@@ -51,10 +65,10 @@ def get_metric_query(metric_name, repository_id):
         # Make request to GraphDB
         response = requests.post(
             f"{GRAPHDB_URL}/repositories/{repository_id}",
-            headers={
+            headers=graphdb_auth_headers({
                 "Content-Type": "application/sparql-query",
                 "Accept": "application/sparql-results+json"
-            },
+            }),
             data=sparql_query
         )
         
@@ -419,8 +433,15 @@ def format_for_grafana_infinity(sparql_results, legacy_api=False):
                         row[column] = format_timestamp_value(value, legacy_api=legacy_api)
                     except:
                         row[column] = value
+                elif column == 'value':
+                    try:
+                        row[column] = float(value)
+                    except (TypeError, ValueError):
+                        row[column] = value
                 else:
                     row[column] = value
+        if not legacy_api:
+            row.setdefault('unit', '')
         formatted_data.append(row)
     
     logger.info(f"Formatted {len(formatted_data)} data points for Grafana")

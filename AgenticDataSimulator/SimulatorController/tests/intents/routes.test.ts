@@ -62,9 +62,12 @@ describe("intents routes", () => {
       {
         intentId: "I04fb0697e3a243e7a292c6cb57e9f797",
         storage: "prometheus",
-        grafanaUrl: "http://grafana.example/d/abc/intent-dashboard?from=now-3h&to=now",
+        grafanaUrl: "http://grafana.example/d/abc/intent-dashboard?from=1779337715000&to=1779428795000",
         repositoryId: "repo-1",
         graphIri: "http://example/graph",
+        dataStatus: "ready",
+        metricsReady: 2,
+        metricsTotal: 2,
       },
     ]);
 
@@ -97,9 +100,12 @@ describe("intents routes", () => {
         {
           intentId: "I04fb0697e3a243e7a292c6cb57e9f797",
           storage: "prometheus",
-          grafanaUrl: "http://grafana.example/d/abc/intent-dashboard?from=now-3h&to=now",
+          grafanaUrl: "http://grafana.example/d/abc/intent-dashboard?from=1779337715000&to=1779428795000",
           repositoryId: "repo-1",
           graphIri: "http://example/graph",
+          dataStatus: "ready",
+          metricsReady: 2,
+          metricsTotal: 2,
         },
       ],
     });

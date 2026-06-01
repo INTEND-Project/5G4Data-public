@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { clearKnowledgeGraph } from "@/lib/graphdb/client";
+import { invalidateLiteListCache } from "@/lib/intents/list-intents-cache";
+import { unregisterGraphStoredIntentsForTarget } from "@/lib/intents/user-intent-registry";
 
 type RouteContext = {
   params: Promise<{
@@ -43,6 +45,9 @@ export async function POST(request: Request, context: RouteContext) {
     const message = error instanceof Error ? error.message : "Knowledge graph clear failed";
     return NextResponse.json({ error: message }, { status: 502 });
   }
+
+  await unregisterGraphStoredIntentsForTarget(user.id, target.id);
+  invalidateLiteListCache();
 
   return NextResponse.json({ emptiedTargetId: target.id });
 }

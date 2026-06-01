@@ -17,11 +17,6 @@ export function useInfraConnectionStatus(
   const intervalIdRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   useEffect(() => {
-    setStatus(initialStatus);
-    statusRef.current = initialStatus;
-  }, [initialStatus]);
-
-  useEffect(() => {
     statusRef.current = status;
   }, [status]);
 
@@ -31,7 +26,10 @@ export function useInfraConnectionStatus(
     }
 
     try {
-      const response = await fetch(statusApiUrl, { cache: "no-store" });
+      const response = await fetch(statusApiUrl, {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
 
       if (!response.ok) {
         return;
@@ -58,6 +56,7 @@ export function useInfraConnectionStatus(
   }, [fetchStatus]);
 
   useEffect(() => {
+    void fetchStatus();
     schedule();
 
     const onVisibilityChange = () => {

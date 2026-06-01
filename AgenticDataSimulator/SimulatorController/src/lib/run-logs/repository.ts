@@ -136,3 +136,30 @@ export async function createRunLog(input: {
 
   return toRecord(created);
 }
+
+export async function deleteRunLogForUser(
+  userId: string,
+  domain: string,
+  id: string,
+): Promise<boolean> {
+  const result = await db.scriptRunLog.deleteMany({
+    where: {
+      id,
+      userId,
+      domain,
+    },
+  });
+
+  return result.count > 0;
+}
+
+export async function deleteAllRunLogsForUser(userId: string, domain: string): Promise<number> {
+  const result = await db.scriptRunLog.deleteMany({
+    where: {
+      userId,
+      domain,
+    },
+  });
+
+  return result.count;
+}

@@ -34,6 +34,8 @@ export type IntentGenSessionDialogProps = {
   onIntentPersistLog?: (line: string) => void;
   /** Mirror each user/agent transcript turn to the run script log (e.g. workspace Log dialog). */
   onTranscriptTurn?: (turn: { role: "user" | "agent"; text: string }) => void;
+  /** Optional external error (e.g. async Prometheus write failure from observation agent polling). */
+  externalBannerError?: string | null;
   /** When Turtle is stored successfully, canonical intent id (`I…`) for DSL follow-up bindings. */
   onKgIntentStored?: (
     dslAlias: string,
@@ -60,6 +62,7 @@ export function IntentGenSessionDialog({
   registerIntentDomain,
   onIntentPersistLog,
   onTranscriptTurn,
+  externalBannerError = null,
   onKgIntentStored,
   graphTargetBinding = null,
   observationStorage = null,
@@ -413,9 +416,9 @@ export function IntentGenSessionDialog({
           ))}
         </div>
 
-        {bannerError ? (
+        {bannerError || externalBannerError ? (
           <p className="workspace-intent-dialog-error" role="alert">
-            {bannerError}
+            {bannerError ?? externalBannerError}
           </p>
         ) : null}
 

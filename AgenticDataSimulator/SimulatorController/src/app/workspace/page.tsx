@@ -8,10 +8,9 @@ import { withAppBasePath } from "@/lib/app-paths";
 import { db } from "@/lib/db";
 import { buildCompletionContext } from "@/lib/dsl/analysis/build-completion-context";
 import { loadAppEnv } from "@/lib/env";
-import { listNormalizedAgents } from "@/lib/registry/client";
-import { deriveDomains } from "@/lib/registry/normalize";
-import { getInfraConnectionStatus } from "@/lib/infra/connection-status";
 import { listVisibleScripts } from "@/lib/scripts/repository";
+
+const DEFAULT_WORKSPACE_DOMAIN = "telenor.5g4data";
 
 type WorkspacePageProps = {
   searchParams?: Promise<{
@@ -29,16 +28,14 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   const appEnv = loadAppEnv(process.env);
 
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const normalizedAgents = await listNormalizedAgents();
-  const domains = deriveDomains(normalizedAgents);
-  const selectedDomain = resolvedSearchParams?.domain ?? domains[0] ?? "telenor.5g4data";
-  const agents = normalizedAgents.filter((agent) => agent.domain === selectedDomain);
-  const agentNames = agents.map((agent) => agent.name);
+  const selectedDomain =
+    resolvedSearchParams?.domain?.trim() || DEFAULT_WORKSPACE_DOMAIN;
   const agentsRefreshUrl = withAppBasePath(
     `/api/agents?${new URLSearchParams({
       domain: selectedDomain,
     }).toString()}`,
   );
+  const domainsApiUrl = withAppBasePath("/api/domains");
   const kgTargetsCreateUrl = withAppBasePath("/api/kg-targets");
   const kgTargetsDeleteUrlBase = withAppBasePath("/api/kg-targets");
   const scriptsApiUrl = withAppBasePath("/api/scripts");
@@ -54,9 +51,26 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   const intentsApiUrl = withAppBasePath("/api/intents");
   const intentsUrlBase = withAppBasePath("/api/intents");
   const prometheusClearUrlBase = withAppBasePath("/api/prometheus/intents");
-  const { registryConnected, graphDbConnected, prometheusConnected } =
-    await getInfraConnectionStatus();
-  const scripts = await listVisibleScripts(user.id, selectedDomain);
+
+  const [scripts, kgTargets] = await Promise.all([
+    listVisibleScripts(user.id, selectedDomain),
+    db.knowledgeGraphTarget.findMany({
+      where: {
+        userId: user.id,
+        domain: selectedDomain,
+      },
+      select: {
+        id: true,
+        displayName: true,
+        repositoryId: true,
+        graphIri: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+  ]);
+
   const fallbackScript = "";
   const extractedMetricCatalogs: Record<string, string[]> = {};
   const completionContext = buildCompletionContext({
@@ -65,33 +79,19 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   });
   const assistantContext = buildDraftContext({
     selectedDomain,
-    availableAgents: agentNames,
+    availableAgents: [],
     metricNames: completionContext.metricNames,
     stage: completionContext.stage,
     assistantModel: appEnv.assistantModel,
   });
-  const kgTargets = await db.knowledgeGraphTarget.findMany({
-    where: {
-      userId: user.id,
-      domain: selectedDomain,
-    },
-    select: {
-      id: true,
-      displayName: true,
-      repositoryId: true,
-      graphIri: true,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
 
   return (
     <WorkspaceShell
-      agents={agents}
+      agents={[]}
       agentsRefreshUrl={agentsRefreshUrl}
       assistantContext={assistantContext}
-      domains={domains}
+      domains={[selectedDomain]}
+      domainsApiUrl={domainsApiUrl}
       kgTargetsCreateUrl={kgTargetsCreateUrl}
       kgTargetsDeleteUrlBase={kgTargetsDeleteUrlBase}
       kgTargets={kgTargets}
@@ -104,13 +104,13 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
       a2aMessageSendUrl={a2aMessageSendUrl}
       previewMetricsApiUrl={previewMetricsApiUrl}
       graphDbBaseUrl={appEnv.graphDbBaseUrl}
-      graphDbConnected={graphDbConnected}
+      graphDbConnected={false}
       infraStatusApiUrl={infraStatusApiUrl}
       intentsApiUrl={intentsApiUrl}
       intentsUrlBase={intentsUrlBase}
       prometheusClearUrlBase={prometheusClearUrlBase}
-      prometheusConnected={prometheusConnected}
-      registryConnected={registryConnected}
+      prometheusConnected={false}
+      registryConnected={false}
       scripts={scripts}
       selectedDomain={selectedDomain}
       username={user.username}

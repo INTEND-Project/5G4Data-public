@@ -55,7 +55,10 @@ describe("workspace shell bootstrap", () => {
     expect(loginSource).toContain('withAppBasePath("/api/auth/login")');
     expect(loginSource).toContain('withAppBasePath("/api/auth/register")');
     expect(workspaceSource).toContain("WorkspaceShell");
-    expect(workspaceSource).toContain("getInfraConnectionStatus");
+    expect(workspaceSource).not.toContain("getInfraConnectionStatus");
+    expect(workspaceSource).not.toContain("listNormalizedAgents");
+    expect(workspaceSource).toContain("domainsApiUrl");
+    expect(shellSource).toContain("domainsApiUrl");
     expect(workspaceSource).toContain("infraStatusApiUrl");
     expect(workspaceSource).toContain('withAppBasePath("/api/infra/status")');
     expect(workspaceSource).toContain("registryConnected");
@@ -89,6 +92,9 @@ describe("workspace shell bootstrap", () => {
     expect(scriptRunnerSource).toContain("Knowledge graph target");
     expect(scriptRunnerSource).not.toContain("Run result policy");
     expect(runIdChipSource).toContain("scriptRunLogs");
+    expect(runIdChipSource).toContain("deleteSelectedScriptRunLog");
+    expect(runIdChipSource).toContain("deleteAllScriptRunLogs");
+    expect(scriptSessionContextSource).toContain("window.confirm");
     expect(scriptSessionContextSource).toContain("slice(0, 10)");
     expect(shellSource).toContain("About/Help");
     expect(shellSource).toContain("workspace-user-controls");
@@ -137,6 +143,9 @@ describe("workspace shell bootstrap", () => {
     expect(scriptRunnerSource).toContain("Create a KG first");
     expect(scriptRunnerSource).toContain("hasKgTarget");
     expect(scriptRunnerSource).toContain("kgRequiredDialogOpen");
+    expect(scriptRunnerSource).toContain("storageDeletionInProgress");
+    expect(scriptRunnerSource).toContain("storageDeletionDialogOpen");
+    expect(scriptRunnerSource).toContain("Storage deletion in progress");
     expect(scriptRunnerSource).toContain("Knowledge graph required");
     expect(scriptRunnerSource).toContain('role="alertdialog"');
     expect(scriptRunnerSource).toContain(
@@ -152,6 +161,9 @@ describe("workspace shell bootstrap", () => {
     );
     expect(runLogDialogSource).toContain("selectedRunLogLines");
     expect(scriptSessionContextSource).toContain("scheduleLiveRunLogRevision");
+    expect(scriptSessionContextSource).toContain("beginStorageDeletion");
+    expect(scriptSessionContextSource).toContain("endStorageDeletion");
+    expect(scriptSessionContextSource).toContain("storageDeletionInProgress");
     expect(scriptSessionContextSource).toContain("WorkspaceRunLogUiContext");
     expect(scriptRunnerSource).toContain("Save As");
     expect(scriptRunnerSource).toContain("Show metrics");
@@ -164,7 +176,7 @@ describe("workspace shell bootstrap", () => {
     expect(scriptRunnerSource).toContain("role=\"tablist\"");
     expect(workspaceSource).toContain("agentsRefreshUrl");
     expect(workspaceSource).not.toContain('refresh: "1"');
-    expect(agentListSource).toContain("forceRefresh: true");
+    expect(agentListSource).toContain("forceRefresh: !registryConnectedRef.current");
     expect(agentListSource).toContain("Available agents");
     expect(agentListSource).toContain("registered");
     expect(agentListSource).toContain("AgentHealthIcon");
@@ -185,7 +197,7 @@ describe("workspace shell bootstrap", () => {
     expect(domainSelectorSource).toContain("workspace-section-domain");
     expect(domainSelectorSource).toContain("workspace-select-tight");
     expect(kgTargetPanelSource).toContain('"use client"');
-    expect(kgTargetPanelSource).toContain('useState("")');
+    expect(kgTargetPanelSource).toContain('useState(() => defaultKgDisplayName(username))');
     expect(kgTargetPanelSource).not.toContain('useState("kg-avalanche-demo")');
     expect(kgTargetPanelSource).toContain("fetch(createUrl");
     expect(kgTargetPanelSource).toContain("onTargetCreated");
@@ -193,6 +205,8 @@ describe("workspace shell bootstrap", () => {
     expect(kgTargetPanelSource).not.toContain("setDisplayedTargets");
     expect(kgTargetPanelSource).toContain("selectedDomain");
     expect(kgTargetPanelSource).toContain("window.confirm");
+    expect(kgTargetPanelSource).toContain("beginStorageDeletion");
+    expect(kgTargetPanelSource).toContain("endStorageDeletion");
     expect(kgTargetPanelSource).toContain("fetch(`${deleteUrlBase}/");
     expect(kgTargetPanelSource).toContain('/empty`');
     expect(kgTargetPanelSource).toContain('method: "POST"');
@@ -215,13 +229,20 @@ describe("workspace shell bootstrap", () => {
     expect(intentsPanelSource).toContain("<h2>Intents</h2>");
     expect(intentsPanelSource).toContain("workspace-intent-id-label");
     expect(intentsPanelSource).toContain("workspace-card-intent");
+    expect(intentsPanelSource).toContain("workspace-card-intent--${cardStatus}");
+    expect(intentsPanelSource).toContain("grafanaReady");
     expect(globalsSource).toContain(".workspace-card-intent");
+    expect(globalsSource).toContain(".workspace-card-intent--pending");
+    expect(globalsSource).toContain(".workspace-card-intent--ready");
     expect(globalsSource).toContain("container-name: intent-card");
     expect(intentsPanelSource).toContain("DeleteStorageIcon");
     expect(intentsPanelSource).toContain("GrafanaIcon");
     expect(intentsPanelSource).toContain("/description");
     expect(intentsPanelSource).toContain("/empty-graphdb");
-    expect(intentsPanelSource).toContain("useWorkspaceScriptSession");
+    expect(intentsPanelSource).toContain("beginStorageDeletion");
+    expect(intentsPanelSource).toContain("endStorageDeletion");
+    expect(intentsPanelSource).toContain("Deleting {deletingIntentId}");
+    expect(intentsPanelSource).toContain("deletingIntentId !== null");
     expect(intentsPanelSource).toContain("intentsEqual");
     expect(intentsPanelSource).toContain("initialScriptRunIdRef");
     expect(intentsPanelSource).toContain("workspace-panel-refresh-button");

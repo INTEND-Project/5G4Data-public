@@ -21,6 +21,7 @@ type WorkspaceShellProps = {
   username: string;
   selectedDomain: string;
   domains: string[];
+  domainsApiUrl: string;
   agents: Array<{
     name: string;
     isHealthy: boolean | null;
@@ -79,6 +80,7 @@ export function WorkspaceShell({
   username,
   selectedDomain,
   domains,
+  domainsApiUrl,
   agents,
   agentsRefreshUrl,
   kgTargetsCreateUrl,
@@ -105,6 +107,38 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   const [kgTargetsList, setKgTargetsList] = useState<KgTargetRecord[]>(kgTargets);
   const [selectedKgTargetId, setSelectedKgTargetId] = useState("");
+  const [availableDomains, setAvailableDomains] = useState(domains);
+
+  useEffect(() => {
+    setAvailableDomains(domains);
+  }, [domains]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await fetch(domainsApiUrl, { cache: "no-store" });
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        const payload = (await response.json()) as { domains?: string[] };
+        const nextDomains = payload.domains ?? [];
+        if (nextDomains.length === 0 || cancelled) {
+          return;
+        }
+
+        setAvailableDomains(nextDomains);
+      } catch {
+        /* keep SSR/default domains */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [domainsApiUrl]);
 
   useEffect(() => {
     setKgTargetsList(kgTargets);
@@ -120,7 +154,7 @@ export function WorkspaceShell({
     );
   }, [kgTargetsList]);
 
-  const domainOptions = Array.from(new Set([selectedDomain, ...domains]));
+  const domainOptions = Array.from(new Set([selectedDomain, ...availableDomains]));
   /** Empty until the user selects a script or types in the draft tab. */
   const draftContent = "";
 

@@ -633,6 +633,30 @@ button.workspace-run-log-open-button {
   min-width: 0;
 }
 
+.workspace-run-log-delete-selected {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(5, 14, 26, 0.9);
+  color: rgba(120, 220, 140, 0.95);
+  cursor: pointer;
+}
+
+.workspace-run-log-delete-selected:hover:not(:disabled) {
+  background: rgba(48, 120, 60, 0.35);
+  border-color: rgba(120, 220, 140, 0.45);
+}
+
+.workspace-run-log-delete-selected:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 select.workspace-script-run-select {
   font: inherit;
   color: inherit;
@@ -661,25 +685,58 @@ select.workspace-script-run-select:disabled {
 }
 
 .workspace-run-log-dialog {
+  position: relative;
   width: min(720px, 100%);
+  height: min(560px, 86vh);
+  min-width: 360px;
+  min-height: 280px;
+  max-width: min(96vw, 1200px);
   max-height: min(86vh, 960px);
   padding: 22px 24px;
   border-radius: 18px;
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .workspace-run-log-dialog h3 {
   margin: 0;
   font-size: 1.15rem;
+  flex-shrink: 0;
 }
 
-.workspace-run-log-dialog-body {
-  margin-top: 0;
-  max-height: min(50vh, 420px);
+.workspace-run-log-dialog .workspace-save-as-dialog-hint,
+.workspace-run-log-dialog .workspace-save-name-dialog-actions {
+  flex-shrink: 0;
+}
+
+.workspace-run-log-dialog-resizer {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  border-radius: 4px;
+  background-color: rgba(125, 180, 255, 0.12);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' aria-hidden='true'%3E%3Cpath fill='%2386bcff' d='M14 14 8 8m6 0-4 4M14 10v4h-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px 12px;
+}
+
+.workspace-run-log-dialog-resizer:hover {
+  background-color: rgba(125, 180, 255, 0.22);
+}
+
+.workspace-run-log-dialog-resizer:focus-visible {
+  outline: 2px solid rgba(125, 180, 255, 0.65);
+  outline-offset: 2px;
 }
 
 .workspace-intent-dialog-backdrop {
@@ -835,6 +892,13 @@ select.workspace-script-run-select:disabled {
   font-family: ui-monospace, monospace;
   font-size: 0.78rem;
   line-height: 1.4;
+}
+
+.workspace-run-log-dialog .workspace-run-log-dialog-body.workspace-runner-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  max-height: none;
 }
 
 .workspace-runner-log-empty {
@@ -1123,6 +1187,24 @@ select.workspace-script-run-select:disabled {
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
+  border-left: 4px solid var(--border);
+}
+
+.workspace-card-intent--pending {
+  border-left-color: #d4a017;
+  background: color-mix(in srgb, #d4a017 12%, var(--panel) 88%);
+}
+
+.workspace-card-intent--ready {
+  border-left-color: #3d9a5c;
+  background: color-mix(in srgb, #3d9a5c 10%, var(--panel) 90%);
+}
+
+.workspace-intent-data-status {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
 }
 
 .workspace-intent-card-heading {

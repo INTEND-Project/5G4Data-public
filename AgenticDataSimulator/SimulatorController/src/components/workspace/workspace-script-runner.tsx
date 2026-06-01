@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, memo } from "react";
-import { useRouter } from "next/navigation";
 
 import { ScriptEditor } from "@/components/editor/script-editor";
 import { IntentGenSessionDialog } from "@/components/workspace/intent-gen-session-dialog";
@@ -27,6 +26,11 @@ import type { ObservationStorageType } from "@/lib/dsl/types";
 import { buildIntentGenerationStorageHint } from "@/lib/observation-storage";
 import { parseCanonicalIntentLocalId } from "@/lib/intent/extract-intent-turtle";
 import { resolveIntentIdForObservation } from "@/lib/intent/resolve-intent-ref";
+import type { ObservationAgentErrorEntry } from "@/app/api/observation-agent/errors/route";
+import {
+  formatObservationAgentErrorMessage,
+  observationAgentErrorKey,
+} from "@/lib/observation-agent/format-error";
 import {
   buildSharedScriptName,
   defaultSharedNameSuffix,
@@ -142,7 +146,6 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   a2aMessageSendUrl,
   previewMetricsApiUrl,
 }: WorkspaceScriptRunnerProps) {
-  const router = useRouter();
   const {
     selectedDomain,
     scriptsFromServer,
@@ -164,6 +167,12 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     closeRunLogDialog,
     setScriptExtractedMetricNames,
     setWorkloadPreviewMetricStems,
+    storageDeletionInProgress,
+    markIntentAwaitingObservation,
+    notifyStorageChanged,
+    setObservationGenerationActive,
+    setScriptRunInProgress,
+    replaceServerScripts,
   } = useWorkspaceScriptSession();
 
   const appendA2ATranscriptTurn = useCallback(
@@ -370,9 +379,18 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           if (newId) {
             migrateDraftTabToSavedScript(newId, newName);
             commitSavedTabContent(tabKeyForScript(newId), activeContent);
+            replaceServerScripts([
+              {
+                id: newId,
+                name: newName,
+                content: activeContent,
+                userId: currentUserId,
+                shared: false,
+              },
+              ...scriptsFromServer,
+            ]);
           }
           scriptNameRef.current = trimmedName;
-          router.refresh();
           return true;
         }
 
@@ -395,7 +413,6 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           }
           scriptNameRef.current = trimmedName;
           commitSavedTabContent(activeTabKey, activeContent);
-          router.refresh();
           return true;
         }
 
@@ -432,7 +449,16 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           userId: currentUserId,
           shared: false,
         });
-        router.refresh();
+        replaceServerScripts([
+          {
+            id: created.id,
+            name: created.name ?? trimmedName,
+            content: activeContent,
+            userId: currentUserId,
+            shared: false,
+          },
+          ...scriptsFromServer,
+        ]);
         return true;
       } finally {
         savingLockRef.current = false;
@@ -446,12 +472,13 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       activeTabKey,
       scriptsApiUrl,
       selectedDomain,
-      router,
       migrateDraftTabToSavedScript,
       commitSavedTabContent,
       openScriptTab,
       currentUserId,
       isReadOnlyScript,
+      replaceServerScripts,
+      scriptsFromServer,
     ],
   );
 
@@ -509,7 +536,16 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         userId: currentUserId,
         shared: true,
       });
-      router.refresh();
+      replaceServerScripts([
+        {
+          id: created.id,
+          name: created.name ?? buildSharedScriptName(suffix),
+          content: activeContent,
+          userId: currentUserId,
+          shared: true,
+        },
+        ...scriptsFromServer,
+      ]);
       return true;
     } finally {
       savingLockRef.current = false;
@@ -519,8 +555,9 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     activeContent,
     currentUserId,
     openScriptTab,
-    router,
+    replaceServerScripts,
     scriptsApiUrl,
+    scriptsFromServer,
     selectedDomain,
     shareAsNameSuffix,
   ]);
@@ -657,6 +694,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   const intentStorageByAliasRef = useRef(new Map<string, ObservationStorageType>());
   const [runBusy, setRunBusy] = useState(false);
   const [kgRequiredDialogOpen, setKgRequiredDialogOpen] = useState(false);
+  const [storageDeletionDialogOpen, setStorageDeletionDialogOpen] = useState(false);
   const runModeRef = useRef<RunMode>("execute");
   const [intentSession, setIntentSession] = useState<{
     wellKnownURI: string;
@@ -672,6 +710,85 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     observationStorage?: ObservationStorageType;
     createIntentStorage?: ObservationStorageType;
   } | null>(null);
+  const [observationAgentError, setObservationAgentError] = useState<string | null>(null);
+  const observationErrorPollUntilRef = useRef(0);
+  const observationErrorSinceRef = useRef<string | null>(null);
+  const seenObservationErrorKeysRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    setObservationGenerationActive(observationSession !== null);
+    return () => {
+      setObservationGenerationActive(false);
+    };
+  }, [observationSession, setObservationGenerationActive]);
+
+  useEffect(() => {
+    if (!observationSession) {
+      return;
+    }
+    setObservationAgentError(null);
+    seenObservationErrorKeysRef.current.clear();
+    observationErrorSinceRef.current = new Date().toISOString();
+    observationErrorPollUntilRef.current = Date.now() + 15 * 60 * 1000;
+  }, [observationSession]);
+
+  useEffect(() => {
+    const shouldPoll = (): boolean =>
+      observationSession !== null || Date.now() < observationErrorPollUntilRef.current;
+
+    if (!observationErrorSinceRef.current) {
+      return;
+    }
+
+    const pollObservationErrors = async (): Promise<void> => {
+      if (!shouldPoll() || !observationErrorSinceRef.current) {
+        return;
+      }
+
+      const params = new URLSearchParams({
+        domain: selectedDomain,
+        since: observationErrorSinceRef.current,
+        limit: "20",
+      });
+
+      try {
+        const response = await fetch(`/api/observation-agent/errors?${params}`, {
+          credentials: "same-origin",
+        });
+        if (!response.ok) {
+          return;
+        }
+
+        const body = (await response.json()) as {
+          errors?: ObservationAgentErrorEntry[];
+        };
+
+        for (const entry of body.errors ?? []) {
+          const key = observationAgentErrorKey(entry);
+          if (seenObservationErrorKeysRef.current.has(key)) {
+            continue;
+          }
+          seenObservationErrorKeysRef.current.add(key);
+          const message = formatObservationAgentErrorMessage(entry);
+          appendRunnerLog(`Observation agent error: ${message}`);
+          setObservationAgentError(message);
+        }
+      } catch {
+        /* best-effort polling */
+      }
+    };
+
+    void pollObservationErrors();
+    const intervalId = window.setInterval(() => {
+      if (!shouldPoll()) {
+        window.clearInterval(intervalId);
+        return;
+      }
+      void pollObservationErrors();
+    }, 4000);
+
+    return () => window.clearInterval(intervalId);
+  }, [appendRunnerLog, observationSession, selectedDomain]);
 
   const resolveSelectedGraphTargetBinding = useCallback((): GraphTargetBinding | null => {
     if (!selectedKgTargetId.trim()) {
@@ -694,6 +811,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       if (storage) {
         intentStorageByAliasRef.current.set(_dslAlias, storage);
       }
+      markIntentAwaitingObservation(canonicalIntentId);
 
       const registerUrl = intentsRegisterUrl.trim();
       if (!registerUrl) {
@@ -714,7 +832,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         // Best-effort; store-intent and intent dialog also register.
       });
     },
-    [intentsRegisterUrl, selectedDomain, selectedKgTargetId],
+    [intentsRegisterUrl, markIntentAwaitingObservation, selectedDomain, selectedKgTargetId],
   );
 
   const handleRunScript = useCallback(async () => {
@@ -1161,6 +1279,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         mode: runModeRef.current,
         scriptId: activeScriptId,
       });
+      notifyStorageChanged();
     }
   }, [
     activeContent,
@@ -1180,6 +1299,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     graphDbBaseUrl,
     resolveSelectedGraphTargetBinding,
     setScriptExtractedMetricNames,
+    notifyStorageChanged,
   ]);
 
   const handleIntentDialogFinish = useCallback(() => {
@@ -1192,10 +1312,16 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     observationFinishRef.current?.();
     observationFinishRef.current = null;
     setObservationSession(null);
-  }, []);
+    notifyStorageChanged();
+  }, [notifyStorageChanged]);
 
   const kickOffRunScript = useCallback(() => {
     if (runBusy) {
+      return;
+    }
+
+    if (storageDeletionInProgress) {
+      setStorageDeletionDialogOpen(true);
       return;
     }
 
@@ -1206,13 +1332,15 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
     void (async () => {
       setRunBusy(true);
+      setScriptRunInProgress(true);
       try {
         await handleRunScript();
       } finally {
         setRunBusy(false);
+        setScriptRunInProgress(false);
       }
     })();
-  }, [handleRunScript, hasKgTarget, runBusy]);
+  }, [handleRunScript, hasKgTarget, runBusy, setScriptRunInProgress, storageDeletionInProgress]);
 
   return (
     <>
@@ -1350,6 +1478,11 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           {showMetricsError}
         </p>
       ) : null}
+      {observationAgentError && observationSession === null ? (
+        <p className="workspace-save-error" role="alert">
+          {observationAgentError}
+        </p>
+      ) : null}
       {saveError ? (
         <p className="workspace-save-error" role="alert">
           {saveError}
@@ -1379,6 +1512,38 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
               <button
                 className="workspace-button"
                 onClick={() => setKgRequiredDialogOpen(false)}
+                type="button"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {storageDeletionDialogOpen ? (
+        <div
+          className="workspace-save-name-dialog-backdrop"
+          onClick={() => setStorageDeletionDialogOpen(false)}
+          role="presentation"
+        >
+          <div
+            aria-labelledby="workspace-storage-deletion-dialog-title"
+            aria-modal="true"
+            className="workspace-save-name-dialog"
+            onClick={(event) => event.stopPropagation()}
+            role="alertdialog"
+          >
+            <h3 id="workspace-storage-deletion-dialog-title">Storage deletion in progress</h3>
+            <p className="workspace-save-as-dialog-hint">
+              Knowledge graph or Prometheus data is being deleted. Wait until
+              deletion completes before running scripts, or new data may be wiped
+              out or blocked from writing.
+            </p>
+            <div className="workspace-save-name-dialog-actions">
+              <button
+                className="workspace-button"
+                onClick={() => setStorageDeletionDialogOpen(false)}
                 type="button"
               >
                 OK
@@ -1559,6 +1724,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         a2aMessageSendUrl={a2aMessageSendUrl}
         agentCardWellKnownURI={observationSession?.wellKnownURI ?? ""}
         createIntentStorage={observationSession?.createIntentStorage ?? null}
+        externalBannerError={observationAgentError}
         graphTargetBinding={observationSession?.graphTargetBinding ?? null}
         observationStorage={observationSession?.observationStorage ?? null}
         intentArtifactLabel={observationSession?.sessionAlias ?? ""}

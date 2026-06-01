@@ -8,6 +8,8 @@ describe("next config", () => {
 
     expect(source).toContain("getConfiguredAppBasePath(process.env)");
     expect(source).toContain('allowedDevOrigins: ["start5g-1.cs.uit.no"]');
-    expect(source).toContain('distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next"');
+    expect(source).toContain("resolveDistDir()");
+    expect(source).toContain('return ".next-dev-prod"');
+    expect(source).toContain('return ".next-dev"');
   });
 });

@@ -141,7 +141,7 @@ export function AgentList({ agents, refreshUrl, registryConnected }: AgentListPr
       }, intervalMs);
     };
 
-    void refreshAgents({ forceRefresh: true });
+    void refreshAgents({ forceRefresh: !registryConnectedRef.current });
     schedule();
 
     const onVisibilityChange = () => {

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
+
 type KgTargetRecord = {
   id: string;
   displayName: string;
@@ -66,6 +68,8 @@ export function KgTargetPanel({
   onTargetDeleted,
   targets,
 }: KgTargetPanelProps) {
+  const { notifyStorageChanged, beginStorageDeletion, endStorageDeletion } =
+    useWorkspaceScriptSession();
   const [displayName, setDisplayName] = useState(() => defaultKgDisplayName(username));
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -129,6 +133,7 @@ export function KgTargetPanel({
 
     setEmptyingTargetId(target.id);
     setCreateError(null);
+    beginStorageDeletion();
 
     try {
       const response = await fetch(`${deleteUrlBase}/${target.id}/empty`, {
@@ -138,11 +143,14 @@ export function KgTargetPanel({
       if (!response.ok) {
         throw new Error(`KG empty failed with ${response.status}`);
       }
+
+      notifyStorageChanged();
     } catch (error) {
       console.error(error);
       setCreateError("Unable to empty the knowledge graph right now.");
     } finally {
       setEmptyingTargetId(null);
+      endStorageDeletion();
     }
   }
 
@@ -157,6 +165,7 @@ export function KgTargetPanel({
 
     setDeletingTargetId(target.id);
     setCreateError(null);
+    beginStorageDeletion();
 
     try {
       const response = await fetch(`${deleteUrlBase}/${target.id}`, {
@@ -173,6 +182,7 @@ export function KgTargetPanel({
       setCreateError("Unable to delete the knowledge graph target right now.");
     } finally {
       setDeletingTargetId(null);
+      endStorageDeletion();
     }
   }
 

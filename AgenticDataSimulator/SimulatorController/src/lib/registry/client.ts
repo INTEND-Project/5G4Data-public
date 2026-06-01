@@ -4,7 +4,7 @@ import { normalizeRegistryAgents } from "@/lib/registry/normalize";
 import { REGISTRY_LIST_PATHS } from "@/lib/registry/paths";
 import type { RegistryAgent, RegistryAgentRecord } from "@/lib/registry/types";
 
-const CACHE_TTL_MS = 5_000;
+const CACHE_TTL_MS = 60_000;
 
 let cachedAgents: RegistryAgent[] | null = null;
 let cachedRawRecords: RegistryAgentRecord[] | null = null;
@@ -68,6 +68,37 @@ async function enrichRegistryRecord(record: RegistryAgentRecord): Promise<Regist
   } catch {
     return record;
   }
+}
+
+export function isRegistryListCacheFresh(nowMs = Date.now()): boolean {
+  return cachedRawRecords !== null && nowMs - cachedAt < CACHE_TTL_MS;
+}
+
+async function probeRegistryConnection(baseUrl: string): Promise<boolean> {
+  for (const path of REGISTRY_LIST_PATHS) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        cache: "no-store",
+      });
+
+      if (response.ok) {
+        return true;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return false;
+}
+
+export async function getRegistryConnectionStatus(): Promise<boolean> {
+  if (isRegistryListCacheFresh()) {
+    return true;
+  }
+
+  const env = loadAppEnv(process.env);
+  return probeRegistryConnection(env.a2aRegistryBaseUrl);
 }
 
 async function fetchRegistryList(baseUrl: string) {

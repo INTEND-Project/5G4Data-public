@@ -8,12 +8,30 @@ export type InfraConnectionStatus = {
   prometheusConnected: boolean;
 };
 
-export async function getInfraConnectionStatus(): Promise<InfraConnectionStatus> {
+export const INFRA_STATUS_CACHE_TTL_MS = 60_000;
+
+let cachedStatus: InfraConnectionStatus | null = null;
+let cachedAt = 0;
+
+export async function getInfraConnectionStatus(options?: {
+  forceRefresh?: boolean;
+}): Promise<InfraConnectionStatus> {
+  if (
+    !options?.forceRefresh &&
+    cachedStatus !== null &&
+    Date.now() - cachedAt < INFRA_STATUS_CACHE_TTL_MS
+  ) {
+    return cachedStatus;
+  }
+
   const [registryConnected, graphDbConnected, prometheusConnected] = await Promise.all([
     getRegistryConnectionStatus(),
     getGraphDbConnectionStatus(),
     getPrometheusConnectionStatus(),
   ]);
 
-  return { registryConnected, graphDbConnected, prometheusConnected };
+  cachedStatus = { registryConnected, graphDbConnected, prometheusConnected };
+  cachedAt = Date.now();
+
+  return cachedStatus;
 }

@@ -1,3 +1,4 @@
+import { graphDbAuthHeaders } from "@/lib/graphdb/auth";
 import { buildClearKnowledgeGraphUpdate } from "@/lib/graphdb/clear-knowledge-graph-query";
 import { loadAppEnv } from "@/lib/env";
 import type {
@@ -81,6 +82,7 @@ export async function createRepository(input: GraphDbRepositoryInput) {
 
   const response = await fetch(`${env.graphDbBaseUrl}rest/repositories`, {
     method: "POST",
+    headers: graphDbAuthHeaders(),
     body: formData,
   });
 
@@ -96,9 +98,9 @@ export async function createNamedGraph(input: GraphDbNamedGraphInput) {
     `${env.graphDbBaseUrl}repositories/${input.repositoryId}/rdf-graphs/service?graph=${encodeURIComponent(input.graphIri)}`,
     {
       method: "PUT",
-      headers: {
+      headers: graphDbAuthHeaders({
         "content-type": "text/turtle",
-      },
+      }),
       body: "",
     },
   );
@@ -114,6 +116,7 @@ export async function deleteRepository(input: { repositoryId: string }) {
     `${env.graphDbBaseUrl}rest/repositories/${encodeURIComponent(input.repositoryId)}`,
     {
       method: "DELETE",
+      headers: graphDbAuthHeaders(),
     },
   );
 
@@ -146,9 +149,9 @@ export async function ingestIntentTurtle(input: {
   try {
     response = await fetch(url, {
       method: "POST",
-      headers: {
+      headers: graphDbAuthHeaders({
         "content-type": "application/x-turtle",
-      },
+      }),
       body: input.turtle,
       signal: controller.signal,
     });
@@ -191,10 +194,10 @@ export async function runRepositorySparqlSelect(input: {
   try {
     response = await fetch(url, {
       method: "POST",
-      headers: {
+      headers: graphDbAuthHeaders({
         Accept: "application/sparql-results+json",
         "Content-Type": "application/sparql-query",
-      },
+      }),
       body: input.query,
       signal: controller.signal,
     });
@@ -234,9 +237,9 @@ export async function clearKnowledgeGraph(input: {
   try {
     response = await fetch(url, {
       method: "POST",
-      headers: {
+      headers: graphDbAuthHeaders({
         "Content-Type": "application/sparql-update",
-      },
+      }),
       body: query,
       signal: controller.signal,
     });

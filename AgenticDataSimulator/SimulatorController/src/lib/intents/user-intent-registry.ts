@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { validateIntentIdForPrometheusClear } from "@/lib/prometheus/client";
+import { getPrometheusConnectionStatus } from "@/lib/prometheus/status";
+import { listIntentIds, validateIntentIdForPrometheusClear } from "@/lib/prometheus/client";
 
 export async function registerUserIntent(input: {
   userId: string;
@@ -53,6 +54,70 @@ export async function listOwnedIntentIdsForUser(
   });
 
   return rows.map((row) => row.intentId);
+}
+
+/** Drop graph-only registry rows after a KG target is emptied; keep Prometheus-backed intents. */
+export async function unregisterGraphStoredIntentsForTarget(
+  userId: string,
+  graphTargetId: string,
+): Promise<void> {
+  const rows = await db.userIntent.findMany({
+    where: {
+      userId,
+      graphTargetId,
+    },
+    select: {
+      intentId: true,
+      storage: true,
+    },
+  });
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  let prometheusIds = new Set<string>();
+  if (await getPrometheusConnectionStatus()) {
+    try {
+      prometheusIds = new Set(await listIntentIds());
+    } catch {
+      prometheusIds = new Set();
+    }
+  }
+
+  const intentIdsToDelete = rows
+    .filter((row) => {
+      if (row.storage === "prometheus") {
+        return false;
+      }
+      if (row.storage === "graphdb") {
+        return true;
+      }
+      return !prometheusIds.has(row.intentId);
+    })
+    .map((row) => row.intentId);
+
+  if (intentIdsToDelete.length > 0) {
+    await db.userIntent.deleteMany({
+      where: {
+        userId,
+        intentId: {
+          in: intentIdsToDelete,
+        },
+      },
+    });
+  }
+
+  await db.userIntent.updateMany({
+    where: {
+      userId,
+      graphTargetId,
+      storage: "prometheus",
+    },
+    data: {
+      graphTargetId: null,
+    },
+  });
 }
 
 export async function assertUserOwnsIntent(userId: string, intentId: string): Promise<boolean> {

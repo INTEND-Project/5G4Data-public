@@ -29,6 +29,7 @@ describe("graphdb status", () => {
     await expect(graphDbStatusModule.getGraphDbConnectionStatus()).resolves.toBe(true);
     expect(fetchMock).toHaveBeenCalledWith("http://graphdb.example/rest/repositories", {
       cache: "no-store",
+      headers: {},
     });
   });
 

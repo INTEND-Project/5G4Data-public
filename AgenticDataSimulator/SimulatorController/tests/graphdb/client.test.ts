@@ -52,6 +52,24 @@ describe("graphdb client", () => {
     expect(configText).toContain('rep:repositoryType "graphdb:SailRepository"');
   });
 
+  it("sends HTTP Basic auth when GraphDB credentials are configured", async () => {
+    process.env.GRAPHDB_USERNAME = "telenor";
+    process.env.GRAPHDB_PASSWORD = "secret-pass";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const graphDbClientModule = await import("../../src/lib/graphdb/client");
+    await graphDbClientModule.createRepository({
+      repositoryId: "auth-test-repo",
+      label: "auth-test",
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    const expected = Buffer.from("telenor:secret-pass", "utf8").toString("base64");
+    expect(headers.Authorization).toBe(`Basic ${expected}`);
+  });
+
   it("throws when GraphDB rejects repository creation", async () => {
     const fetchMock = vi
       .fn()

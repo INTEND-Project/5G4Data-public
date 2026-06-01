@@ -6,3 +6,11 @@ export function workloadPreviewUrlFromAgentRpcUrl(rpcUrl: string): string {
   }
   return `${trimmed}/v1/control/workload-preview`;
 }
+
+export function observationErrorsUrlFromAgentRpcUrl(rpcUrl: string): string {
+  const trimmed = rpcUrl.trim().replace(/\/+$/, "");
+  if (trimmed.endsWith("/v1")) {
+    return `${trimmed}/observation-errors`;
+  }
+  return `${trimmed}/v1/observation-errors`;
+}

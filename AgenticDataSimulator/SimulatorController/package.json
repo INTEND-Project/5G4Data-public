@@ -10,6 +10,8 @@
     "test": "vitest run",
     "prisma:generate": "prisma generate",
     "dev:lab": "bash scripts/run-dev-lab.sh",
+    "dev:lab:build": "bash scripts/build-dev-lab.sh",
+    "dev:lab:fast": "bash scripts/run-dev-lab-fast.sh",
     "db:sync-from-prod": "bash scripts/sync-prod-db-to-dev.sh",
     "grafana:provision-users": "tsx scripts/provision-grafana-users.ts"
   },

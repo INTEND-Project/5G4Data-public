@@ -1,5 +1,9 @@
 import { loadAppEnv } from "@/lib/env";
-import { createGrafanaLoginToken } from "@/lib/grafana/jwt-login-token";
+import {
+  createGrafanaLoginToken,
+  parseGrafanaJwtEditorUsers,
+  resolveGrafanaJwtOrgRole,
+} from "@/lib/grafana/jwt-login-token";
 import {
   historicGrafanaWindow,
   isStreamingBounds,
@@ -85,6 +89,10 @@ export function buildIntentGrafanaUrl(input: {
         emailDomain: appEnv.grafanaUserEmailDomain,
         secret: appEnv.grafanaJwtSecret,
         ttlSeconds: appEnv.grafanaJwtTtlSeconds,
+        orgRole: resolveGrafanaJwtOrgRole(
+          loginUsername,
+          parseGrafanaJwtEditorUsers(appEnv.grafanaJwtEditorUsers),
+        ),
       }),
     );
   }

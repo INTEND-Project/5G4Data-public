@@ -1,3 +1,4 @@
+import { graphDbAuthHeaders } from "@/lib/graphdb/auth";
 import { loadAppEnv } from "@/lib/env";
 
 export async function getGraphDbConnectionStatus() {
@@ -9,6 +10,7 @@ export async function getGraphDbConnectionStatus() {
   try {
     const response = await fetch(`${baseUrl}rest/repositories`, {
       cache: "no-store",
+      headers: graphDbAuthHeaders(),
     });
 
     return response.ok;

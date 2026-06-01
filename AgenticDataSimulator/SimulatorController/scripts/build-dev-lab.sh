@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the dev Controller on port 3001 (hot reload). Prod stays on 3000 via systemd.
+# Production build for the dev lab instance (.env.dev, /tmf-simulator-dev, port 3001).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,5 +16,7 @@ set -a
 source "$ENV_FILE"
 set +a
 
-export NODE_ENV=development
-exec npx next dev --hostname 0.0.0.0 -p 3001
+export CONTROLLER_DEV_DIST=1
+export NODE_ENV=production
+
+npm run build

@@ -1,3 +1,4 @@
+import { graphDbAuthHeaders } from "@/lib/graphdb/auth";
 import { runRepositorySparqlSelect } from "@/lib/graphdb/client";
 import { loadAppEnv } from "@/lib/env";
 import {
@@ -66,10 +67,10 @@ export async function fetchIntentTurtle(input: {
 
   const response = await fetch(url, {
     method: "POST",
-    headers: {
+    headers: graphDbAuthHeaders({
       Accept: "text/turtle",
       "Content-Type": "application/sparql-query",
-    },
+    }),
     body: query,
     cache: "no-store",
   });

@@ -34,6 +34,8 @@ const appEnvSchema = z.object({
     .string()
     .url()
     .default("https://start5g-1.cs.uit.no/graphdb/"),
+  GRAPHDB_USERNAME: z.string().optional(),
+  GRAPHDB_PASSWORD: z.string().optional(),
   PROMETHEUS_URL: z.string().url().default("http://127.0.0.1:9090/"),
   PUSHGATEWAY_URL: z.string().url().default("http://127.0.0.1:9091"),
   GRAFANA_BASE_URL: z.string().url().optional(),
@@ -44,6 +46,8 @@ const appEnvSchema = z.object({
   GRAFANA_ORG_ID: z.coerce.number().int().positive().optional(),
   GRAFANA_JWT_SECRET: z.string().optional(),
   GRAFANA_JWT_TTL_SECONDS: z.coerce.number().int().positive().max(3600).default(300),
+  /** Comma-separated Controller usernames that get Grafana org role Editor in JWT (default: arneme). */
+  GRAFANA_JWT_EDITOR_USERS: z.string().default("arneme"),
   GRAFANA_TIMESERIES_DASHBOARD_UID: z.string().default("Simulator-5g4data-Metrics"),
   GRAFANA_TIMESERIES_DASHBOARD_SLUG: z
     .string()
@@ -60,6 +64,8 @@ export type AppEnv = {
   databaseUrl: string;
   a2aRegistryBaseUrl: string;
   graphDbBaseUrl: string;
+  graphDbUsername?: string;
+  graphDbPassword?: string;
   prometheusUrl: string;
   pushgatewayUrl: string;
   grafanaBaseUrl?: string;
@@ -70,6 +76,7 @@ export type AppEnv = {
   grafanaOrgId?: number;
   grafanaJwtSecret?: string;
   grafanaJwtTtlSeconds: number;
+  grafanaJwtEditorUsers: string;
   grafanaTimeseriesDashboardUid: string;
   grafanaTimeseriesDashboardSlug: string;
   appBasePath: string;
@@ -85,6 +92,8 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     DATABASE_URL: source.DATABASE_URL,
     A2A_REGISTRY_BASE_URL: source.A2A_REGISTRY_BASE_URL,
     GRAPHDB_BASE_URL: source.GRAPHDB_BASE_URL,
+    GRAPHDB_USERNAME: source.GRAPHDB_USERNAME,
+    GRAPHDB_PASSWORD: source.GRAPHDB_PASSWORD,
     PROMETHEUS_URL: source.PROMETHEUS_URL,
     PUSHGATEWAY_URL: source.PUSHGATEWAY_URL,
     GRAFANA_BASE_URL: source.GRAFANA_BASE_URL,
@@ -95,6 +104,7 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     GRAFANA_ORG_ID: source.GRAFANA_ORG_ID,
     GRAFANA_JWT_SECRET: source.GRAFANA_JWT_SECRET,
     GRAFANA_JWT_TTL_SECONDS: source.GRAFANA_JWT_TTL_SECONDS,
+    GRAFANA_JWT_EDITOR_USERS: source.GRAFANA_JWT_EDITOR_USERS,
     GRAFANA_TIMESERIES_DASHBOARD_UID: source.GRAFANA_TIMESERIES_DASHBOARD_UID,
     GRAFANA_TIMESERIES_DASHBOARD_SLUG: source.GRAFANA_TIMESERIES_DASHBOARD_SLUG,
     APP_BASE_PATH: source.APP_BASE_PATH,
@@ -109,6 +119,11 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     databaseUrl: parsed.DATABASE_URL,
     a2aRegistryBaseUrl: parsed.A2A_REGISTRY_BASE_URL,
     graphDbBaseUrl: parsed.GRAPHDB_BASE_URL,
+    graphDbUsername: parsed.GRAPHDB_USERNAME?.trim() || undefined,
+    graphDbPassword:
+      parsed.GRAPHDB_PASSWORD !== undefined && parsed.GRAPHDB_PASSWORD.length > 0
+        ? parsed.GRAPHDB_PASSWORD
+        : undefined,
     prometheusUrl: parsed.PROMETHEUS_URL,
     pushgatewayUrl: parsed.PUSHGATEWAY_URL,
     grafanaBaseUrl: parsed.GRAFANA_BASE_URL?.trim() || undefined,
@@ -119,6 +134,7 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     grafanaOrgId: parsed.GRAFANA_ORG_ID,
     grafanaJwtSecret: parsed.GRAFANA_JWT_SECRET?.trim() || undefined,
     grafanaJwtTtlSeconds: parsed.GRAFANA_JWT_TTL_SECONDS,
+    grafanaJwtEditorUsers: parsed.GRAFANA_JWT_EDITOR_USERS,
     grafanaTimeseriesDashboardUid: parsed.GRAFANA_TIMESERIES_DASHBOARD_UID,
     grafanaTimeseriesDashboardSlug: parsed.GRAFANA_TIMESERIES_DASHBOARD_SLUG,
     appBasePath: getConfiguredAppBasePath({

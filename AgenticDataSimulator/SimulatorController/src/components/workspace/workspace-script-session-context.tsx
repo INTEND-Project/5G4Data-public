@@ -1,5 +1,6 @@
 "use client";
 
+import { invalidateLiteListCache } from "@/lib/intents/list-intents-cache";
 import type { ReactNode } from "react";
 import {
   createContext,
@@ -114,12 +115,30 @@ export type WorkspaceScriptSessionContextValue = {
   endActiveScriptRun: (input: PersistRunLogInput) => Promise<void>;
   openRunLogDialog: () => void;
   closeRunLogDialog: () => void;
+  deleteSelectedScriptRunLog: () => Promise<void>;
+  deleteAllScriptRunLogs: () => Promise<void>;
   /** Non-empty after a Run Script executes `extract metric-catalog` (flattened metric names); drives Agent assistant chips. */
   scriptExtractedMetricNames: string[];
   setScriptExtractedMetricNames: (names: string[]) => void;
   /** Non-empty after Show metrics previews catalogue stems for a create-intent prompt. */
   workloadPreviewMetricStems: string[];
   setWorkloadPreviewMetricStems: (stems: string[]) => void;
+  /** Bumps when GraphDB/Prometheus storage changes (e.g. KG emptied) so panels can refresh. */
+  storageRefreshNonce: number;
+  notifyStorageChanged: () => void;
+  /** True while KG or Prometheus data is being deleted or emptied. */
+  storageDeletionInProgress: boolean;
+  beginStorageDeletion: () => void;
+  endStorageDeletion: () => void;
+  /** True while Run Script is executing (execute or dry-run). */
+  scriptRunInProgress: boolean;
+  setScriptRunInProgress: (busy: boolean) => void;
+  /** True while the observation-report A2A dialog is open. */
+  observationGenerationActive: boolean;
+  setObservationGenerationActive: (active: boolean) => void;
+  /** Intent ids registered during the current session that may still be receiving observations. */
+  markIntentAwaitingObservation: (intentId: string) => void;
+  intentIdsAwaitingObservation: ReadonlySet<string>;
 };
 
 const WorkspaceScriptSessionContext = createContext<WorkspaceScriptSessionContextValue | null>(
@@ -182,6 +201,14 @@ export function WorkspaceScriptSessionProvider({
   const [runLogDialogOpen, setRunLogDialogOpen] = useState(false);
   const [scriptExtractedMetricNames, setScriptExtractedMetricNames] = useState<string[]>([]);
   const [workloadPreviewMetricStems, setWorkloadPreviewMetricStems] = useState<string[]>([]);
+  const [storageRefreshNonce, setStorageRefreshNonce] = useState(0);
+  const storageDeletionCountRef = useRef(0);
+  const [storageDeletionInProgress, setStorageDeletionInProgress] = useState(false);
+  const [scriptRunInProgress, setScriptRunInProgress] = useState(false);
+  const [observationGenerationActive, setObservationGenerationActive] = useState(false);
+  const [intentIdsAwaitingObservation, setIntentIdsAwaitingObservation] = useState<Set<string>>(
+    () => new Set(),
+  );
   /** Bumps when the active run log buffer changes and the log dialog should repaint. */
   const [liveRunLogRevision, setLiveRunLogRevision] = useState(0);
   const activeRunRef = useRef<ActiveRunState | null>(null);
@@ -337,6 +364,138 @@ export function WorkspaceScriptSessionProvider({
 
   const closeRunLogDialog = useCallback(() => {
     setRunLogDialogOpen(false);
+  }, []);
+
+  const deleteSelectedScriptRunLog = useCallback(async () => {
+    const runId = selectedScriptRunId;
+    if (!runId) {
+      return;
+    }
+
+    const run = scriptRunLogs.find((entry) => entry.id === runId);
+    if (!run) {
+      return;
+    }
+
+    const label = formatScriptRunListLabel(run.scriptName, run.startedAt);
+    if (
+      !window.confirm(
+        `Delete the selected run script log "${label}"? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    if (runLogsApiUrl.trim()) {
+      try {
+        const params = new URLSearchParams({ domain: selectedDomain });
+        const response = await fetch(
+          `${runLogsApiUrl}/${encodeURIComponent(runId)}?${params.toString()}`,
+          {
+            method: "DELETE",
+            credentials: "same-origin",
+          },
+        );
+        if (!response.ok && response.status !== 404) {
+          const body = await response.json().catch(() => ({}));
+          const message =
+            typeof body?.error === "string"
+              ? body.error
+              : `Delete failed (${response.status})`;
+          window.alert(message);
+          return;
+        }
+      } catch {
+        window.alert("Delete failed.");
+        return;
+      }
+    }
+
+    if (activeRunRef.current?.id === runId) {
+      activeRunRef.current = null;
+    }
+    setScriptRunLogs((prev) => prev.filter((entry) => entry.id !== runId));
+    if (runLogDialogOpenRef.current) {
+      setRunLogDialogOpen(false);
+    }
+    bumpLiveRunLogRevision();
+  }, [
+    bumpLiveRunLogRevision,
+    runLogsApiUrl,
+    scriptRunLogs,
+    selectedDomain,
+    selectedScriptRunId,
+  ]);
+
+  const deleteAllScriptRunLogs = useCallback(async () => {
+    if (scriptRunLogs.length === 0) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Delete all run script logs (${scriptRunLogs.length})? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    if (runLogsApiUrl.trim()) {
+      try {
+        const params = new URLSearchParams({ domain: selectedDomain });
+        const response = await fetch(`${runLogsApiUrl}?${params.toString()}`, {
+          method: "DELETE",
+          credentials: "same-origin",
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          const message =
+            typeof body?.error === "string"
+              ? body.error
+              : `Delete failed (${response.status})`;
+          window.alert(message);
+          return;
+        }
+      } catch {
+        window.alert("Delete failed.");
+        return;
+      }
+    }
+
+    activeRunRef.current = null;
+    setScriptRunLogs([]);
+    setRunLogDialogOpen(false);
+    bumpLiveRunLogRevision();
+  }, [bumpLiveRunLogRevision, runLogsApiUrl, scriptRunLogs.length, selectedDomain]);
+
+  const notifyStorageChanged = useCallback(() => {
+    invalidateLiteListCache();
+    setStorageRefreshNonce((nonce) => nonce + 1);
+  }, []);
+
+  const markIntentAwaitingObservation = useCallback((intentId: string) => {
+    const trimmed = intentId.trim();
+    if (!trimmed) {
+      return;
+    }
+    setIntentIdsAwaitingObservation((current) => {
+      if (current.has(trimmed)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(trimmed);
+      return next;
+    });
+  }, []);
+
+  const beginStorageDeletion = useCallback(() => {
+    storageDeletionCountRef.current += 1;
+    setStorageDeletionInProgress(true);
+  }, []);
+
+  const endStorageDeletion = useCallback(() => {
+    storageDeletionCountRef.current = Math.max(0, storageDeletionCountRef.current - 1);
+    setStorageDeletionInProgress(storageDeletionCountRef.current > 0);
   }, []);
 
   useLayoutEffect(() => {
@@ -659,10 +818,23 @@ export function WorkspaceScriptSessionProvider({
       endActiveScriptRun,
       openRunLogDialog,
       closeRunLogDialog,
+      deleteSelectedScriptRunLog,
+      deleteAllScriptRunLogs,
       scriptExtractedMetricNames,
       setScriptExtractedMetricNames,
       workloadPreviewMetricStems,
       setWorkloadPreviewMetricStems,
+      storageRefreshNonce,
+      notifyStorageChanged,
+      storageDeletionInProgress,
+      beginStorageDeletion,
+      endStorageDeletion,
+      scriptRunInProgress,
+      setScriptRunInProgress,
+      observationGenerationActive,
+      setObservationGenerationActive,
+      markIntentAwaitingObservation,
+      intentIdsAwaitingObservation,
     }),
     [
       selectedDomain,
@@ -689,10 +861,21 @@ export function WorkspaceScriptSessionProvider({
       endActiveScriptRun,
       openRunLogDialog,
       closeRunLogDialog,
+      deleteSelectedScriptRunLog,
+      deleteAllScriptRunLogs,
       scriptExtractedMetricNames,
       setScriptExtractedMetricNames,
       workloadPreviewMetricStems,
       setWorkloadPreviewMetricStems,
+      storageRefreshNonce,
+      notifyStorageChanged,
+      storageDeletionInProgress,
+      beginStorageDeletion,
+      endStorageDeletion,
+      scriptRunInProgress,
+      observationGenerationActive,
+      markIntentAwaitingObservation,
+      intentIdsAwaitingObservation,
     ],
   );
 

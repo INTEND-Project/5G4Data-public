@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import {
+  intentListPollIntervalMs,
+  shouldPollIntentList,
+} from "@/components/workspace/intent-list-polling";
+import {
   deleteInStorageConfirmMessage,
   deleteInStorageLabel,
   DeleteStorageIcon,
@@ -12,7 +16,11 @@ import {
 import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
 import { intentsEqual, type IntentListEntryLike } from "@/lib/intents/intent-list-equality";
 
-type IntentListEntry = IntentListEntryLike;
+type IntentListEntry = IntentListEntryLike & {
+  dataStatus?: "pending" | "ready";
+  metricsReady?: number;
+  metricsTotal?: number;
+};
 
 type IntentsPanelProps = {
   selectedDomain: string;
@@ -25,6 +33,31 @@ type IntentsPanelProps = {
 
 const GRAFANA_CLICK_FEEDBACK_MS = 2000;
 
+function resolveIntentCardStatus(
+  intent: IntentListEntry,
+  intentIdsAwaitingObservation: ReadonlySet<string>,
+): "pending" | "ready" {
+  if (intent.dataStatus === "ready") {
+    return "ready";
+  }
+  if (intentIdsAwaitingObservation.has(intent.intentId)) {
+    return "pending";
+  }
+  return intent.dataStatus ?? "pending";
+}
+
+function intentDataStatusHint(intent: IntentListEntry, cardStatus: "pending" | "ready"): string {
+  if (cardStatus === "ready") {
+    return `Observation data ready (${intent.metricsReady ?? 0}/${intent.metricsTotal ?? 0} metrics in ${intent.storage}).`;
+  }
+  const ready = intent.metricsReady ?? 0;
+  const total = intent.metricsTotal ?? 0;
+  if (total > 0) {
+    return `Generating or storing observations (${ready}/${total} metrics in ${intent.storage})…`;
+  }
+  return `Waiting for observation data in ${intent.storage}…`;
+}
+
 export function IntentsPanel({
   selectedDomain,
   graphDbConnected,
@@ -33,7 +66,16 @@ export function IntentsPanel({
   intentsUrlBase,
   prometheusClearUrlBase,
 }: IntentsPanelProps) {
-  const latestScriptRunId = useWorkspaceScriptSession().scriptRunLogs[0]?.id ?? null;
+  const {
+    scriptRunLogs,
+    storageRefreshNonce,
+    beginStorageDeletion,
+    endStorageDeletion,
+    scriptRunInProgress,
+    observationGenerationActive,
+    intentIdsAwaitingObservation,
+  } = useWorkspaceScriptSession();
+  const latestScriptRunId = scriptRunLogs[0]?.id ?? null;
   const initialScriptRunIdRef = useRef(latestScriptRunId);
   const [intents, setIntents] = useState<IntentListEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,6 +88,8 @@ export function IntentsPanel({
   const [loadingDescriptions, setLoadingDescriptions] = useState<Record<string, boolean>>({});
   const intentDescriptionsRef = useRef(intentDescriptions);
   const loadingDescriptionsRef = useRef(loadingDescriptions);
+  const intentsRef = useRef(intents);
+  const loadInFlightRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     intentDescriptionsRef.current = intentDescriptions;
@@ -54,6 +98,10 @@ export function IntentsPanel({
   useEffect(() => {
     loadingDescriptionsRef.current = loadingDescriptions;
   }, [loadingDescriptions]);
+
+  useEffect(() => {
+    intentsRef.current = intents;
+  }, [intents]);
 
   useEffect(() => {
     const timeouts = grafanaFeedbackTimeoutsRef.current;
@@ -68,37 +116,62 @@ export function IntentsPanel({
   }, []);
 
   const loadIntents = useCallback(
-    async (options?: { background?: boolean }) => {
-      if (!options?.background) {
-        setIsLoading(true);
-        setActionError(null);
+    async (options?: { background?: boolean; lite?: boolean }) => {
+      if (options?.background && loadInFlightRef.current) {
+        return loadInFlightRef.current;
+      }
+
+      const run = async (): Promise<void> => {
+        if (!options?.background) {
+          setIsLoading(true);
+          setActionError(null);
+        }
+
+        try {
+          const params = new URLSearchParams({ domain: selectedDomain });
+          if (options?.lite) {
+            params.set("lite", "1");
+          }
+
+          const response = await fetch(`${intentsApiUrl}?${params.toString()}`, {
+            cache: "no-store",
+          });
+
+          if (!response.ok) {
+            throw new Error(`Intent discovery failed with ${response.status}`);
+          }
+
+          const payload = (await response.json()) as { intents: IntentListEntry[] };
+          const nextIntents = payload.intents ?? [];
+          setIntents((currentIntents) =>
+            intentsEqual(currentIntents, nextIntents) ? currentIntents : nextIntents,
+          );
+          if (!options?.background) {
+            setActionError(null);
+          }
+        } catch (error) {
+          console.error(error);
+          if (!options?.background) {
+            setActionError("Unable to load intents right now.");
+            setIntents([]);
+          }
+        } finally {
+          if (!options?.background) {
+            setIsLoading(false);
+          }
+        }
+      };
+
+      const promise = run();
+      if (options?.background) {
+        loadInFlightRef.current = promise;
       }
 
       try {
-        const params = new URLSearchParams({ domain: selectedDomain });
-        const response = await fetch(`${intentsApiUrl}?${params.toString()}`, { cache: "no-store" });
-
-        if (!response.ok) {
-          throw new Error(`Intent discovery failed with ${response.status}`);
-        }
-
-        const payload = (await response.json()) as { intents: IntentListEntry[] };
-        const nextIntents = payload.intents ?? [];
-        setIntents((currentIntents) =>
-          intentsEqual(currentIntents, nextIntents) ? currentIntents : nextIntents,
-        );
-        if (!options?.background) {
-          setActionError(null);
-        }
-      } catch (error) {
-        console.error(error);
-        if (!options?.background) {
-          setActionError("Unable to load intents right now.");
-          setIntents([]);
-        }
+        await promise;
       } finally {
-        if (!options?.background) {
-          setIsLoading(false);
+        if (loadInFlightRef.current === promise) {
+          loadInFlightRef.current = null;
         }
       }
     },
@@ -110,8 +183,79 @@ export function IntentsPanel({
       return;
     }
 
-    void loadIntents({ background: true });
+    void loadIntents({ background: true, lite: true });
   }, [latestScriptRunId, loadIntents]);
+
+  useEffect(() => {
+    if (storageRefreshNonce === 0) {
+      return;
+    }
+
+    setIntentDescriptions({});
+    setLoadingDescriptions({});
+    void loadIntents({ background: true, lite: true });
+  }, [storageRefreshNonce, loadIntents]);
+
+  const hasAnyBackend = graphDbConnected || prometheusConnected;
+  const shouldPollIntents = shouldPollIntentList({
+    intents,
+    intentIdsAwaitingObservation,
+    scriptRunInProgress,
+    observationGenerationActive,
+  });
+
+  useEffect(() => {
+    if (!hasAnyBackend || !shouldPollIntents) {
+      return;
+    }
+
+    let intervalId: number | undefined;
+
+    const tick = (): void => {
+      if (typeof document !== "undefined" && document.hidden) {
+        return;
+      }
+
+      const pollState = {
+        intents: intentsRef.current,
+        intentIdsAwaitingObservation,
+        scriptRunInProgress,
+        observationGenerationActive,
+      };
+
+      if (!shouldPollIntentList(pollState)) {
+        if (intervalId !== undefined) {
+          window.clearInterval(intervalId);
+          intervalId = undefined;
+        }
+        return;
+      }
+
+      void loadIntents({ background: true, lite: true });
+    };
+
+    const intervalMs = intentListPollIntervalMs({
+      scriptRunInProgress,
+      observationGenerationActive,
+      intentIdsAwaitingObservation,
+    });
+
+    tick();
+    intervalId = window.setInterval(tick, intervalMs);
+
+    return () => {
+      if (intervalId !== undefined) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [
+    hasAnyBackend,
+    intentIdsAwaitingObservation,
+    loadIntents,
+    observationGenerationActive,
+    scriptRunInProgress,
+    shouldPollIntents,
+  ]);
 
   const loadIntentDescription = useCallback(
     async (intentId: string) => {
@@ -177,7 +321,16 @@ export function IntentsPanel({
     return description ?? "No intent description found in GraphDB";
   }
 
-  function handleGrafanaClick(event: React.MouseEvent<HTMLAnchorElement>, intentId: string) {
+  function handleGrafanaClick(
+    event: React.MouseEvent<HTMLAnchorElement>,
+    intent: IntentListEntry,
+  ) {
+    const intentId = intent.intentId;
+    if (resolveIntentCardStatus(intent, intentIdsAwaitingObservation) !== "ready") {
+      event.preventDefault();
+      return;
+    }
+
     if (pendingGrafanaIntentIdsRef.current.has(intentId)) {
       event.preventDefault();
       return;
@@ -209,6 +362,7 @@ export function IntentsPanel({
 
     setDeletingIntentId(intent.intentId);
     setActionError(null);
+    beginStorageDeletion();
 
     try {
       const params = new URLSearchParams({ domain: selectedDomain });
@@ -233,10 +387,9 @@ export function IntentsPanel({
       setActionError(`Unable to ${deleteInStorageLabel(intent.storage).toLowerCase()} right now.`);
     } finally {
       setDeletingIntentId(null);
+      endStorageDeletion();
     }
   }
-
-  const hasAnyBackend = graphDbConnected || prometheusConnected;
 
   return (
     <section className="workspace-section">
@@ -245,14 +398,23 @@ export function IntentsPanel({
         <button
           aria-label="Refresh intent list"
           className="workspace-button workspace-button-secondary workspace-panel-refresh-button"
-          disabled={!hasAnyBackend || isLoading}
+          disabled={!hasAnyBackend || isLoading || deletingIntentId !== null}
           onClick={() => void loadIntents()}
-          title="Load intents from GraphDB and Prometheus"
+          title={
+            deletingIntentId
+              ? "Wait until the current delete finishes before refreshing"
+              : "Load intents from GraphDB and Prometheus"
+          }
           type="button"
         >
           {isLoading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
+      {deletingIntentId ? (
+        <p aria-live="polite" className="workspace-hint">
+          Deleting {deletingIntentId}…
+        </p>
+      ) : null}
       {actionError ? (
         <p aria-live="polite" className="workspace-hint">
           {actionError}
@@ -264,18 +426,25 @@ export function IntentsPanel({
             <strong>No storage backends reachable</strong>
             <p>Connect GraphDB or Prometheus to discover intents for this domain.</p>
           </article>
-        ) : isLoading ? (
+        ) : isLoading && deletingIntentId === null ? (
           <article className="workspace-card">
             <strong>Loading intents…</strong>
           </article>
-        ) : intents.length === 0 ? (
+        ) : intents.length === 0 && deletingIntentId === null ? (
           <article className="workspace-card">
             <strong>No intents loaded yet</strong>
             <p>Click Refresh to load intents from GraphDB and Prometheus, or run a script.</p>
           </article>
         ) : null}
-        {intents.map((intent) => (
-          <article className="workspace-card workspace-card-intent" key={intent.intentId}>
+        {intents.map((intent) => {
+          const cardStatus = resolveIntentCardStatus(intent, intentIdsAwaitingObservation);
+          const grafanaReady = cardStatus === "ready" && Boolean(intent.grafanaUrl);
+
+          return (
+          <article
+            className={`workspace-card workspace-card-intent workspace-card-intent--${cardStatus}`}
+            key={intent.intentId}
+          >
             <div className="workspace-heading-row workspace-intent-card-heading">
               <strong
                 className="workspace-intent-id-label"
@@ -285,7 +454,7 @@ export function IntentsPanel({
                 {intent.intentId}
               </strong>
               <div className="workspace-kg-target-actions">
-                {intent.grafanaUrl ? (
+                {grafanaReady ? (
                   <a
                     aria-busy={pendingGrafanaIntentIds.has(intent.intentId)}
                     aria-label={`Open Grafana dashboard for ${intent.intentId}`}
@@ -294,14 +463,14 @@ export function IntentsPanel({
                         ? " workspace-kg-target-action-grafana-pending"
                         : ""
                     }`}
-                    href={intent.grafanaUrl}
-                    onClick={(event) => handleGrafanaClick(event, intent.intentId)}
+                    href={intent.grafanaUrl!}
+                    onClick={(event) => handleGrafanaClick(event, intent)}
                     rel="noopener noreferrer"
                     target="_blank"
                     title={
                       pendingGrafanaIntentIds.has(intent.intentId)
                         ? "Opening Grafana dashboard…"
-                        : "Open Grafana timeseries dashboard for this intent"
+                        : "Open Grafana timeseries dashboard (historic time range aligned to stored observations)"
                     }
                   >
                     <GrafanaIcon />
@@ -311,7 +480,13 @@ export function IntentsPanel({
                     aria-label={`Grafana dashboard unavailable for ${intent.intentId}`}
                     className="workspace-button workspace-button-secondary workspace-kg-target-action"
                     disabled
-                    title="Configure GRAFANA_BASE_URL to open Grafana dashboards"
+                    title={
+                      intent.grafanaUrl
+                        ? intentDataStatusHint(intent, cardStatus)
+                        : cardStatus === "pending"
+                          ? intentDataStatusHint(intent, cardStatus)
+                          : "Configure GRAFANA_BASE_URL to open Grafana dashboards"
+                    }
                     type="button"
                   >
                     <GrafanaIcon />
@@ -333,8 +508,12 @@ export function IntentsPanel({
                 </button>
               </div>
             </div>
+            <p className="workspace-intent-data-status" title={intentDataStatusHint(intent, cardStatus)}>
+              {intentDataStatusHint(intent, cardStatus)}
+            </p>
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

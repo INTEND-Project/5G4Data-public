@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getAuthenticatedUser } from "@/lib/auth/guards";
-import { createRunLog, listRunLogsForUser } from "@/lib/run-logs/repository";
+import {
+  createRunLog,
+  deleteAllRunLogsForUser,
+  listRunLogsForUser,
+} from "@/lib/run-logs/repository";
 
 const createRunLogBodySchema = z.object({
   domain: z.string().trim().min(1),
@@ -74,4 +78,23 @@ export async function POST(request: Request) {
     },
     { status: 201 },
   );
+}
+
+export async function DELETE(request: Request) {
+  const user = await getAuthenticatedUser(request);
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const domain = searchParams.get("domain")?.trim();
+
+  if (!domain) {
+    return NextResponse.json({ error: "domain query parameter is required" }, { status: 400 });
+  }
+
+  const deletedCount = await deleteAllRunLogsForUser(user.id, domain);
+
+  return NextResponse.json({ ok: true, deletedCount });
 }

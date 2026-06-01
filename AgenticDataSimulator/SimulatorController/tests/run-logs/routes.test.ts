@@ -110,4 +110,52 @@ describe("run log routes", () => {
       },
     });
   });
+
+  it("deletes a single run log for the authenticated user and domain", async () => {
+    dbMock.scriptRunLog.deleteMany.mockResolvedValue({ count: 1 });
+
+    const routeModule = await import("../../src/app/api/run-logs/[id]/route");
+    const response = await routeModule.DELETE(
+      new Request("http://localhost/api/run-logs/run-1?domain=telenor.5g4data"),
+      { params: Promise.resolve({ id: "run-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(dbMock.scriptRunLog.deleteMany).toHaveBeenCalledWith({
+      where: {
+        id: "run-1",
+        userId: "user-1",
+        domain: "telenor.5g4data",
+      },
+    });
+  });
+
+  it("returns 404 when deleting a missing run log", async () => {
+    dbMock.scriptRunLog.deleteMany.mockResolvedValue({ count: 0 });
+
+    const routeModule = await import("../../src/app/api/run-logs/[id]/route");
+    const response = await routeModule.DELETE(
+      new Request("http://localhost/api/run-logs/missing?domain=telenor.5g4data"),
+      { params: Promise.resolve({ id: "missing" }) },
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it("deletes all run logs for the authenticated user and domain", async () => {
+    dbMock.scriptRunLog.deleteMany.mockResolvedValue({ count: 3 });
+
+    const routeModule = await import("../../src/app/api/run-logs/route");
+    const response = await routeModule.DELETE(
+      new Request("http://localhost/api/run-logs?domain=telenor.5g4data"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(dbMock.scriptRunLog.deleteMany).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        domain: "telenor.5g4data",
+      },
+    });
+  });
 });

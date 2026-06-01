@@ -4,6 +4,9 @@ export type IntentListEntryLike = {
   intentId: string;
   storage: ObservationStorageType;
   grafanaUrl: string | null;
+  dataStatus?: "pending" | "ready";
+  metricsReady?: number;
+  metricsTotal?: number;
 };
 
 export function intentsEqual(left: IntentListEntryLike[], right: IntentListEntryLike[]): boolean {
@@ -15,6 +18,9 @@ export function intentsEqual(left: IntentListEntryLike[], right: IntentListEntry
     (intent, index) =>
       intent.intentId === right[index]?.intentId &&
       intent.storage === right[index]?.storage &&
-      intent.grafanaUrl === right[index]?.grafanaUrl,
+      intent.grafanaUrl === right[index]?.grafanaUrl &&
+      (intent.dataStatus ?? "pending") === (right[index]?.dataStatus ?? "pending") &&
+      (intent.metricsReady ?? 0) === (right[index]?.metricsReady ?? 0) &&
+      (intent.metricsTotal ?? 0) === (right[index]?.metricsTotal ?? 0),
   );
 }

@@ -1,8 +1,6 @@
 import { buildIntentGrafanaUrl } from "@/lib/grafana/intent-dashboard-url";
-import {
-  fetchCompoundMetricsForIntent,
-  resolveObservationTimeBounds,
-} from "@/lib/intents/observation-time-bounds";
+import { assessIntentDataReadiness, type IntentDataStatus } from "@/lib/intents/intent-data-readiness";
+import { fetchCompoundMetricsForIntent } from "@/lib/intents/observation-time-bounds";
 import {
   fetchMetricQueryMetadata,
   resolveObservationStorageFromMetadata,
@@ -11,6 +9,10 @@ import {
 import { listIntentIdsFromGraph } from "@/lib/kg/fetch-intent-turtle";
 import type { ObservationStorageType } from "@/lib/observation-storage";
 import { getPrometheusConnectionStatus } from "@/lib/prometheus/status";
+import {
+  getLiteListCacheEntry,
+  setLiteListCacheEntry,
+} from "@/lib/intents/list-intents-cache";
 import { listIntentIds } from "@/lib/prometheus/client";
 
 export type IntentTargetRef = {
@@ -21,9 +23,13 @@ export type IntentTargetRef = {
 export type IntentListEntry = {
   intentId: string;
   storage: ObservationStorageType;
+  /** Present only when all expected observation metrics are stored and Grafana can use historic bounds. */
   grafanaUrl: string | null;
   repositoryId: string | null;
   graphIri: string | null;
+  dataStatus: IntentDataStatus;
+  metricsReady: number;
+  metricsTotal: number;
 };
 
 export type ListIntentsMode = "lite" | "full";
@@ -36,15 +42,9 @@ export type ListIntentsOptions = {
   grafanaLoginUsername?: string | null;
 };
 
-const LITE_LIST_CACHE_TTL_MS = 15_000;
 const INTENT_ENRICH_CONCURRENCY = 5;
 
-type LiteListCacheEntry = {
-  expiresAt: number;
-  intents: IntentListEntry[];
-};
-
-const liteListCache = new Map<string, LiteListCacheEntry>();
+export { invalidateLiteListCache } from "@/lib/intents/list-intents-cache";
 
 async function mapWithConcurrency<T, R>(
   items: T[],
@@ -112,38 +112,52 @@ async function enrichIntentEntry(input: {
     prometheusSet.has(intentId),
   );
 
-  const bounds = await resolveObservationTimeBounds({
+  const readiness = await assessIntentDataReadiness({
     intentId,
+    storage,
     repositoryId: hasGraphTarget && owner ? owner.repositoryId : null,
     graphIri: hasGraphTarget && owner ? owner.graphIri : null,
     compoundMetrics,
     metricMetadata,
   });
 
+  const repositoryId = hasGraphTarget && owner ? owner.repositoryId : null;
+  const graphIri = hasGraphTarget && owner ? owner.graphIri : null;
+
   return {
     intentId,
     storage,
-    grafanaUrl: buildIntentGrafanaUrl({
-      intentId,
-      conditionMetrics: compoundMetrics,
-      bounds,
-      repositoryId: hasGraphTarget && owner ? owner.repositoryId : null,
-      graphIri: hasGraphTarget && owner ? owner.graphIri : null,
-      loginUsername: grafanaLoginUsername,
-    }),
-    repositoryId: hasGraphTarget && owner ? owner.repositoryId : null,
-    graphIri: hasGraphTarget && owner ? owner.graphIri : null,
+    grafanaUrl:
+      readiness.status === "ready"
+        ? buildIntentGrafanaUrl({
+            intentId,
+            conditionMetrics: compoundMetrics,
+            bounds: readiness.bounds,
+            repositoryId,
+            graphIri,
+            loginUsername: grafanaLoginUsername,
+          })
+        : null,
+    repositoryId,
+    graphIri,
+    dataStatus: readiness.status,
+    metricsReady: readiness.metricsReady,
+    metricsTotal: readiness.metricsTotal,
   };
 }
 
 async function resolveIntentOwners(
   targets: IntentTargetRef[],
   intentIds: string[],
-): Promise<Map<string, IntentTargetRef>> {
+): Promise<{
+  owners: Map<string, IntentTargetRef>;
+  graphPresentIds: Set<string>;
+}> {
   const intentOwners = new Map<string, IntentTargetRef>();
+  const graphPresentIds = new Set<string>();
 
   if (targets.length === 0 || intentIds.length === 0) {
-    return intentOwners;
+    return { owners: intentOwners, graphPresentIds };
   }
 
   const targetIntentIdLists = await Promise.all(
@@ -157,8 +171,11 @@ async function resolveIntentOwners(
 
   for (const { target, ids } of targetIntentIdLists) {
     for (const intentId of ids) {
-      if (ownedSet.has(intentId) && !intentOwners.has(intentId)) {
-        intentOwners.set(intentId, target);
+      if (ownedSet.has(intentId)) {
+        graphPresentIds.add(intentId);
+        if (!intentOwners.has(intentId)) {
+          intentOwners.set(intentId, target);
+        }
       }
     }
   }
@@ -169,7 +186,7 @@ async function resolveIntentOwners(
     }
   }
 
-  return intentOwners;
+  return { owners: intentOwners, graphPresentIds };
 }
 
 export async function listIntentsForDomain(
@@ -180,9 +197,9 @@ export async function listIntentsForDomain(
   const ownedIntentIds = options.ownedIntentIds ?? [];
 
   if (mode === "lite" && options.cacheKey) {
-    const cached = liteListCache.get(options.cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.intents;
+    const cached = getLiteListCacheEntry(options.cacheKey);
+    if (cached) {
+      return cached.intents as IntentListEntry[];
     }
   }
 
@@ -192,8 +209,13 @@ export async function listIntentsForDomain(
 
   const prometheusIntentIds = await listPrometheusIntentIds();
   const prometheusSet = new Set(prometheusIntentIds);
-  const intentOwners = await resolveIntentOwners(targets, ownedIntentIds);
-  const intentIds = [...ownedIntentIds].sort((left, right) => left.localeCompare(right));
+  const { owners: intentOwners, graphPresentIds } = await resolveIntentOwners(
+    targets,
+    ownedIntentIds,
+  );
+  const intentIds = [...ownedIntentIds]
+    .filter((intentId) => graphPresentIds.has(intentId) || prometheusSet.has(intentId))
+    .sort((left, right) => left.localeCompare(right));
 
   const entries = await mapWithConcurrency(intentIds, INTENT_ENRICH_CONCURRENCY, (intentId) =>
     enrichIntentEntry({
@@ -206,10 +228,7 @@ export async function listIntentsForDomain(
   );
 
   if (mode === "lite" && options.cacheKey) {
-    liteListCache.set(options.cacheKey, {
-      expiresAt: Date.now() + LITE_LIST_CACHE_TTL_MS,
-      intents: entries,
-    });
+    setLiteListCacheEntry(options.cacheKey, entries);
   }
 
   return entries;

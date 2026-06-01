@@ -22,6 +22,7 @@ import {
   ensureAgentApiKeyForClone,
   readDotEnvKey,
   syncAgentApiKeyToConsumers,
+  syncGraphDbCredentialsToClone,
   updateEnvFile
 } from "./core/envConfigWriter.js";
 import type { AgentTurnResult, ChatSession } from "./models.js";
@@ -361,6 +362,8 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   const clonePackage = loadDomainPackage(cloned.cloneDir);
   const card = buildAgentCard(cloneConfig, clonePackage);
   const syncResults = syncAgentApiKeyToConsumers(baselineAgentDir, card.name, agentApiKey);
+  const controllerEnvPath = join(resolve(baselineAgentDir, ".."), "SimulatorController", ".env");
+  syncGraphDbCredentialsToClone(controllerEnvPath, cloneEnvPath);
   await prepareAndRegisterA2A(cloneConfig, clonePackage, cloned.cloneDir, "package_load");
   pruneClonePackagingArtifacts(cloned.cloneDir);
 

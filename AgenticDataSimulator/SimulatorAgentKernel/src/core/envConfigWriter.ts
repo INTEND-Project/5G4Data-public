@@ -101,6 +101,8 @@ export function ensureAgentApiKeyForClone(cloneEnvPath: string): string {
 
 const AGENT_API_KEYS_ENV_KEY = "AGENT_API_KEYS";
 
+const GRAPHDB_CREDENTIAL_KEYS = ["GRAPHDB_USERNAME", "GRAPHDB_PASSWORD"] as const;
+
 function stripEnvQuotes(value: string): string {
   const trimmed = value.trim();
   if (
@@ -194,6 +196,67 @@ function syncAgentApiKeyToEnvFile(
   const after = readAgentApiKeysMap(envFilePath);
   const updated = before[agentName] !== after[agentName] || !(agentName in before);
   return { path: envFilePath, updated, skipped: false };
+}
+
+export interface SyncGraphDbCredentialsResult {
+  path: string;
+  updated: boolean;
+  skipped: boolean;
+  reason?: string;
+}
+
+function readGraphDbCredentialUpdates(controllerEnvPath: string): EnvUpdate[] {
+  const updates: EnvUpdate[] = [];
+  for (const key of GRAPHDB_CREDENTIAL_KEYS) {
+    const value = readDotEnvKey(controllerEnvPath, key);
+    if (value === undefined) continue;
+    if (key === "GRAPHDB_PASSWORD") {
+      if (value.length === 0) continue;
+      updates.push({ key, value });
+      continue;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    updates.push({ key, value: trimmed });
+  }
+  return updates;
+}
+
+/** Copy GraphDB auth settings from Controller `.env` into a clone `.env`. */
+export function syncGraphDbCredentialsToClone(
+  controllerEnvPath: string,
+  cloneEnvPath: string
+): SyncGraphDbCredentialsResult {
+  if (!existsSync(controllerEnvPath)) {
+    return {
+      path: cloneEnvPath,
+      updated: false,
+      skipped: true,
+      reason: `missing controller env: ${controllerEnvPath}`
+    };
+  }
+  const updates = readGraphDbCredentialUpdates(controllerEnvPath);
+  if (updates.length === 0) {
+    return {
+      path: cloneEnvPath,
+      updated: false,
+      skipped: true,
+      reason: "no GraphDB credentials in controller env"
+    };
+  }
+  if (!existsSync(cloneEnvPath)) {
+    return {
+      path: cloneEnvPath,
+      updated: false,
+      skipped: true,
+      reason: `missing clone env: ${cloneEnvPath}`
+    };
+  }
+  const before = GRAPHDB_CREDENTIAL_KEYS.map((key) => readDotEnvKey(cloneEnvPath, key) ?? "");
+  updateEnvFile(cloneEnvPath, updates);
+  const after = GRAPHDB_CREDENTIAL_KEYS.map((key) => readDotEnvKey(cloneEnvPath, key) ?? "");
+  const updated = before.some((value, index) => value !== after[index]);
+  return { path: cloneEnvPath, updated, skipped: false };
 }
 
 /** Merge clone agent key into SimulatorController and a2a-registry consumer .env files. */

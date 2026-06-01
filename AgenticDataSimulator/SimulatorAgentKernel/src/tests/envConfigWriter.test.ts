@@ -3,7 +3,15 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ensureAgentApiKeyForClone, readAgentApiKeysMap, syncAgentApiKeyToConsumers, updateEnvFile, upsertAgentApiKeysEntry } from "../core/envConfigWriter.js";
+import {
+  ensureAgentApiKeyForClone,
+  readAgentApiKeysMap,
+  readDotEnvKey,
+  syncAgentApiKeyToConsumers,
+  syncGraphDbCredentialsToClone,
+  updateEnvFile,
+  upsertAgentApiKeysEntry
+} from "../core/envConfigWriter.js";
 
 test("updateEnvFile upserts domain and skill values", () => {
   const dir = mkdtempSync(join(tmpdir(), "env-writer-"));
@@ -97,4 +105,23 @@ test("syncAgentApiKeyToConsumers updates .env.dev when present", () => {
   assert.equal(results.every((result) => result.updated), true);
 
   assert.equal(readAgentApiKeysMap(controllerDevEnv)["demo-agent"], "secret-key");
+});
+
+test("syncGraphDbCredentialsToClone copies username and password from controller env", () => {
+  const root = mkdtempSync(join(tmpdir(), "env-graphdb-sync-"));
+  const controllerEnv = join(root, "SimulatorController", ".env");
+  const cloneEnv = join(root, "clone", ".env");
+  mkdirSync(join(root, "SimulatorController"), { recursive: true });
+  mkdirSync(join(root, "clone"), { recursive: true });
+  writeFileSync(
+    controllerEnv,
+    "GRAPHDB_BASE_URL=https://start5g-1.cs.uit.no/graphdb/\nGRAPHDB_USERNAME=telenor\nGRAPHDB_PASSWORD=partner-secret\n",
+    "utf8"
+  );
+  writeFileSync(cloneEnv, "GRAPHDB_ENDPOINT=https://example/graphdb/repositories/demo\n", "utf8");
+
+  const result = syncGraphDbCredentialsToClone(controllerEnv, cloneEnv);
+  assert.equal(result.updated, true);
+  assert.equal(readDotEnvKey(cloneEnv, "GRAPHDB_USERNAME"), "telenor");
+  assert.equal(readDotEnvKey(cloneEnv, "GRAPHDB_PASSWORD"), "partner-secret");
 });

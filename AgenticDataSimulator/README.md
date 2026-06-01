@@ -102,6 +102,8 @@ The proxy reads metric query URLs from GraphDB (`http://intent-reports-metadata`
 
 Import both JSON files into Grafana. Setup steps (plugins, datasources): [`../IntentDashboard/src/START-GRAFANA.md`](../IntentDashboard/src/START-GRAFANA.md). The controller Grafana icon uses `GRAFANA_TIMESERIES_DASHBOARD_UID=Simulator-5g4data-Metrics` (see `SimulatorController/.env.example`). Timeseries panels call IntentReportQueryProxy with `repository_id=${repository_id}` from the dashboard URL (same KG target as SPARQL panels). Re-import dashboards after JSON changes (`./Grafana/import-dashboards.sh`). Restart the proxy after updates (`cd IntentReportQueryProxy && docker compose up -d --build`).
 
+**GraphDB security:** SPARQL panels use the `flandersmake-sparql-datasource` (not inline auth in dashboard JSON). After enabling GraphDB HTTP Basic auth, set `GRAPHDB_USERNAME` / `GRAPHDB_PASSWORD` in `SimulatorController/.env`, then run `./Grafana/configure-jwt-auth.sh` (renders `provisioning/datasources/graphdb-sparql.yaml` with real credentials, restarts Grafana). Grafana does not expand `${GRAPHDB_PASSWORD}` placeholders in provisioning files—always use the configure script after changing `.env`.
+
 **Simulator agents:**
 
 ```bash
@@ -112,7 +114,7 @@ curl -sf http://127.0.0.1:3012/health
 
 ### SimulatorController
 
-Copy and edit `.env` from `.env.example` before the first run (`APP_BASE_PATH`, GraphDB/registry URLs, `AGENT_API_KEYS`, etc.). When both `GRAFANA_BASE_URL` and `GRAFANA_ADMIN_PASSWORD` are set, registering a Controller user also creates a Grafana account with the same username and password (via the Grafana Admin API and the `admin` credentials in `.env`). For users created before that feature, run `cd SimulatorController && npm run grafana:provision-users` with `--password` or `scripts/grafana-user-passwords.env` (see `scripts/grafana-user-passwords.env.example`). For one-click Grafana from the Intents panel (no separate Grafana login), set `GRAFANA_JWT_SECRET` in `.env` and run `./Grafana/configure-jwt-auth.sh` to enable JWT URL login on the Grafana instance.
+Copy and edit `.env` from `.env.example` before the first run (`APP_BASE_PATH`, GraphDB/registry URLs, `GRAPHDB_USERNAME` / `GRAPHDB_PASSWORD`, `AGENT_API_KEYS`, etc.). When both `GRAFANA_BASE_URL` and `GRAFANA_ADMIN_PASSWORD` are set, registering a Controller user also creates a Grafana account with the same username and password (via the Grafana Admin API and the `admin` credentials in `.env`). For users created before that feature, run `cd SimulatorController && npm run grafana:provision-users` with `--password` or `scripts/grafana-user-passwords.env` (see `scripts/grafana-user-passwords.env.example`). For one-click Grafana from the Intents panel (no separate Grafana login), set `GRAFANA_JWT_SECRET` in `.env` and run `./Grafana/configure-jwt-auth.sh` to enable JWT URL login on the Grafana instance. Users listed in `GRAFANA_JWT_EDITOR_USERS` (default `arneme`) receive a JWT `role: Editor` claim for the main org; others stay Viewer.
 
 **Production (recommended)** — faster and more responsive, especially when using the UI from a remote browser:
 
@@ -158,7 +160,7 @@ Open `http://localhost:3000/tmf-simulator` (see `APP_BASE_PATH` in `SimulatorCon
 | | Production | Dev lab |
 |---|------------|---------|
 | Port | 3000 | 3001 |
-| Process | `next start` (systemd) | `next dev` (`npm run dev:lab`) |
+| Process | `next start` (systemd) | `next dev` (`npm run dev:lab`) or `next start` (`npm run dev:lab:fast`) |
 | Env | `.env` | `.env.dev` |
 | Base path | `/tmf-simulator` | `/tmf-simulator-dev` |
 | SQLite | prod DB (e.g. `dev.db`) | `dev-lab.db` (copy of prod) |
@@ -173,6 +175,16 @@ cp .env.dev.example .env.dev
 npm run db:sync-from-prod    # copy prod SQLite → dev-lab.db
 npm run dev:lab
 ```
+
+**Dev lab feels sluggish?** `next dev` recompiles API routes on demand and is typically **10–20× slower** than `next start`. For everyday UI work on port 3001, prefer the fast dev lab (prod-like speed; rebuild after code changes):
+
+```bash
+cd SimulatorController
+npm run dev:lab:build   # once, or after you change Controller code
+npm run dev:lab:fast    # next start on port 3001
+```
+
+Keep `npm run dev:lab` when you need hot reload while editing React/TS files.
 
 Refresh dev users/scripts from prod (stop dev first): `npm run db:sync-from-prod`
 
@@ -263,6 +275,7 @@ Set in the observation clone `.env` (see `SimulatorAgentPackages/5g4data-intent-
 | Variable | Purpose |
 |----------|---------|
 | `GRAPHDB_ENDPOINT` | SPARQL endpoint for intents and observation Turtle |
+| `GRAPHDB_USERNAME` / `GRAPHDB_PASSWORD` | HTTP Basic auth for GraphDB (synced from `SimulatorController/.env` on `package load`) |
 | `GRAPHDB_NAMED_GRAPH` | Named graph for observation reports (e.g. `http://intent-reports`) |
 | `PROMETHEUS_URL` | Prometheus API base for GraphDB `hasQuery` metadata (IntentReportQueryProxy reads this URL); use `http://127.0.0.1:9090/prometheus` on start5g-1 |
 | `PROMETHEUS_REMOTE_WRITE_URL` | Historic observation batch write endpoint; use `http://host.docker.internal:9090/prometheus/api/v1/write` from Dockerized agent |

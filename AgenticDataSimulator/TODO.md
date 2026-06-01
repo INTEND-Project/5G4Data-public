@@ -7,10 +7,18 @@ When the first "working" version of the AgenticDataSimulator was up and running 
 - [ ] The different tools (inCoord, inSustain, inExplain) may have requirements on how the timeseries needs to be created that is currently not supported. We need to include support for those requirements both in scripts (extend the DSL, add support for freetext key words, etc.) and in the SimulatorAgentPackages/5g4data-intent-observations agent package. Support in the agent can be implemented using more prompt modules (e.g SimulatorAgentPackages/5g4data-intent-observations/prompt_modules), as code (parse keywords in structured and freetext used in "request observation-report ..." commands in scripts and add code to support it), as refinements of the agent SKILL.md file, as agent tools, etc.
 
 ### Easy TODO´s?
-
+- [ ] "Show metrics" button action only reports what is in the helm chart values.yaml file and not what could be result of network expectations. Find a way to fix this.
+- [ ] Open up for API access to GraphDB so that Mario and Andrea can access our GraphDB server. Add security and basic authorisation before we allow access. Send Mario description of how the metadata query thingy works.
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed
+- [x] Grafana sometimes has timeframe set to 3h-now for historic generated data. Fix it.
+- [x] Let list items in the Intents list be yellow until the generation of data is complete. When it is complete, change the color to green. Do not allow the user to click on the Grafana button until all data has been succesfully written to Prometheus (or GraphDB,depending on the storage type selected).
+- [x] Make it possible to resize the "Run script log" window.
+- [x] Do not allow running of scripts while data in Prometheus or the KG is being deleted since it may result in new data being wiped out or blocked for writing. If user tries to click "Run Script": popup a message to wait until deletion is completed.
+- [x] Add "Delete selected log" and a "Delete all run script logs" trashcan icons next to "Show selected logs". Ask for confirmation (stating that either the selected log or all logs will be deleted).
+- [x] Check that metadata is present for sustainability metrics
+- [x] Fix bug in the intent list, old intents are still showing after KG clearing.
 - [x] Add a button in the controller that shows the metrics for the workload that would be selected by the "create intent" command.
 - [x] Add a dev version for further development on a different port so that the prod version does not go up/down for users all the time during development
 - [x] Add to the workload catalogue the posibility to view the metric names for the objectives and sustainability part of the values.yaml file. This will make it easier to see what the metric names in the request commands should be.

@@ -62,7 +62,7 @@ data5g:CO<uuid4> a icm:Condition ;
 
 data5g:CO<uuid4> a icm:Condition ;
     dct:description "Latency condition quan:smaller: <value>ms" ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:networklatency___ID_CONDITION_LATENCY_1__ ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:latency___ID_CONDITION_LATENCY_1__ ;
             quan:smaller [ quan:unit "ms" ;
                     rdf:value <value> ] ] .
 
@@ -351,7 +351,7 @@ Do not invent unsupported context properties. `data5g:DeploymentDescriptor` must
 - Keep one consistent naming pattern per file.
 - Preferred forms during generation (placeholders):
   - bandwidth: `data5g:bandwidth___ID_CONDITION_BANDWIDTH_1__`
-  - latency: `data5g:networklatency___ID_CONDITION_LATENCY_1__`
+  - latency: `data5g:latency___ID_CONDITION_LATENCY_1__`
   - deployment metric: `data5g:<objective-name>___ID_CONDITION_<LABEL>_1__`
 - Final form after postprocessing: `data5g:<metric-stem>_CO<uuid4>` (for example `data5g:p99-token-target_COf7f31f2dd17c4cbc91eaa95f1109879b`).
 

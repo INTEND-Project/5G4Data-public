@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   appendGeneratedObservation,
+  appendObservationError,
   DEFAULT_OBS_LOG_N,
   observationLogPathForMetric,
   observationProgramPathForMetric,
@@ -125,6 +126,31 @@ test("writeObservationProgramLog stores sampler body with metric in filename", (
     const text = readFileSync(path, "utf8");
     assert.ok(text.includes("// metric: latency_COdeadbeefdeadbeefdeadbeefdeadbe"));
     assert.ok(text.includes(body));
+  } finally {
+    if (prev === undefined) delete process.env.OBSERVATION_LOG_PATH;
+    else process.env.OBSERVATION_LOG_PATH = prev;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("appendObservationError writes persistent NDJSON error log", () => {
+  const prev = process.env.OBSERVATION_LOG_PATH;
+  const dir = mkdtempSync(join(tmpdir(), "obs-log-err-"));
+  process.env.OBSERVATION_LOG_PATH = dir;
+  try {
+    appendObservationError({
+      kind: "prometheus_remote_write_flush_failed",
+      message: "Prometheus remote write flush failed for 100 buffered samples",
+      intentId: "Iabc",
+      metric: "p99-token-target_COabc",
+      sampleCount: 100,
+    });
+    const raw = readFileSync(join(dir, "observation-errors.ndjson"), "utf8").trim();
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    assert.equal(parsed.schemaVersion, "observation_error_v1");
+    assert.equal(parsed.kind, "prometheus_remote_write_flush_failed");
+    assert.equal(parsed.metric, "p99-token-target_COabc");
+    assert.equal(parsed.sampleCount, 100);
   } finally {
     if (prev === undefined) delete process.env.OBSERVATION_LOG_PATH;
     else process.env.OBSERVATION_LOG_PATH = prev;

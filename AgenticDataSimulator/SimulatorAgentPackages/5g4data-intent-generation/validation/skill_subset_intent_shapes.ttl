@@ -156,7 +156,7 @@ data5g:NetworkExpectationShape
     ] ;
     sh:sparql [
         a sh:SPARQLConstraint ;
-        sh:message "NetworkExpectation must include at least one referenced condition using a latency metric property (data5g:networklatency_* or data5g:latency_*)." ;
+        sh:message "NetworkExpectation must include at least one referenced condition using a latency metric property (data5g:latency_*)." ;
         sh:select """
             SELECT $this
             WHERE {
@@ -166,10 +166,7 @@ data5g:NetworkExpectationShape
                 ?cond a icm:Condition ;
                       set:forAll ?fa .
                 ?fa icm:valuesOfTargetProperty ?metric .
-                FILTER(
-                  STRSTARTS(STR(?metric), "http://5g4data.eu/5g4data#networklatency_") ||
-                  STRSTARTS(STR(?metric), "http://5g4data.eu/5g4data#latency_")
-                )
+                FILTER(STRSTARTS(STR(?metric), "http://5g4data.eu/5g4data#latency_"))
               }
             }
         """

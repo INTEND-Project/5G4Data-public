@@ -7,7 +7,7 @@ import {
   type GraphDbEnvFallback,
   type GraphTargetBinding
 } from "./graphTargetBinding.js";
-import { writeObservationProgramLog } from "./observationLog.js";
+import { appendObservationError, writeObservationProgramLog } from "./observationLog.js";
 import { ObservationTool } from "./observationTool.js";
 import type { ObservationStorageId } from "./observationStorageTypes.js";
 import { DEFAULT_OBSERVATION_STORAGE } from "./observationStorageTypes.js";
@@ -224,6 +224,19 @@ export async function startSyntheticObservationFromParsed(args: {
 
     cp.on("error", (error) => {
       process.stderr.write(`synthetic spawn error (${resolvedMetric}): ${String(error)}\n`);
+    });
+
+    cp.on("exit", (code, signal) => {
+      if (code === 0 || code === null) return;
+      const signalNote = signal ? ` (signal ${signal})` : "";
+      appendObservationError({
+        kind: "synthetic_worker_exit",
+        message: `Synthetic worker for ${resolvedMetric} exited with code ${code}${signalNote}`,
+        metric: resolvedMetric,
+        intentId: args.parsed.intentId,
+        sessionId: args.sessionId,
+        exitCode: code,
+      });
     });
 
     spawned.push({ compoundMetric: resolvedMetric, child: cp });

@@ -73,7 +73,12 @@ test("buffer mode accumulates and flush calls remote write once", async () => {
     assert.equal(await backend.persistObservation(bufferCtx), true);
 
     assert.equal(remoteWriteCalls, 0);
-    assert.equal(await flushBufferedPrometheusRemoteWrite(), true);
+    const flushResult = await flushBufferedPrometheusRemoteWrite({
+      intentId: "Iabc",
+      metric: "p99-token-target_COabc",
+    });
+    assert.equal(flushResult.ok, true);
+    assert.equal(flushResult.sampleCount, 2);
     assert.equal(remoteWriteCalls, 1);
   } finally {
     globalThis.fetch = originalFetch;

@@ -1,4 +1,5 @@
 import { graphDbResponseSchema } from "../models.js";
+import { graphDbAuthHeaders } from "./graphdbAuth.js";
 
 export const NEAREST_EDGE_DATACENTER_QUERY = `
 PREFIX schema: <https://intendproject.eu/schema/>
@@ -32,7 +33,10 @@ export class GraphDbTool {
   async nearestEdgeCandidates(): Promise<Array<Record<string, { value: string }>>> {
     const response = await fetch(this.endpoint, {
       method: "POST",
-      headers: { Accept: "application/sparql-results+json", "Content-Type": "application/x-www-form-urlencoded" },
+      headers: graphDbAuthHeaders({
+        Accept: "application/sparql-results+json",
+        "Content-Type": "application/x-www-form-urlencoded"
+      }),
       body: new URLSearchParams({ query: this.buildQuery() }).toString()
     });
     if (!response.ok) {
@@ -46,7 +50,7 @@ export class GraphDbTool {
     const statementsUrl = this.endpoint.replace(/\/sparql$/, "").replace(/\/$/, "").concat("/statements");
     const response = await fetch(statementsUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/x-turtle" },
+      headers: graphDbAuthHeaders({ "Content-Type": "application/x-turtle" }),
       body: turtle
     });
     return response.ok;

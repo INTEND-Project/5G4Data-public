@@ -61,9 +61,21 @@ export class PrometheusTool {
     return response.ok;
   }
 
-  async remoteWriteBatch(samples: PrometheusSample[]): Promise<boolean> {
+  async remoteWriteBatch(samples: PrometheusSample[]): Promise<{
+    ok: boolean;
+    sampleCount: number;
+    error?: string;
+    remoteWriteUrl?: string;
+  }> {
     const url = this.remoteWriteUrl;
-    if (!url || samples.length === 0) return false;
+    if (!url || samples.length === 0) {
+      return {
+        ok: false,
+        sampleCount: 0,
+        error: !url ? "PROMETHEUS_REMOTE_WRITE_URL is not configured" : "No samples to remote write",
+        remoteWriteUrl: url,
+      };
+    }
 
     const remoteSamples: RemoteWriteSample[] = samples
       .filter((s) => s.timestampMs !== undefined)
@@ -74,15 +86,37 @@ export class PrometheusTool {
         timestampMs: Math.trunc(s.timestampMs!)
       }));
 
-    if (remoteSamples.length === 0) return false;
+    if (remoteSamples.length === 0) {
+      return {
+        ok: false,
+        sampleCount: 0,
+        error: "No samples with valid obtainedAt timestamps for remote write",
+        remoteWriteUrl: url,
+      };
+    }
 
     try {
-      return await postRemoteWrite(url, remoteSamples);
+      const ok = await postRemoteWrite(url, remoteSamples);
+      if (!ok) {
+        const message = `Prometheus remote write rejected (${remoteSamples.length} samples)`;
+        process.stderr.write(`${message}\n`);
+        return {
+          ok: false,
+          sampleCount: remoteSamples.length,
+          error: message,
+          remoteWriteUrl: url,
+        };
+      }
+      return { ok: true, sampleCount: remoteSamples.length, remoteWriteUrl: url };
     } catch (err) {
-      process.stderr.write(
-        `Prometheus remote write failed (${remoteSamples.length} samples): ${String(err)}\n`
-      );
-      return false;
+      const message = `Prometheus remote write failed (${remoteSamples.length} samples): ${String(err)}`;
+      process.stderr.write(`${message}\n`);
+      return {
+        ok: false,
+        sampleCount: remoteSamples.length,
+        error: message,
+        remoteWriteUrl: url,
+      };
     }
   }
 }

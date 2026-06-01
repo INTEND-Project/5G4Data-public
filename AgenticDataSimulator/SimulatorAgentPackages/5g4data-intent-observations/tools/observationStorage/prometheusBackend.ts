@@ -1,3 +1,7 @@
+import {
+  appendObservationError,
+  type ObservationLogSource,
+} from "../observationLog.js";
 import { ObservationTool } from "../observationTool.js";
 import {
   prometheusQueryLabels,
@@ -5,6 +9,19 @@ import {
 } from "../prometheusMetricNaming.js";
 import { PrometheusTool, type PrometheusSample } from "../prometheusTool.js";
 import type { ObservationPersistContext } from "./persistContext.js";
+
+export type PrometheusRemoteWriteFlushContext = {
+  intentId?: string;
+  metric?: string;
+  sessionId?: string;
+  source?: ObservationLogSource;
+};
+
+export type PrometheusRemoteWriteFlushResult = {
+  ok: boolean;
+  sampleCount: number;
+  error?: string;
+};
 
 function prometheusPushLabels(ctx: ObservationPersistContext): Record<string, string> {
   const parsed = ObservationTool.parseMetricCompound(ctx.compoundMetric);
@@ -41,18 +58,59 @@ export function resetPrometheusBufferForTests(): void {
   bufferedTool = null;
 }
 
-export async function flushBufferedPrometheusRemoteWrite(): Promise<boolean> {
-  if (bufferedSamples.length === 0) return true;
-  const tool = bufferedTool;
-  if (!tool) return false;
-  const batch = bufferedSamples.splice(0, bufferedSamples.length);
-  const ok = await tool.remoteWriteBatch(batch);
-  if (!ok) {
-    process.stderr.write(
-      `Warning: Prometheus remote write flush failed for ${batch.length} buffered samples\n`
-    );
+function inferFlushIntentId(
+  batch: PrometheusSample[],
+  ctx?: PrometheusRemoteWriteFlushContext,
+): string | undefined {
+  if (ctx?.intentId?.trim()) return ctx.intentId.trim();
+  const intentId = batch[0]?.labels?.intent_id;
+  return typeof intentId === "string" && intentId.length > 0 ? intentId : undefined;
+}
+
+export async function flushBufferedPrometheusRemoteWrite(
+  ctx?: PrometheusRemoteWriteFlushContext,
+): Promise<PrometheusRemoteWriteFlushResult> {
+  if (bufferedSamples.length === 0) {
+    return { ok: true, sampleCount: 0 };
   }
-  return ok;
+  const tool = bufferedTool;
+  if (!tool) {
+    const message = "Prometheus remote write flush failed: backend not initialized";
+    appendObservationError({
+      kind: "prometheus_remote_write_flush_failed",
+      message,
+      intentId: ctx?.intentId,
+      metric: ctx?.metric,
+      sessionId: ctx?.sessionId,
+    });
+    process.stderr.write(`Warning: ${message}\n`);
+    return { ok: false, sampleCount: 0, error: message };
+  }
+
+  const batch = bufferedSamples.splice(0, bufferedSamples.length);
+  const result = await tool.remoteWriteBatch(batch);
+  if (!result.ok) {
+    const message =
+      result.error ??
+      `Prometheus remote write flush failed for ${result.sampleCount || batch.length} buffered samples`;
+    appendObservationError({
+      kind: "prometheus_remote_write_flush_failed",
+      message,
+      intentId: inferFlushIntentId(batch, ctx),
+      metric: ctx?.metric,
+      sessionId: ctx?.sessionId,
+      sampleCount: result.sampleCount || batch.length,
+      remoteWriteUrl: result.remoteWriteUrl,
+    });
+    process.stderr.write(`Warning: ${message}\n`);
+    return {
+      ok: false,
+      sampleCount: result.sampleCount || batch.length,
+      error: message,
+    };
+  }
+
+  return { ok: true, sampleCount: result.sampleCount };
 }
 
 export function createPrometheusObservationBackend(
@@ -72,7 +130,19 @@ export function createPrometheusObservationBackend(
         bufferedSamples.push(sample);
         return true;
       }
-      return tool.pushSample(sample);
+      const pushed = await tool.pushSample(sample);
+      if (!pushed && ctx.prometheusWriteMode !== "buffer") {
+        const message = `Prometheus Pushgateway push failed for metric ${ctx.compoundMetric}`;
+        appendObservationError({
+          kind: "prometheus_push_failed",
+          message,
+          intentId: ctx.intentId,
+          metric: ctx.compoundMetric,
+          sampleCount: 1,
+        });
+        process.stderr.write(`Warning: ${message}\n`);
+      }
+      return pushed;
     },
 
     async registerMetricMetadata(ctx: ObservationPersistContext): Promise<boolean> {

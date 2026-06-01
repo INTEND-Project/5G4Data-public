@@ -6,6 +6,27 @@ export const DEFAULT_OBS_LOG_N = 100;
 
 export type ObservationLogSource = "stream" | "synthetic";
 
+export type ObservationErrorKind =
+  | "prometheus_remote_write_flush_failed"
+  | "prometheus_remote_write_failed"
+  | "prometheus_push_failed"
+  | "synthetic_worker_exit";
+
+export interface ObservationErrorLogEntry {
+  schemaVersion: "observation_error_v1";
+  timestampUtc: string;
+  kind: ObservationErrorKind;
+  message: string;
+  intentId?: string;
+  metric?: string;
+  sessionId?: string;
+  sampleCount?: number;
+  remoteWriteUrl?: string;
+  exitCode?: number;
+}
+
+export const DEFAULT_OBS_ERROR_LOG_N = 500;
+
 export interface ObservationLogEntry {
   schemaVersion: "observation_v1";
   timestampUtc: string;
@@ -44,6 +65,76 @@ export function observationLogsDirectory(): string {
 export function observationLogPathForMetric(metric: string): string {
   const name = sanitizeMetricForLogFilename(metric);
   return resolve(observationLogsDirectory(), `observations-${name}.ndjson`);
+}
+
+/** Persistent NDJSON log for Prometheus write failures and synthetic worker exits. */
+export function observationErrorsLogPath(): string {
+  return resolve(observationLogsDirectory(), "observation-errors.ndjson");
+}
+
+export function resolveObsErrorLogMaxEntries(): number {
+  const raw = process.env.OBS_ERROR_LOG_N?.trim();
+  if (!raw) return DEFAULT_OBS_ERROR_LOG_N;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) return DEFAULT_OBS_ERROR_LOG_N;
+  return Math.floor(n);
+}
+
+export function appendObservationError(
+  entry: Omit<ObservationErrorLogEntry, "schemaVersion" | "timestampUtc"> & {
+    timestampUtc?: string;
+  },
+  maxEntries?: number,
+): string {
+  const path = observationErrorsLogPath();
+  const maxN = maxEntries ?? resolveObsErrorLogMaxEntries();
+  if (maxN === 0) return path;
+
+  const line: ObservationErrorLogEntry = {
+    schemaVersion: "observation_error_v1",
+    timestampUtc: entry.timestampUtc ?? new Date().toISOString(),
+    kind: entry.kind,
+    message: entry.message,
+    intentId: entry.intentId,
+    metric: entry.metric,
+    sessionId: entry.sessionId,
+    sampleCount: entry.sampleCount,
+    remoteWriteUrl: entry.remoteWriteUrl,
+    exitCode: entry.exitCode,
+  };
+
+  const existing = readLogLines(path);
+  existing.push(JSON.stringify(line));
+  const capped = maxN > 0 ? existing.slice(-maxN) : existing;
+  writeCappedLogLines(path, capped);
+  return path;
+}
+
+export function readRecentObservationErrors(input?: {
+  sinceMs?: number;
+  limit?: number;
+}): ObservationErrorLogEntry[] {
+  const sinceMs = input?.sinceMs;
+  const limit = input?.limit ?? 50;
+  const path = observationErrorsLogPath();
+  const lines = readLogLines(path);
+  const parsed: ObservationErrorLogEntry[] = [];
+
+  for (const line of lines) {
+    try {
+      const entry = JSON.parse(line) as ObservationErrorLogEntry;
+      if (entry.schemaVersion !== "observation_error_v1") continue;
+      if (sinceMs !== undefined) {
+        const ts = Date.parse(entry.timestampUtc);
+        if (!Number.isFinite(ts) || ts < sinceMs) continue;
+      }
+      parsed.push(entry);
+    } catch {
+      // skip malformed lines
+    }
+  }
+
+  return parsed.slice(-Math.max(1, limit));
 }
 
 /** Per-metric JS program log: `logs/observation-program-<metric>.js` (synthetic codegen body). */

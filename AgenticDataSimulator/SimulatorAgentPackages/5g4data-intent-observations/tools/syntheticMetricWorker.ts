@@ -177,7 +177,17 @@ async function historicRun(
     createIntentStorage: cfg.createIntentStorage
   });
   if (storageIds.includes("prometheus")) {
-    await flushBufferedPrometheusRemoteWrite();
+    const flushResult = await flushBufferedPrometheusRemoteWrite({
+      intentId: cfg.intentId,
+      metric: cfg.compoundMetric,
+      source: "synthetic",
+    });
+    if (!flushResult.ok) {
+      throw new Error(
+        flushResult.error ??
+          `Prometheus remote write flush failed for ${cfg.compoundMetric} (${flushResult.sampleCount} samples)`,
+      );
+    }
   }
 }
 

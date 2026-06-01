@@ -1,4 +1,5 @@
 import type { GraphDbEnvFallback, GraphTargetBinding } from "./graphTargetBinding.js";
+import { graphDbAuthHeaders } from "./graphdbAuth.js";
 import {
   buildPrometheusInstantQueryUrl,
   buildPrometheusReadableQuery
@@ -117,7 +118,10 @@ export class GraphDbTool {
   async nearestEdgeCandidates(): Promise<Array<Record<string, { value: string }>>> {
     const response = await fetch(this.endpoint, {
       method: "POST",
-      headers: { Accept: "application/sparql-results+json", "Content-Type": "application/x-www-form-urlencoded" },
+      headers: graphDbAuthHeaders({
+        Accept: "application/sparql-results+json",
+        "Content-Type": "application/x-www-form-urlencoded"
+      }),
       body: new URLSearchParams({ query: this.buildQuery(NEAREST_EDGE_DATACENTER_QUERY) }).toString()
     });
     if (!response.ok) {
@@ -164,7 +168,10 @@ WHERE {
 
     const response = await fetch(this.repositoryQueryUrl(), {
       method: "POST",
-      headers: { Accept: "text/turtle", "Content-Type": "application/sparql-query" },
+      headers: graphDbAuthHeaders({
+        Accept: "text/turtle",
+        "Content-Type": "application/sparql-query"
+      }),
       body: query
     });
     if (!response.ok) return null;
@@ -180,7 +187,7 @@ WHERE {
       const url = `${repoBase}/rdf-graphs/service?graph=${encodeURIComponent(graphIri)}`;
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/x-turtle" },
+        headers: graphDbAuthHeaders({ "Content-Type": "application/x-turtle" }),
         body: turtle
       });
       return response.ok;
@@ -189,7 +196,7 @@ WHERE {
     const statementsUrl = `${repoBase}/statements`;
     const response = await fetch(statementsUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/x-turtle" },
+      headers: graphDbAuthHeaders({ "Content-Type": "application/x-turtle" }),
       body: turtle
     });
     return response.ok;
@@ -233,7 +240,7 @@ INSERT DATA {
 
       const response = await fetch(this.statementsEndpoint(), {
         method: "POST",
-        headers: { "Content-Type": "application/sparql-update" },
+        headers: graphDbAuthHeaders({ "Content-Type": "application/sparql-update" }),
         body: insertQuery
       });
       if (!response.ok) return false;
@@ -301,7 +308,7 @@ INSERT DATA {
 
       const response = await fetch(this.statementsEndpoint(), {
         method: "POST",
-        headers: { "Content-Type": "application/sparql-update" },
+        headers: graphDbAuthHeaders({ "Content-Type": "application/sparql-update" }),
         body: insertQuery
       });
       if (!response.ok) return false;

@@ -19,6 +19,65 @@ GRAPHDB_USERNAME = os.environ.get('GRAPHDB_USERNAME', '').strip()
 GRAPHDB_PASSWORD = os.environ.get('GRAPHDB_PASSWORD', '')
 REPOSITORY = os.environ.get('GRAPHDB_REPOSITORY', "intents_and_intent_reports")
 REPOSITORY_ID_PATTERN = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
+INTENT_ID_PATTERN = re.compile(r'^I[a-f0-9]{32}$', re.IGNORECASE)
+COMPOUND_METRIC_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*_CO[a-f0-9]{32}$', re.IGNORECASE)
+GRAPH_IRI_PATTERN = re.compile(r'^urn:intend:kg:[a-zA-Z0-9][a-zA-Z0-9._:-]*$')
+
+BOUNDS_SPARQL_TEMPLATE = """
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>
+PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+PREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>
+PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
+PREFIX data5g: <http://5g4data.eu/5g4data#>
+
+SELECT ?value1 ?value2
+WHERE {
+  GRAPH <%s> {
+    BIND(IRI(CONCAT("http://5g4data.eu/5g4data#", "%s")) AS ?intent)
+    BIND(IRI(CONCAT("http://5g4data.eu/5g4data#", "%s")) AS ?metric)
+
+    ?intent (log:allOf)+ ?condition .
+    ?condition a icm:Condition .
+    ?condition set:forAll ?forallBlock .
+    ?forallBlock icm:valuesOfTargetProperty ?metric .
+
+    OPTIONAL {
+      ?forallBlock quan:inRange ?list .
+      ?list rdf:rest ?list1 .
+      ?list1 rdf:first ?node2 .
+      ?node2 rdf:value ?rangeLower .
+      OPTIONAL {
+        ?list1 rdf:rest ?list2 .
+        ?list2 rdf:first ?node3 .
+        ?node3 rdf:value ?rangeUpper .
+      }
+    }
+
+    OPTIONAL {
+      { ?forallBlock quan:larger ?boundNode . ?boundNode rdf:value ?largerValue . }
+      UNION
+      { ?forallBlock quan:atLeast ?boundNode . ?boundNode rdf:value ?largerValue . }
+    }
+
+    OPTIONAL {
+      { ?forallBlock quan:smaller ?boundNode . ?boundNode rdf:value ?smallerValue . }
+      UNION
+      { ?forallBlock quan:atMost ?boundNode . ?boundNode rdf:value ?smallerValue . }
+    }
+
+    BIND(COALESCE(?rangeLower, ?largerValue, 1) AS ?value1)
+    BIND(COALESCE(
+      ?rangeUpper,
+      IF(BOUND(?largerValue), IF(?largerValue * 1000 > 1000000, ?largerValue * 1000, 1000000), ?largerValue),
+      ?smallerValue
+    ) AS ?value2)
+
+    FILTER(BOUND(?value1) && BOUND(?value2))
+  }
+}
+LIMIT 1
+""".strip()
 
 
 def graphdb_auth_headers(extra=None):
@@ -40,6 +99,93 @@ def resolve_repository_id(raw_repository_id):
     if not REPOSITORY_ID_PATTERN.match(repository_id):
         return None, 'Invalid repository_id'
     return repository_id, None
+
+
+def sparql_escape_literal(value):
+    return value.replace('\\', '\\\\').replace('"', '\\"')
+
+
+def validate_bounds_params(intent_id, condition_metric, graph_iri):
+    intent_id = (intent_id or '').strip()
+    condition_metric = (condition_metric or '').strip()
+    graph_iri = (graph_iri or '').strip()
+    if not INTENT_ID_PATTERN.match(intent_id):
+        return None, 'Invalid intent_id'
+    if not COMPOUND_METRIC_PATTERN.match(condition_metric):
+        return None, 'Invalid condition_metrics'
+    if not GRAPH_IRI_PATTERN.match(graph_iri):
+        return None, 'Invalid graph_iri'
+    return {
+        'intent_id': intent_id,
+        'condition_metric': condition_metric,
+        'graph_iri': graph_iri,
+    }, None
+
+
+def build_bounds_sparql(intent_id, condition_metric, graph_iri):
+    graph = sparql_escape_literal(graph_iri)
+    intent = sparql_escape_literal(intent_id)
+    metric = sparql_escape_literal(condition_metric)
+    return BOUNDS_SPARQL_TEMPLATE % (graph, intent, metric)
+
+
+def run_graphdb_select(repository_id, sparql_query):
+    response = requests.post(
+        f"{GRAPHDB_URL}/repositories/{repository_id}",
+        headers=graphdb_auth_headers({
+            'Content-Type': 'application/sparql-query',
+            'Accept': 'application/sparql-results+json',
+        }),
+        data=sparql_query,
+        timeout=30,
+    )
+    if response.status_code != 200:
+        logger.error('GraphDB bounds query failed: %s %s', response.status_code, response.text)
+        return None
+    return response.json()
+
+
+def parse_bounds_bindings(result):
+    bindings = result.get('results', {}).get('bindings', [])
+    if not bindings:
+        return None
+    row = bindings[0]
+
+    def numeric(binding_key):
+        binding = row.get(binding_key)
+        if not binding:
+            return None
+        raw = binding.get('value')
+        if raw is None:
+            return None
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return None
+
+    value1 = numeric('value1')
+    value2 = numeric('value2')
+    if value1 is None or value2 is None:
+        return None
+    return {'value1': value1, 'value2': value2}
+
+
+def query_intent_metric_bounds(intent_id, condition_metric, graph_iri, repository_id):
+    params, error = validate_bounds_params(intent_id, condition_metric, graph_iri)
+    if error:
+        return None, error
+    sparql_query = build_bounds_sparql(
+        params['intent_id'],
+        params['condition_metric'],
+        params['graph_iri'],
+    )
+    result = run_graphdb_select(repository_id, sparql_query)
+    if result is None:
+        return None, 'GraphDB bounds query failed'
+    bounds = parse_bounds_bindings(result)
+    if bounds is None:
+        return None, 'No intent bounds found for metric'
+    return bounds, None
 
 
 def get_metric_query(metric_name, repository_id):
@@ -572,6 +718,44 @@ def get_metric_reports(metric_name):
             'data': []
         }), 500
 
+@app.route('/api/get-metric-bounds', methods=['GET'])
+def get_metric_bounds():
+    """Intent SLO bounds for Grafana threshold bands (Infinity datasource)."""
+    try:
+        repository_arg = request.args.get('repository_id') or request.args.get('repository')
+        repository_id, repo_error = resolve_repository_id(repository_arg)
+        if repo_error:
+            return jsonify({'error': repo_error, 'data': []}), 400
+
+        intent_id = request.args.get('intent_id')
+        condition_metric = request.args.get('condition_metrics') or request.args.get('metric_name')
+        graph_iri = request.args.get('graph_iri')
+
+        bounds, bounds_error = query_intent_metric_bounds(
+            intent_id,
+            condition_metric,
+            graph_iri,
+            repository_id,
+        )
+        if bounds_error:
+            status = 404 if 'No intent bounds' in bounds_error else 400
+            return jsonify({'error': bounds_error, 'data': []}), status
+
+        return jsonify({
+            'data': [bounds],
+            'meta': {
+                'repository_id': repository_id,
+                'intent_id': intent_id,
+                'condition_metrics': condition_metric,
+                'graph_iri': graph_iri,
+                'timestamp': datetime.now().isoformat(),
+            },
+        })
+    except Exception as exc:
+        logger.error('Error fetching metric bounds: %s', exc)
+        return jsonify({'error': f'Internal server error: {exc}', 'data': []}), 500
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """
@@ -593,6 +777,7 @@ def root():
         'endpoints': {
             'get_metric_reports': '/api/get-metric-reports/<metric_name>',
             'get_metric_reports_legacy': '/api/get-metric-reports/<metric_name>?start=&end=&step= (no repository_id)',
+            'get_metric_bounds': '/api/get-metric-bounds?repository_id=&graph_iri=&intent_id=&condition_metrics=',
             'health': '/health'
         }
     })

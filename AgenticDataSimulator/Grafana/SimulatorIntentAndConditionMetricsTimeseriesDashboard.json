@@ -109,7 +109,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "",
+      "description": "A = metric observations (Infinity). B = intent bounds via /api/get-metric-bounds (Infinity; replaces SPARQL). configFromData applies B to Value thresholds.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -218,7 +218,7 @@
             "uid": "${DS_YESOREYERAM-INFINITY-DATASOURCE}"
           },
           "filters": [],
-          "format": "timeseries",
+          "format": "table",
           "global_query_id": "",
           "parser": "backend",
           "refId": "A",
@@ -232,13 +232,37 @@
           }
         },
         {
+          "columns": [
+            {
+              "selector": "value1",
+              "text": "value1",
+              "type": "number"
+            },
+            {
+              "selector": "value2",
+              "text": "value2",
+              "type": "number"
+            }
+          ],
+          "computed_columns": [],
           "datasource": {
-            "type": "flandersmake-sparql-datasource",
-            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "${DS_YESOREYERAM-INFINITY-DATASOURCE}"
           },
-          "hide": true,
-          "queryText": "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\n\nSELECT ?value1 ?value2\nWHERE {\n  BIND(IRI(CONCAT(\"repository:\", \"${repository_id}\")) AS ?__repository)\n  BIND(IRI(\"${graph_iri}\") AS ?__graph)\n  SERVICE ?__repository {\n    GRAPH ?__graph {\n    BIND(IRI(CONCAT(\"http://5g4data.eu/5g4data#\", \"${intent_id}\")) AS ?intent) .\n    BIND(IRI(CONCAT(\"http://5g4data.eu/5g4data#\", \"${condition_metrics}\")) AS ?metric) .\n\n    ?intent (log:allOf)+ ?condition .\n    ?condition a icm:Condition .\n    ?condition set:forAll ?forallBlock .\n    ?forallBlock icm:valuesOfTargetProperty ?metric .\n\n    OPTIONAL {\n      ?forallBlock quan:inRange ?list .\n      ?list rdf:rest ?list1 .\n      ?list1 rdf:first ?node2 .\n      ?node2 rdf:value ?rangeLower .\n\n      OPTIONAL {\n        ?list1 rdf:rest ?list2 .\n        ?list2 rdf:first ?node3 .\n        ?node3 rdf:value ?rangeUpper .\n      }\n\n      BIND(?rangeLower AS ?value1)\n      BIND(?rangeUpper AS ?value2)\n    }\n\n    OPTIONAL {\n      {\n        ?forallBlock quan:larger ?boundNode .\n        ?boundNode rdf:value ?largerValue .\n      }\n      UNION {\n        ?forallBlock quan:atLeast ?boundNode .\n        ?boundNode rdf:value ?largerValue .\n      }\n      BIND(?largerValue AS ?value1)\n      BIND(IF(?largerValue * 1000 > 1000000, ?largerValue * 1000, 1000000) AS ?value2)\n    }\n\n    OPTIONAL {\n      {\n        ?forallBlock quan:smaller ?boundNode .\n        ?boundNode rdf:value ?smallerValue .\n      }\n      UNION {\n        ?forallBlock quan:atMost ?boundNode .\n        ?boundNode rdf:value ?smallerValue .\n      }\n      BIND(1 AS ?value1)\n      BIND(?smallerValue AS ?value2)\n    }\n\n    FILTER(BOUND(?value1) && BOUND(?value2))\n  \n    }}\n}\nLIMIT 1\n",
-          "refId": "B"
+          "filters": [],
+          "format": "table",
+          "global_query_id": "",
+          "hide": false,
+          "parser": "backend",
+          "refId": "B",
+          "root_selector": "data",
+          "source": "url",
+          "type": "json",
+          "url": "http://start5g-1.cs.uit.no:3010/api/get-metric-bounds?repository_id=${repository_id}&graph_iri=${graph_iri}&intent_id=${intent_id}&condition_metrics=${condition_metrics}",
+          "url_options": {
+            "data": "",
+            "method": "GET"
+          }
         }
       ],
       "title": "${condition_metrics}",
@@ -252,8 +276,12 @@
                 "targetField": "Value"
               },
               {
-                "destinationType": "time",
-                "targetField": "time"
+                "destinationType": "number",
+                "targetField": "value1"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "value2"
               }
             ],
             "fields": {}
@@ -264,7 +292,7 @@
           "options": {
             "applyTo": {
               "id": "byName",
-              "options": "A"
+              "options": "Value"
             },
             "configRefId": "B",
             "mappings": [
@@ -537,6 +565,6 @@
   "timezone": "browser",
   "title": "Simulator Intent And Condition Metrics Timeseries Dashboard",
   "uid": "Simulator-5g4data-Metrics",
-  "version": 9,
+  "version": 22,
   "weekStart": ""
 }

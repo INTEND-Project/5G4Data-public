@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
 import { buildKgNamePrefix } from "@/lib/graphdb/naming";
+import { parseGraphDbBaseUrlInput } from "@/lib/graphdb/resolve-base-url";
+import { withAppBasePath } from "@/lib/app-paths";
 
 type KgTargetRecord = {
   id: string;
@@ -22,6 +24,15 @@ type KgTargetPanelProps = {
   onTargetDeleted: (targetId: string) => void;
   targets: KgTargetRecord[];
 };
+
+function graphDbBaseUrlParams(baseUrl: string): URLSearchParams {
+  const params = new URLSearchParams();
+  const trimmed = baseUrl.trim();
+  if (trimmed) {
+    params.set("graphDbBaseUrl", trimmed);
+  }
+  return params;
+}
 
 function defaultKgNameSuffix(): string {
   return "test";
@@ -69,8 +80,17 @@ export function KgTargetPanel({
   onTargetDeleted,
   targets,
 }: KgTargetPanelProps) {
-  const { notifyStorageChanged, beginStorageDeletion, endStorageDeletion } =
-    useWorkspaceScriptSession();
+  const {
+    notifyStorageChanged,
+    beginStorageDeletion,
+    endStorageDeletion,
+    defaultGraphDbBaseUrl,
+    graphDbBaseUrl,
+    setGraphDbBaseUrl,
+  } = useWorkspaceScriptSession();
+  const [draftUrl, setDraftUrl] = useState(graphDbBaseUrl);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [customReachable, setCustomReachable] = useState<boolean | null>(null);
   const kgNamePrefix = useMemo(
     () => buildKgNamePrefix(selectedDomain, username),
     [selectedDomain, username],
@@ -80,6 +100,83 @@ export function KgTargetPanel({
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingTargetId, setDeletingTargetId] = useState<string | null>(null);
   const [emptyingTargetId, setEmptyingTargetId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraftUrl(graphDbBaseUrl);
+  }, [graphDbBaseUrl]);
+
+  const applyUrl = useCallback(() => {
+    const parsed = parseGraphDbBaseUrlInput(draftUrl);
+    if (!parsed.ok) {
+      setValidationError(parsed.error);
+      return;
+    }
+    setValidationError(null);
+    setGraphDbBaseUrl(parsed.url.replace(/\/$/, "") || parsed.url);
+  }, [draftUrl, setGraphDbBaseUrl]);
+
+  const resetToDefault = useCallback(() => {
+    setDraftUrl(defaultGraphDbBaseUrl.replace(/\/$/, ""));
+    setValidationError(null);
+    setGraphDbBaseUrl(defaultGraphDbBaseUrl);
+    setCustomReachable(null);
+  }, [defaultGraphDbBaseUrl, setGraphDbBaseUrl]);
+
+  useEffect(() => {
+    const trimmed = graphDbBaseUrl.trim();
+    const isCustomUrl =
+      trimmed.length > 0 &&
+      trimmed.replace(/\/$/, "") !== defaultGraphDbBaseUrl.replace(/\/$/, "");
+
+    if (!isCustomUrl) {
+      setCustomReachable(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const base = parseGraphDbBaseUrlInput(trimmed);
+          if (!base.ok || cancelled) {
+            if (!cancelled) {
+              setCustomReachable(false);
+            }
+            return;
+          }
+          const params = new URLSearchParams({ graphDbBaseUrl: base.url });
+          const response = await fetch(
+            `${withAppBasePath("/api/graphdb/status")}?${params.toString()}`,
+            {
+              cache: "no-store",
+              credentials: "same-origin",
+            },
+          );
+          if (!cancelled) {
+            if (!response.ok) {
+              setCustomReachable(false);
+              return;
+            }
+            const payload = (await response.json()) as { connected?: boolean };
+            setCustomReachable(payload.connected === true);
+          }
+        } catch {
+          if (!cancelled) {
+            setCustomReachable(false);
+          }
+        }
+      })();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [defaultGraphDbBaseUrl, graphDbBaseUrl]);
+
+  const showCustomChip =
+    graphDbBaseUrl.trim().length > 0 &&
+    graphDbBaseUrl.replace(/\/$/, "") !== defaultGraphDbBaseUrl.replace(/\/$/, "");
 
   async function handleCreate() {
     const trimmedName = nameSuffix.trim();
@@ -101,6 +198,7 @@ export function KgTargetPanel({
         body: JSON.stringify({
           domain: selectedDomain,
           displayName: trimmedName,
+          graphDbBaseUrl: graphDbBaseUrl.trim() || undefined,
         }),
       });
 
@@ -141,9 +239,14 @@ export function KgTargetPanel({
     beginStorageDeletion();
 
     try {
-      const response = await fetch(`${deleteUrlBase}/${target.id}/empty`, {
-        method: "POST",
-      });
+      const params = graphDbBaseUrlParams(graphDbBaseUrl);
+      const query = params.toString();
+      const response = await fetch(
+        `${deleteUrlBase}/${target.id}/empty${query ? `?${query}` : ""}`,
+        {
+          method: "POST",
+        },
+      );
 
       if (!response.ok) {
         throw new Error(`KG empty failed with ${response.status}`);
@@ -173,9 +276,14 @@ export function KgTargetPanel({
     beginStorageDeletion();
 
     try {
-      const response = await fetch(`${deleteUrlBase}/${target.id}`, {
-        method: "DELETE",
-      });
+      const params = graphDbBaseUrlParams(graphDbBaseUrl);
+      const query = params.toString();
+      const response = await fetch(
+        `${deleteUrlBase}/${target.id}${query ? `?${query}` : ""}`,
+        {
+          method: "DELETE",
+        },
+      );
 
       if (!response.ok) {
         throw new Error(`KG deletion failed with ${response.status}`);
@@ -194,14 +302,66 @@ export function KgTargetPanel({
   return (
     <section className="workspace-section">
       <div className="workspace-heading-row">
-        <h2>KG target</h2>
+        <h2>GraphDB base URL:</h2>
         <span
           className={`workspace-chip ${
-            graphDbConnected ? "workspace-chip-live" : "workspace-chip-down"
+            (showCustomChip ? customReachable : graphDbConnected)
+              ? "workspace-chip-live"
+              : "workspace-chip-down"
           }`}
         >
-          GraphDB
+          {showCustomChip && customReachable === null
+            ? "Checking…"
+            : (showCustomChip ? customReachable : graphDbConnected)
+              ? "Reachable"
+              : "Unreachable"}
         </span>
+      </div>
+      <div className="workspace-stack">
+        <article className="workspace-card">
+          <div className="workspace-runner-field workspace-prometheus-url-field">
+            <input
+              aria-label="GraphDB base URL"
+              className="workspace-input workspace-prometheus-url-input"
+              id="graphdb-base-url"
+              onChange={(event) => {
+                setDraftUrl(event.target.value);
+                setValidationError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  applyUrl();
+                }
+              }}
+              placeholder={defaultGraphDbBaseUrl}
+              spellCheck={false}
+              type="url"
+              value={draftUrl}
+            />
+          </div>
+          {validationError ? (
+            <p className="workspace-form-error" role="alert">
+              {validationError}
+            </p>
+          ) : null}
+          <div className="workspace-prometheus-url-actions">
+            <button
+              className="workspace-button workspace-button-secondary workspace-prometheus-url-action-button"
+              onClick={applyUrl}
+              type="button"
+            >
+              Apply
+            </button>
+            <button
+              className="workspace-button workspace-button-secondary workspace-prometheus-url-action-button"
+              onClick={resetToDefault}
+              type="button"
+            >
+              Use server default
+            </button>
+          </div>
+        </article>
       </div>
       <label className="workspace-label" htmlFor="kg-name-suffix">
         Create new KG with name

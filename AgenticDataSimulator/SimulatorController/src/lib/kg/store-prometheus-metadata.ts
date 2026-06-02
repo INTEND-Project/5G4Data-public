@@ -1,7 +1,7 @@
-import { loadAppEnv } from "@/lib/env";
 import { graphDbAuthHeaders } from "@/lib/graphdb/auth";
 import { INTENT_REPORTS_METADATA_GRAPH_IRI } from "@/lib/graphdb/clear-knowledge-graph-query";
 import { runRepositorySparqlSelect } from "@/lib/graphdb/client";
+import { resolveGraphDbBaseUrl } from "@/lib/graphdb/resolve-base-url";
 import { buildMetricCatalogQuery } from "@/lib/kg/metric-catalog-query";
 import { parseIntentLocalIdForMetricCatalog } from "@/lib/kg/metric-catalog-query";
 import { parseCompoundMetricParts } from "@/lib/prometheus/parse-compound-metric";
@@ -35,9 +35,12 @@ INSERT DATA {
 `.trim();
 }
 
-async function postMetadataUpdate(repositoryId: string, query: string): Promise<void> {
-  const env = loadAppEnv(process.env);
-  const base = env.graphDbBaseUrl.endsWith("/") ? env.graphDbBaseUrl : `${env.graphDbBaseUrl}/`;
+async function postMetadataUpdate(
+  repositoryId: string,
+  query: string,
+  graphDbBaseUrl?: string | null,
+): Promise<void> {
+  const base = resolveGraphDbBaseUrl(graphDbBaseUrl);
   const url = `${base}repositories/${encodeURIComponent(repositoryId)}/statements`;
 
   const response = await fetch(url, {
@@ -57,6 +60,7 @@ export async function listCompoundMetricsForIntent(input: {
   repositoryId: string;
   graphIri: string;
   intentId: string;
+  graphDbBaseUrl?: string | null;
 }): Promise<string[]> {
   const intentLocalId = parseIntentLocalIdForMetricCatalog(input.intentId);
   if (!intentLocalId) {
@@ -67,6 +71,7 @@ export async function listCompoundMetricsForIntent(input: {
   const bindings = await runRepositorySparqlSelect({
     repositoryId: input.repositoryId,
     query,
+    graphDbBaseUrl: input.graphDbBaseUrl,
   });
 
   return bindings
@@ -79,6 +84,7 @@ export async function storePrometheusQueryMetadata(input: {
   intentId: string;
   compoundMetric: string;
   prometheusBaseUrl?: string | null;
+  graphDbBaseUrl?: string | null;
 }): Promise<void> {
   const intentLocalId = parseIntentLocalIdForMetricCatalog(input.intentId);
   if (!intentLocalId) {
@@ -101,7 +107,7 @@ export async function storePrometheusQueryMetadata(input: {
     readableQuery,
   });
 
-  await postMetadataUpdate(input.repositoryId, update);
+  await postMetadataUpdate(input.repositoryId, update, input.graphDbBaseUrl);
 }
 
 export async function storePrometheusMetadataForIntent(input: {
@@ -109,6 +115,7 @@ export async function storePrometheusMetadataForIntent(input: {
   graphIri: string;
   intentId: string;
   prometheusBaseUrl?: string | null;
+  graphDbBaseUrl?: string | null;
 }): Promise<{ stored: number; failed: number }> {
   const metrics = await listCompoundMetricsForIntent(input);
   let stored = 0;
@@ -121,6 +128,7 @@ export async function storePrometheusMetadataForIntent(input: {
         intentId: input.intentId,
         compoundMetric,
         prometheusBaseUrl: input.prometheusBaseUrl,
+        graphDbBaseUrl: input.graphDbBaseUrl,
       });
       stored += 1;
     } catch {

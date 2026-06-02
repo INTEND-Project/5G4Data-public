@@ -103,6 +103,15 @@ start5g-1.cs.uit.no {
         }
     }
 
+    # Grafana UI/API (host port 3002; subpath — do NOT strip_prefix)
+    handle /grafana* {
+        reverse_proxy http://host.docker.internal:3002 {
+            header_up Host {host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
     # Main Flask app at root (must be last — catch-all)
     handle {
         reverse_proxy flask-app:5003

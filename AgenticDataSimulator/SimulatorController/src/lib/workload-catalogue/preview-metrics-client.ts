@@ -12,7 +12,9 @@ export type WorkloadPreviewMetrics = {
   version: string | null;
   objectives: WorkloadMetricEntry[];
   sustainability: WorkloadMetricEntry[];
+  networkObjectives: WorkloadMetricEntry[];
   metricStems: string[];
+  intentFlags?: Record<string, boolean>;
   warnings: string[];
 };
 
@@ -59,7 +61,10 @@ export async function fetchWorkloadPreviewMetrics(args: {
       version: body.version ?? null,
       objectives: Array.isArray(body.objectives) ? body.objectives : [],
       sustainability: Array.isArray(body.sustainability) ? body.sustainability : [],
+      networkObjectives: Array.isArray(body.networkObjectives) ? body.networkObjectives : [],
       metricStems: Array.isArray(body.metricStems) ? body.metricStems : [],
+      intentFlags:
+        body.intentFlags && typeof body.intentFlags === "object" ? body.intentFlags : undefined,
       warnings: Array.isArray(body.warnings) ? body.warnings : [],
     },
   };

@@ -60,7 +60,6 @@ type WorkspaceScriptRunnerProps = {
   }>;
   selectedKgTargetId: string;
   onSelectedKgTargetIdChange: (targetId: string) => void;
-  graphDbBaseUrl: string;
   discoverIntentAgentApiUrl: string;
   discoverObservationAgentApiUrl: string;
   a2aMessageSendUrl: string;
@@ -71,53 +70,6 @@ const EDITOR_HEIGHT_STORAGE_KEY = "openclaw-workspace-editor-height-px";
 const DEFAULT_EDITOR_HEIGHT = 360;
 const MIN_EDITOR_HEIGHT = 140;
 const MAX_EDITOR_HEIGHT = 960;
-
-type RunMode = "dry-run" | "execute";
-
-const RUN_MODE_TOOLTIPS: Record<RunMode, string> = {
-  "dry-run":
-    "Validate script syntax and DSL rules without calling agents or modifying the knowledge graph.",
-  execute:
-    "Run the script end-to-end: discover agents, create intents, extract metric catalogs, and request reports.",
-};
-
-type RunModeSelectorProps = {
-  disabled: boolean;
-  runModeRef: React.MutableRefObject<RunMode>;
-};
-
-function RunModeSelector({ disabled, runModeRef }: RunModeSelectorProps) {
-  const [runMode, setRunMode] = useState<RunMode>("execute");
-  runModeRef.current = runMode;
-
-  return (
-    <div className="workspace-runner-field">
-      <label className="workspace-label">Run mode</label>
-      <div aria-label="Run mode" className="workspace-runner-modes" role="group">
-        <button
-          aria-pressed={runMode === "dry-run"}
-          className={`workspace-runner-mode${runMode === "dry-run" ? " workspace-runner-mode-active" : ""}`}
-          disabled={disabled}
-          onClick={() => setRunMode("dry-run")}
-          title={RUN_MODE_TOOLTIPS["dry-run"]}
-          type="button"
-        >
-          dry-run
-        </button>
-        <button
-          aria-pressed={runMode === "execute"}
-          className={`workspace-runner-mode${runMode === "execute" ? " workspace-runner-mode-active" : ""}`}
-          disabled={disabled}
-          onClick={() => setRunMode("execute")}
-          title={RUN_MODE_TOOLTIPS.execute}
-          type="button"
-        >
-          execute
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function readStoredEditorHeight(): number {
   if (typeof window === "undefined") {
@@ -140,7 +92,6 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   kgTargets,
   selectedKgTargetId,
   onSelectedKgTargetIdChange,
-  graphDbBaseUrl,
   discoverIntentAgentApiUrl,
   discoverObservationAgentApiUrl,
   a2aMessageSendUrl,
@@ -173,6 +124,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     setObservationGenerationActive,
     setScriptRunInProgress,
     replaceServerScripts,
+    graphDbBaseUrl,
   } = useWorkspaceScriptSession();
 
   const appendA2ATranscriptTurn = useCallback(
@@ -695,7 +647,6 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   const [runBusy, setRunBusy] = useState(false);
   const [kgRequiredDialogOpen, setKgRequiredDialogOpen] = useState(false);
   const [storageDeletionDialogOpen, setStorageDeletionDialogOpen] = useState(false);
-  const runModeRef = useRef<RunMode>("execute");
   const [intentSession, setIntentSession] = useState<{
     wellKnownURI: string;
     prompt: string;
@@ -836,9 +787,8 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   );
 
   const handleRunScript = useCallback(async () => {
-    const runMode = runModeRef.current;
     beginScriptRun(activeScriptName, {
-      mode: runMode,
+      mode: "execute",
       scriptId: activeScriptId,
     });
     openRunLogDialog();
@@ -850,42 +800,15 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         return;
       }
 
-      const modeLabel = runModeRef.current === "dry-run" ? "Dry-run" : "Run Script";
-      appendRunnerLog(`${modeLabel}: analysing DSL…`);
-
       const { statements, diagnostics } = analyzeScript(activeContent);
+      const validationErrors = diagnostics.filter((diag) => diag.severity === "error");
 
-      for (const diagnostic of diagnostics.filter(
-        (diag) => diag.severity === "error",
-      )) {
-        appendRunnerLog(
-          `[line ${diagnostic.line}, ${diagnostic.code}] ${diagnostic.message}`,
-        );
-      }
-
-      for (const diagnostic of diagnostics.filter(
-        (diag) => diag.severity === "warning",
-      )) {
-        appendRunnerLog(
-          `[line ${diagnostic.line}, ${diagnostic.code}] ${diagnostic.message}`,
-        );
-      }
-
-      if (diagnostics.some((diag) => diag.severity === "error")) {
-        appendRunnerLog(
-          runModeRef.current === "dry-run"
-            ? "Dry-run: resolve validation errors first."
-            : "Stopping: resolve validation errors first.",
-        );
-        return;
-      }
-
-      if (runModeRef.current === "dry-run") {
-        const kindSummary =
-          statements.map((statement) => statement.kind).join(", ") || "(none)";
-        appendRunnerLog(
-          `Dry-run: script is valid (${statements.length} statement${statements.length === 1 ? "" : "s"}): ${kindSummary}.`,
-        );
+      if (validationErrors.length > 0) {
+        for (const diagnostic of validationErrors) {
+          appendRunnerLog(
+            `[line ${diagnostic.line}, ${diagnostic.code}] ${diagnostic.message}`,
+          );
+        }
         return;
       }
 
@@ -1276,7 +1199,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       appendRunnerLog("Run Script: finished scripted steps.");
     } finally {
       await endActiveScriptRun({
-        mode: runModeRef.current,
+        mode: "execute",
         scriptId: activeScriptId,
       });
       notifyStorageChanged();
@@ -1349,7 +1272,6 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           <h2>Script editor</h2>
           <div className="workspace-editor-toolbar">
             <WorkspaceRunIdChip />
-            <RunModeSelector disabled={runBusy} runModeRef={runModeRef} />
             <div className="workspace-runner-field">
               <label className="workspace-label" htmlFor="runner-kg-target">
                 Knowledge graph target

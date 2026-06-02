@@ -66,7 +66,7 @@ export function WorkspaceRightSidebarResizable({ children }: WorkspaceRightSideb
   return (
     <>
       <div
-        aria-label="Resize script editor versus KG target / Agent assistant"
+        aria-label="Resize script editor versus right sidebar panels"
         aria-orientation="vertical"
         className="workspace-sidebar-resizer"
         onMouseDown={onMouseDownResize}

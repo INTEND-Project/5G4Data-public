@@ -65,6 +65,7 @@ describe("workspace shell bootstrap", () => {
     expect(workspaceSource).toContain("graphDbConnected");
     expect(workspaceSource).toContain("prometheusConnected");
     expect(workspaceSource).toContain("defaultPrometheusBaseUrl={appEnv.prometheusUrl}");
+    expect(workspaceSource).toContain("graphDbBaseUrl={appEnv.graphDbBaseUrl}");
     expect(workspaceSource).toContain('withAppBasePath("/api/intents")');
     expect(workspaceSource).toContain('withAppBasePath("/api/prometheus/intents")');
     expect(workspaceSource).toContain("kgTargetsCreateUrl");
@@ -89,8 +90,8 @@ describe("workspace shell bootstrap", () => {
     expect(runIdChipSource).toContain("workspace-script-run-select");
     expect(scriptRunnerSource).toContain("WorkspaceRunIdChip");
     expect(scriptRunnerSource).toContain("workspace-editor-toolbar");
-    expect(scriptRunnerSource).toContain("Run mode");
-    expect(scriptRunnerSource).toContain("Knowledge graph target");
+    expect(scriptRunnerSource).not.toContain("Run mode");
+    expect(scriptRunnerSource).toContain("analyzeScript");
     expect(scriptRunnerSource).not.toContain("Run result policy");
     expect(runIdChipSource).toContain("scriptRunLogs");
     expect(runIdChipSource).toContain("deleteSelectedScriptRunLog");
@@ -123,23 +124,10 @@ describe("workspace shell bootstrap", () => {
     expect(shellSource).toContain("scriptsApiUrl");
     expect(shellSource).toContain("WorkspaceScriptSessionProvider");
     expect(shellSource).toContain("defaultPrometheusBaseUrl={defaultPrometheusBaseUrl}");
+    expect(shellSource).toContain("defaultGraphDbBaseUrl={graphDbBaseUrl}");
     expect(shellSource).toContain("currentUserId={currentUserId}");
     expect(shellSource).toContain("WorkspaceLeftSidebarResizable");
     expect(shellSource).toContain("WorkspaceRightSidebarResizable");
-    expect(scriptRunnerSource).toContain("Run mode");
-    expect(scriptRunnerSource).toContain("dry-run");
-    expect(scriptRunnerSource).toContain("execute");
-    expect(scriptRunnerSource).toContain("RunModeSelector");
-    expect(scriptRunnerSource).toContain("runModeRef");
-    expect(scriptRunnerSource).toContain("aria-pressed");
-    expect(scriptRunnerSource).toContain("RUN_MODE_TOOLTIPS");
-    expect(scriptRunnerSource).toContain(
-      "Validate script syntax and DSL rules without calling agents or modifying the knowledge graph.",
-    );
-    expect(scriptRunnerSource).toContain(
-      "Run the script end-to-end: discover agents, create intents, extract metric catalogs, and request reports.",
-    );
-    expect(scriptRunnerSource).toContain("Dry-run: script is valid");
     expect(scriptRunnerSource).toContain("Knowledge graph target");
     expect(scriptRunnerSource).toContain("selectedKgTargetId");
     expect(scriptRunnerSource).toContain("onSelectedKgTargetIdChange");
@@ -212,19 +200,24 @@ describe("workspace shell bootstrap", () => {
     expect(kgTargetPanelSource).toContain("window.confirm");
     expect(kgTargetPanelSource).toContain("beginStorageDeletion");
     expect(kgTargetPanelSource).toContain("endStorageDeletion");
-    expect(kgTargetPanelSource).toContain("fetch(`${deleteUrlBase}/");
-    expect(kgTargetPanelSource).toContain('/empty`');
+    expect(kgTargetPanelSource).toContain("graphDbBaseUrlParams");
+    expect(kgTargetPanelSource).toContain("/empty${query");
     expect(kgTargetPanelSource).toContain('method: "POST"');
     expect(kgTargetPanelSource).toContain('method: "DELETE"');
     expect(kgTargetPanelSource).toContain("Emptying...");
     expect(kgTargetPanelSource).toContain("Deleting...");
     expect(kgTargetPanelSource).toContain('aria-label={`Empty ${target.repositoryId}`}');
     expect(kgTargetPanelSource).toContain('aria-label={`Delete ${target.repositoryId}`}');
-    expect(kgTargetPanelSource).toContain("graphDbConnected");
-    expect(kgTargetPanelSource).toContain('graphDbConnected ? "workspace-chip-live" : "workspace-chip-down"');
+    expect(kgTargetPanelSource).toContain("/api/graphdb/status");
+    expect(kgTargetPanelSource).not.toContain("graphDbHealthCheckUrl");
+    expect(kgTargetPanelSource).toContain("graphdb-base-url");
+    expect(kgTargetPanelSource).toContain("Use server default");
+    expect(kgTargetPanelSource).toContain("showCustomChip ? customReachable : graphDbConnected");
     expect(kgTargetPanelSource).not.toContain("Empty KG removes all triples");
     expect(kgTargetPanelSource).not.toContain("Delete repo removes the GraphDB repository");
     expect(prometheusPanelSource).toContain('"use client"');
+    expect(prometheusPanelSource).toContain("/api/prometheus/status");
+    expect(prometheusPanelSource).not.toContain("prometheusHealthCheckUrl");
     expect(prometheusPanelSource).toContain("Prometheus base URL");
     expect(prometheusPanelSource).toContain("prometheus-base-url");
     expect(prometheusPanelSource).toContain("useWorkspaceScriptSession");
@@ -236,7 +229,11 @@ describe("workspace shell bootstrap", () => {
     expect(scriptSessionContextSource).toContain("defaultPrometheusBaseUrl");
     expect(scriptSessionContextSource).toContain("prometheusBaseUrl");
     expect(scriptSessionContextSource).toContain("simulator-controller:prometheus-base-url:");
+    expect(scriptSessionContextSource).toContain("defaultGraphDbBaseUrl");
+    expect(scriptSessionContextSource).toContain("graphDbBaseUrl");
+    expect(scriptSessionContextSource).toContain("simulator-controller:graphdb-base-url:");
     expect(intentsPanelSource).toContain('params.set("prometheusBaseUrl"');
+    expect(intentsPanelSource).toContain('params.set("graphDbBaseUrl"');
     expect(intentsPanelSource).toContain('"use client"');
     expect(intentsPanelSource).toContain("<h2>Intents</h2>");
     expect(intentsPanelSource).toContain("workspace-intent-id-label");
@@ -308,10 +305,9 @@ describe("workspace shell bootstrap", () => {
     expect(globalsSource).toContain(".workspace-chip-live");
     expect(globalsSource).toContain(".workspace-chip-down");
     expect(globalsSource).toContain(".workspace-runner");
+    expect(scriptRunnerSource).not.toContain("RunModeSelector");
+    expect(scriptRunnerSource).not.toContain("Run mode");
     expect(globalsSource).toContain(".workspace-runner-field");
-    expect(globalsSource).toContain(".workspace-runner-modes");
-    expect(globalsSource).toContain(".workspace-runner-mode");
-    expect(globalsSource).toContain(".workspace-runner-mode-active");
     expect(globalsSource).toContain(".workspace-sidebar-column");
     expect(globalsSource).toContain(".workspace-sidebar-resizer");
     expect(globalsSource).toContain("grid-template-columns: auto 12px minmax(0, 1fr) 12px auto");

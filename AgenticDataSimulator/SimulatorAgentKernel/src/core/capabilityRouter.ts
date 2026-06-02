@@ -41,11 +41,25 @@ type LocalityApi = {
   bboxPolygonWkt: (lat: number, lon: number, deltaDeg?: number) => string;
 };
 
+const NETWORK_QOS_PREVIEW_METRICS: Record<string, unknown>[] = [
+  {
+    name: "bandwidth",
+    "tmf-quantifier-hint": "quan:larger",
+    "tmf-unit-hint": "mbit/s",
+  },
+  {
+    name: "latency",
+    "tmf-quantifier-hint": "quan:smaller",
+    "tmf-unit-hint": "ms",
+  },
+];
+
 export interface WorkloadPreviewResult {
   selectedChart: string | null;
   version: string | null;
   objectives: Record<string, unknown>[];
   sustainability: Record<string, unknown>[];
+  networkObjectives: Record<string, unknown>[];
   metricStems: string[];
   intentFlags: IntentFlags;
   warnings: string[];
@@ -278,32 +292,36 @@ export class CapabilityRouter {
     }
 
     if (!capabilities.has("selected_workload_objectives")) {
-      return {
-        selectedChart: null,
-        version: null,
-        objectives: [],
-        sustainability: [],
-        metricStems: [],
-        intentFlags,
-        warnings: [
-          "Prompt does not imply deployment or sustainability; no catalogue workload selection performed.",
-        ],
-      };
+      return this.finalizeWorkloadPreview(
+        {
+          selectedChart: null,
+          version: null,
+          objectives: [],
+          sustainability: [],
+          metricStems: [],
+          warnings: [
+            "Prompt does not imply deployment or sustainability; no catalogue workload selection performed.",
+          ],
+        },
+        intentFlags
+      );
     }
 
     try {
       const catalogue = await this.createCatalogueApi();
       const selectedChart = await this.selectChart(userText, catalogue);
       if (!selectedChart) {
-        return {
-          selectedChart: null,
-          version: null,
-          objectives: [],
-          sustainability: [],
-          metricStems: [],
-          intentFlags,
-          warnings: ["No matching workload chart found in catalogue for this prompt."],
-        };
+        return this.finalizeWorkloadPreview(
+          {
+            selectedChart: null,
+            version: null,
+            objectives: [],
+            sustainability: [],
+            metricStems: [],
+            warnings: ["No matching workload chart found in catalogue for this prompt."],
+          },
+          intentFlags
+        );
       }
 
       if (typeof catalogue.metricsForChart === "function") {
@@ -313,43 +331,79 @@ export class CapabilityRouter {
             metrics.objectives,
             metrics.sustainability
           );
-          return {
-            selectedChart: metrics.chartName,
-            version: metrics.version,
-            objectives: metrics.objectives,
-            sustainability: metrics.sustainability,
-            metricStems,
-            intentFlags,
-            warnings,
-          };
+          return this.finalizeWorkloadPreview(
+            {
+              selectedChart: metrics.chartName,
+              version: metrics.version,
+              objectives: metrics.objectives,
+              sustainability: metrics.sustainability,
+              metricStems,
+              warnings,
+            },
+            intentFlags
+          );
         }
       }
 
       const objectivesSummary = await catalogue.objectivesSummaryForChart(selectedChart);
       const metricStems = await this.parseMetricStemsFromObjectivesSummary(objectivesSummary);
-      return {
-        selectedChart,
-        version: null,
-        objectives: [],
-        sustainability: [],
-        metricStems,
-        intentFlags,
-        warnings: warnings.length
-          ? warnings
-          : ["Could not extract structured metrics from selected chart values.yaml."],
-      };
+      return this.finalizeWorkloadPreview(
+        {
+          selectedChart,
+          version: null,
+          objectives: [],
+          sustainability: [],
+          metricStems,
+          warnings: warnings.length
+            ? warnings
+            : ["Could not extract structured metrics from selected chart values.yaml."],
+        },
+        intentFlags
+      );
     } catch (error) {
       warnings.push("Selected workload objective extraction failed.");
-      return {
-        selectedChart: null,
-        version: null,
-        objectives: [],
-        sustainability: [],
-        metricStems: [],
-        intentFlags,
-        warnings: [...warnings, String(error)],
-      };
+      return this.finalizeWorkloadPreview(
+        {
+          selectedChart: null,
+          version: null,
+          objectives: [],
+          sustainability: [],
+          metricStems: [],
+          warnings: [...warnings, String(error)],
+        },
+        intentFlags
+      );
     }
+  }
+
+  private finalizeWorkloadPreview(
+    preview: {
+      selectedChart: string | null;
+      version: string | null;
+      objectives: Record<string, unknown>[];
+      sustainability: Record<string, unknown>[];
+      metricStems: string[];
+      warnings: string[];
+    },
+    intentFlags: IntentFlags
+  ): WorkloadPreviewResult {
+    const networkObjectives = intentFlags.networkQos ? [...NETWORK_QOS_PREVIEW_METRICS] : [];
+    const metricStems = this.mergeMetricStemsWithNetwork(preview.metricStems, intentFlags);
+    return {
+      ...preview,
+      networkObjectives,
+      metricStems,
+      intentFlags,
+    };
+  }
+
+  private mergeMetricStemsWithNetwork(metricStems: string[], intentFlags: IntentFlags): string[] {
+    const stems = new Set(metricStems);
+    if (intentFlags.networkQos) {
+      stems.add("bandwidth");
+      stems.add("latency");
+    }
+    return [...stems].sort();
   }
 
   private metricStemsFromEntries(

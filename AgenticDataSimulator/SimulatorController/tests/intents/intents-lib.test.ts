@@ -134,6 +134,27 @@ describe("intent-dashboard-url", () => {
     expect(Number(time.to)).toBeGreaterThan(bounds.maxMs);
   });
 
+  it("builds grafana url with https subpath base", () => {
+    const url = buildIntentGrafanaUrl({
+      intentId: "I04fb0697e3a243e7a292c6cb57e9f797",
+      conditionMetrics: ["metric_COabc"],
+      bounds: null,
+      envSource: {
+        ...testAppEnv,
+        GRAFANA_BASE_URL: "https://start5g-1.cs.uit.no/grafana",
+      },
+      env: {
+        baseUrl: "https://start5g-1.cs.uit.no/grafana",
+        dashboardUid: "Simulator-5g4data-Metrics",
+        dashboardSlug: "simulator-intent-and-condition-metrics-timeseries-dashboard",
+      },
+    });
+
+    expect(url).toBe(
+      "/tmf-simulator/api/grafana/open?to=https%3A%2F%2Fstart5g-1.cs.uit.no%2Fgrafana%2Fd%2FSimulator-5g4data-Metrics%2Fsimulator-intent-and-condition-metrics-timeseries-dashboard%3Fvar-intent_id%3DI04fb0697e3a243e7a292c6cb57e9f797%26from%3Dnow-3h%26to%3Dnow%26var-condition_metrics%3Dmetric_COabc",
+    );
+  });
+
   it("returns null when grafana base url is unset", () => {
     expect(
       buildIntentGrafanaUrl({

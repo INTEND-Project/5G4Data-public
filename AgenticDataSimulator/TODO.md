@@ -1,17 +1,25 @@
 # TODO
 When the first "working" version of the AgenticDataSimulator was up and running I started to keep a TODO list to structure further work.
 
+# Note
+Always move recently closed TODOs to the top of the closed list.
+
 ## Open
 ### Complex TODO´s
 - [ ] The simulator PoC is complete in the sense that we can generate both historic and streaming timeseries for all metrics mentioned in an intent´s Conditions. What remains is to handle events, i.e. changes in how the timeseries are generated based on events that inCoord, inSustain and inExplain might initiate (e.g. actions, meaning modification of existing intents or creation of new intents). We need to discuss this...
 - [ ] The different tools (inCoord, inSustain, inExplain) may have requirements on how the timeseries needs to be created that is currently not supported. We need to include support for those requirements both in scripts (extend the DSL, add support for freetext key words, etc.) and in the SimulatorAgentPackages/5g4data-intent-observations agent package. Support in the agent can be implemented using more prompt modules (e.g SimulatorAgentPackages/5g4data-intent-observations/prompt_modules), as code (parse keywords in structured and freetext used in "request observation-report ..." commands in scripts and add code to support it), as refinements of the agent SKILL.md file, as agent tools, etc.
+- [ ] Add status report agent (or should the observation agent do that based on observed metrics?)
 
 ### Easy TODO´s?
-- [ ] "Show metrics" button action only reports what is in the helm chart values.yaml file and not what could be result of network expectations. Find a way to fix this.
+- [ ] Give an error message when the number of ticks to be generated is above the SYNTH_OBS_HISTORIC_MAX_POINTS threshold. Also add checking of this to dry-run.
+- [ ] Start the data generation scripts in background?
 - [ ] Send Ericsson/Mario description of how the metadata query thingy works.
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed
+- [x] Hide the "Agent assistant" section in the left panel (we might unhide it later, so let us not remove the code yet). When "Show metrics" button is clicked, show the metrics in the right panel under a new heading "Metric stems".
+- [x] We need to serve Grafana over https on a remotely reachable URL. It now uses a port number and as a result we need to update the ufw to allow remote users to reach Grafana. Change so that the base URL is https://start5g-1.cs.uit.no/grafana Make needed changes in the Caddyfile.
+- [x] "Show metrics" button action only reports what is in the helm chart values.yaml file and not what could be result of network expectations. Find a way to fix this.
 - [x] Reflect over what the impact of allowing external partners to use their own Prometheus to store observation report values for metrics (and to populate it with real data from a deployment to their own Kubernetes cluster). The Query in GraphDB does only hold the query, not the URL to where the query should be sent. Should the URL be stored as well?
 - [x] Open up for API access to GraphDB so that partners can access our GraphDB server. Add security and basic authorisation before we allow access. 
 - [x] Grafana sometimes has timeframe set to 3h-now for historic generated data. Fix it.
@@ -58,5 +66,5 @@ When the first "working" version of the AgenticDataSimulator was up and running 
 - [x] Make the Grafana dashboards use the selected KG in the Controller.
 - [x] Update the IntentReportQueryProxy API to Accepts repository_id (or repository) on /api/get-metric-reports/<metric_name> (i.e. /api/get-metric-reports/${metric_name}?repository_id=${repository_id}&start=...)
 - [x] Add support of the old API style (without repository_id in the URL) in the Proxy for backward compatibility
-- [x] Move the IntentReportQueryProxy (the link between Grafana and GraphDB/Prometheus) to AgenticDataSimulator
+
 

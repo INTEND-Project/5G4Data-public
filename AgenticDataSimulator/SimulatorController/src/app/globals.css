@@ -1395,10 +1395,6 @@ select.workspace-script-run-select:disabled {
   min-width: 180px;
 }
 
-.workspace-prometheus-url-field {
-  margin-top: 8px;
-}
-
 .workspace-prometheus-url-input {
   width: 100%;
 }
@@ -1410,46 +1406,10 @@ select.workspace-script-run-select:disabled {
   margin-top: 8px;
 }
 
-.workspace-runner-modes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.workspace-runner-mode {
-  border: 1px solid var(--border);
-  border-radius: 10px;
+.workspace-prometheus-url-action-button {
   padding: 6px 12px;
-  background: rgba(125, 180, 255, 0.08);
-  color: var(--foreground);
   font-size: 0.85rem;
   font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.workspace-runner-mode:hover:not(:disabled):not(.workspace-runner-mode-active) {
-  background: rgba(125, 180, 255, 0.16);
-  border-color: rgba(125, 180, 255, 0.45);
-}
-
-.workspace-runner-mode:focus-visible {
-  outline: 2px solid #86bcff;
-  outline-offset: 2px;
-}
-
-.workspace-runner-mode:disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
-.workspace-runner-mode-active {
-  background: linear-gradient(135deg, #5e9dff, #86bcff);
-  color: #06111f;
-}
-
-.workspace-runner-mode-active:hover:not(:disabled) {
-  background: linear-gradient(135deg, #6aa5ff, #92c4ff);
 }
 
 .workspace-runner-select {

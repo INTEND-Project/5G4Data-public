@@ -1,14 +1,12 @@
 import { graphDbAuthHeaders } from "@/lib/graphdb/auth";
-import { loadAppEnv } from "@/lib/env";
+import { resolveGraphDbBaseUrl } from "@/lib/graphdb/resolve-base-url";
+import { graphDbHealthCheckUrl } from "@/lib/graphdb/urls";
 
-export async function getGraphDbConnectionStatus() {
-  const env = loadAppEnv(process.env);
-  const baseUrl = env.graphDbBaseUrl.endsWith("/")
-    ? env.graphDbBaseUrl
-    : `${env.graphDbBaseUrl}/`;
+export async function getGraphDbConnectionStatus(graphDbBaseUrl?: string | null) {
+  const baseUrl = resolveGraphDbBaseUrl(graphDbBaseUrl);
 
   try {
-    const response = await fetch(`${baseUrl}rest/repositories`, {
+    const response = await fetch(graphDbHealthCheckUrl(baseUrl), {
       cache: "no-store",
       headers: graphDbAuthHeaders(),
     });

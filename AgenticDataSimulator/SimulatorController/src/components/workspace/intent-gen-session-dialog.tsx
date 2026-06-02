@@ -70,7 +70,7 @@ export function IntentGenSessionDialog({
   createIntentStorage = null,
   onFinished,
 }: IntentGenSessionDialogProps) {
-  const { prometheusBaseUrl } = useWorkspaceScriptSession();
+  const { prometheusBaseUrl, graphDbBaseUrl } = useWorkspaceScriptSession();
   const taskBindingsRef = useRef<{ taskId?: string; contextId?: string }>({});
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
   const [draft, setDraft] = useState("");
@@ -276,6 +276,7 @@ export function IntentGenSessionDialog({
                 turtle: turtlePayload,
                 storage: createIntentStorage ?? undefined,
                 prometheusBaseUrl: prometheusBaseUrl.trim() || undefined,
+                graphDbBaseUrl: graphDbBaseUrl.trim() || undefined,
               }),
             });
             const ingestBody = (await ingestResponse.json().catch(() => ({}))) as {
@@ -355,6 +356,7 @@ export function IntentGenSessionDialog({
       graphTargetBinding,
       createIntentStorage,
       prometheusBaseUrl,
+      graphDbBaseUrl,
     ],
   );
 

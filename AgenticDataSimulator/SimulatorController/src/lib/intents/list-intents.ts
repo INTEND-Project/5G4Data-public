@@ -42,6 +42,8 @@ export type ListIntentsOptions = {
   grafanaLoginUsername?: string | null;
   /** User-selected Prometheus base URL from the workspace UI (overrides PROMETHEUS_URL). */
   prometheusBaseUrl?: string | null;
+  /** User-selected GraphDB base URL from the workspace UI (overrides GRAPHDB_BASE_URL). */
+  graphDbBaseUrl?: string | null;
 };
 
 const INTENT_ENRICH_CONCURRENCY = 5;
@@ -93,8 +95,9 @@ async function enrichIntentEntry(input: {
   mode: ListIntentsMode;
   grafanaLoginUsername?: string | null;
   prometheusBaseUrl?: string | null;
+  graphDbBaseUrl?: string | null;
 }): Promise<IntentListEntry> {
-  const { intentId, owner, prometheusSet, mode, grafanaLoginUsername, prometheusBaseUrl } =
+  const { intentId, owner, prometheusSet, mode, grafanaLoginUsername, prometheusBaseUrl, graphDbBaseUrl } =
     input;
   const hasGraphTarget = Boolean(owner?.repositoryId && owner.graphIri);
 
@@ -106,9 +109,14 @@ async function enrichIntentEntry(input: {
       repositoryId: owner.repositoryId,
       graphIri: owner.graphIri,
       intentId,
+      graphDbBaseUrl,
     });
 
-    metricMetadata = await fetchMetricQueryMetadata(owner.repositoryId, compoundMetrics);
+    metricMetadata = await fetchMetricQueryMetadata(
+      owner.repositoryId,
+      compoundMetrics,
+      graphDbBaseUrl,
+    );
   }
 
   const storage = resolveObservationStorageFromMetadata(
@@ -124,6 +132,7 @@ async function enrichIntentEntry(input: {
     compoundMetrics,
     metricMetadata,
     prometheusBaseUrl,
+    graphDbBaseUrl,
   });
 
   const repositoryId = hasGraphTarget && owner ? owner.repositoryId : null;
@@ -154,6 +163,7 @@ async function enrichIntentEntry(input: {
 async function resolveIntentOwners(
   targets: IntentTargetRef[],
   intentIds: string[],
+  graphDbBaseUrl?: string | null,
 ): Promise<{
   owners: Map<string, IntentTargetRef>;
   graphPresentIds: Set<string>;
@@ -168,7 +178,7 @@ async function resolveIntentOwners(
   const targetIntentIdLists = await Promise.all(
     targets.map(async (target) => ({
       target,
-      ids: await listIntentIdsFromGraph(target),
+      ids: await listIntentIdsFromGraph({ ...target, graphDbBaseUrl }),
     })),
   );
 
@@ -217,6 +227,7 @@ export async function listIntentsForDomain(
   const { owners: intentOwners, graphPresentIds } = await resolveIntentOwners(
     targets,
     ownedIntentIds,
+    options.graphDbBaseUrl,
   );
   const intentIds = [...ownedIntentIds]
     .filter((intentId) => graphPresentIds.has(intentId) || prometheusSet.has(intentId))
@@ -230,6 +241,7 @@ export async function listIntentsForDomain(
       mode,
       grafanaLoginUsername: options.grafanaLoginUsername,
       prometheusBaseUrl: options.prometheusBaseUrl,
+      graphDbBaseUrl: options.graphDbBaseUrl,
     }),
   );
 

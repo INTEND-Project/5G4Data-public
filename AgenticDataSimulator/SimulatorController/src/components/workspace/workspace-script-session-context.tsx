@@ -130,7 +130,7 @@ export type WorkspaceScriptSessionContextValue = {
   storageDeletionInProgress: boolean;
   beginStorageDeletion: () => void;
   endStorageDeletion: () => void;
-  /** True while Run Script is executing (execute or dry-run). */
+  /** True while Run Script is executing. */
   scriptRunInProgress: boolean;
   setScriptRunInProgress: (busy: boolean) => void;
   /** True while the observation-report A2A dialog is open. */
@@ -144,6 +144,11 @@ export type WorkspaceScriptSessionContextValue = {
   /** User override for Prometheus API base URL (localStorage + used in metadata inserts). */
   prometheusBaseUrl: string;
   setPrometheusBaseUrl: (url: string) => void;
+  /** Server default from GRAPHDB_BASE_URL (read-only hint in UI). */
+  defaultGraphDbBaseUrl: string;
+  /** User override for GraphDB API base URL (localStorage + used in KG operations). */
+  graphDbBaseUrl: string;
+  setGraphDbBaseUrl: (url: string) => void;
 };
 
 const WorkspaceScriptSessionContext = createContext<WorkspaceScriptSessionContextValue | null>(
@@ -174,6 +179,7 @@ export function WorkspaceScriptSessionProvider({
   runLogsApiUrl,
   currentUserId,
   defaultPrometheusBaseUrl,
+  defaultGraphDbBaseUrl,
 }: {
   children: ReactNode;
   selectedDomain: string;
@@ -182,6 +188,7 @@ export function WorkspaceScriptSessionProvider({
   runLogsApiUrl: string;
   currentUserId: string;
   defaultPrometheusBaseUrl: string;
+  defaultGraphDbBaseUrl: string;
 }) {
   const [bundle, setBundle] = useState<Bundle>(() =>
     buildInitialTabs(draftContent, selectedDomain),
@@ -223,6 +230,11 @@ export function WorkspaceScriptSessionProvider({
     [currentUserId],
   );
   const [prometheusBaseUrl, setPrometheusBaseUrlState] = useState(defaultPrometheusBaseUrl);
+  const graphDbStorageKey = useMemo(
+    () => `simulator-controller:graphdb-base-url:${currentUserId}`,
+    [currentUserId],
+  );
+  const [graphDbBaseUrl, setGraphDbBaseUrlState] = useState(defaultGraphDbBaseUrl);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -235,6 +247,18 @@ export function WorkspaceScriptSessionProvider({
       setPrometheusBaseUrlState(defaultPrometheusBaseUrl);
     }
   }, [defaultPrometheusBaseUrl, prometheusStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const stored = window.localStorage.getItem(graphDbStorageKey)?.trim();
+    if (stored) {
+      setGraphDbBaseUrlState(stored);
+    } else {
+      setGraphDbBaseUrlState(defaultGraphDbBaseUrl);
+    }
+  }, [defaultGraphDbBaseUrl, graphDbStorageKey]);
 
   const setPrometheusBaseUrl = useCallback(
     (url: string) => {
@@ -249,6 +273,21 @@ export function WorkspaceScriptSessionProvider({
       }
     },
     [prometheusStorageKey],
+  );
+
+  const setGraphDbBaseUrl = useCallback(
+    (url: string) => {
+      const trimmed = url.trim();
+      setGraphDbBaseUrlState(trimmed);
+      if (typeof window !== "undefined") {
+        if (trimmed) {
+          window.localStorage.setItem(graphDbStorageKey, trimmed);
+        } else {
+          window.localStorage.removeItem(graphDbStorageKey);
+        }
+      }
+    },
+    [graphDbStorageKey],
   );
 
   /** Bumps when the active run log buffer changes and the log dialog should repaint. */
@@ -880,6 +919,9 @@ export function WorkspaceScriptSessionProvider({
       defaultPrometheusBaseUrl,
       prometheusBaseUrl,
       setPrometheusBaseUrl,
+      defaultGraphDbBaseUrl,
+      graphDbBaseUrl,
+      setGraphDbBaseUrl,
     }),
     [
       selectedDomain,
@@ -924,6 +966,9 @@ export function WorkspaceScriptSessionProvider({
       defaultPrometheusBaseUrl,
       prometheusBaseUrl,
       setPrometheusBaseUrl,
+      defaultGraphDbBaseUrl,
+      graphDbBaseUrl,
+      setGraphDbBaseUrl,
     ],
   );
 

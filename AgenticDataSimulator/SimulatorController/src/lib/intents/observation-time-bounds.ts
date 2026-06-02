@@ -81,6 +81,7 @@ export async function fetchGraphDbObservationBounds(input: {
   repositoryId: string;
   graphIri: string;
   compoundMetrics: string[];
+  graphDbBaseUrl?: string | null;
 }): Promise<ObservationTimeBounds | null> {
   if (input.compoundMetrics.length === 0) {
     return null;
@@ -97,6 +98,7 @@ export async function fetchGraphDbObservationBounds(input: {
     const bindings = await runRepositorySparqlSelect({
       repositoryId: input.repositoryId,
       query,
+      graphDbBaseUrl: input.graphDbBaseUrl,
     });
     const row = bindings[0];
     const minMs = parseXsdDateTimeMs(row?.minAt?.value);
@@ -270,6 +272,7 @@ export async function fetchCompoundMetricsForIntent(input: {
   repositoryId: string;
   graphIri: string;
   intentId: string;
+  graphDbBaseUrl?: string | null;
 }): Promise<string[]> {
   let query: string;
   try {
@@ -282,6 +285,7 @@ export async function fetchCompoundMetricsForIntent(input: {
     const bindings = await runRepositorySparqlSelect({
       repositoryId: input.repositoryId,
       query,
+      graphDbBaseUrl: input.graphDbBaseUrl,
     });
 
     return bindings

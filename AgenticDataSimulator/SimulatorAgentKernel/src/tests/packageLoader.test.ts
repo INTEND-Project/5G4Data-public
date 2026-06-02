@@ -31,6 +31,13 @@ test("workflow modules resolve based on intent flags", () => {
   assert.ok(modules.includes("locality"));
 });
 
+test("networkQos flag matches network keyword in classification rules", () => {
+  const domainPackage = loadDomainPackage(basePackageDir);
+  const workflow = new WorkflowEngine(domainPackage);
+  const flags = workflow.classifyIntent("good network connection for 4K video");
+  assert.equal(flags.networkQos, true);
+});
+
 test("domain package swap works by changing directory", () => {
   const templatePackageDir = join(
     "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages",

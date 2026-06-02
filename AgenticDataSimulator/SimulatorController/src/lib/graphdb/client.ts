@@ -1,6 +1,6 @@
 import { graphDbAuthHeaders } from "@/lib/graphdb/auth";
 import { buildClearKnowledgeGraphUpdate } from "@/lib/graphdb/clear-knowledge-graph-query";
-import { loadAppEnv } from "@/lib/env";
+import { resolveGraphDbBaseUrl } from "@/lib/graphdb/resolve-base-url";
 import type {
   GraphDbNamedGraphInput,
   GraphDbRepositoryInput,
@@ -71,8 +71,10 @@ async function buildGraphDbErrorMessage(response: Response, operation: string) {
     : `GraphDB ${operation} failed with ${response.status}`;
 }
 
-export async function createRepository(input: GraphDbRepositoryInput) {
-  const env = loadAppEnv(process.env);
+export async function createRepository(
+  input: GraphDbRepositoryInput & { graphDbBaseUrl?: string | null },
+) {
+  const baseUrl = resolveGraphDbBaseUrl(input.graphDbBaseUrl);
   const formData = new FormData();
   const repositoryConfig = new Blob([buildRepositoryConfigTurtle(input)], {
     type: "text/turtle",
@@ -80,7 +82,7 @@ export async function createRepository(input: GraphDbRepositoryInput) {
 
   formData.append("config", repositoryConfig, "repo-config.ttl");
 
-  const response = await fetch(`${env.graphDbBaseUrl}rest/repositories`, {
+  const response = await fetch(`${baseUrl}rest/repositories`, {
     method: "POST",
     headers: graphDbAuthHeaders(),
     body: formData,
@@ -91,11 +93,13 @@ export async function createRepository(input: GraphDbRepositoryInput) {
   }
 }
 
-export async function createNamedGraph(input: GraphDbNamedGraphInput) {
-  const env = loadAppEnv(process.env);
+export async function createNamedGraph(
+  input: GraphDbNamedGraphInput & { graphDbBaseUrl?: string | null },
+) {
+  const baseUrl = resolveGraphDbBaseUrl(input.graphDbBaseUrl);
 
   const response = await fetch(
-    `${env.graphDbBaseUrl}repositories/${input.repositoryId}/rdf-graphs/service?graph=${encodeURIComponent(input.graphIri)}`,
+    `${baseUrl}repositories/${input.repositoryId}/rdf-graphs/service?graph=${encodeURIComponent(input.graphIri)}`,
     {
       method: "PUT",
       headers: graphDbAuthHeaders({
@@ -110,10 +114,13 @@ export async function createNamedGraph(input: GraphDbNamedGraphInput) {
   }
 }
 
-export async function deleteRepository(input: { repositoryId: string }) {
-  const env = loadAppEnv(process.env);
+export async function deleteRepository(input: {
+  repositoryId: string;
+  graphDbBaseUrl?: string | null;
+}) {
+  const baseUrl = resolveGraphDbBaseUrl(input.graphDbBaseUrl);
   const response = await fetch(
-    `${env.graphDbBaseUrl}rest/repositories/${encodeURIComponent(input.repositoryId)}`,
+    `${baseUrl}rest/repositories/${encodeURIComponent(input.repositoryId)}`,
     {
       method: "DELETE",
       headers: graphDbAuthHeaders(),
@@ -125,18 +132,14 @@ export async function deleteRepository(input: { repositoryId: string }) {
   }
 }
 
-function normalizedGraphDbBaseUrl(): string {
-  const env = loadAppEnv(process.env);
-  return env.graphDbBaseUrl.endsWith("/") ? env.graphDbBaseUrl : `${env.graphDbBaseUrl}/`;
-}
-
 /** POST Turtle intent data into the target named graph (RDF4J Graph Store HTTP API). */
 export async function ingestIntentTurtle(input: {
   repositoryId: string;
   graphIri: string;
   turtle: string;
+  graphDbBaseUrl?: string | null;
 }): Promise<void> {
-  const base = normalizedGraphDbBaseUrl();
+  const base = resolveGraphDbBaseUrl(input.graphDbBaseUrl);
   const url =
     `${base}repositories/${encodeURIComponent(input.repositoryId)}` +
     `/rdf-graphs/service?graph=${encodeURIComponent(input.graphIri)}`;
@@ -182,8 +185,9 @@ export async function runRepositorySparqlSelect(input: {
   repositoryId: string;
   query: string;
   timeoutMs?: number;
+  graphDbBaseUrl?: string | null;
 }): Promise<SparqlJsonBinding[]> {
-  const base = normalizedGraphDbBaseUrl();
+  const base = resolveGraphDbBaseUrl(input.graphDbBaseUrl);
   const url = `${base}repositories/${encodeURIComponent(input.repositoryId)}`;
 
   const timeoutMs = input.timeoutMs ?? 60_000;
@@ -223,8 +227,9 @@ export async function clearKnowledgeGraph(input: {
   repositoryId: string;
   graphIri: string;
   timeoutMs?: number;
+  graphDbBaseUrl?: string | null;
 }): Promise<void> {
-  const base = normalizedGraphDbBaseUrl();
+  const base = resolveGraphDbBaseUrl(input.graphDbBaseUrl);
   const url =
     `${base}repositories/${encodeURIComponent(input.repositoryId)}/statements`;
   const query = buildClearKnowledgeGraphUpdate(input.graphIri);
@@ -262,8 +267,9 @@ export async function runRepositorySparqlUpdate(input: {
   repositoryId: string;
   query: string;
   timeoutMs?: number;
+  graphDbBaseUrl?: string | null;
 }): Promise<void> {
-  const base = normalizedGraphDbBaseUrl();
+  const base = resolveGraphDbBaseUrl(input.graphDbBaseUrl);
   const url = `${base}repositories/${encodeURIComponent(input.repositoryId)}/statements`;
 
   const timeoutMs = input.timeoutMs ?? 60_000;

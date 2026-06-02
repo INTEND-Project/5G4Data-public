@@ -1,5 +1,6 @@
 import type { DslDiagnostic, DslStatement } from "@/lib/dsl/types";
 import { parseCanonicalIntentLocalId } from "@/lib/intent/extract-intent-turtle";
+import { validateHistoricObservationTickCap } from "@/lib/dsl/validator/validate-historic-observation-ticks";
 
 export function validateScript(statements: DslStatement[]): DslDiagnostic[] {
   const diagnostics: DslDiagnostic[] = [];
@@ -55,6 +56,27 @@ export function validateScript(statements: DslStatement[]): DslDiagnostic[] {
         }
         break;
       case "request-status-report":
+        if (!agentAliases.has(statement.agentAlias)) {
+          diagnostics.push({
+            line: statement.line,
+            severity: "error",
+            code: "UNKNOWN_AGENT_ALIAS",
+            message: `Unknown agent alias "${statement.agentAlias}".`,
+          });
+        }
+
+        if (
+          !intentAliases.has(statement.intentAlias) &&
+          !parseCanonicalIntentLocalId(statement.intentAlias)
+        ) {
+          diagnostics.push({
+            line: statement.line,
+            severity: "error",
+            code: "UNKNOWN_INTENT_ALIAS",
+            message: `Unknown intent alias "${statement.intentAlias}".`,
+          });
+        }
+        break;
       case "request-observation-report":
         if (!agentAliases.has(statement.agentAlias)) {
           diagnostics.push({
@@ -75,6 +97,16 @@ export function validateScript(statements: DslStatement[]): DslDiagnostic[] {
             code: "UNKNOWN_INTENT_ALIAS",
             message: `Unknown intent alias "${statement.intentAlias}".`,
           });
+        }
+
+        {
+          const tickCapDiagnostic = validateHistoricObservationTickCap(
+            statement.line,
+            statement.instructions,
+          );
+          if (tickCapDiagnostic) {
+            diagnostics.push(tickCapDiagnostic);
+          }
         }
         break;
     }

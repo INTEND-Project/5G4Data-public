@@ -8,6 +8,7 @@ import { AssistantPanel } from "@/components/workspace/assistant-panel";
 import { DomainSelector } from "@/components/workspace/domain-selector";
 import { IntentsPanel } from "@/components/workspace/intents-panel";
 import { KgTargetPanel } from "@/components/workspace/kg-target-panel";
+import { MetricStemsPanel } from "@/components/workspace/metric-stems-panel";
 import { PrometheusPanel } from "@/components/workspace/prometheus-panel";
 import { ScriptList } from "@/components/workspace/script-list";
 import { WorkspaceLeftSidebarResizable } from "@/components/workspace/workspace-left-sidebar-resizable";
@@ -76,6 +77,9 @@ type KgTargetRecord = {
   repositoryId: string;
   graphIri: string;
 };
+
+/** Set to true to restore the Agent assistant block in the right sidebar. */
+const SHOW_AGENT_ASSISTANT_PANEL = false;
 
 export function WorkspaceShell({
   username,
@@ -214,6 +218,7 @@ export function WorkspaceShell({
     <main className="workspace-shell">
       <WorkspaceScriptSessionProvider
         currentUserId={currentUserId}
+        defaultGraphDbBaseUrl={graphDbBaseUrl}
         defaultPrometheusBaseUrl={defaultPrometheusBaseUrl}
         draftContent={draftContent}
         runLogsApiUrl={runLogsApiUrl}
@@ -276,7 +281,6 @@ export function WorkspaceShell({
               currentUserId={currentUserId}
               discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
               discoverObservationAgentApiUrl={discoverObservationAgentApiUrl}
-              graphDbBaseUrl={graphDbBaseUrl}
               intentsRegisterUrl={intentsRegisterUrl}
               kgTargets={scriptRunnerKgTargets}
               kgTargetsApiBaseUrl={kgTargetsDeleteUrlBase}
@@ -308,7 +312,10 @@ export function WorkspaceShell({
               prometheusConnected={infraStatus.prometheusConnected}
               selectedDomain={selectedDomain}
             />
-            <AssistantPanel assistantContext={assistantContext} />
+            <MetricStemsPanel />
+            <div hidden={!SHOW_AGENT_ASSISTANT_PANEL}>
+              <AssistantPanel assistantContext={assistantContext} />
+            </div>
           </WorkspaceRightSidebarResizable>
         </section>
       </WorkspaceScriptSessionProvider>

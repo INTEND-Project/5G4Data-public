@@ -5,10 +5,12 @@ import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { createNamedGraph, createRepository } from "@/lib/graphdb/client";
 import { buildGraphIri, buildRepositoryId } from "@/lib/graphdb/naming";
+import { parseGraphDbBaseUrlInput } from "@/lib/graphdb/resolve-base-url";
 
 const createTargetBodySchema = z.object({
   domain: z.string().trim().min(1),
   displayName: z.string().trim().min(1),
+  graphDbBaseUrl: z.string().trim().optional(),
 });
 
 export async function GET(request: Request) {
@@ -49,16 +51,26 @@ export async function POST(request: Request) {
   }
 
   const body = createTargetBodySchema.parse(await request.json());
+  let graphDbBaseUrl: string | undefined;
+  if (body.graphDbBaseUrl?.trim()) {
+    const parsed = parseGraphDbBaseUrlInput(body.graphDbBaseUrl);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    graphDbBaseUrl = parsed.url;
+  }
   const repositoryId = buildRepositoryId(body.domain, body.displayName, user.username);
   const graphIri = buildGraphIri(body.domain, body.displayName, user.username);
 
   await createRepository({
     repositoryId,
     label: body.displayName,
+    graphDbBaseUrl,
   });
   await createNamedGraph({
     repositoryId,
     graphIri,
+    graphDbBaseUrl,
   });
 
   const target = await db.knowledgeGraphTarget.create({

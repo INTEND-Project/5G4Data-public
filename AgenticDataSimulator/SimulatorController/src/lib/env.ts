@@ -41,7 +41,10 @@ const appEnvSchema = z.object({
     .url()
     .default("https://start5g-1.cs.uit.no/prometheus"),
   PUSHGATEWAY_URL: z.string().url().default("http://127.0.0.1:9091"),
-  GRAFANA_BASE_URL: z.string().url().optional(),
+  GRAFANA_BASE_URL: z
+    .string()
+    .url()
+    .default("https://start5g-1.cs.uit.no/grafana"),
   GRAFANA_ADMIN_USER: z.string().default("admin"),
   GRAFANA_ADMIN_PASSWORD: z.string().optional(),
   GRAFANA_API_KEY: z.string().optional(),

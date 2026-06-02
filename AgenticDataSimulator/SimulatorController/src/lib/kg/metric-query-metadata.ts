@@ -58,6 +58,7 @@ WHERE {
 export async function fetchMetricQueryMetadata(
   repositoryId: string,
   compoundMetrics: string[],
+  graphDbBaseUrl?: string | null,
 ): Promise<MetricQueryMetadata[]> {
   if (compoundMetrics.length === 0) {
     return [];
@@ -74,6 +75,7 @@ export async function fetchMetricQueryMetadata(
     const bindings = await runRepositorySparqlSelect({
       repositoryId,
       query,
+      graphDbBaseUrl,
     });
 
     return bindings

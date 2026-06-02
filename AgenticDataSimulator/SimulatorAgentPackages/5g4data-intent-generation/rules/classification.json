@@ -2,7 +2,7 @@
   "intentFlags": {
     "deployment": ["deploy", "deployment", "run", "inference", "model", "llm", "workload"],
     "locality": ["near", "close", "edge", "local", "tromso", "bod", "norway"],
-    "networkQos": ["latency", "bandwidth", "qos", "realtime", "real-time", "mbit", "mbit/s", "millisecond", "milliseconds"],
+    "networkQos": ["network", "latency", "bandwidth", "qos", "realtime", "real-time", "mbit", "mbit/s", "millisecond", "milliseconds"],
     "sustainability": ["sustainability", "sustainable", "energy", "power", "joules", "watts", "kepler", "carbon"],
     "reportToGraphdb": [
       "observation report storage for this intent: graphdb",

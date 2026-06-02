@@ -17,7 +17,9 @@ export const metadata: Metadata = {
   description: "Controller workspace for two-stage OpenClaw script authoring and execution.",
 };
 
-const isDevEnvironment = process.env.NODE_ENV === "development";
+const isDevEnvironment =
+  process.env.NODE_ENV === "development" ||
+  process.env.CONTROLLER_DEV_DIST === "1";
 
 export default function RootLayout({
   children,

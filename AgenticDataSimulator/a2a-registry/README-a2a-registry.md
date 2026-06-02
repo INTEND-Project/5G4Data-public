@@ -72,6 +72,21 @@ If you run a **second** agent (e.g. observations on **3012**), add a matching UF
 sudo ufw allow from 172.21.0.0/16 to any port 3012 proto tcp comment 'Observation agent from 5g4data-tutorial-app-network'
 ```
 
+**Grafana** (host port **3002**, proxied at `/grafana`):
+
+```bash
+sudo ufw allow from 172.21.0.0/16 to any port 3002 proto tcp comment 'Grafana from 5g4data-tutorial-app-network'
+sudo ufw reload
+```
+
+Verify from the Caddy container:
+
+```bash
+docker exec 5g4data-tutorial-reverse-proxy-1 wget -qO- -T 3 "http://host.docker.internal:3002/grafana/api/health"
+```
+
+Do **not** expose port 3002 publicly; remote users reach Grafana via HTTPS on port 443.
+
 If you use an optional unified proxy on **18080** (§4.2), allow that port from the same Docker subnet as well.
 
 ---

@@ -31,7 +31,7 @@ describe("loadAppEnv", () => {
     expect(env.grafanaTimeseriesDashboardSlug).toBe(
       "simulator-intent-and-condition-metrics-timeseries-dashboard",
     );
-    expect(env.grafanaBaseUrl).toBeUndefined();
+    expect(env.grafanaBaseUrl).toBe("https://start5g-1.cs.uit.no/grafana");
     expect(env.grafanaAdminUser).toBe("admin");
     expect(env.grafanaAdminPassword).toBeUndefined();
     expect(env.grafanaUserEmailDomain).toBe("simulator.local");

@@ -122,6 +122,7 @@ async function graphDbMetricHasObservations(input: {
   repositoryId: string;
   graphIri: string;
   compoundMetric: string;
+  graphDbBaseUrl?: string | null;
 }): Promise<boolean> {
   let query: string;
   try {
@@ -134,6 +135,7 @@ async function graphDbMetricHasObservations(input: {
     const bindings = await runRepositorySparqlSelect({
       repositoryId: input.repositoryId,
       query,
+      graphDbBaseUrl: input.graphDbBaseUrl,
     });
     const raw = bindings[0]?.count?.value;
     const count = raw ? Number.parseInt(raw, 10) : 0;
@@ -150,6 +152,7 @@ async function countReadyMetrics(input: {
   graphIri: string | null;
   expectedMetrics: string[];
   prometheusBaseUrl?: string | null;
+  graphDbBaseUrl?: string | null;
 }): Promise<number> {
   if (input.expectedMetrics.length === 0) {
     return 0;
@@ -180,6 +183,7 @@ async function countReadyMetrics(input: {
         repositoryId: input.repositoryId,
         graphIri: input.graphIri,
         compoundMetric: metric,
+        graphDbBaseUrl: input.graphDbBaseUrl,
       })
     ) {
       ready += 1;
@@ -196,6 +200,7 @@ export async function assessIntentDataReadiness(input: {
   compoundMetrics: string[];
   metricMetadata: MetricQueryMetadata[];
   prometheusBaseUrl?: string | null;
+  graphDbBaseUrl?: string | null;
 }): Promise<IntentDataReadiness> {
   const expectedMetrics = metricsExpectedForStorage(
     input.storage,
@@ -211,6 +216,7 @@ export async function assessIntentDataReadiness(input: {
     graphIri: input.graphIri,
     expectedMetrics,
     prometheusBaseUrl: input.prometheusBaseUrl,
+    graphDbBaseUrl: input.graphDbBaseUrl,
   });
 
   const status: IntentDataStatus =
@@ -228,6 +234,7 @@ export async function assessIntentDataReadiness(input: {
         repositoryId: input.repositoryId,
         graphIri: input.graphIri,
         compoundMetrics: expectedMetrics,
+        graphDbBaseUrl: input.graphDbBaseUrl,
       });
     }
   }

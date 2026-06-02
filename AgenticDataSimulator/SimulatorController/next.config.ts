@@ -19,6 +19,10 @@ function resolveDistDir(): string {
 const nextConfig: NextConfig = {
   ...(configuredBasePath ? { basePath: configuredBasePath } : {}),
   distDir: resolveDistDir(),
+  env: {
+    SYNTH_OBS_HISTORIC_MAX_POINTS:
+      process.env.SYNTH_OBS_HISTORIC_MAX_POINTS ?? String(250_000),
+  },
   allowedDevOrigins: ["start5g-1.cs.uit.no"],
   images: {
     remotePatterns: [

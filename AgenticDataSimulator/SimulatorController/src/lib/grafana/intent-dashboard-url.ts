@@ -9,6 +9,7 @@ import {
   isStreamingBounds,
   type ObservationTimeBounds,
 } from "@/lib/intents/observation-time-bounds";
+import { wrapGrafanaIntentOpenUrl } from "@/lib/grafana/open-url";
 
 export type GrafanaDashboardEnv = {
   baseUrl: string | null;
@@ -97,5 +98,9 @@ export function buildIntentGrafanaUrl(input: {
     );
   }
 
-  return `${base}/d/${encodeURIComponent(env.dashboardUid)}/${encodeURIComponent(env.dashboardSlug)}?${params.toString()}`;
+  return wrapGrafanaIntentOpenUrl(
+    `${base}/d/${encodeURIComponent(env.dashboardUid)}/${encodeURIComponent(env.dashboardSlug)}?${params.toString()}`,
+    appEnv.appBasePath,
+    appEnv.grafanaBaseUrl,
+  );
 }

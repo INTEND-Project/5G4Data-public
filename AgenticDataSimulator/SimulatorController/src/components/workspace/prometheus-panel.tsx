@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
+import { withAppBasePath } from "@/lib/app-paths";
 import { parsePrometheusBaseUrlInput } from "@/lib/prometheus/resolve-base-url";
-import { prometheusHealthCheckUrl } from "@/lib/prometheus/urls";
 
 type PrometheusPanelProps = {
   prometheusConnected: boolean;
@@ -43,7 +43,11 @@ export function PrometheusPanel({ prometheusConnected }: PrometheusPanelProps) {
 
   useEffect(() => {
     const trimmed = prometheusBaseUrl.trim();
-    if (!trimmed) {
+    const isCustomUrl =
+      trimmed.length > 0 &&
+      trimmed.replace(/\/$/, "") !== defaultPrometheusBaseUrl.replace(/\/$/, "");
+
+    if (!isCustomUrl) {
       setCustomReachable(null);
       return;
     }
@@ -59,11 +63,21 @@ export function PrometheusPanel({ prometheusConnected }: PrometheusPanelProps) {
             }
             return;
           }
-          const response = await fetch(prometheusHealthCheckUrl(base.url), {
-            cache: "no-store",
-          });
+          const params = new URLSearchParams({ prometheusBaseUrl: base.url });
+          const response = await fetch(
+            `${withAppBasePath("/api/prometheus/status")}?${params.toString()}`,
+            {
+              cache: "no-store",
+              credentials: "same-origin",
+            },
+          );
           if (!cancelled) {
-            setCustomReachable(response.ok);
+            if (!response.ok) {
+              setCustomReachable(false);
+              return;
+            }
+            const payload = (await response.json()) as { connected?: boolean };
+            setCustomReachable(payload.connected === true);
           }
         } catch {
           if (!cancelled) {
@@ -77,7 +91,7 @@ export function PrometheusPanel({ prometheusConnected }: PrometheusPanelProps) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [prometheusBaseUrl]);
+  }, [defaultPrometheusBaseUrl, prometheusBaseUrl]);
 
   const showCustomChip =
     prometheusBaseUrl.trim().length > 0 &&
@@ -86,7 +100,7 @@ export function PrometheusPanel({ prometheusConnected }: PrometheusPanelProps) {
   return (
     <section className="workspace-section">
       <div className="workspace-heading-row">
-        <h2>Prometheus</h2>
+        <h2>Prometheus base URL:</h2>
         <span
           className={`workspace-chip ${
             (showCustomChip ? customReachable : prometheusConnected)
@@ -103,7 +117,6 @@ export function PrometheusPanel({ prometheusConnected }: PrometheusPanelProps) {
       </div>
       <div className="workspace-stack">
         <article className="workspace-card">
-          <strong>Prometheus base URL</strong>
           <div className="workspace-runner-field workspace-prometheus-url-field">
             <input
               aria-label="Prometheus base URL"
@@ -132,14 +145,14 @@ export function PrometheusPanel({ prometheusConnected }: PrometheusPanelProps) {
           ) : null}
           <div className="workspace-prometheus-url-actions">
             <button
-              className="workspace-button workspace-button-secondary"
+              className="workspace-button workspace-button-secondary workspace-prometheus-url-action-button"
               onClick={applyUrl}
               type="button"
             >
               Apply
             </button>
             <button
-              className="workspace-button workspace-button-secondary"
+              className="workspace-button workspace-button-secondary workspace-prometheus-url-action-button"
               onClick={resetToDefault}
               type="button"
             >

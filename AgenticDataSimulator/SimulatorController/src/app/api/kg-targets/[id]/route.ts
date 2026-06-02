@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { deleteRepository } from "@/lib/graphdb/client";
+import { parseGraphDbBaseUrlInput } from "@/lib/graphdb/resolve-base-url";
 
 type RouteContext = {
   params: Promise<{
@@ -29,8 +30,19 @@ export async function DELETE(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Knowledge graph target not found" }, { status: 404 });
   }
 
+  const graphDbBaseUrlParam = new URL(request.url).searchParams.get("graphDbBaseUrl")?.trim();
+  let graphDbBaseUrl: string | undefined;
+  if (graphDbBaseUrlParam) {
+    const parsed = parseGraphDbBaseUrlInput(graphDbBaseUrlParam);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    graphDbBaseUrl = parsed.url;
+  }
+
   await deleteRepository({
     repositoryId: target.repositoryId,
+    graphDbBaseUrl,
   });
 
   await db.knowledgeGraphTarget.delete({

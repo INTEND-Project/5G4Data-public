@@ -1,6 +1,6 @@
 import { graphDbAuthHeaders } from "@/lib/graphdb/auth";
 import { runRepositorySparqlSelect } from "@/lib/graphdb/client";
-import { loadAppEnv } from "@/lib/env";
+import { resolveGraphDbBaseUrl } from "@/lib/graphdb/resolve-base-url";
 import {
   graphIriForSparqlAngleBrackets,
   parseIntentLocalIdForMetricCatalog,
@@ -51,6 +51,7 @@ export async function fetchIntentTurtle(input: {
   repositoryId: string;
   graphIri: string;
   intentId: string;
+  graphDbBaseUrl?: string | null;
 }): Promise<string | null> {
   let query: string;
   try {
@@ -59,10 +60,7 @@ export async function fetchIntentTurtle(input: {
     return null;
   }
 
-  const env = loadAppEnv(process.env);
-  const normalizedBase = env.graphDbBaseUrl.endsWith("/")
-    ? env.graphDbBaseUrl
-    : `${env.graphDbBaseUrl}/`;
+  const normalizedBase = resolveGraphDbBaseUrl(input.graphDbBaseUrl);
   const url = `${normalizedBase}repositories/${encodeURIComponent(input.repositoryId)}`;
 
   const response = await fetch(url, {
@@ -86,6 +84,7 @@ export async function fetchIntentTurtle(input: {
 export async function listIntentIdsFromGraph(input: {
   repositoryId: string;
   graphIri: string;
+  graphDbBaseUrl?: string | null;
 }): Promise<string[]> {
   const { buildListIntentsQuery } = await import("@/lib/kg/list-intents-query");
   let query: string;
@@ -99,6 +98,7 @@ export async function listIntentIdsFromGraph(input: {
     const bindings = await runRepositorySparqlSelect({
       repositoryId: input.repositoryId,
       query,
+      graphDbBaseUrl: input.graphDbBaseUrl,
     });
 
     const ids = bindings

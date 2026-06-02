@@ -114,6 +114,10 @@ export function ShowMetricsDialog({
           <span className="workspace-label">Selected workload</span>
           <strong>{workloadLabel}</strong>
         </p>
+        <p className="workspace-show-metrics-workload">
+          <span className="workspace-label">Network QoS expected</span>
+          <strong>{preview.intentFlags?.networkQos ? "yes" : "no"}</strong>
+        </p>
 
         {preview.warnings.length > 0 ? (
           <ul className="workspace-show-metrics-warnings" role="alert">
@@ -134,6 +138,7 @@ export function ShowMetricsDialog({
 
         <MetricSection title="Deployment objectives" metrics={preview.objectives} />
         <MetricSection title="Sustainability metrics" metrics={preview.sustainability} />
+        <MetricSection title="Network QoS metrics" metrics={preview.networkObjectives} />
 
         <div className="workspace-save-name-dialog-actions">
           <button className="workspace-button" onClick={onClose} type="button">

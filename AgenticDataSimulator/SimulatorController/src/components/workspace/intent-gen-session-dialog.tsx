@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
 import {
   extractIntentLocalIdFromTurtle,
   extractIntentTurtle,
@@ -69,6 +70,7 @@ export function IntentGenSessionDialog({
   createIntentStorage = null,
   onFinished,
 }: IntentGenSessionDialogProps) {
+  const { prometheusBaseUrl } = useWorkspaceScriptSession();
   const taskBindingsRef = useRef<{ taskId?: string; contextId?: string }>({});
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
   const [draft, setDraft] = useState("");
@@ -270,19 +272,33 @@ export function IntentGenSessionDialog({
               method: "POST",
               credentials: "same-origin",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ turtle: turtlePayload }),
+              body: JSON.stringify({
+                turtle: turtlePayload,
+                storage: createIntentStorage ?? undefined,
+                prometheusBaseUrl: prometheusBaseUrl.trim() || undefined,
+              }),
             });
             const ingestBody = (await ingestResponse.json().catch(() => ({}))) as {
               intentId?: string | null;
               error?: string;
+              prometheusMetadata?: { stored: number; failed: number };
             };
             if (ingestResponse.ok) {
               const canonical =
                 normalizedIntentIdFromStoreResponse(ingestBody.intentId) ??
                 extractIntentLocalIdFromTurtle(turtlePayload);
               const idNote = canonical ?? "unknown-id";
+              const metaNote =
+                ingestBody.prometheusMetadata &&
+                createIntentStorage === "prometheus"
+                  ? `; Prometheus query metadata: ${ingestBody.prometheusMetadata.stored} stored${
+                      ingestBody.prometheusMetadata.failed > 0
+                        ? `, ${ingestBody.prometheusMetadata.failed} failed`
+                        : ""
+                    }`
+                  : "";
               onIntentPersistLog?.(
-                `[${idNote}] Stored intent in knowledge graph (${idNote}).`,
+                `[${idNote}] Stored intent in knowledge graph (${idNote})${metaNote}.`,
               );
               if (canonical && variant === "intent-generation") {
                 onKgIntentStored?.(
@@ -337,6 +353,8 @@ export function IntentGenSessionDialog({
       onTranscriptTurn,
       onKgIntentStored,
       graphTargetBinding,
+      createIntentStorage,
+      prometheusBaseUrl,
     ],
   );
 

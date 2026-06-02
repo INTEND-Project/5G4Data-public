@@ -104,6 +104,7 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
       a2aMessageSendUrl={a2aMessageSendUrl}
       previewMetricsApiUrl={previewMetricsApiUrl}
       graphDbBaseUrl={appEnv.graphDbBaseUrl}
+      defaultPrometheusBaseUrl={appEnv.prometheusUrl}
       graphDbConnected={false}
       infraStatusApiUrl={infraStatusApiUrl}
       intentsApiUrl={intentsApiUrl}

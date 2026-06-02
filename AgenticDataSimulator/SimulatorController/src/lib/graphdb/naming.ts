@@ -5,6 +5,10 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+export function buildKgNamePrefix(domain: string, ownerSlug: string): string {
+  return `${slugify(domain)}-${slugify(ownerSlug)}-`;
+}
+
 export function buildRepositoryId(domain: string, displayName: string, ownerSlug: string) {
   return `${slugify(domain)}-${slugify(ownerSlug)}-${slugify(displayName)}`;
 }

@@ -33,6 +33,14 @@ describe("resolveObservationStorageFromMetadata", () => {
   });
 });
 
+const testAppEnv = {
+  DATABASE_URL: "file:./dev.db",
+  A2A_REGISTRY_BASE_URL: "https://registry.example",
+  GRAPHDB_BASE_URL: "http://graphdb.example/",
+  PROMETHEUS_URL: "http://prometheus.example:9090/",
+  PUSHGATEWAY_URL: "http://pushgateway.example:9091",
+};
+
 describe("intent-dashboard-url", () => {
   it("builds streaming grafana url when bounds are recent", () => {
     const now = Date.now();
@@ -40,6 +48,7 @@ describe("intent-dashboard-url", () => {
       intentId: "I04fb0697e3a243e7a292c6cb57e9f797",
       conditionMetrics: ["metric_COabc"],
       bounds: { minMs: now - 60_000, maxMs: now - 30_000 },
+      envSource: testAppEnv,
       env: {
         baseUrl: "http://grafana.example:3001",
         dashboardUid: "abc123",
@@ -59,6 +68,7 @@ describe("intent-dashboard-url", () => {
       intentId: "I04fb0697e3a243e7a292c6cb57e9f797",
       conditionMetrics: ["metric_COabc", "metric_COdef"],
       bounds: null,
+      envSource: testAppEnv,
       env: {
         baseUrl: "http://grafana.example:3001",
         dashboardUid: "abc123",
@@ -76,6 +86,7 @@ describe("intent-dashboard-url", () => {
       intentId: "I04fb0697e3a243e7a292c6cb57e9f797",
       conditionMetrics: [],
       bounds: null,
+      envSource: testAppEnv,
       repositoryId: "telenor-5g4data-kg-my-experiment",
       graphIri: "urn:intend:kg:telenor-5g4data:kg-my-experiment",
       env: {
@@ -96,6 +107,7 @@ describe("intent-dashboard-url", () => {
       intentId: "I04fb0697e3a243e7a292c6cb57e9f797",
       conditionMetrics: [],
       bounds: null,
+      envSource: testAppEnv,
       repositoryId: null,
       graphIri: null,
       env: {

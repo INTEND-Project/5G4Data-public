@@ -9,7 +9,7 @@ const userIntentRegistryMock = {
   unregisterGraphStoredIntentsForTarget: vi.fn(),
 };
 
-const listIntentsMock = {
+const listIntentsCacheMock = {
   invalidateLiteListCache: vi.fn(),
 };
 
@@ -41,14 +41,14 @@ vi.mock("../../src/lib/db", () => ({
 vi.mock("../../src/lib/graphdb/client", () => graphDbClientMock);
 vi.mock("../../src/lib/auth/guards", () => guardMock);
 vi.mock("../../src/lib/intents/user-intent-registry", () => userIntentRegistryMock);
-vi.mock("../../src/lib/intents/list-intents", () => listIntentsMock);
+vi.mock("../../src/lib/intents/list-intents-cache", () => listIntentsCacheMock);
 
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   guardMock.getAuthenticatedUser.mockResolvedValue(authenticatedUser);
   userIntentRegistryMock.unregisterGraphStoredIntentsForTarget.mockResolvedValue(undefined);
-  listIntentsMock.invalidateLiteListCache.mockImplementation(() => undefined);
+  listIntentsCacheMock.invalidateLiteListCache.mockImplementation(() => undefined);
 });
 
 describe("kg target routes", () => {
@@ -248,7 +248,7 @@ describe("kg target routes", () => {
       "user-1",
       "kg-target-1",
     );
-    expect(listIntentsMock.invalidateLiteListCache).toHaveBeenCalled();
+    expect(listIntentsCacheMock.invalidateLiteListCache).toHaveBeenCalled();
     expect(dbMock.knowledgeGraphTarget.delete).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -320,6 +320,8 @@ describe("kg target routes", () => {
       ok: true,
       intentId: null,
       graphTargetId: "kg-target-1",
+      storage: "graphdb",
+      prometheusMetadata: null,
     });
   });
 

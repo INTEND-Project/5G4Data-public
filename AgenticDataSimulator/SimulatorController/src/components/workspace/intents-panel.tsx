@@ -74,6 +74,7 @@ export function IntentsPanel({
     scriptRunInProgress,
     observationGenerationActive,
     intentIdsAwaitingObservation,
+    prometheusBaseUrl,
   } = useWorkspaceScriptSession();
   const latestScriptRunId = scriptRunLogs[0]?.id ?? null;
   const initialScriptRunIdRef = useRef(latestScriptRunId);
@@ -132,6 +133,10 @@ export function IntentsPanel({
           if (options?.lite) {
             params.set("lite", "1");
           }
+          const trimmedPrometheusBase = prometheusBaseUrl.trim();
+          if (trimmedPrometheusBase) {
+            params.set("prometheusBaseUrl", trimmedPrometheusBase);
+          }
 
           const response = await fetch(`${intentsApiUrl}?${params.toString()}`, {
             cache: "no-store",
@@ -175,7 +180,7 @@ export function IntentsPanel({
         }
       }
     },
-    [intentsApiUrl, selectedDomain],
+    [intentsApiUrl, prometheusBaseUrl, selectedDomain],
   );
 
   useEffect(() => {

@@ -64,6 +64,7 @@ describe("workspace shell bootstrap", () => {
     expect(workspaceSource).toContain("registryConnected");
     expect(workspaceSource).toContain("graphDbConnected");
     expect(workspaceSource).toContain("prometheusConnected");
+    expect(workspaceSource).toContain("defaultPrometheusBaseUrl={appEnv.prometheusUrl}");
     expect(workspaceSource).toContain('withAppBasePath("/api/intents")');
     expect(workspaceSource).toContain('withAppBasePath("/api/prometheus/intents")');
     expect(workspaceSource).toContain("kgTargetsCreateUrl");
@@ -121,6 +122,8 @@ describe("workspace shell bootstrap", () => {
     expect(shellSource).toContain("prometheusClearUrlBase");
     expect(shellSource).toContain("scriptsApiUrl");
     expect(shellSource).toContain("WorkspaceScriptSessionProvider");
+    expect(shellSource).toContain("defaultPrometheusBaseUrl={defaultPrometheusBaseUrl}");
+    expect(shellSource).toContain("currentUserId={currentUserId}");
     expect(shellSource).toContain("WorkspaceLeftSidebarResizable");
     expect(shellSource).toContain("WorkspaceRightSidebarResizable");
     expect(scriptRunnerSource).toContain("Run mode");
@@ -197,7 +200,9 @@ describe("workspace shell bootstrap", () => {
     expect(domainSelectorSource).toContain("workspace-section-domain");
     expect(domainSelectorSource).toContain("workspace-select-tight");
     expect(kgTargetPanelSource).toContain('"use client"');
-    expect(kgTargetPanelSource).toContain('useState(() => defaultKgDisplayName(username))');
+    expect(kgTargetPanelSource).toContain('useState(defaultKgNameSuffix)');
+    expect(kgTargetPanelSource).toContain("buildKgNamePrefix");
+    expect(kgTargetPanelSource).toContain("workspace-share-as-prefix");
     expect(kgTargetPanelSource).not.toContain('useState("kg-avalanche-demo")');
     expect(kgTargetPanelSource).toContain("fetch(createUrl");
     expect(kgTargetPanelSource).toContain("onTargetCreated");
@@ -213,18 +218,25 @@ describe("workspace shell bootstrap", () => {
     expect(kgTargetPanelSource).toContain('method: "DELETE"');
     expect(kgTargetPanelSource).toContain("Emptying...");
     expect(kgTargetPanelSource).toContain("Deleting...");
-    expect(kgTargetPanelSource).toContain('aria-label={`Empty ${target.displayName}`}');
-    expect(kgTargetPanelSource).toContain('aria-label={`Delete ${target.displayName}`}');
+    expect(kgTargetPanelSource).toContain('aria-label={`Empty ${target.repositoryId}`}');
+    expect(kgTargetPanelSource).toContain('aria-label={`Delete ${target.repositoryId}`}');
     expect(kgTargetPanelSource).toContain("graphDbConnected");
     expect(kgTargetPanelSource).toContain('graphDbConnected ? "workspace-chip-live" : "workspace-chip-down"');
     expect(kgTargetPanelSource).not.toContain("Empty KG removes all triples");
     expect(kgTargetPanelSource).not.toContain("Delete repo removes the GraphDB repository");
     expect(prometheusPanelSource).toContain('"use client"');
-    expect(prometheusPanelSource).toContain(
-      'prometheusConnected ? "workspace-chip-live" : "workspace-chip-down"',
-    );
+    expect(prometheusPanelSource).toContain("Prometheus base URL");
+    expect(prometheusPanelSource).toContain("prometheus-base-url");
+    expect(prometheusPanelSource).toContain("useWorkspaceScriptSession");
+    expect(prometheusPanelSource).toContain("Use server default");
+    expect(prometheusPanelSource).toContain("workspace-chip-live");
+    expect(prometheusPanelSource).toContain("workspace-chip-down");
+    expect(prometheusPanelSource).toContain("showCustomChip ? customReachable : prometheusConnected");
     expect(prometheusPanelSource).not.toContain("workspace-intent-id-label");
-    expect(prometheusPanelSource).toContain("Intent observation metrics are listed under Intents.");
+    expect(scriptSessionContextSource).toContain("defaultPrometheusBaseUrl");
+    expect(scriptSessionContextSource).toContain("prometheusBaseUrl");
+    expect(scriptSessionContextSource).toContain("simulator-controller:prometheus-base-url:");
+    expect(intentsPanelSource).toContain('params.set("prometheusBaseUrl"');
     expect(intentsPanelSource).toContain('"use client"');
     expect(intentsPanelSource).toContain("<h2>Intents</h2>");
     expect(intentsPanelSource).toContain("workspace-intent-id-label");

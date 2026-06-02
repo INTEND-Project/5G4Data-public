@@ -11,11 +11,10 @@ import {
   type ObservationTimeBounds,
 } from "@/lib/intents/observation-time-bounds";
 import type { ObservationStorageType } from "@/lib/observation-storage";
-import { loadAppEnv } from "@/lib/env";
 import { parseIntentLocalIdForMetricCatalog } from "@/lib/kg/metric-catalog-query";
 import { getPrometheusConnectionStatus } from "@/lib/prometheus/status";
 import { toPrometheusMetricName } from "@/lib/prometheus/metric-naming";
-import { normalizePrometheusBaseUrl } from "@/lib/prometheus/urls";
+import { resolvePrometheusBaseUrl } from "@/lib/prometheus/resolve-base-url";
 
 export type IntentDataStatus = "pending" | "ready";
 
@@ -61,14 +60,14 @@ type PrometheusQueryResponse = {
 async function prometheusMetricHasSamples(
   intentId: string,
   compoundMetric: string,
+  prometheusBaseUrl?: string | null,
 ): Promise<boolean> {
   const intentLocalId = parseIntentLocalIdForMetricCatalog(intentId);
   if (!intentLocalId) {
     return false;
   }
 
-  const env = loadAppEnv(process.env);
-  const baseUrl = normalizePrometheusBaseUrl(env.prometheusUrl);
+  const baseUrl = resolvePrometheusBaseUrl(prometheusBaseUrl);
   const promName = toPrometheusMetricName(compoundMetric);
   const selector = `${promName}{intent_id="${escapePrometheusLabelValue(intentLocalId)}"}`;
   const query = `count_over_time(${selector}[400d])`;
@@ -150,19 +149,20 @@ async function countReadyMetrics(input: {
   repositoryId: string | null;
   graphIri: string | null;
   expectedMetrics: string[];
+  prometheusBaseUrl?: string | null;
 }): Promise<number> {
   if (input.expectedMetrics.length === 0) {
     return 0;
   }
 
   if (input.storage === "prometheus") {
-    if (!(await getPrometheusConnectionStatus())) {
+    if (!(await getPrometheusConnectionStatus(input.prometheusBaseUrl))) {
       return 0;
     }
 
     let ready = 0;
     for (const metric of input.expectedMetrics) {
-      if (await prometheusMetricHasSamples(input.intentId, metric)) {
+      if (await prometheusMetricHasSamples(input.intentId, metric, input.prometheusBaseUrl)) {
         ready += 1;
       }
     }
@@ -195,6 +195,7 @@ export async function assessIntentDataReadiness(input: {
   graphIri: string | null;
   compoundMetrics: string[];
   metricMetadata: MetricQueryMetadata[];
+  prometheusBaseUrl?: string | null;
 }): Promise<IntentDataReadiness> {
   const expectedMetrics = metricsExpectedForStorage(
     input.storage,
@@ -209,6 +210,7 @@ export async function assessIntentDataReadiness(input: {
     repositoryId: input.repositoryId,
     graphIri: input.graphIri,
     expectedMetrics,
+    prometheusBaseUrl: input.prometheusBaseUrl,
   });
 
   const status: IntentDataStatus =
@@ -217,7 +219,10 @@ export async function assessIntentDataReadiness(input: {
   let bounds: ObservationTimeBounds | null = null;
   if (status === "ready") {
     if (input.storage === "prometheus") {
-      bounds = await fetchPrometheusObservationBounds(input.intentId);
+      bounds = await fetchPrometheusObservationBounds(
+        input.intentId,
+        input.prometheusBaseUrl,
+      );
     } else if (input.repositoryId && input.graphIri) {
       bounds = await fetchGraphDbObservationBounds({
         repositoryId: input.repositoryId,

@@ -1,6 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveObservationTimeBounds } from "../../src/lib/intents/observation-time-bounds";
+
+const originalEnv = { ...process.env };
 
 vi.mock("../../src/lib/graphdb/client", () => ({
   runRepositorySparqlSelect: vi.fn(),
@@ -11,9 +13,21 @@ import { runRepositorySparqlSelect } from "../../src/lib/graphdb/client";
 const sparqlMock = vi.mocked(runRepositorySparqlSelect);
 
 describe("resolveObservationTimeBounds", () => {
+  beforeEach(() => {
+    process.env = {
+      ...originalEnv,
+      DATABASE_URL: "file:./dev.db",
+      A2A_REGISTRY_BASE_URL: "https://registry.example",
+      GRAPHDB_BASE_URL: "http://graphdb.example/",
+      PROMETHEUS_URL: "http://127.0.0.1:9090/",
+      PUSHGATEWAY_URL: "http://pushgateway.example:9091",
+    };
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.clearAllMocks();
+    process.env = originalEnv;
   });
 
   it("uses Prometheus bounds when metadata points at Prometheus", async () => {

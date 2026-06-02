@@ -4,11 +4,16 @@ import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { ingestIntentTurtle } from "@/lib/graphdb/client";
+import { storePrometheusMetadataForIntent } from "@/lib/kg/store-prometheus-metadata";
 import { extractIntentLocalIdFromTurtle } from "@/lib/intent/extract-intent-turtle";
+import { parseStorageFromIntentTurtle } from "@/lib/intents/resolve-intent-storage";
 import { registerUserIntent } from "@/lib/intents/user-intent-registry";
+import { parsePrometheusBaseUrlInput } from "@/lib/prometheus/resolve-base-url";
 
 const bodySchema = z.object({
   turtle: z.string().min(1),
+  storage: z.enum(["graphdb", "prometheus"]).optional(),
+  prometheusBaseUrl: z.string().trim().optional(),
 });
 
 type RouteContext = {
@@ -67,20 +72,48 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const intentId = extractIntentLocalIdFromTurtle(body.turtle);
+  const storage = body.storage ?? parseStorageFromIntentTurtle(body.turtle) ?? "graphdb";
+
+  let prometheusBaseUrl: string | undefined;
+  if (body.prometheusBaseUrl?.trim()) {
+    const parsed = parsePrometheusBaseUrlInput(body.prometheusBaseUrl);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    prometheusBaseUrl = parsed.url;
+  }
 
   if (intentId) {
     await registerUserIntent({
       userId: user.id,
       domain: target.domain,
       intentId,
-      storage: "graphdb",
+      storage,
       graphTargetId: target.id,
     });
+  }
+
+  let metadataResult: { stored: number; failed: number } | null = null;
+  if (intentId && storage === "prometheus") {
+    try {
+      metadataResult = await storePrometheusMetadataForIntent({
+        repositoryId: target.repositoryId,
+        graphIri: target.graphIri,
+        intentId,
+        prometheusBaseUrl,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Prometheus metadata registration failed";
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
   }
 
   return NextResponse.json({
     ok: true,
     intentId: intentId ?? null,
     graphTargetId: target.id,
+    storage,
+    prometheusMetadata: metadataResult,
   });
 }

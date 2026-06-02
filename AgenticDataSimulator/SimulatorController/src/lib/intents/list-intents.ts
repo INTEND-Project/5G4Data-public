@@ -40,6 +40,8 @@ export type ListIntentsOptions = {
   ownedIntentIds?: string[];
   /** Controller username — used for Grafana JWT auto-login on dashboard links. */
   grafanaLoginUsername?: string | null;
+  /** User-selected Prometheus base URL from the workspace UI (overrides PROMETHEUS_URL). */
+  prometheusBaseUrl?: string | null;
 };
 
 const INTENT_ENRICH_CONCURRENCY = 5;
@@ -90,8 +92,10 @@ async function enrichIntentEntry(input: {
   prometheusSet: Set<string>;
   mode: ListIntentsMode;
   grafanaLoginUsername?: string | null;
+  prometheusBaseUrl?: string | null;
 }): Promise<IntentListEntry> {
-  const { intentId, owner, prometheusSet, mode, grafanaLoginUsername } = input;
+  const { intentId, owner, prometheusSet, mode, grafanaLoginUsername, prometheusBaseUrl } =
+    input;
   const hasGraphTarget = Boolean(owner?.repositoryId && owner.graphIri);
 
   let compoundMetrics: string[] = [];
@@ -119,6 +123,7 @@ async function enrichIntentEntry(input: {
     graphIri: hasGraphTarget && owner ? owner.graphIri : null,
     compoundMetrics,
     metricMetadata,
+    prometheusBaseUrl,
   });
 
   const repositoryId = hasGraphTarget && owner ? owner.repositoryId : null;
@@ -224,6 +229,7 @@ export async function listIntentsForDomain(
       prometheusSet,
       mode,
       grafanaLoginUsername: options.grafanaLoginUsername,
+      prometheusBaseUrl: options.prometheusBaseUrl,
     }),
   );
 

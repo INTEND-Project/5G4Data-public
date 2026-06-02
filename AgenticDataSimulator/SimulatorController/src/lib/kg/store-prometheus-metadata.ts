@@ -1,0 +1,132 @@
+import { loadAppEnv } from "@/lib/env";
+import { graphDbAuthHeaders } from "@/lib/graphdb/auth";
+import { INTENT_REPORTS_METADATA_GRAPH_IRI } from "@/lib/graphdb/clear-knowledge-graph-query";
+import { runRepositorySparqlSelect } from "@/lib/graphdb/client";
+import { buildMetricCatalogQuery } from "@/lib/kg/metric-catalog-query";
+import { parseIntentLocalIdForMetricCatalog } from "@/lib/kg/metric-catalog-query";
+import { parseCompoundMetricParts } from "@/lib/prometheus/parse-compound-metric";
+import {
+  buildPrometheusInstantQueryUrl,
+  buildPrometheusReadableQuery,
+} from "@/lib/prometheus/prometheus-query-metadata";
+import { resolvePrometheusBaseUrl } from "@/lib/prometheus/resolve-base-url";
+
+function escapeTurtleString(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function buildInsertPrometheusMetadataUpdate(input: {
+  compoundMetric: string;
+  prometheusQueryUrl: string;
+  readableQuery: string;
+}): string {
+  const escapedReadable = escapeTurtleString(input.readableQuery);
+
+  return `
+PREFIX data5g: <http://5g4data.eu/5g4data#>
+
+INSERT DATA {
+  GRAPH <${INTENT_REPORTS_METADATA_GRAPH_IRI}> {
+    <http://5g4data.eu/5g4data#${input.compoundMetric}>
+      data5g:hasQuery <${input.prometheusQueryUrl}> ;
+      data5g:hasReadableQuery "${escapedReadable}" .
+  }
+}
+`.trim();
+}
+
+async function postMetadataUpdate(repositoryId: string, query: string): Promise<void> {
+  const env = loadAppEnv(process.env);
+  const base = env.graphDbBaseUrl.endsWith("/") ? env.graphDbBaseUrl : `${env.graphDbBaseUrl}/`;
+  const url = `${base}repositories/${encodeURIComponent(repositoryId)}/statements`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: graphDbAuthHeaders({
+      "Content-Type": "application/sparql-update",
+    }),
+    body: query,
+  });
+
+  if (!response.ok) {
+    throw new Error(`GraphDB metadata insert failed with ${response.status}`);
+  }
+}
+
+export async function listCompoundMetricsForIntent(input: {
+  repositoryId: string;
+  graphIri: string;
+  intentId: string;
+}): Promise<string[]> {
+  const intentLocalId = parseIntentLocalIdForMetricCatalog(input.intentId);
+  if (!intentLocalId) {
+    return [];
+  }
+
+  const query = buildMetricCatalogQuery(input.graphIri, intentLocalId);
+  const bindings = await runRepositorySparqlSelect({
+    repositoryId: input.repositoryId,
+    query,
+  });
+
+  return bindings
+    .map((row) => row.metric_name?.value?.trim())
+    .filter((value): value is string => Boolean(value));
+}
+
+export async function storePrometheusQueryMetadata(input: {
+  repositoryId: string;
+  intentId: string;
+  compoundMetric: string;
+  prometheusBaseUrl?: string | null;
+}): Promise<void> {
+  const intentLocalId = parseIntentLocalIdForMetricCatalog(input.intentId);
+  if (!intentLocalId) {
+    return;
+  }
+
+  const baseUrl = resolvePrometheusBaseUrl(input.prometheusBaseUrl);
+  const { conditionId } = parseCompoundMetricParts(input.compoundMetric);
+  const identity = {
+    compoundMetric: input.compoundMetric,
+    intentId: intentLocalId,
+    conditionId,
+  };
+
+  const readableQuery = buildPrometheusReadableQuery(identity);
+  const prometheusQueryUrl = buildPrometheusInstantQueryUrl(baseUrl, identity);
+  const update = buildInsertPrometheusMetadataUpdate({
+    compoundMetric: input.compoundMetric,
+    prometheusQueryUrl,
+    readableQuery,
+  });
+
+  await postMetadataUpdate(input.repositoryId, update);
+}
+
+export async function storePrometheusMetadataForIntent(input: {
+  repositoryId: string;
+  graphIri: string;
+  intentId: string;
+  prometheusBaseUrl?: string | null;
+}): Promise<{ stored: number; failed: number }> {
+  const metrics = await listCompoundMetricsForIntent(input);
+  let stored = 0;
+  let failed = 0;
+
+  for (const compoundMetric of metrics) {
+    try {
+      await storePrometheusQueryMetadata({
+        repositoryId: input.repositoryId,
+        intentId: input.intentId,
+        compoundMetric,
+        prometheusBaseUrl: input.prometheusBaseUrl,
+      });
+      stored += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+
+  return { stored, failed };
+}

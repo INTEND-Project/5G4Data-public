@@ -1,5 +1,4 @@
 import { runRepositorySparqlSelect } from "@/lib/graphdb/client";
-import { loadAppEnv } from "@/lib/env";
 import {
   buildMetricCatalogQuery,
   graphIriForSparqlAngleBrackets,
@@ -11,7 +10,7 @@ import {
   metadataUsesBackend,
   type MetricQueryMetadata,
 } from "@/lib/kg/metric-query-metadata";
-import { normalizePrometheusBaseUrl } from "@/lib/prometheus/urls";
+import { resolvePrometheusBaseUrl } from "@/lib/prometheus/resolve-base-url";
 
 export type ObservationTimeBounds = {
   minMs: number;
@@ -122,9 +121,11 @@ type PrometheusQueryRangeResponse = {
   };
 };
 
-export async function fetchPrometheusObservationBounds(intentId: string): Promise<ObservationTimeBounds | null> {
-  const env = loadAppEnv(process.env);
-  const baseUrl = normalizePrometheusBaseUrl(env.prometheusUrl);
+export async function fetchPrometheusObservationBounds(
+  intentId: string,
+  prometheusBaseUrl?: string | null,
+): Promise<ObservationTimeBounds | null> {
+  const baseUrl = resolvePrometheusBaseUrl(prometheusBaseUrl);
   const intentLocalId = parseIntentLocalIdForMetricCatalog(intentId);
   if (!intentLocalId) {
     return null;

@@ -4,6 +4,7 @@ import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { listIntentsForDomain } from "@/lib/intents/list-intents";
 import { listOwnedIntentIdsForUser } from "@/lib/intents/user-intent-registry";
+import { parsePrometheusBaseUrlInput } from "@/lib/prometheus/resolve-base-url";
 
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser(request);
@@ -35,8 +36,17 @@ export async function GET(request: Request) {
 
   const ownedIntentIds = await listOwnedIntentIdsForUser(user.id, domain);
   const lite = searchParams.get("lite") === "1" || searchParams.get("lite") === "true";
+  const prometheusBaseUrlParam = searchParams.get("prometheusBaseUrl")?.trim();
+  let prometheusBaseUrl: string | undefined;
+  if (prometheusBaseUrlParam) {
+    const parsed = parsePrometheusBaseUrlInput(prometheusBaseUrlParam);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    prometheusBaseUrl = parsed.url;
+  }
   const cacheKey = lite
-    ? `${user.id}:${domain}:${ownedIntentIds.join(",")}:${targets.map((target) => `${target.repositoryId}|${target.graphIri}`).join(";")}`
+    ? `${user.id}:${domain}:${ownedIntentIds.join(",")}:${targets.map((target) => `${target.repositoryId}|${target.graphIri}`).join(";")}:${prometheusBaseUrl ?? ""}`
     : undefined;
 
   try {
@@ -45,6 +55,7 @@ export async function GET(request: Request) {
       cacheKey,
       ownedIntentIds,
       grafanaLoginUsername: user.username,
+      prometheusBaseUrl,
     });
     return NextResponse.json({ intents });
   } catch (error) {

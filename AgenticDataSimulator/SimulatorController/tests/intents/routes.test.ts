@@ -130,9 +130,10 @@ describe("intents routes", () => {
       {
         mode: "lite",
         cacheKey:
-          "user-1:telenor.5g4data:I04fb0697e3a243e7a292c6cb57e9f797:repo-1|http://example/graph",
+          "user-1:telenor.5g4data:I04fb0697e3a243e7a292c6cb57e9f797:repo-1|http://example/graph:",
         ownedIntentIds: ["I04fb0697e3a243e7a292c6cb57e9f797"],
         grafanaLoginUsername: "alice",
+        prometheusBaseUrl: undefined,
       },
     );
   });

@@ -1,10 +1,8 @@
 import { loadAppEnv } from "@/lib/env";
 import { parseIntentLocalIdForMetricCatalog } from "@/lib/kg/metric-catalog-query";
+import { resolvePrometheusBaseUrl } from "@/lib/prometheus/resolve-base-url";
 import { runIntentTsdbRewrite } from "@/lib/prometheus/tsdb-intent-rewrite";
-import {
-  normalizePrometheusBaseUrl,
-  normalizePushgatewayBaseUrl,
-} from "@/lib/prometheus/urls";
+import { normalizePushgatewayBaseUrl } from "@/lib/prometheus/urls";
 
 const INTENT_REPORTS_JOB = "intent_reports";
 
@@ -41,9 +39,8 @@ export type ClearIntentMetricsResult = {
   oooRewriteFallbackUsed: boolean;
 };
 
-function prometheusBaseUrlFromEnv(): string {
-  const env = loadAppEnv(process.env);
-  return normalizePrometheusBaseUrl(env.prometheusUrl);
+function prometheusBaseUrl(override?: string | null): string {
+  return resolvePrometheusBaseUrl(override);
 }
 
 function pushgatewayBaseUrlFromEnv(): string {
@@ -72,7 +69,7 @@ function buildSeriesMatcher(labels: Record<string, string>): string {
 }
 
 export async function listIntentIds(): Promise<string[]> {
-  const baseUrl = prometheusBaseUrlFromEnv();
+  const baseUrl = prometheusBaseUrl();
   const response = await fetch(
     `${baseUrl}api/v1/label/intent_id/values`,
     { cache: "no-store" },
@@ -101,7 +98,7 @@ async function clearPushgatewayIntentGroup(intentId: string): Promise<boolean> {
 }
 
 async function listPrometheusSeriesForIntent(intentId: string): Promise<Array<Record<string, string>>> {
-  const baseUrl = prometheusBaseUrlFromEnv();
+  const baseUrl = prometheusBaseUrl();
   const url = `${baseUrl}api/v1/series?${new URLSearchParams({
     "match[]": buildIntentMatcher(intentId),
   }).toString()}`;
@@ -117,7 +114,7 @@ async function listPrometheusSeriesForIntent(intentId: string): Promise<Array<Re
 }
 
 async function postDeleteSeries(match: string, start?: number, end?: number): Promise<void> {
-  const baseUrl = prometheusBaseUrlFromEnv();
+  const baseUrl = prometheusBaseUrl();
   const params = new URLSearchParams({ "match[]": match });
 
   if (start !== undefined) {
@@ -152,7 +149,7 @@ async function deletePrometheusSeriesForIntent(intentId: string): Promise<void> 
 }
 
 async function cleanPrometheusTombstones(): Promise<void> {
-  const baseUrl = prometheusBaseUrlFromEnv();
+  const baseUrl = prometheusBaseUrl();
   const response = await fetch(`${baseUrl}api/v1/admin/tsdb/clean_tombstones`, {
     method: "POST",
   });
@@ -163,7 +160,7 @@ async function cleanPrometheusTombstones(): Promise<void> {
 }
 
 async function countIntentSamples(intentId: string): Promise<number> {
-  const baseUrl = prometheusBaseUrlFromEnv();
+  const baseUrl = prometheusBaseUrl();
   const matcher = buildIntentMatcher(intentId);
   const query = `sum(count_over_time(${matcher}[${INTENT_SAMPLE_LOOKBACK}]))`;
   const url = `${baseUrl}api/v1/query?${new URLSearchParams({ query }).toString()}`;

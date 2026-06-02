@@ -19,6 +19,9 @@ describe("GraphDB naming", () => {
     }
 
     expect(
+      loaded.buildKgNamePrefix("telenor.5g4data", "alice"),
+    ).toBe("telenor-5g4data-alice-");
+    expect(
       loaded.buildRepositoryId("telenor.5g4data", "KG Avalanche Demo", "alice"),
     ).toBe("telenor-5g4data-alice-kg-avalanche-demo");
     expect(

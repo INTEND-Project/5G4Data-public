@@ -1032,6 +1032,11 @@ select.workspace-script-run-select:disabled {
   gap: 10px;
 }
 
+.workspace-kg-name-row {
+  flex: 1;
+  min-width: 0;
+}
+
 .workspace-kg-target-actions {
   display: flex;
   gap: 8px;
@@ -1388,6 +1393,21 @@ select.workspace-script-run-select:disabled {
   display: grid;
   gap: 8px;
   min-width: 180px;
+}
+
+.workspace-prometheus-url-field {
+  margin-top: 8px;
+}
+
+.workspace-prometheus-url-input {
+  width: 100%;
+}
+
+.workspace-prometheus-url-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .workspace-runner-modes {

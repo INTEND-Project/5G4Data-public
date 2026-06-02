@@ -36,7 +36,10 @@ const appEnvSchema = z.object({
     .default("https://start5g-1.cs.uit.no/graphdb/"),
   GRAPHDB_USERNAME: z.string().optional(),
   GRAPHDB_PASSWORD: z.string().optional(),
-  PROMETHEUS_URL: z.string().url().default("http://127.0.0.1:9090/"),
+  PROMETHEUS_URL: z
+    .string()
+    .url()
+    .default("https://start5g-1.cs.uit.no/prometheus"),
   PUSHGATEWAY_URL: z.string().url().default("http://127.0.0.1:9091"),
   GRAFANA_BASE_URL: z.string().url().optional(),
   GRAFANA_ADMIN_USER: z.string().default("admin"),

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
+import { buildKgNamePrefix } from "@/lib/graphdb/naming";
 
 type KgTargetRecord = {
   id: string;
@@ -22,8 +23,8 @@ type KgTargetPanelProps = {
   targets: KgTargetRecord[];
 };
 
-function defaultKgDisplayName(username: string): string {
-  return `${username}-test`;
+function defaultKgNameSuffix(): string {
+  return "test";
 }
 
 function EmptyKgIcon() {
@@ -70,17 +71,21 @@ export function KgTargetPanel({
 }: KgTargetPanelProps) {
   const { notifyStorageChanged, beginStorageDeletion, endStorageDeletion } =
     useWorkspaceScriptSession();
-  const [displayName, setDisplayName] = useState(() => defaultKgDisplayName(username));
+  const kgNamePrefix = useMemo(
+    () => buildKgNamePrefix(selectedDomain, username),
+    [selectedDomain, username],
+  );
+  const [nameSuffix, setNameSuffix] = useState(defaultKgNameSuffix);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingTargetId, setDeletingTargetId] = useState<string | null>(null);
   const [emptyingTargetId, setEmptyingTargetId] = useState<string | null>(null);
 
   async function handleCreate() {
-    const trimmedName = displayName.trim();
+    const trimmedName = nameSuffix.trim();
 
     if (!trimmedName) {
-      setCreateError("Enter a knowledge graph name first.");
+      setCreateError("Enter a knowledge graph name suffix first.");
       return;
     }
 
@@ -113,7 +118,7 @@ export function KgTargetPanel({
       };
 
       onTargetCreated(payload.target);
-      setDisplayName(defaultKgDisplayName(username));
+      setNameSuffix(defaultKgNameSuffix());
     } catch (error) {
       console.error(error);
       setCreateError("Unable to create the knowledge graph target right now.");
@@ -122,10 +127,10 @@ export function KgTargetPanel({
     }
   }
 
-  async function handleEmpty(target: { id: string; displayName: string }) {
+  async function handleEmpty(target: { id: string; repositoryId: string }) {
     if (
       !window.confirm(
-        `Empty all triples in ${target.displayName}? The GraphDB repository and named graph will remain.`,
+        `Empty all triples in ${target.repositoryId}? The GraphDB repository and named graph will remain.`,
       )
     ) {
       return;
@@ -154,10 +159,10 @@ export function KgTargetPanel({
     }
   }
 
-  async function handleDelete(target: { id: string; displayName: string }) {
+  async function handleDelete(target: { id: string; repositoryId: string }) {
     if (
       !window.confirm(
-        `Delete ${target.displayName} and remove its GraphDB repository? This cannot be undone.`,
+        `Delete ${target.repositoryId} and remove its GraphDB repository? This cannot be undone.`,
       )
     ) {
       return;
@@ -198,18 +203,21 @@ export function KgTargetPanel({
           GraphDB
         </span>
       </div>
-      <label className="workspace-label" htmlFor="kg-name">
+      <label className="workspace-label" htmlFor="kg-name-suffix">
         Create new KG with name
       </label>
       <div className="workspace-inline-row">
-        <input
-          className="workspace-input"
-          aria-label="Create new KG with name"
-          id="kg-name"
-          type="text"
-          value={displayName}
-          onChange={(event) => setDisplayName(event.target.value)}
-        />
+        <div className="workspace-share-as-name-row workspace-kg-name-row">
+          <span className="workspace-share-as-prefix">{kgNamePrefix}</span>
+          <input
+            aria-label="Knowledge graph name suffix"
+            className="workspace-input workspace-share-as-name-input"
+            id="kg-name-suffix"
+            onChange={(event) => setNameSuffix(event.target.value)}
+            type="text"
+            value={nameSuffix}
+          />
+        </div>
         <button
           className="workspace-button workspace-button-secondary"
           disabled={isCreating}
@@ -234,10 +242,10 @@ export function KgTargetPanel({
         {targets.map((target) => (
           <article className="workspace-card" key={target.id}>
             <div className="workspace-heading-row">
-              <strong>{target.displayName}</strong>
+              <strong>{target.repositoryId}</strong>
               <div className="workspace-kg-target-actions">
                 <button
-                  aria-label={`Empty ${target.displayName}`}
+                  aria-label={`Empty ${target.repositoryId}`}
                   className="workspace-button workspace-button-secondary workspace-kg-target-action"
                   disabled={emptyingTargetId === target.id || deletingTargetId === target.id}
                   onClick={() => void handleEmpty(target)}
@@ -247,7 +255,7 @@ export function KgTargetPanel({
                   {emptyingTargetId === target.id ? "Emptying..." : <EmptyKgIcon />}
                 </button>
                 <button
-                  aria-label={`Delete ${target.displayName}`}
+                  aria-label={`Delete ${target.repositoryId}`}
                   className="workspace-button workspace-button-secondary workspace-kg-target-action"
                   disabled={deletingTargetId === target.id || emptyingTargetId === target.id}
                   onClick={() => void handleDelete(target)}
@@ -258,7 +266,6 @@ export function KgTargetPanel({
                 </button>
               </div>
             </div>
-            <p>{target.repositoryId}</p>
           </article>
         ))}
       </div>

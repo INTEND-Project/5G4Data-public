@@ -139,6 +139,11 @@ export type WorkspaceScriptSessionContextValue = {
   /** Intent ids registered during the current session that may still be receiving observations. */
   markIntentAwaitingObservation: (intentId: string) => void;
   intentIdsAwaitingObservation: ReadonlySet<string>;
+  /** Server default from PROMETHEUS_URL (read-only hint in UI). */
+  defaultPrometheusBaseUrl: string;
+  /** User override for Prometheus API base URL (localStorage + used in metadata inserts). */
+  prometheusBaseUrl: string;
+  setPrometheusBaseUrl: (url: string) => void;
 };
 
 const WorkspaceScriptSessionContext = createContext<WorkspaceScriptSessionContextValue | null>(
@@ -167,12 +172,16 @@ export function WorkspaceScriptSessionProvider({
   scripts,
   draftContent,
   runLogsApiUrl,
+  currentUserId,
+  defaultPrometheusBaseUrl,
 }: {
   children: ReactNode;
   selectedDomain: string;
   scripts: ServerScript[];
   draftContent: string;
   runLogsApiUrl: string;
+  currentUserId: string;
+  defaultPrometheusBaseUrl: string;
 }) {
   const [bundle, setBundle] = useState<Bundle>(() =>
     buildInitialTabs(draftContent, selectedDomain),
@@ -209,6 +218,39 @@ export function WorkspaceScriptSessionProvider({
   const [intentIdsAwaitingObservation, setIntentIdsAwaitingObservation] = useState<Set<string>>(
     () => new Set(),
   );
+  const prometheusStorageKey = useMemo(
+    () => `simulator-controller:prometheus-base-url:${currentUserId}`,
+    [currentUserId],
+  );
+  const [prometheusBaseUrl, setPrometheusBaseUrlState] = useState(defaultPrometheusBaseUrl);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const stored = window.localStorage.getItem(prometheusStorageKey)?.trim();
+    if (stored) {
+      setPrometheusBaseUrlState(stored);
+    } else {
+      setPrometheusBaseUrlState(defaultPrometheusBaseUrl);
+    }
+  }, [defaultPrometheusBaseUrl, prometheusStorageKey]);
+
+  const setPrometheusBaseUrl = useCallback(
+    (url: string) => {
+      const trimmed = url.trim();
+      setPrometheusBaseUrlState(trimmed);
+      if (typeof window !== "undefined") {
+        if (trimmed) {
+          window.localStorage.setItem(prometheusStorageKey, trimmed);
+        } else {
+          window.localStorage.removeItem(prometheusStorageKey);
+        }
+      }
+    },
+    [prometheusStorageKey],
+  );
+
   /** Bumps when the active run log buffer changes and the log dialog should repaint. */
   const [liveRunLogRevision, setLiveRunLogRevision] = useState(0);
   const activeRunRef = useRef<ActiveRunState | null>(null);
@@ -835,6 +877,9 @@ export function WorkspaceScriptSessionProvider({
       setObservationGenerationActive,
       markIntentAwaitingObservation,
       intentIdsAwaitingObservation,
+      defaultPrometheusBaseUrl,
+      prometheusBaseUrl,
+      setPrometheusBaseUrl,
     }),
     [
       selectedDomain,
@@ -876,6 +921,9 @@ export function WorkspaceScriptSessionProvider({
       observationGenerationActive,
       markIntentAwaitingObservation,
       intentIdsAwaitingObservation,
+      defaultPrometheusBaseUrl,
+      prometheusBaseUrl,
+      setPrometheusBaseUrl,
     ],
   );
 

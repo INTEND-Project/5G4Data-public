@@ -41,6 +41,7 @@ type WorkspaceShellProps = {
   registryConnected: boolean;
   graphDbConnected: boolean;
   prometheusConnected: boolean;
+  defaultPrometheusBaseUrl: string;
   intentsApiUrl: string;
   intentsUrlBase: string;
   prometheusClearUrlBase: string;
@@ -97,6 +98,7 @@ export function WorkspaceShell({
   registryConnected,
   graphDbConnected,
   prometheusConnected,
+  defaultPrometheusBaseUrl,
   intentsApiUrl,
   intentsUrlBase,
   prometheusClearUrlBase,
@@ -211,6 +213,8 @@ export function WorkspaceShell({
   return (
     <main className="workspace-shell">
       <WorkspaceScriptSessionProvider
+        currentUserId={currentUserId}
+        defaultPrometheusBaseUrl={defaultPrometheusBaseUrl}
         draftContent={draftContent}
         runLogsApiUrl={runLogsApiUrl}
         scripts={scriptsPayload}

@@ -5,6 +5,7 @@ import { getSessionTokenFromRequest } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import {
   createClearedSessionCookie,
+  createLegacyClearedSessionCookie,
   hashSessionToken,
 } from "@/lib/auth/session";
 
@@ -38,6 +39,15 @@ export async function POST(request: Request) {
     clearedCookie.name,
     clearedCookie.value,
     clearedCookie.options,
+  );
+
+  const legacyCleared = createLegacyClearedSessionCookie(
+    process.env.NODE_ENV === "production",
+  );
+  response.cookies.set(
+    legacyCleared.name,
+    legacyCleared.value,
+    legacyCleared.options,
   );
 
   return response;

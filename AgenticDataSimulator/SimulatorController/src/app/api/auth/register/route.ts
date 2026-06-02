@@ -9,6 +9,7 @@ import {
   parseAuthRequestBody,
 } from "@/lib/auth/request";
 import {
+  createLegacyClearedSessionCookie,
   createSessionCookie,
   createSessionExpiry,
   createSessionToken,
@@ -116,6 +117,15 @@ export async function POST(request: Request) {
     sessionCookie.name,
     sessionCookie.value,
     sessionCookie.options,
+  );
+
+  const legacyCleared = createLegacyClearedSessionCookie(
+    process.env.NODE_ENV === "production",
+  );
+  response.cookies.set(
+    legacyCleared.name,
+    legacyCleared.value,
+    legacyCleared.options,
   );
 
   return response;

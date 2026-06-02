@@ -5,7 +5,11 @@ type CookieReader = {
 
 
 import { db } from "@/lib/db";
-import { hashSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import {
+  getSessionCookieName,
+  hashSessionToken,
+  SESSION_COOKIE_NAME,
+} from "@/lib/auth/session";
 
 function parseCookieHeader(cookieHeader: string | null) {
   if (!cookieHeader) {
@@ -24,10 +28,22 @@ function parseCookieHeader(cookieHeader: string | null) {
   );
 }
 
+function readSessionToken(cookies: Map<string, string>) {
+  const scopedName = getSessionCookieName();
+  const scoped = cookies.get(scopedName);
+
+  if (scoped) {
+    return scoped;
+  }
+
+  // Legacy host-wide cookie (pre per-instance names).
+  return cookies.get(SESSION_COOKIE_NAME);
+}
+
 export function getSessionTokenFromRequest(request: Request) {
   const cookies = parseCookieHeader(request.headers.get("cookie"));
 
-  return cookies.get(SESSION_COOKIE_NAME);
+  return readSessionToken(cookies);
 }
 
 export async function getAuthenticatedUser(request: Request): Promise<Pick<User, "id" | "username"> | null> {
@@ -39,7 +55,9 @@ export async function getAuthenticatedUser(request: Request): Promise<Pick<User,
 export async function getAuthenticatedUserFromCookies(
   cookieStore: CookieReader,
 ) {
-  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const scopedName = getSessionCookieName();
+  const sessionToken =
+    cookieStore.get(scopedName)?.value ?? cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
   return getAuthenticatedUserFromSessionToken(sessionToken);
 }

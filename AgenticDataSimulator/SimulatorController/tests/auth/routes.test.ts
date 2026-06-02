@@ -20,10 +20,12 @@ const passwordMock = {
 
 const sessionMock = {
   SESSION_COOKIE_NAME: "openclaw-controller-session",
+  getSessionCookieName: vi.fn(() => "openclaw-controller-session"),
   createSessionToken: vi.fn(),
   createSessionExpiry: vi.fn(),
   createSessionCookie: vi.fn(),
   createClearedSessionCookie: vi.fn(),
+  createLegacyClearedSessionCookie: vi.fn(),
   hashSessionToken: vi.fn(),
 };
 
@@ -79,6 +81,17 @@ beforeEach(() => {
       maxAge: 0,
     },
   }));
+  sessionMock.createLegacyClearedSessionCookie.mockImplementation((secure: boolean) => ({
+    name: "openclaw-controller-session",
+    value: "",
+    options: {
+      httpOnly: true,
+      sameSite: "lax" as const,
+      path: "/",
+      secure,
+      maxAge: 0,
+    },
+  }));
   grafanaProvisionMock.provisionGrafanaUser.mockResolvedValue({ provisioned: false });
   dbMock.user.delete.mockResolvedValue({ id: "user-1" });
 });
@@ -115,9 +128,8 @@ describe("auth route handlers", () => {
 
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/tmf-simulator/workspace");
-    expect(response.headers.get("set-cookie")).toContain(
-      "openclaw-controller-session=session-token",
-    );
+    expect(sessionMock.createSessionCookie).toHaveBeenCalledWith("session-token", false);
+    expect(sessionMock.createLegacyClearedSessionCookie).toHaveBeenCalled();
   });
 
   it("registers a user and sets a session cookie", async () => {
@@ -152,9 +164,7 @@ describe("auth route handlers", () => {
         username: "alice",
       },
     });
-    expect(response.headers.get("set-cookie")).toContain(
-      "openclaw-controller-session=session-token",
-    );
+    expect(sessionMock.createSessionCookie).toHaveBeenCalledWith("session-token", false);
     expect(grafanaProvisionMock.provisionGrafanaUser).toHaveBeenCalledWith({
       login: "alice",
       password: "secret-password",
@@ -225,9 +235,7 @@ describe("auth route handlers", () => {
 
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/tmf-simulator/workspace");
-    expect(response.headers.get("set-cookie")).toContain(
-      "openclaw-controller-session=session-token",
-    );
+    expect(sessionMock.createSessionCookie).toHaveBeenCalledWith("session-token", false);
   });
 
   it("logs in an existing user and sets a session cookie", async () => {
@@ -262,9 +270,7 @@ describe("auth route handlers", () => {
         username: "alice",
       },
     });
-    expect(response.headers.get("set-cookie")).toContain(
-      "openclaw-controller-session=session-token",
-    );
+    expect(sessionMock.createSessionCookie).toHaveBeenCalledWith("session-token", false);
   });
 
   it("returns the authenticated session user when a valid cookie is present", async () => {

@@ -484,10 +484,14 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        const message =
+        let message =
           typeof body?.error === "string"
             ? body.error
             : `Share As failed (${response.status})`;
+        if (response.status === 401) {
+          message =
+            "Session expired or the browser is using a prod/dev login cookie from the other Controller. Log out, sign in again on this instance, and retry.";
+        }
         setShareAsError(message);
         return false;
       }

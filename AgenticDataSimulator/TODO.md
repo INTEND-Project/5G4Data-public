@@ -11,7 +11,8 @@ Always move recently closed TODOs to the top of the closed list.
 - [ ] Add status report agent (or should the observation agent do that based on observed metrics?)
 
 ### Easy TODO´s?
-
+- [ ] Share as is not working anymore?
+- [ ] Add functionality for the About/Help button
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed

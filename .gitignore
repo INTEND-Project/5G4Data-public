@@ -39,3 +39,5 @@ AgenticDataSimulator/fetch_intent_turtle.py
 AgenticDataSimulator/fetch_intent_turtle.sh
 AgenticDataSimulator/requirements-python.txt
 AgenticDataSimulator/ObservationAgentRequirements.md
+AgenticDataSimulator/SimulatorController/logs/restart-lab-3001.log
+AgenticDataSimulator/SimulatorController/logs/restart-lab-3001.log

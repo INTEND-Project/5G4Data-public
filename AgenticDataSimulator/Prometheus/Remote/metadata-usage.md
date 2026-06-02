@@ -7,8 +7,6 @@ Some of the extra functional partners (inSustain, inCoord, inExplain) may want t
 Partners may either use **Option A — SimulatorController** to generate intents and register query metadata, or **Option B — partner-managed** intent creation and metadata inserts via the GraphDB HTTP API.
 
 ## Architecture overview
-![Intents and observation report query metadata in GraphDB](./figures/remote-prometheus.png)
-
 How intents and metadata reach GraphDB is **either** of the following (same repository and metadata shape in both cases):
 
 
@@ -21,6 +19,7 @@ How intents and metadata reach GraphDB is **either** of the following (same repo
 
 
 ### Option A - use script in SimulatorController to generate intent and query meta data
+![Intents and observation report query metadata in GraphDB](./figures/remote-prometheus.png)
 
 Minimal [SimulatorController](../../README.md#simulatorcontroller) script that only generates an intent and registers Prometheus query metadata in GraphDB (no `request observation-report` steps). Copy into the Controller script editor.
 

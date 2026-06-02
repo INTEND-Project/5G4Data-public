@@ -7,12 +7,12 @@ When the first "working" version of the AgenticDataSimulator was up and running 
 - [ ] The different tools (inCoord, inSustain, inExplain) may have requirements on how the timeseries needs to be created that is currently not supported. We need to include support for those requirements both in scripts (extend the DSL, add support for freetext key words, etc.) and in the SimulatorAgentPackages/5g4data-intent-observations agent package. Support in the agent can be implemented using more prompt modules (e.g SimulatorAgentPackages/5g4data-intent-observations/prompt_modules), as code (parse keywords in structured and freetext used in "request observation-report ..." commands in scripts and add code to support it), as refinements of the agent SKILL.md file, as agent tools, etc.
 
 ### Easy TODO´s?
-- [ ] Reflect over what the impact of allowing external partners to use their own Prometheus to store observation report values for metrics (and to populate it with real data from a deployment to their own Kubernetes cluster). The Query in GraphDB does only hold the query, not the URL to where the query should be sent. Should the URL be stored as well?
 - [ ] "Show metrics" button action only reports what is in the helm chart values.yaml file and not what could be result of network expectations. Find a way to fix this.
 - [ ] Send Ericsson/Mario description of how the metadata query thingy works.
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed
+- [x] Reflect over what the impact of allowing external partners to use their own Prometheus to store observation report values for metrics (and to populate it with real data from a deployment to their own Kubernetes cluster). The Query in GraphDB does only hold the query, not the URL to where the query should be sent. Should the URL be stored as well?
 - [x] Open up for API access to GraphDB so that partners can access our GraphDB server. Add security and basic authorisation before we allow access. 
 - [x] Grafana sometimes has timeframe set to 3h-now for historic generated data. Fix it.
 - [x] Let list items in the Intents list be yellow until the generation of data is complete. When it is complete, change the color to green. Do not allow the user to click on the Grafana button until all data has been succesfully written to Prometheus (or GraphDB,depending on the storage type selected).

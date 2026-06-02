@@ -347,6 +347,13 @@ curl -sf http://127.0.0.1:9090/prometheus/-/healthy
 
 Caddy routes are defined in [`5G4Data-Tutorial/Caddyfile`](../5G4Data-Tutorial/Caddyfile).
 
+**GraphDB Workbench behind `/graphdb/` (start5g-1)** — Caddy strips the `/graphdb` prefix before forwarding to port 7200, but the Workbench ships with `<base href="/">`, so the UI loads JS/CSS from the site root and stays on “GraphDB Workbench is loading…”. On start5g-1 this has been fixed on the native install (`~/arneme/GraphDB/graphdb-11.1.1`):
+
+1. Set `graphdb.external-url = https://start5g-1.cs.uit.no/graphdb/` in `conf/graphdb.properties`, then restart GraphDB (`sudo systemctl restart graphdb`).
+2. Patch `lib/workbench/index.html`: change `<base href="/">` to `<base href="/graphdb/">`.
+
+**Re-apply after a GraphDB upgrade** — both steps touch files under the GraphDB install directory (not this repo); upgrading or reinstalling GraphDB can overwrite `index.html` and reset `graphdb.properties`.
+
 After code changes, reload observation package tools into the clone: `package load` from `SimulatorAgentKernel` or `./agent-control restart`.
 
 #  Manual load agents

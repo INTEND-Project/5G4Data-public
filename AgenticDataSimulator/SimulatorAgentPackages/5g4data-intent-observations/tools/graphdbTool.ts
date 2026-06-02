@@ -236,6 +236,12 @@ DELETE {
     ${subject} data5g:hasReadableQuery ?r .
   }
 }
+WHERE {
+  GRAPH <http://intent-reports-metadata> {
+    ${subject} data5g:hasQuery ?q .
+    OPTIONAL { ${subject} data5g:hasReadableQuery ?r . }
+  }
+}
 `.trim();
 
       const insertQuery = `

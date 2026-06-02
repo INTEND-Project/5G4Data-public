@@ -1144,6 +1144,107 @@ select.workspace-script-run-select:disabled {
   color: var(--muted);
 }
 
+.workspace-observation-progress-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(5, 14, 26, 0.55);
+}
+
+.workspace-observation-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workspace-observation-progress--compact {
+  gap: 6px;
+}
+
+.workspace-observation-progress-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.workspace-observation-progress-intent {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.workspace-observation-progress-label {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.workspace-observation-progress-meter {
+  width: 100%;
+  height: 10px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.workspace-observation-progress-metric-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workspace-observation-progress-metric-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.workspace-observation-progress-metric-row--compact {
+  gap: 3px;
+}
+
+.workspace-observation-progress-metric-row-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.workspace-observation-progress-metric-name {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.78rem;
+  color: var(--text);
+  max-width: min(100%, 280px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-observation-progress-metric-detail {
+  font-size: 0.76rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.workspace-observation-progress-meter--metric {
+  height: 8px;
+}
+
+.workspace-observation-progress-indeterminate--metric {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.workspace-observation-progress-indeterminate {
+  margin: 0;
+}
+
 .workspace-card-active {
   border-color: rgba(125, 180, 255, 0.6);
 }

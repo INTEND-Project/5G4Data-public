@@ -9,6 +9,7 @@ describe("store-prometheus-metadata", () => {
   it("buildDeletePrometheusMetadataUpdate removes hasQuery triples for one metric", () => {
     const update = buildDeletePrometheusMetadataUpdate("p99-token-target_COabc");
     expect(update).toContain("DELETE");
+    expect(update).toContain("WHERE");
     expect(update).toContain("p99-token-target_COabc");
     expect(update).toContain("data5g:hasQuery");
     expect(update).toContain("intent-reports-metadata");

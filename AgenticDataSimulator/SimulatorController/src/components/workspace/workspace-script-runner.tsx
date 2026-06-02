@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, memo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 
 import { ScriptEditor } from "@/components/editor/script-editor";
 import { IntentGenSessionDialog } from "@/components/workspace/intent-gen-session-dialog";
+import { ObservationProgressBar } from "@/components/workspace/observation-progress-bar";
+import type { ObservationProgressSnapshot } from "@/lib/observation-agent/progress-types";
 import { ShowMetricsDialog } from "@/components/workspace/show-metrics-dialog";
 import {
   defaultScriptName,
@@ -12,6 +14,7 @@ import {
 } from "@/components/workspace/workspace-script-session-context";
 import { WorkspaceRunIdChip } from "@/components/workspace/workspace-run-id-chip";
 import { WorkspaceRunLogDialog } from "@/components/workspace/workspace-run-log-dialog";
+import { withAppBasePath } from "@/lib/app-paths";
 import { analyzeScript } from "@/lib/dsl/analysis/analyze-script";
 import { findCreateIntentStatements } from "@/lib/dsl/analysis/find-create-intent-statements";
 import type { CreateIntentCandidate } from "@/lib/dsl/analysis/find-create-intent-statements";
@@ -20,11 +23,17 @@ import type {
   ExtractMetricCatalogStatement,
   RequestObservationReportStatement,
 } from "@/lib/dsl/types";
-import { resolveMetricStemsInObservationInstructions, mergeMetricCatalog } from "@/lib/dsl/analysis/extract-metric-catalog";
+import {
+  extractCompoundMetricsFromObservationInstructions,
+  mergeMetricCatalog,
+  resolveMetricStemsInObservationInstructions,
+} from "@/lib/dsl/analysis/extract-metric-catalog";
+import { mergeObservationProgressWithExpectedMetrics } from "@/lib/observation-agent/metric-progress-display";
 import { buildObservationReportSeed } from "@/lib/dsl/observation-report-seed";
 import {
   formatHistoricObservationRunHint,
   parseHistoricObservationWindow,
+  parseObservationSyntheticMode,
 } from "@/lib/dsl/historic-observation-ticks";
 import type { ObservationStorageType } from "@/lib/dsl/types";
 import { buildIntentGenerationStorageHint } from "@/lib/observation-storage";
@@ -123,8 +132,16 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     setWorkloadPreviewMetricStems,
     storageDeletionInProgress,
     markIntentAwaitingObservation,
+    markHistoricObservationIntent,
+    clearIntentAwaitingObservation,
+    intentIdsAwaitingObservation,
+    historicObservationIntentIds,
+    historicObservationMetricsByIntentId,
+    observationProgressByIntentId,
+    setObservationProgressForIntent,
     notifyStorageChanged,
     setObservationGenerationActive,
+    observationGenerationActive,
     setScriptRunInProgress,
     replaceServerScripts,
     graphDbBaseUrl,
@@ -660,6 +677,8 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   const [observationSession, setObservationSession] = useState<{
     wellKnownURI: string;
     sessionAlias: string;
+    intentId: string;
+    isHistoric: boolean;
     seedPrompt: string;
     graphTargetBinding: GraphTargetBinding;
     observationStorage?: ObservationStorageType;
@@ -707,7 +726,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       });
 
       try {
-        const response = await fetch(`/api/observation-agent/errors?${params}`, {
+        const response = await fetch(`${withAppBasePath("/api/observation-agent/errors")}?${params}`, {
           credentials: "same-origin",
         });
         if (!response.ok) {
@@ -744,6 +763,119 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
     return () => window.clearInterval(intervalId);
   }, [appendRunnerLog, observationSession, selectedDomain]);
+
+  const observationProgressIntentIds = useRef<Set<string>>(new Set());
+  const observationProgressPollErrorLogged = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    observationProgressIntentIds.current = new Set(historicObservationIntentIds);
+  }, [historicObservationIntentIds]);
+
+  useEffect(() => {
+    const shouldPoll = (): boolean => historicObservationIntentIds.size > 0;
+
+    if (!shouldPoll()) {
+      return;
+    }
+
+    const pollProgress = async (): Promise<void> => {
+      const intentIds = [...observationProgressIntentIds.current];
+      if (intentIds.length === 0) {
+        return;
+      }
+
+      await Promise.all(
+        intentIds.map(async (intentId) => {
+          const params = new URLSearchParams({
+            domain: selectedDomain,
+            intentId,
+          });
+          try {
+            const response = await fetch(`${withAppBasePath("/api/observation-agent/progress")}?${params}`, {
+              credentials: "same-origin",
+            });
+            if (!response.ok) {
+              const errKey = `${intentId}:${response.status}`;
+              if (!observationProgressPollErrorLogged.current.has(errKey)) {
+                observationProgressPollErrorLogged.current.add(errKey);
+                let detail = "";
+                try {
+                  const errBody = (await response.json()) as { error?: string };
+                  detail = errBody.error?.trim() ? `: ${errBody.error.trim()}` : "";
+                } catch {
+                  /* ignore */
+                }
+                appendRunnerLog(
+                  `Observation progress poll for ${intentId} failed (HTTP ${response.status})${detail}. Rebuild/restart the observation agent if this persists.`,
+                );
+              }
+              return;
+            }
+            const body = (await response.json()) as {
+              status?: string;
+              progress?: ObservationProgressSnapshot | null;
+            };
+            if (body.progress && body.progress.mode === "historic") {
+              const progressIntentId = body.progress.intentId.trim() || intentId;
+              setObservationProgressForIntent(progressIntentId, body.progress);
+              if (progressIntentId !== intentId) {
+                setObservationProgressForIntent(intentId, body.progress);
+              }
+              if (body.progress.phase === "completed") {
+                clearIntentAwaitingObservation(intentId);
+                if (progressIntentId !== intentId) {
+                  clearIntentAwaitingObservation(progressIntentId);
+                }
+              }
+              return;
+            }
+            if (
+              body.status === "idle" &&
+              !intentIdsAwaitingObservation.has(intentId)
+            ) {
+              setObservationProgressForIntent(intentId, null);
+            }
+          } catch {
+            /* best-effort */
+          }
+        }),
+      );
+    };
+
+    void pollProgress();
+    const intervalId = window.setInterval(() => {
+      if (!shouldPoll()) {
+        window.clearInterval(intervalId);
+        return;
+      }
+      void pollProgress();
+    }, 2500);
+
+    return () => window.clearInterval(intervalId);
+  }, [
+    clearIntentAwaitingObservation,
+    historicObservationIntentIds.size,
+    intentIdsAwaitingObservation,
+    selectedDomain,
+    setObservationProgressForIntent,
+  ]);
+
+  const historicProgressStripItems = useMemo(
+    () =>
+      [...historicObservationIntentIds].map((intentId) => ({
+        intentId,
+        progress: mergeObservationProgressWithExpectedMetrics(
+          observationProgressByIntentId[intentId] ?? null,
+          historicObservationMetricsByIntentId[intentId] ?? [],
+          intentId,
+        ),
+      })),
+    [
+      historicObservationIntentIds,
+      historicObservationMetricsByIntentId,
+      observationProgressByIntentId,
+    ],
+  );
 
   const resolveSelectedGraphTargetBinding = useCallback((): GraphTargetBinding | null => {
     if (!selectedKgTargetId.trim()) {
@@ -1147,7 +1279,16 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
             `Line ${statement.line}: Observation storage for session: ${storageNote}.`,
           );
 
+          const observationSyntheticMode = parseObservationSyntheticMode(
+            stemResolution.instructions,
+          );
           const historicWindow = parseHistoricObservationWindow(stemResolution.instructions);
+          if (observationSyntheticMode === "historic") {
+            markHistoricObservationIntent(
+              canonicalId,
+              extractCompoundMetricsFromObservationInstructions(stemResolution.instructions),
+            );
+          }
           if (historicWindow) {
             const effectiveStorage: ObservationStorageType =
               stmt.storage ?? createIntentStorage ?? "graphdb";
@@ -1156,6 +1297,10 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
                 historicWindow,
                 effectiveStorage,
               )}`,
+            );
+          } else if (observationSyntheticMode === "historic") {
+            appendRunnerLog(
+              `Line ${statement.line}: Historic mode detected; tick progress bar will appear once the observation agent starts synthetic generation (needs valid start, stop, and frequency in instructions).`,
             );
           }
 
@@ -1181,6 +1326,8 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
             setObservationSession({
               wellKnownURI: resolved,
               sessionAlias: stmt.sessionAlias,
+              intentId: canonicalId,
+              isHistoric: observationSyntheticMode === "historic",
               seedPrompt,
               graphTargetBinding,
               observationStorage: stmt.storage,
@@ -1400,6 +1547,23 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           role="separator"
         />
       </div>
+      {historicProgressStripItems.length > 0 ? (
+        <div className="workspace-observation-progress-strip" aria-live="polite">
+          {historicProgressStripItems.map(({ intentId, progress }) => (
+            <ObservationProgressBar
+              compact
+              intentId={intentId}
+              key={intentId}
+              progress={progress}
+              waitingForAgent={
+                progress === null ||
+                (progress.metrics.length === 0 &&
+                  (historicObservationMetricsByIntentId[intentId]?.length ?? 0) === 0)
+              }
+            />
+          ))}
+        </div>
+      ) : null}
       <div className="workspace-runner">
         <div className="workspace-runner-actions">
           <button
@@ -1735,6 +1899,18 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         onTranscriptTurn={appendA2ATranscriptTurn}
         open={observationSession !== null}
         persistIntentStoreUrl={null}
+        observationProgress={
+          observationSession?.isHistoric && observationSession.intentId
+            ? mergeObservationProgressWithExpectedMetrics(
+                observationProgressByIntentId[observationSession.intentId] ?? null,
+                historicObservationMetricsByIntentId[observationSession.intentId] ?? [],
+                observationSession.intentId,
+              )
+            : null
+        }
+        observationProgressIntentId={
+          observationSession?.isHistoric ? (observationSession.intentId ?? null) : null
+        }
         seedPrompt={observationSession?.seedPrompt ?? null}
         variant="observation-report"
       />

@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
   ...(configuredBasePath ? { basePath: configuredBasePath } : {}),
   distDir: resolveDistDir(),
   env: {
+    // Inlined into client bundles; APP_BASE_PATH alone is server-only at build time.
+    NEXT_PUBLIC_APP_BASE_PATH: configuredBasePath,
     SYNTH_OBS_HISTORIC_MAX_POINTS:
       process.env.SYNTH_OBS_HISTORIC_MAX_POINTS ?? String(250_000),
   },

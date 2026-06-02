@@ -64,6 +64,8 @@ const appEnvSchema = z.object({
   AGENT_API_KEYS: agentApiKeysSchema,
   AGENT_API_KEY: z.string().optional(),
   AGENT_API_KEY_HEADER: z.string().default("X-Api-Key"),
+  /** Direct kernel control API base (e.g. http://127.0.0.1:3012/v1) when the public agent card URL does not expose observation-progress. */
+  OBSERVATION_AGENT_CONTROL_BASE_URL: z.string().url().optional(),
 });
 
 export type AppEnv = {
@@ -91,6 +93,7 @@ export type AppEnv = {
   agentApiKeys: Record<string, string>;
   agentApiKey?: string;
   agentApiKeyHeader: string;
+  observationAgentControlBaseUrl?: string;
 };
 
 export function loadAppEnv(source: Partial<Record<string, string | undefined>>): AppEnv {
@@ -119,6 +122,7 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     AGENT_API_KEYS: source.AGENT_API_KEYS,
     AGENT_API_KEY: source.AGENT_API_KEY,
     AGENT_API_KEY_HEADER: source.AGENT_API_KEY_HEADER,
+    OBSERVATION_AGENT_CONTROL_BASE_URL: source.OBSERVATION_AGENT_CONTROL_BASE_URL,
   });
 
   return {
@@ -151,5 +155,7 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     agentApiKeys: parsed.AGENT_API_KEYS,
     agentApiKey: parsed.AGENT_API_KEY?.trim() || undefined,
     agentApiKeyHeader: parsed.AGENT_API_KEY_HEADER,
+    observationAgentControlBaseUrl:
+      parsed.OBSERVATION_AGENT_CONTROL_BASE_URL?.trim() || undefined,
   };
 }

@@ -8,6 +8,10 @@ import {
   type AgentAuthConfig
 } from "./a2a/auth.js";
 import { createSession } from "./turnOrchestrator.js";
+import {
+  resolveObservationErrors,
+  resolveObservationProgress,
+} from "./observationControlHttp.js";
 import type { AgentCard } from "./a2a/service.js";
 import type { AgentTurnResult, ChatSession } from "../models.js";
 
@@ -18,6 +22,7 @@ interface RuntimeApi {
     graphTargetBinding?: import("../models.js").GraphTargetBinding | null
   ): Promise<import("./capabilityRouter.js").WorkloadPreviewResult>;
   getDomainPackage(): {
+    packageDir: string;
     manifest: { name: string; version: string };
     controlApiExtension?: { paths?: Record<string, unknown> };
     intentBindingMetadata?: unknown;
@@ -349,6 +354,55 @@ export function startOpenApiServer(options: OpenApiServerOptions) {
         const result = await options.runtime.runTurn(session, body.userText);
         response.writeHead(200, jsonHeaders());
         response.end(JSON.stringify(result));
+        return;
+      }
+
+      if (method === "GET" && path === "/v1/observation-progress") {
+        const intentId = url.searchParams.get("intentId")?.trim() ?? "";
+        if (!intentId) {
+          response.writeHead(400, jsonHeaders());
+          response.end(JSON.stringify({ error: "intentId query parameter is required." }));
+          return;
+        }
+        const packageDir = options.runtime.getDomainPackage().packageDir;
+        const body = await resolveObservationProgress(packageDir, intentId);
+        if (!body) {
+          response.writeHead(501, jsonHeaders());
+          response.end(
+            JSON.stringify({
+              error: "Observation progress is not supported by this agent package.",
+            }),
+          );
+          return;
+        }
+        response.writeHead(200, jsonHeaders());
+        response.end(JSON.stringify(body));
+        return;
+      }
+
+      if (method === "GET" && path === "/v1/observation-errors") {
+        const since = url.searchParams.get("since")?.trim() || undefined;
+        const limitRaw = url.searchParams.get("limit")?.trim();
+        let limit: number | undefined;
+        if (limitRaw) {
+          const parsed = Number.parseInt(limitRaw, 10);
+          if (Number.isFinite(parsed) && parsed > 0) {
+            limit = parsed;
+          }
+        }
+        const packageDir = options.runtime.getDomainPackage().packageDir;
+        const body = await resolveObservationErrors(packageDir, { since, limit });
+        if (!body) {
+          response.writeHead(501, jsonHeaders());
+          response.end(
+            JSON.stringify({
+              error: "Observation errors are not supported by this agent package.",
+            }),
+          );
+          return;
+        }
+        response.writeHead(200, jsonHeaders());
+        response.end(JSON.stringify(body));
         return;
       }
 

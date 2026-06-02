@@ -56,6 +56,25 @@ export function buildStemToCompoundMap(metricNames: string[]): Map<string, strin
   return map;
 }
 
+/** Compound metric names from `metric=` tokens (after stem resolution). */
+export function extractCompoundMetricsFromObservationInstructions(
+  instructions: string,
+): string[] {
+  const seen = new Set<string>();
+  const compounds: string[] = [];
+  METRIC_TOKEN_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = METRIC_TOKEN_RE.exec(instructions)) !== null) {
+    const compound = stripMetricValue(match[1] ?? "");
+    if (!compound || seen.has(compound)) {
+      continue;
+    }
+    seen.add(compound);
+    compounds.push(compound);
+  }
+  return compounds;
+}
+
 export function resolveMetricStemsInObservationInstructions(
   instructions: string,
   metricCatalog: string[],

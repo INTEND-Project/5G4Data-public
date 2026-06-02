@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildStemToCompoundMap,
+  extractCompoundMetricsFromObservationInstructions,
   resolveMetricStemsInObservationInstructions,
 } from "../../src/lib/dsl/analysis/extract-metric-catalog";
 import { buildObservationReportSeed } from "../../src/lib/dsl/observation-report-seed";
@@ -108,6 +109,15 @@ describe("resolveMetricStemsInObservationInstructions", () => {
 
     expect(result.instructions).toBe(instructions);
     expect(result.resolved).toEqual([]);
+  });
+
+  it("extracts every compound metric from structured instructions", () => {
+    const instructions =
+      "`metric=metricA_COabc1234567890123456789012345678`, notes. `metric=metricB_COabc1234567890123456789012345678`, more.";
+    expect(extractCompoundMetricsFromObservationInstructions(instructions)).toEqual([
+      "metricA_COabc1234567890123456789012345678",
+      "metricB_COabc1234567890123456789012345678",
+    ]);
   });
 
   it("resolved instructions appear in the observation seed body", () => {

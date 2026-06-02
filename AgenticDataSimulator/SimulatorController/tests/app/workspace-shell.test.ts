@@ -51,7 +51,7 @@ describe("workspace shell bootstrap", () => {
     );
     const globalsSource = readFileSync(resolve(process.cwd(), "src/app/globals.css"), "utf8");
 
-    expect(loginSource).toContain("Sign in to OpenClaw Controller");
+    expect(loginSource).toContain("Sign in to Controller Studio");
     expect(loginSource).toContain('withAppBasePath("/api/auth/login")');
     expect(loginSource).toContain('withAppBasePath("/api/auth/register")');
     expect(workspaceSource).toContain("WorkspaceShell");

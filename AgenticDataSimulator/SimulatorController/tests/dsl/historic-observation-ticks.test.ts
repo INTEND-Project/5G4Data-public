@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatHistoricObservationRunHint,
   parseHistoricObservationWindow,
+  parseObservationSyntheticMode,
   readSynthObsHistoricMaxPoints,
   readSynthObsPromFlushChunk,
 } from "../../src/lib/dsl/historic-observation-ticks";
@@ -19,6 +20,18 @@ describe("historic observation tick cap", () => {
     expect(window).not.toBeNull();
     expect(window?.tickCount).toBe(527_041);
     expect(window?.frequencySeconds).toBe(60);
+  });
+
+  it("parseObservationSyntheticMode detects explicit historic and streaming", () => {
+    expect(
+      parseObservationSyntheticMode(
+        "`mode=historic`, `start=21.05.2026 05:00:00`, `stop=22.05.2026 05:00:00`, `frequency=60s`.",
+      ),
+    ).toBe("historic");
+    expect(
+      parseObservationSyntheticMode("`mode=streaming`, `frequency=60s`. For `metric=foo`, gauge."),
+    ).toBe("streaming");
+    expect(parseObservationSyntheticMode("For metric bandwidth keep values steady.")).toBeNull();
   });
 
   it("returns null for streaming or unstructured instructions", () => {
@@ -60,6 +73,31 @@ describe("historic observation tick cap", () => {
     expect(diagnostic).toBeNull();
   });
 
+  it("validateScript rejects mixing historic and streaming observation-report modes", () => {
+    const script = `discover intent-agent by domain telenor.5g4data as intentGen
+create intent using intentGen storage prometheus prompt "LLM" as llmIntent
+discover observation-agent by domain telenor.5g4data as observationControl
+request observation-report using observationControl for llmIntent storage prometheus instructions "\`mode=historic\`, \`start=21.05.2026 05:00:00\`, \`stop=22.05.2026 05:00:00\`, \`frequency=60s\`. For \`metric=energy-consumption\`, gauge." as historicObs
+request observation-report using observationControl for llmIntent storage prometheus instructions "\`mode=streaming\`, \`frequency=60s\`. For \`metric=p99-token-target\`, gauge." as streamObs`;
+
+    const parsed = parseScript(script);
+    const diagnostics = validateScript(parsed.statements);
+
+    expect(diagnostics.some((d) => d.code === "MIXED_OBSERVATION_SYNTH_MODES")).toBe(true);
+    expect(diagnostics.filter((d) => d.code === "MIXED_OBSERVATION_SYNTH_MODES")).toHaveLength(2);
+  });
+
+  it("validateScript allows multiple observation-report lines with the same mode", () => {
+    const script = `discover observation-agent by domain telenor.5g4data as observationControl
+request observation-report using observationControl for I6be57670fcad46fba1f648ad28b9cdb5 instructions "\`mode=streaming\`, \`frequency=60s\`. For \`metric=energy-consumption\`, gauge." as obsA
+request observation-report using observationControl for I6be57670fcad46fba1f648ad28b9cdb5 instructions "\`mode=streaming\`, \`frequency=120s\`. For \`metric=p99-token-target\`, gauge." as obsB`;
+
+    const parsed = parseScript(script);
+    const diagnostics = validateScript(parsed.statements);
+
+    expect(diagnostics.some((d) => d.code === "MIXED_OBSERVATION_SYNTH_MODES")).toBe(false);
+  });
+
   it("validateScript surfaces tick cap errors for observation-report lines", () => {
     const script = `discover intent-agent by domain telenor.5g4data as intentGen
 create intent using intentGen storage prometheus prompt "LLM near Tromsø" as llmIntent
@@ -94,6 +132,17 @@ request observation-report using observationControl for llmIntent storage promet
 });
 
 describe("analyzeScript dry-run integration", () => {
+  it("includes mixed observation mode diagnostics in analyzeScript output", async () => {
+    const analyzeModule = await import("../../src/lib/dsl/analysis/analyze-script");
+    const script = `discover observation-agent by domain telenor.5g4data as observationControl
+request observation-report using observationControl for I6be57670fcad46fba1f648ad28b9cdb5 instructions "\`mode=historic\`, \`start=21.05.2026 05:00:00\`, \`stop=22.05.2026 05:00:00\`, \`frequency=60s\`. For \`metric=energy-consumption\`, gauge." as historicObs
+request observation-report using observationControl for I6be57670fcad46fba1f648ad28b9cdb5 instructions "\`mode=streaming\`, \`frequency=60s\`. For \`metric=p99-token-target\`, gauge." as streamObs`;
+
+    const { diagnostics } = analyzeModule.analyzeScript(script);
+
+    expect(diagnostics.some((d) => d.code === "MIXED_OBSERVATION_SYNTH_MODES")).toBe(true);
+  });
+
   it("includes tick cap diagnostics in analyzeScript output", async () => {
     const analyzeModule = await import("../../src/lib/dsl/analysis/analyze-script");
     const script = `discover observation-agent by domain telenor.5g4data as observationControl

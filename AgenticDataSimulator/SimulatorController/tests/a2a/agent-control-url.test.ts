@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   observationErrorsUrlFromAgentRpcUrl,
+  observationProgressUrlFromAgentRpcUrl,
   workloadPreviewUrlFromAgentRpcUrl,
 } from "../../src/lib/a2a/agent-control-url";
 
@@ -15,6 +16,20 @@ describe("workloadPreviewUrlFromAgentRpcUrl", () => {
   it("inserts /v1 when rpc url has no version suffix", () => {
     expect(workloadPreviewUrlFromAgentRpcUrl("https://host/agents/intent")).toBe(
       "https://host/agents/intent/v1/control/workload-preview",
+    );
+  });
+});
+
+describe("observationProgressUrlFromAgentRpcUrl", () => {
+  it("appends observation-progress path when rpc url ends with /v1", () => {
+    expect(observationProgressUrlFromAgentRpcUrl("https://host/agents/obs/v1")).toBe(
+      "https://host/agents/obs/v1/observation-progress",
+    );
+  });
+
+  it("inserts /v1 when rpc url has no version suffix", () => {
+    expect(observationProgressUrlFromAgentRpcUrl("https://host/agents/obs")).toBe(
+      "https://host/agents/obs/v1/observation-progress",
     );
   });
 });

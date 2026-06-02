@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildCodegenSystemPrompt, envelopeSnippet } from "../tools/syntheticLlmCodegen.js";
-import { parseDdMmYyyyUtc, parseSyntheticPrompt } from "../tools/syntheticPrompt.js";
+import { parseDdMmYyyyUtc, parseSyntheticPrompt, normalizeSyntheticIntentId } from "../tools/syntheticPrompt.js";
 
 test("parseDdMmYyyyUtc parses UTC", () => {
   const d = parseDdMmYyyyUtc("01.05.2026 12:30:00");
@@ -11,6 +11,22 @@ test("parseDdMmYyyyUtc parses UTC", () => {
 test("parseDdMmYyyyUtc parses UTC with dotted clock (hh.mm.ss)", () => {
   const d = parseDdMmYyyyUtc("17.05.2026 05.00.00");
   assert.equal(d?.toISOString(), "2026-05-17T05:00:00.000Z");
+});
+
+
+test("normalizeSyntheticIntentId accepts I-prefixed and bare hex", () => {
+  assert.equal(
+    normalizeSyntheticIntentId("I6be57670fcad46fba1f648ad28b9cdb5"),
+    "I6be57670fcad46fba1f648ad28b9cdb5",
+  );
+  assert.equal(
+    normalizeSyntheticIntentId("6be57670fcad46fba1f648ad28b9cdb5"),
+    "I6be57670fcad46fba1f648ad28b9cdb5",
+  );
+  assert.equal(
+    normalizeSyntheticIntentId("d0c6b67abd4449a5ac6599ccc05af796"),
+    "Id0c6b67abd4449a5ac6599ccc05af796",
+  );
 });
 
 test("parseSyntheticPrompt historic accepts dotted timestamps", () => {

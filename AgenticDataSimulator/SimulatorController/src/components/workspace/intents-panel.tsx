@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { flushSync } from "react-dom";
 
 import {
@@ -46,9 +47,22 @@ function resolveIntentCardStatus(
   return intent.dataStatus ?? "pending";
 }
 
-function intentDataStatusHint(intent: IntentListEntry, cardStatus: "pending" | "ready"): string {
+function intentDataStatusHint(
+  intent: IntentListEntry,
+  cardStatus: "pending" | "ready",
+  tickProgress?: { ticksDone: number; ticksTotal: number | null; percent: number | null } | null,
+): string {
   if (cardStatus === "ready") {
     return `Observation data ready (${intent.metricsReady ?? 0}/${intent.metricsTotal ?? 0} metrics in ${intent.storage}).`;
+  }
+  if (
+    tickProgress &&
+    tickProgress.ticksTotal !== null &&
+    tickProgress.ticksTotal !== undefined
+  ) {
+    const percentNote =
+      tickProgress.percent !== null ? ` (${tickProgress.percent}%)` : "";
+    return `Generating observations: ${tickProgress.ticksDone.toLocaleString("en-US")} / ${tickProgress.ticksTotal.toLocaleString("en-US")} ticks${percentNote}…`;
   }
   const ready = intent.metricsReady ?? 0;
   const total = intent.metricsTotal ?? 0;
@@ -74,6 +88,9 @@ export function IntentsPanel({
     scriptRunInProgress,
     observationGenerationActive,
     intentIdsAwaitingObservation,
+    historicObservationIntentIds,
+    clearIntentAwaitingObservation,
+    observationProgressByIntentId,
     prometheusBaseUrl,
     graphDbBaseUrl,
   } = useWorkspaceScriptSession();
@@ -208,6 +225,19 @@ export function IntentsPanel({
   }, [storageRefreshNonce, loadIntents]);
 
   const hasAnyBackend = graphDbConnected || prometheusConnected;
+
+  useEffect(() => {
+    for (const intent of intents) {
+      if (
+        intent.dataStatus !== "ready" ||
+        !historicObservationIntentIds.has(intent.intentId)
+      ) {
+        continue;
+      }
+      clearIntentAwaitingObservation(intent.intentId);
+    }
+  }, [clearIntentAwaitingObservation, historicObservationIntentIds, intents]);
+
   const shouldPollIntents = shouldPollIntentList({
     intents,
     intentIdsAwaitingObservation,
@@ -450,6 +480,10 @@ export function IntentsPanel({
         {intents.map((intent) => {
           const cardStatus = resolveIntentCardStatus(intent, intentIdsAwaitingObservation);
           const grafanaReady = cardStatus === "ready" && Boolean(intent.grafanaUrl);
+          const historicProgress = observationProgressByIntentId[intent.intentId];
+          const tickProgress =
+            historicProgress?.mode === "historic" ? historicProgress.aggregate : null;
+          const dataStatusHint = intentDataStatusHint(intent, cardStatus, tickProgress);
 
           return (
           <article
@@ -493,9 +527,9 @@ export function IntentsPanel({
                     disabled
                     title={
                       intent.grafanaUrl
-                        ? intentDataStatusHint(intent, cardStatus)
+                        ? dataStatusHint
                         : cardStatus === "pending"
-                          ? intentDataStatusHint(intent, cardStatus)
+                          ? dataStatusHint
                           : "Configure GRAFANA_BASE_URL to open Grafana dashboards"
                     }
                     type="button"
@@ -519,8 +553,8 @@ export function IntentsPanel({
                 </button>
               </div>
             </div>
-            <p className="workspace-intent-data-status" title={intentDataStatusHint(intent, cardStatus)}>
-              {intentDataStatusHint(intent, cardStatus)}
+            <p className="workspace-intent-data-status" title={dataStatusHint}>
+              {dataStatusHint}
             </p>
           </article>
           );

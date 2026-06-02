@@ -108,13 +108,18 @@ export async function GET(request: Request) {
   }
 
   const env = loadAppEnv(process.env);
-  const authHeaders = buildA2AAuthHeaders(env, { wellKnownUri: match.wellKnownURI });
+  const authHeaders = buildA2AAuthHeaders(env, {
+    wellKnownUri: match.wellKnownURI,
+    agentName: match.name,
+  });
   const rpc = await fetchAgentRpcUrl(match.wellKnownURI, authHeaders);
   if (!rpc.ok) {
     return NextResponse.json({ error: rpc.message }, { status: 502 });
   }
 
-  const errorsUrl = new URL(observationErrorsUrlFromAgentRpcUrl(rpc.rpcUrl));
+  const errorsUrl = new URL(
+    observationErrorsUrlFromAgentRpcUrl(rpc.rpcUrl, env.observationAgentControlBaseUrl),
+  );
   if (since) {
     errorsUrl.searchParams.set("since", since);
   }

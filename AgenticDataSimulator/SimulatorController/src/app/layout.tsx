@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenClaw Controller",
+  title: "Controller Studio",
   description: "Controller workspace for two-stage OpenClaw script authoring and execution.",
 };
 

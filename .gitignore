@@ -38,3 +38,4 @@ AgenticDataSimulator/.venv-python/
 AgenticDataSimulator/fetch_intent_turtle.py
 AgenticDataSimulator/fetch_intent_turtle.sh
 AgenticDataSimulator/requirements-python.txt
+AgenticDataSimulator/ObservationAgentRequirements.md

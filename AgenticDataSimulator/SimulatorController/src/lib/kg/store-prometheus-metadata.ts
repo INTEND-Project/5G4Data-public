@@ -31,6 +31,12 @@ DELETE {
     ${subject} data5g:hasReadableQuery ?r .
   }
 }
+WHERE {
+  GRAPH <${graphIri}> {
+    ${subject} data5g:hasQuery ?q .
+    OPTIONAL { ${subject} data5g:hasReadableQuery ?r . }
+  }
+}
 `.trim();
 }
 

@@ -49,6 +49,18 @@ export function extractKeyValueGlobals(text: string): Map<string, string> {
   return out;
 }
 
+/** Canonical intent id: `I` + 32 lowercase hex (matches Controller / GraphDB ids). */
+export function normalizeSyntheticIntentId(raw: string): string {
+  const trimmed = raw.trim();
+  if (/^I[a-f0-9]{32}$/iu.test(trimmed)) {
+    return `I${trimmed.slice(1).toLowerCase()}`;
+  }
+  if (/^[a-f0-9]{32}$/iu.test(trimmed)) {
+    return `I${trimmed.toLowerCase()}`;
+  }
+  return trimmed;
+}
+
 export function parseFrequencyToSeconds(fr: string): number | undefined {
   const s = fr.trim().toLowerCase().replace(/^=/, "");
   const mSec = /^(\d+(?:\.\d+)?)s$/i.exec(s);
@@ -155,8 +167,7 @@ export function parseSyntheticPrompt(userLine: string): ParseSyntheticOutcome {
   const freqRaw = globals.get("frequency") ?? "";
 
   if (!intentIdRaw) return { ok: false, error: "Missing intent_id." };
-  let intentId = intentIdRaw.trim();
-  if (/^[a-f0-9]{32}$/iu.test(intentId)) intentId = `I${intentId}`;
+  const intentId = normalizeSyntheticIntentId(intentIdRaw);
 
   const modeNorm = modeRaw.includes("streaming")
     ? "streaming"

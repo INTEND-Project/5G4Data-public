@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { ObservationProgressBar } from "@/components/workspace/observation-progress-bar";
 import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
+import type { ObservationProgressSnapshot } from "@/lib/observation-agent/progress-types";
 import {
   extractIntentLocalIdFromTurtle,
   extractIntentTurtle,
@@ -47,6 +49,9 @@ export type IntentGenSessionDialogProps = {
   graphTargetBinding?: GraphTargetBinding | null;
   observationStorage?: "graphdb" | "prometheus" | null;
   createIntentStorage?: "graphdb" | "prometheus" | null;
+  /** Live tick progress from observation agent (observation-report variant). */
+  observationProgress?: ObservationProgressSnapshot | null;
+  observationProgressIntentId?: string | null;
   /** Called once the user chooses to dismiss after the handshake is ready to continue outside the modal. */
   onFinished: () => void;
 };
@@ -68,6 +73,8 @@ export function IntentGenSessionDialog({
   graphTargetBinding = null,
   observationStorage = null,
   createIntentStorage = null,
+  observationProgress = null,
+  observationProgressIntentId = null,
   onFinished,
 }: IntentGenSessionDialogProps) {
   const { prometheusBaseUrl, graphDbBaseUrl } = useWorkspaceScriptSession();
@@ -441,6 +448,15 @@ export function IntentGenSessionDialog({
           <p className="workspace-intent-dialog-error" role="alert">
             {bannerError ?? externalBannerError}
           </p>
+        ) : null}
+
+        {variant === "observation-report" &&
+        observationProgress &&
+        observationProgress.mode === "historic" ? (
+          <ObservationProgressBar
+            intentId={observationProgressIntentId}
+            progress={observationProgress}
+          />
         ) : null}
 
         <div className="workspace-intent-compose">

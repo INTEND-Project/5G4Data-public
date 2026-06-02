@@ -8,6 +8,14 @@ import {
   type GraphTargetBinding
 } from "./graphTargetBinding.js";
 import { appendObservationError, writeObservationProgramLog } from "./observationLog.js";
+import {
+  historicTickCount,
+  initObservationProgress,
+  markCodegenComplete,
+  markCodegenMetric,
+  markMetricCompleted,
+  markMetricFailed,
+} from "./observationProgress.js";
 import { ObservationTool } from "./observationTool.js";
 import type { ObservationStorageId } from "./observationStorageTypes.js";
 import { DEFAULT_OBSERVATION_STORAGE } from "./observationStorageTypes.js";
@@ -86,7 +94,47 @@ export async function startSyntheticObservationFromParsed(args: {
     observationTool.parseReportableObservationStreams(intentTurtle).map((s) => [s.compoundMetric, s])
   );
   const intentMetrics = observationTool.listCompoundMetricsFromIntent(intentTurtle);
+  const resolvedMetricNames: string[] = [];
+  const ticksTotalPerMetric = new Map<string, number | null>();
+
+  for (const slice of args.parsed.metricSlices) {
+    const preResolved = observationTool.resolveCompoundMetricFromIntent(
+      slice.metricCompound,
+      intentTurtle,
+    );
+    if (!preResolved) continue;
+    resolvedMetricNames.push(preResolved);
+    if (
+      args.parsed.mode === "historic" &&
+      args.parsed.historicStart &&
+      args.parsed.historicEnd
+    ) {
+      ticksTotalPerMetric.set(
+        preResolved,
+        historicTickCount(
+          args.parsed.historicStart,
+          args.parsed.historicEnd,
+          args.parsed.frequencySeconds,
+        ),
+      );
+    } else {
+      ticksTotalPerMetric.set(preResolved, null);
+    }
+  }
+
+  const isHistoric = args.parsed.mode === "historic";
+  if (isHistoric) {
+    initObservationProgress({
+      intentId: args.parsed.intentId,
+      sessionId: args.sessionId,
+      mode: "historic",
+      compoundMetrics: resolvedMetricNames,
+      ticksTotalPerMetric,
+    });
+  }
+
   let idx = 0;
+  let codegenDone = 0;
   for (const slice of args.parsed.metricSlices) {
     const resolvedMetric = observationTool.resolveCompoundMetricFromIntent(slice.metricCompound, intentTurtle);
     if (!resolvedMetric) {
@@ -111,6 +159,10 @@ export async function startSyntheticObservationFromParsed(args: {
       streamInfo?.conditionId ??
       ObservationTool.parseMetricCompound(resolvedMetric)?.conditionId ??
       "unknown";
+
+    if (isHistoric) {
+      markCodegenMetric(args.parsed.intentId, resolvedMetric, codegenDone);
+    }
 
     const codegenSlice = await codegenMetricSnippet({
       fullUserPrompt: args.parsed.rawUserLine,
@@ -137,6 +189,9 @@ export async function startSyntheticObservationFromParsed(args: {
     });
 
     if (!codegenSlice.ok) {
+      if (isHistoric) {
+        markMetricFailed(args.parsed.intentId, resolvedMetric);
+      }
       for (const s of spawned) s.child.kill("SIGTERM");
       sessions.delete(args.sessionId);
       return codegenSlice.error;
@@ -144,6 +199,9 @@ export async function startSyntheticObservationFromParsed(args: {
 
     const v = validateGeneratedSnippet(codegenSlice.snippet);
     if (!v.ok) {
+      if (isHistoric) {
+        markMetricFailed(args.parsed.intentId, resolvedMetric);
+      }
       for (const s of spawned) s.child.kill("SIGTERM");
       sessions.delete(args.sessionId);
       return v.reason;
@@ -162,6 +220,9 @@ export async function startSyntheticObservationFromParsed(args: {
       instructionsSlice: slice.instructionsText
     });
     if (!sampleCheck.ok) {
+      if (isHistoric) {
+        markMetricFailed(args.parsed.intentId, resolvedMetric);
+      }
       for (const s of spawned) s.child.kill("SIGTERM");
       sessions.delete(args.sessionId);
       return sampleCheck.reason;
@@ -202,7 +263,18 @@ export async function startSyntheticObservationFromParsed(args: {
           conditionId,
           storageTypes,
           observationStorageOverride: args.observationStorageOverride ?? null,
-          createIntentStorage: args.createIntentStorage ?? null
+          createIntentStorage: args.createIntentStorage ?? null,
+          sessionId: args.sessionId,
+          ticksTotal:
+            args.parsed.mode === "historic" &&
+            args.parsed.historicStart &&
+            args.parsed.historicEnd
+              ? historicTickCount(
+                  args.parsed.historicStart,
+                  args.parsed.historicEnd,
+                  args.parsed.frequencySeconds,
+                )
+              : null
         },
         null,
         2
@@ -227,8 +299,21 @@ export async function startSyntheticObservationFromParsed(args: {
       process.stderr.write(`synthetic spawn error (${resolvedMetric}): ${String(error)}\n`);
     });
 
+    if (isHistoric) {
+      markCodegenComplete(args.parsed.intentId, resolvedMetric, cp.pid ?? undefined);
+    }
+    codegenDone += 1;
+
     cp.on("exit", (code, signal) => {
-      if (code === 0 || code === null) return;
+      if (code === 0 || code === null) {
+        if (isHistoric) {
+          markMetricCompleted(args.parsed.intentId, resolvedMetric);
+        }
+        return;
+      }
+      if (isHistoric) {
+        markMetricFailed(args.parsed.intentId, resolvedMetric);
+      }
       const signalNote = signal ? ` (signal ${signal})` : "";
       appendObservationError({
         kind: "synthetic_worker_exit",

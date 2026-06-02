@@ -20,6 +20,11 @@ import {
 import type { ObservationStorageId } from "./observationStorageTypes.js";
 import { resolveObservationStorageTypes } from "./resolveObservationStorage.js";
 import {
+  markMetricCompleted,
+  markMetricFailed,
+  reportWorkerTickProgress,
+} from "./observationProgress.js";
+import {
   hashSeed,
   localHourFromSim,
   mulberry32,
@@ -44,6 +49,8 @@ export interface SyntheticMetricWorkerConfig {
   storageTypes: ObservationStorageId[];
   observationStorageOverride?: ObservationStorageId | null;
   createIntentStorage?: ObservationStorageId | null;
+  sessionId?: string;
+  ticksTotal?: number | null;
 }
 
 function numericEnv(name: string, fallback: number): number {
@@ -259,13 +266,29 @@ async function historicRun(
   };
   const totalFlushed = { count: 0 };
   const startedMs = Date.now();
+  const stopMs = end.getTime();
+  const ticksTotal =
+    cfg.ticksTotal ??
+    (() => {
+      const freqMs = Math.max(1, cfg.frequencySeconds) * 1000;
+      return Math.floor((stopMs - start.getTime()) / freqMs) + 1;
+    })();
+
+  reportWorkerTickProgress({
+    intentId: cfg.intentId,
+    compoundMetric: cfg.compoundMetric,
+    ticksDone: 0,
+    ticksTotal,
+    phase: "generating",
+    force: true,
+  });
 
   if (prometheusOnly) {
     initPrometheusSampleBuffer();
   }
 
   let t = start.getTime();
-  const stop = end.getTime();
+  const stop = stopMs;
   let tickIndex = 0;
   while (t <= stop) {
     if (tickIndex >= maxPoints) {
@@ -305,13 +328,40 @@ async function historicRun(
     }
 
     tickIndex += 1;
+    reportWorkerTickProgress({
+      intentId: cfg.intentId,
+      compoundMetric: cfg.compoundMetric,
+      ticksDone: tickIndex,
+      ticksTotal,
+      phase: "generating",
+      samplesFlushed: totalFlushed.count > 0 ? totalFlushed.count : undefined,
+    });
     t += freqMs;
     if (tickIndex % 4096 === 0) await new Promise<void>((resolve) => setImmediate(resolve));
   }
 
   if (storageIds.includes("prometheus")) {
+    reportWorkerTickProgress({
+      intentId: cfg.intentId,
+      compoundMetric: cfg.compoundMetric,
+      ticksDone: tickIndex,
+      ticksTotal,
+      phase: "flushing",
+      force: true,
+    });
     await finalizePrometheusHistoricFlush(cfg, flushCtx, totalFlushed, tickIndex, startedMs);
   }
+
+  markMetricCompleted(cfg.intentId, cfg.compoundMetric);
+  reportWorkerTickProgress({
+    intentId: cfg.intentId,
+    compoundMetric: cfg.compoundMetric,
+    ticksDone: tickIndex,
+    ticksTotal,
+    phase: "completed",
+    samplesFlushed: totalFlushed.count > 0 ? totalFlushed.count : undefined,
+    force: true,
+  });
 }
 
 export function streamingSchedule(
@@ -381,7 +431,14 @@ async function cliMain(): Promise<void> {
   }
   const cfg = loadCfg(cfgPath);
   const snippetBody = readFileSync(cfg.snippetPath, "utf8");
-  await runSyntheticMetricWorkerFromConfig(cfg, snippetBody);
+  try {
+    await runSyntheticMetricWorkerFromConfig(cfg, snippetBody);
+  } catch (error) {
+    if (cfg.mode === "historic") {
+      markMetricFailed(cfg.intentId, cfg.compoundMetric);
+    }
+    throw error;
+  }
 
   if (cfg.mode === "streaming") {
     process.stdout.write(

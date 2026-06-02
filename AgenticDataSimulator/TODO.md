@@ -11,12 +11,15 @@ Always move recently closed TODOs to the top of the closed list.
 - [ ] Add status report agent (or should the observation agent do that based on observed metrics?)
 
 ### Easy TODO´s?
-- [ ] Give an error message when the number of ticks to be generated is above the SYNTH_OBS_HISTORIC_MAX_POINTS threshold. Also add checking of this to dry-run.
-- [ ] Start the data generation scripts in background?
-- [ ] Send Ericsson/Mario description of how the metadata query thingy works.
+
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed
+- [x] Send Ericsson/Mario description of how the metadata query thingy works.
+- [x] Add a progress bar per metric that is being generated. For long historic timeseries with 100K++ tics the generation takes a long time and the user needs some sort of feedback.
+- [x] For long timeseries the Grafana dashboard is not showing data, fix it. It was related to how the url timeframe for the grafana dashboard was constructed.
+- [x] Give an error message when the number of ticks to be generated is above the SYNTH_OBS_HISTORIC_MAX_POINTS threshold. Also add checking of this to dry-run.
+- [x] Start the data generation scripts in background to get fast feedback?
 - [x] Hide the "Agent assistant" section in the left panel (we might unhide it later, so let us not remove the code yet). When "Show metrics" button is clicked, show the metrics in the right panel under a new heading "Metric stems".
 - [x] We need to serve Grafana over https on a remotely reachable URL. It now uses a port number and as a result we need to update the ufw to allow remote users to reach Grafana. Change so that the base URL is https://start5g-1.cs.uit.no/grafana Make needed changes in the Caddyfile.
 - [x] "Show metrics" button action only reports what is in the helm chart values.yaml file and not what could be result of network expectations. Find a way to fix this.

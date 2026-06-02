@@ -22,7 +22,7 @@ Structured prompts invoke an OpenAI-compatible model to synthesize JavaScript sn
 
 - **`mode=streaming`**: emits on wall-clock intervals (`frequency=60s` etc.).
 - **`mode=historic`**: requires `start` / `stop` as `dd.mm.yyyy hh:mm:ss` or **`dd.mm.yyyy hh.mm.ss`** (both interpreted as **UTC**) and emits as fast as possible across that simulated timeline.
-- **Env**: `SYNTH_OBS_OPENAI_API_KEY` (or `OPENAI_API_KEY`), `SYNTH_OBS_OPENAI_BASE_URL` (default `https://api.openai.com/v1`), `SYNTH_OBS_MODEL` (default `gpt-4o-mini`). Optional historic cap `SYNTH_OBS_HISTORIC_MAX_POINTS` (default 250000). Historic Prometheus: `SYNTH_OBS_PROM_FLUSH_CHUNK` (default 10000; `0` = single flush at end). Set `OBS_LOG_N=0` on the agent CLI to skip per-tick NDJSON logging for maximum throughput.
+- **Env**: `SYNTH_OBS_OPENAI_API_KEY` (or `OPENAI_API_KEY`), `SYNTH_OBS_OPENAI_BASE_URL` (default `https://api.openai.com/v1`), `SYNTH_OBS_MODEL` (default `gpt-4o-mini`). Optional historic cap `SYNTH_OBS_HISTORIC_MAX_POINTS` (default 250000). Historic Prometheus: `SYNTH_OBS_PROM_FLUSH_CHUNK` (default 10000; `0` = single flush at end). Set `OBS_LOG_N=0` on the agent CLI to skip per-tick NDJSON logging for maximum throughput. Tick progress for the Controller UI (historic synthetic mode only): `logs/observation-progress/<intentId>.json` (throttle via `OBS_PROGRESS_TICK_INTERVAL`, default 1000ms); exposed on the agent HTTP API as `GET /v1/observation-progress?intentId=…`. Streaming synthetic runs do not write progress snapshots.
 
 These prompts are handled in the agent pre-turn hook (REPL **and** HTTP `/v1/sessions/…/turns`) or explicitly as `observe synthetic …`.
 

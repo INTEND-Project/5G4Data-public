@@ -1,6 +1,7 @@
 "use client";
 
 import { invalidateLiteListCache } from "@/lib/intents/list-intents-cache";
+import type { ObservationProgressSnapshot } from "@/lib/observation-agent/progress-types";
 import type { ReactNode } from "react";
 import {
   createContext,
@@ -138,7 +139,18 @@ export type WorkspaceScriptSessionContextValue = {
   setObservationGenerationActive: (active: boolean) => void;
   /** Intent ids registered during the current session that may still be receiving observations. */
   markIntentAwaitingObservation: (intentId: string) => void;
+  clearIntentAwaitingObservation: (intentId: string) => void;
   intentIdsAwaitingObservation: ReadonlySet<string>;
+  /** Intent ids with historic synthetic observation in flight (tick progress UI). */
+  historicObservationIntentIds: ReadonlySet<string>;
+  historicObservationMetricsByIntentId: Readonly<Record<string, readonly string[]>>;
+  markHistoricObservationIntent: (intentId: string, compoundMetrics?: readonly string[]) => void;
+  clearHistoricObservationIntent: (intentId: string) => void;
+  observationProgressByIntentId: Readonly<Record<string, ObservationProgressSnapshot>>;
+  setObservationProgressForIntent: (
+    intentId: string,
+    progress: ObservationProgressSnapshot | null,
+  ) => void;
   /** Server default from PROMETHEUS_URL (read-only hint in UI). */
   defaultPrometheusBaseUrl: string;
   /** User override for Prometheus API base URL (localStorage + used in metadata inserts). */
@@ -225,6 +237,14 @@ export function WorkspaceScriptSessionProvider({
   const [intentIdsAwaitingObservation, setIntentIdsAwaitingObservation] = useState<Set<string>>(
     () => new Set(),
   );
+  const [historicObservationIntentIds, setHistoricObservationIntentIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [historicObservationMetricsByIntentId, setHistoricObservationMetricsByIntentId] =
+    useState<Record<string, string[]>>({});
+  const [observationProgressByIntentId, setObservationProgressByIntentId] = useState<
+    Record<string, ObservationProgressSnapshot>
+  >({});
   const prometheusStorageKey = useMemo(
     () => `simulator-controller:prometheus-base-url:${currentUserId}`,
     [currentUserId],
@@ -573,6 +593,109 @@ export function WorkspaceScriptSessionProvider({
     });
   }, []);
 
+  const markHistoricObservationIntent = useCallback(
+    (intentId: string, compoundMetrics?: readonly string[]) => {
+      const trimmed = intentId.trim();
+      if (!trimmed) {
+        return;
+      }
+      setHistoricObservationIntentIds((current) => {
+        if (current.has(trimmed)) {
+          return current;
+        }
+        const next = new Set(current);
+        next.add(trimmed);
+        return next;
+      });
+      if (!compoundMetrics?.length) {
+        return;
+      }
+      setHistoricObservationMetricsByIntentId((current) => {
+        const prev = current[trimmed] ?? [];
+        const merged = [...new Set([...prev, ...compoundMetrics.map((m) => m.trim()).filter(Boolean)])];
+        if (
+          merged.length === prev.length &&
+          merged.every((metric, index) => metric === prev[index])
+        ) {
+          return current;
+        }
+        return { ...current, [trimmed]: merged };
+      });
+    },
+    [],
+  );
+
+  const clearHistoricObservationIntent = useCallback((intentId: string) => {
+    const trimmed = intentId.trim();
+    if (!trimmed) {
+      return;
+    }
+    setHistoricObservationIntentIds((current) => {
+      if (!current.has(trimmed)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.delete(trimmed);
+      return next;
+    });
+    setObservationProgressByIntentId((current) => {
+      if (!(trimmed in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[trimmed];
+      return next;
+    });
+    setHistoricObservationMetricsByIntentId((current) => {
+      if (!(trimmed in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[trimmed];
+      return next;
+    });
+  }, []);
+
+  const clearIntentAwaitingObservation = useCallback((intentId: string) => {
+    const trimmed = intentId.trim();
+    if (!trimmed) {
+      return;
+    }
+    setIntentIdsAwaitingObservation((current) => {
+      if (!current.has(trimmed)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.delete(trimmed);
+      return next;
+    });
+    clearHistoricObservationIntent(trimmed);
+  }, [clearHistoricObservationIntent]);
+
+  const setObservationProgressForIntent = useCallback(
+    (intentId: string, progress: ObservationProgressSnapshot | null) => {
+      const trimmed = intentId.trim();
+      if (!trimmed) {
+        return;
+      }
+      if (progress && progress.mode !== "historic") {
+        return;
+      }
+      setObservationProgressByIntentId((current) => {
+        if (!progress) {
+          if (!(trimmed in current)) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[trimmed];
+          return next;
+        }
+        return { ...current, [trimmed]: progress };
+      });
+    },
+    [],
+  );
+
   const beginStorageDeletion = useCallback(() => {
     storageDeletionCountRef.current += 1;
     setStorageDeletionInProgress(true);
@@ -920,7 +1043,14 @@ export function WorkspaceScriptSessionProvider({
       observationGenerationActive,
       setObservationGenerationActive,
       markIntentAwaitingObservation,
+      clearIntentAwaitingObservation,
       intentIdsAwaitingObservation,
+      historicObservationIntentIds,
+      historicObservationMetricsByIntentId,
+      markHistoricObservationIntent,
+      clearHistoricObservationIntent,
+      observationProgressByIntentId,
+      setObservationProgressForIntent,
       defaultPrometheusBaseUrl,
       prometheusBaseUrl,
       setPrometheusBaseUrl,
@@ -967,7 +1097,14 @@ export function WorkspaceScriptSessionProvider({
       scriptRunInProgress,
       observationGenerationActive,
       markIntentAwaitingObservation,
+      clearIntentAwaitingObservation,
       intentIdsAwaitingObservation,
+      historicObservationIntentIds,
+      historicObservationMetricsByIntentId,
+      markHistoricObservationIntent,
+      clearHistoricObservationIntent,
+      observationProgressByIntentId,
+      setObservationProgressForIntent,
       defaultPrometheusBaseUrl,
       prometheusBaseUrl,
       setPrometheusBaseUrl,

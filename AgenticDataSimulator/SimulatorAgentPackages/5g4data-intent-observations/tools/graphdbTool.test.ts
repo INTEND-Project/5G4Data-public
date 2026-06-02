@@ -75,9 +75,9 @@ test("storeGraphdbMetadata posts SPARQL update to metadata graph", async () => {
 
 test("storePrometheusMetadata posts readable and encoded query URLs", async () => {
   const originalFetch = globalThis.fetch;
-  let postedBody = "";
+  const postedBodies: string[] = [];
   globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
-    postedBody = String(init?.body ?? "");
+    postedBodies.push(String(init?.body ?? ""));
     return new Response("", { status: 200 });
   }) as typeof fetch;
 
@@ -101,13 +101,15 @@ test("storePrometheusMetadata posts readable and encoded query URLs", async () =
       conditionId: "COb1b2c3d4e5f678901234567890abcd"
     });
     assert.equal(ok, true);
-    assert.match(postedBody, /GRAPH <http:\/\/intent-reports-metadata>/);
-    assert.match(postedBody, /<http:\/\/5g4data\.eu\/5g4data#p99-token-target_COb1b2c3d4e5f678901234567890abcd>/);
+    assert.equal(postedBodies.length, 2);
+    assert.match(postedBodies[0] ?? "", /WHERE \{/);
+    assert.match(postedBodies[1] ?? "", /GRAPH <http:\/\/intent-reports-metadata>/);
+    assert.match(postedBodies[1] ?? "", /<http:\/\/5g4data\.eu\/5g4data#p99-token-target_COb1b2c3d4e5f678901234567890abcd>/);
     assert.match(
-      postedBody,
+      postedBodies[1] ?? "",
       /hasReadableQuery "p99tokentarget_COb1b2c3d4e5f678901234567890abcd\{job=\\"intent_reports\\",intent_id=\\"Iabc123\\",condition_id=\\"COb1b2c3d4e5f678901234567890abcd\\"\}"/
     );
-    assert.match(postedBody, /http:\/\/prom:9090\/prometheus\/api\/v1\/query\?query=/);
+    assert.match(postedBodies[1] ?? "", /http:\/\/prom:9090\/prometheus\/api\/v1\/query\?query=/);
   } finally {
     globalThis.fetch = originalFetch;
   }

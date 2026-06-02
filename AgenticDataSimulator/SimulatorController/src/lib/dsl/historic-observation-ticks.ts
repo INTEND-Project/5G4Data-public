@@ -86,6 +86,23 @@ export type ParsedHistoricObservationWindow = {
   tickCount: number;
 };
 
+export type ObservationSyntheticMode = "historic" | "streaming";
+
+/** Explicit `mode=` from structured observation-report instructions (aligned with agent syntheticPrompt). */
+export function parseObservationSyntheticMode(
+  instructions: string,
+): ObservationSyntheticMode | null {
+  const globals = extractObservationInstructionGlobals(instructions);
+  const modeRaw = (globals.get("mode") ?? "").toLowerCase();
+  if (modeRaw.includes("historic")) {
+    return "historic";
+  }
+  if (modeRaw.includes("streaming")) {
+    return "streaming";
+  }
+  return null;
+}
+
 export function parseHistoricObservationWindow(
   instructions: string,
 ): ParsedHistoricObservationWindow | null {

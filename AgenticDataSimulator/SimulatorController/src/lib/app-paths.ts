@@ -18,7 +18,10 @@ export function getConfiguredAppBasePath(
   return normalizedValue.startsWith("/") ? normalizedValue : `/${normalizedValue}`;
 }
 
-export const APP_BASE_PATH = getConfiguredAppBasePath(process.env);
+export const APP_BASE_PATH = getConfiguredAppBasePath({
+  APP_BASE_PATH:
+    process.env.NEXT_PUBLIC_APP_BASE_PATH ?? process.env.APP_BASE_PATH,
+});
 
 export function withAppBasePath(path: string, basePath = APP_BASE_PATH) {
   if (!basePath) {

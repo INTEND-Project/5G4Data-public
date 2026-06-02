@@ -24,7 +24,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <main className="auth-shell">
       <section className="auth-card">
         <span className="eyebrow">INTEND Controller</span>
-        <h1>Sign in to OpenClaw Controller</h1>
+        <h1>Sign in to Controller Studio</h1>
         <p className="lead">
           Create a local account or sign in to start building two-stage controller
           scripts.

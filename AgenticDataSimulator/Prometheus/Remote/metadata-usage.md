@@ -7,13 +7,14 @@ Some of the extra functional partners (inSustain, inCoord, inExplain) may want t
 Partners may either use **Option A — SimulatorController** to generate intents and register query metadata, or **Option B — partner-managed** intent creation and metadata inserts via the GraphDB HTTP API.
 
 ## Architecture overview
+![Intents and observation report query metadata in GraphDB](./figures/remote-prometheus.png)
 
 How intents and metadata reach GraphDB is **either** of the following (same repository and metadata shape in both cases):
 
 
 |                           | **Option A — SimulatorController**                                                                            | **Option B — Partner-managed**                                                                                                                                   |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Who writes GraphDB**    | **SimulatorController** (after calling an intent-generating agent)                                            | Partner service or tooling (direct GraphDB HTTP API)                                                                                                             |
+| **Who writes GraphDB**    | **SimulatorController**                                             | Partner service or tooling (direct GraphDB HTTP API)                                                                                                             |
 | **Intent**                | `discover intent-agent` + `create intent` in the Controller script workspace                                  | Partner creates/stores intent Turtle in the target repository (same ICM/Turtle conventions as the platform)                                                      |
 | **Prometheus `hasQuery`** | Controller inserts metadata; **Set Prometheus host** sets only the **URI base** embedded in `data5g:hasQuery` | Partner builds and `INSERT DATA` the same `hasQuery` / optional `hasReadableQuery` triples (see [Insert Prometheus metadata](#insert-prometheus-query-metadata)) |
 | **Typical use**           | Interactive scripts, alignment with simulator KG targets and agents                                           | Automated pipelines, CI, or stacks that already own intent lifecycle                                                                                             |

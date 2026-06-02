@@ -22,7 +22,7 @@ Structured prompts invoke an OpenAI-compatible model to synthesize JavaScript sn
 
 - **`mode=streaming`**: emits on wall-clock intervals (`frequency=60s` etc.).
 - **`mode=historic`**: requires `start` / `stop` as `dd.mm.yyyy hh:mm:ss` or **`dd.mm.yyyy hh.mm.ss`** (both interpreted as **UTC**) and emits as fast as possible across that simulated timeline.
-- **Env**: `SYNTH_OBS_OPENAI_API_KEY` (or `OPENAI_API_KEY`), `SYNTH_OBS_OPENAI_BASE_URL` (default `https://api.openai.com/v1`), `SYNTH_OBS_MODEL` (default `gpt-4o-mini`). Optional historic cap `SYNTH_OBS_HISTORIC_MAX_POINTS` (default 250000).
+- **Env**: `SYNTH_OBS_OPENAI_API_KEY` (or `OPENAI_API_KEY`), `SYNTH_OBS_OPENAI_BASE_URL` (default `https://api.openai.com/v1`), `SYNTH_OBS_MODEL` (default `gpt-4o-mini`). Optional historic cap `SYNTH_OBS_HISTORIC_MAX_POINTS` (default 250000). Historic Prometheus: `SYNTH_OBS_PROM_FLUSH_CHUNK` (default 10000; `0` = single flush at end). Set `OBS_LOG_N=0` on the agent CLI to skip per-tick NDJSON logging for maximum throughput.
 
 These prompts are handled in the agent pre-turn hook (REPL **and** HTTP `/v1/sessions/…/turns`) or explicitly as `observe synthetic …`.
 
@@ -35,7 +35,7 @@ These prompts are handled in the agent pre-turn hook (REPL **and** HTTP `/v1/ses
 5. Generate TM Forum observation report Turtle payloads.
 6. Retain the last N observation payloads per metric in `logs/observations-<metric>.ndjson` (default N=100; `--obsLogN` on the agent CLI or `OBS_LOG_N`; `OBSERVATION_LOG_PATH` to override the log directory).
 7. Store the latest synthetic sampler program per metric in `logs/observation-program-<metric>.js` (LLM-generated function body; overwritten on each new synthetic run for that metric).
-8. Persist observation datapoints per `icm:reportDestinations` on the intent (`data5g:graphdb` → Turtle in GraphDB; `data5g:prometheus` → Pushgateway for streaming with simulated timestamps, or Prometheus remote-write batch for historic runs). Always register retrieval metadata in GraphDB (`storeGraphdbMetadata` or `storePrometheusMetadata`). Session override via A2A `openclaw.observationStorage` or Controller `request observation-report … storage`. Print payloads when `--noGraphDB` skips GraphDB inserts only.
+8. Persist observation datapoints per `icm:reportDestinations` on the intent (`data5g:graphdb` → Turtle in GraphDB; `data5g:prometheus` → Pushgateway per sample for **streaming**, or **chunked Prometheus remote write** for historic runs). Historic `storage prometheus` uses a fast path (no per-tick Turtle/GraphDB/NDJSON) and flushes every `SYNTH_OBS_PROM_FLUSH_CHUNK` samples so the Controller can mark intents green as data lands in Prometheus. Always register retrieval metadata in GraphDB (`storeGraphdbMetadata` or `storePrometheusMetadata`). Session override via A2A `openclaw.observationStorage` or Controller `request observation-report … storage`. Print payloads when `--noGraphDB` skips GraphDB inserts only.
 
 ## Clone / Prometheus env
 

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { ObservationPayload } from "./observationTool.js";
 
@@ -192,6 +192,17 @@ function writeCappedLogLines(filePath: string, lines: string[]): void {
   writeFileSync(filePath, lines.length > 0 ? `${lines.join("\n")}\n` : "", "utf8");
 }
 
+const obsLogAppendCountByPath = new Map<string, number>();
+
+/** Trim NDJSON log to the last `maxN` lines (called periodically after append-only writes). */
+function trimObservationLogToMax(filePath: string, maxN: number): void {
+  const lines = readLogLines(filePath);
+  if (lines.length <= maxN) {
+    return;
+  }
+  writeCappedLogLines(filePath, lines.slice(-maxN));
+}
+
 export function appendGeneratedObservation(
   entry: Omit<ObservationLogEntry, "schemaVersion" | "timestampUtc"> & {
     timestampUtc?: string;
@@ -219,11 +230,27 @@ export function appendGeneratedObservation(
     frequencySeconds: entry.frequencySeconds
   };
   const serialized = JSON.stringify(line);
-  const existing = readLogLines(path);
-  existing.push(serialized);
-  const capped = maxN > 0 ? existing.slice(-maxN) : existing;
-  writeCappedLogLines(path, capped);
+  ensureParentDir(path);
+  appendFileSync(path, `${serialized}\n`, "utf8");
+
+  const appendCount = (obsLogAppendCountByPath.get(path) ?? 0) + 1;
+  obsLogAppendCountByPath.set(path, appendCount);
+  if (appendCount % 64 === 0) {
+    trimObservationLogToMax(path, maxN);
+  }
+
   return path;
+}
+
+export function resetObservationLogAppendCountersForTests(): void {
+  obsLogAppendCountByPath.clear();
+}
+
+/** Cap an observation NDJSON log to the last N entries (e.g. after a long historic run). */
+export function capObservationLogFile(logPath: string, maxEntries?: number): void {
+  const maxN = maxEntries ?? resolveObsLogMaxEntries();
+  if (maxN === 0) return;
+  trimObservationLogToMax(logPath, maxN);
 }
 
 export function logObservationPayload(args: {

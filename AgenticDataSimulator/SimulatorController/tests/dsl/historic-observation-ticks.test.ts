@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatHistoricObservationRunHint,
   parseHistoricObservationWindow,
   readSynthObsHistoricMaxPoints,
+  readSynthObsPromFlushChunk,
 } from "../../src/lib/dsl/historic-observation-ticks";
 import { validateHistoricObservationTickCap } from "../../src/lib/dsl/validator/validate-historic-observation-ticks";
 import { validateScript } from "../../src/lib/dsl/validator/validate-script";
@@ -78,6 +80,16 @@ request observation-report using observationControl for llmIntent storage promet
     expect(readSynthObsHistoricMaxPoints({ SYNTH_OBS_HISTORIC_MAX_POINTS: "nope" })).toBe(
       250_000,
     );
+  });
+
+  it("formatHistoricObservationRunHint mentions chunked remote write for prometheus", () => {
+    const window = parseHistoricObservationWindow(
+      "`mode=historic`, `start=21.05.2026 05:00:00`, `stop=22.05.2026 05:00:00`, `frequency=60s`.",
+    );
+    expect(window).not.toBeNull();
+    const hint = formatHistoricObservationRunHint(window!, "prometheus");
+    expect(hint).toContain("remote-write");
+    expect(hint).toContain(readSynthObsPromFlushChunk().toLocaleString("en-US"));
   });
 });
 

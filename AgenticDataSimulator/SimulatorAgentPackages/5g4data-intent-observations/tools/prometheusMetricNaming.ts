@@ -54,6 +54,20 @@ export function buildPrometheusInstantQueryUrl(
   identity: PrometheusSeriesIdentity
 ): string {
   const readable = buildPrometheusReadableQuery(identity);
-  const base = prometheusBaseUrl.replace(/\/$/, "");
+  const base = resolvePrometheusMetadataBaseUrl(prometheusBaseUrl).replace(/\/$/, "");
   return `${base}/api/v1/query?query=${encodeURIComponent(readable)}`;
+}
+
+/** Base URL embedded in GraphDB `hasQuery` (reachable from IntentReportQueryProxy on the host). */
+export function resolvePrometheusMetadataBaseUrl(explicit?: string | null): string {
+  const raw =
+    explicit?.trim() ||
+    process.env.PROMETHEUS_EXECUTOR_URL?.trim() ||
+    process.env.PROMETHEUS_URL?.trim() ||
+    "http://127.0.0.1:9090/prometheus";
+  let base = raw.replace(/\/$/, "");
+  if (/^https?:\/\/(127\.0\.0\.1|localhost):9090$/i.test(base)) {
+    base = `${base}/prometheus`;
+  }
+  return base.endsWith("/") ? base : `${base}/`;
 }

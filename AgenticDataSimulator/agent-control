@@ -4,6 +4,7 @@
 #   agent-control start    Load or start agent containers (reload clone when package or kernel changed).
 #   agent-control stop     Stop and remove agent containers.
 #   agent-control restart  Create missing agents, reload when package/kernel changed, or rebuild clone sources.
+#   agent-control reload   Stop agents, remove all clones, package load from current sources (preserves API keys).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,7 +50,7 @@ KERNEL_REL_PATHS=(
 
 usage() {
   cat <<EOF
-Usage: agent-control {start|stop|restart}
+Usage: agent-control {start|stop|restart|reload}
 
 Run from the AgenticDataSimulator directory as ./agent-control,
 or add AgenticDataSimulator/bin to PATH (see README.md).
@@ -58,6 +59,9 @@ or add AgenticDataSimulator/bin to PATH (see README.md).
            remove existing clone(s), package load, and start containers.
   stop     Stop and remove running agent containers.
   restart  Like start for missing or package/kernel-changed agents; otherwise rebuild when clone sources changed.
+  reload   Stop agents, remove all clone directories, package load both agents from current sources,
+           and wait for health. Preserves AGENT_API_KEYS from SimulatorController/.env when present.
+           Restart Controller and a2a-registry api/worker after reload (see scripts/restart-lab-from-source.sh).
 
 Agents:
   - 5g4data-intent-generating-agent (port 3011)
@@ -230,16 +234,57 @@ remove_all_clones_for_suffix() {
   done
 }
 
+CONTROLLER_ENV="${ROOT}/SimulatorController/.env"
+
+read_preserved_agent_api_key() {
+  local agent_name="$1"
+  python3 - "$CONTROLLER_ENV" "$agent_name" <<'PY'
+import json
+import re
+import sys
+
+path, name = sys.argv[1], sys.argv[2]
+try:
+    text = open(path, encoding="utf-8").read()
+except OSError:
+    sys.exit(0)
+
+match = re.search(r"^AGENT_API_KEYS=(.*)$", text, re.MULTILINE)
+if not match:
+    sys.exit(0)
+
+raw = match.group(1).strip().strip("'\"")
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(0)
+
+key = (data.get(name) or "").strip()
+if key:
+    print(key)
+PY
+}
+
 load_agent_package() {
   local package="$1"
   local label="$2"
+  local agent_name="${3:-}"
 
   echo "==> Loading ${label} from package ${package}"
   if [[ ! -d "$KERNEL/node_modules" ]]; then
     echo "    Installing kernel dependencies ..."
     (cd "$KERNEL" && npm install)
   fi
-  (cd "$KERNEL" && npx tsx src/index.ts package load "$PACKAGES/$package")
+  local preserve=""
+  if [[ -n "$agent_name" ]]; then
+    preserve="$(read_preserved_agent_api_key "$agent_name" || true)"
+  fi
+  if [[ -n "$preserve" ]]; then
+    echo "    Preserving AGENT_API_KEY for ${agent_name} from SimulatorController/.env"
+    (cd "$KERNEL" && PRESERVE_AGENT_API_KEY="$preserve" npx tsx src/index.ts package load "$PACKAGES/$package")
+  else
+    (cd "$KERNEL" && npx tsx src/index.ts package load "$PACKAGES/$package")
+  fi
 }
 
 compose_image_created_epoch() {
@@ -322,7 +367,7 @@ start_agent() {
   fi
 
   if [[ -z "$clone_dir" || ! -f "$clone_dir/docker-compose.yml" ]]; then
-    load_agent_package "$package" "$label"
+    load_agent_package "$package" "$label" "$clone_suffix"
     clone_dir="$(find_clone_dir "$clone_suffix" || true)"
     if [[ -z "$clone_dir" ]]; then
       echo "ERROR: clone directory not found after package load for ${label}" >&2
@@ -368,7 +413,7 @@ restart_agent() {
       echo "==> ${label}: package ${package} changed; reloading clone"
     fi
     remove_all_clones_for_suffix "$clone_suffix"
-    load_agent_package "$package" "$label"
+    load_agent_package "$package" "$label" "$clone_suffix"
     clone_dir="$(find_clone_dir "$clone_suffix" || true)"
     if [[ -z "$clone_dir" ]]; then
       echo "ERROR: clone directory not found after package load for ${label}" >&2
@@ -468,10 +513,40 @@ cmd_restart() {
   fi
 }
 
+cmd_reload() {
+  require_docker
+  echo "Force-reloading OpenClaw simulator agents from ${ROOT}"
+  echo "    AGENT_API_KEYS preserved from SimulatorController/.env when present."
+
+  cmd_stop
+  echo
+
+  local entry package clone_suffix port label
+  for entry in "${AGENTS[@]}"; do
+    IFS='|' read -r package clone_suffix port label <<<"$entry"
+    echo "==> Force reload: ${label}"
+    remove_all_clones_for_suffix "$clone_suffix"
+    load_agent_package "$package" "$label" "$clone_suffix"
+    wait_for_health "$port" "$label"
+    local clone_dir
+    clone_dir="$(find_clone_dir "$clone_suffix" || true)"
+    if [[ -n "$clone_dir" ]]; then
+      echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
+      echo "Agent log files: ${clone_dir}/logs/"
+    fi
+    echo
+  done
+
+  echo "Both agents reloaded from current package and kernel sources."
+  echo "  Generation:    http://127.0.0.1:3011/health"
+  echo "  Observations:  http://127.0.0.1:3012/health"
+}
+
 case "${1:-}" in
   start) cmd_start ;;
   stop) cmd_stop ;;
   restart) cmd_restart ;;
+  reload) cmd_reload ;;
   -h|--help|help) usage ;;
   *)
     usage >&2

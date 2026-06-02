@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
+  applyPreservedAgentApiKeyFromEnv,
   ensureAgentApiKeyForClone,
   readAgentApiKeysMap,
   readDotEnvKey,
@@ -31,6 +32,24 @@ test("updateEnvFile upserts domain and skill values", () => {
   assert.match(content, /DOMAIN_PACKAGE_DIR=\.\.\/SimulatorAgentPackages\/package-template/);
   assert.match(content, /SKILL_FILE=\.\.\/SimulatorAgentPackages\/package-template\/skills\/SKILL\.md/);
   assert.match(content, /OPENAI_MODEL=test/);
+});
+
+test("applyPreservedAgentApiKeyFromEnv writes key from PRESERVE_AGENT_API_KEY", () => {
+  const dir = mkdtempSync(join(tmpdir(), "env-preserve-"));
+  const envPath = join(dir, ".env");
+  writeFileSync(envPath, "LLM_PROVIDER=openai\n", "utf8");
+  const previous = process.env.PRESERVE_AGENT_API_KEY;
+  process.env.PRESERVE_AGENT_API_KEY = "a".repeat(64);
+  try {
+    applyPreservedAgentApiKeyFromEnv(envPath);
+    assert.equal(ensureAgentApiKeyForClone(envPath), "a".repeat(64));
+  } finally {
+    if (previous === undefined) {
+      delete process.env.PRESERVE_AGENT_API_KEY;
+    } else {
+      process.env.PRESERVE_AGENT_API_KEY = previous;
+    }
+  }
 });
 
 test("ensureAgentApiKeyForClone generates key once and preserves existing key", () => {

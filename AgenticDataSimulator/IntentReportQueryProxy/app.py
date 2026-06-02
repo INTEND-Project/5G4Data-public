@@ -5,6 +5,7 @@ import os
 import re
 import base64
 from datetime import datetime
+from urllib.parse import parse_qs, quote, urlparse
 import logging
 
 app = Flask(__name__)
@@ -18,6 +19,9 @@ GRAPHDB_URL = os.environ.get('GRAPHDB_URL', "https://start5g-1.cs.uit.no/graphdb
 GRAPHDB_USERNAME = os.environ.get('GRAPHDB_USERNAME', '').strip()
 GRAPHDB_PASSWORD = os.environ.get('GRAPHDB_PASSWORD', '')
 REPOSITORY = os.environ.get('GRAPHDB_REPOSITORY', "intents_and_intent_reports")
+PROMETHEUS_EXECUTOR_URL = os.environ.get(
+    'PROMETHEUS_EXECUTOR_URL', 'http://127.0.0.1:9090'
+).rstrip('/')
 REPOSITORY_ID_PATTERN = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
 INTENT_ID_PATTERN = re.compile(r'^I[a-f0-9]{32}$', re.IGNORECASE)
 COMPOUND_METRIC_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*_CO[a-f0-9]{32}$', re.IGNORECASE)
@@ -89,6 +93,63 @@ def graphdb_auth_headers(extra=None):
         ).decode('ascii')
         headers['Authorization'] = f'Basic {token}'
     return headers
+
+
+def is_prometheus_query_url(query_url):
+    """Detect Prometheus instant/range API URLs (including public HTTPS paths without :9090)."""
+    if not query_url:
+        return False
+    lowered = query_url.lower()
+    return (
+        ':9090' in lowered
+        or 'api/v1/query' in lowered
+        or 'api/v1/query_range' in lowered
+        or '/prometheus/' in lowered
+    )
+
+
+def choose_stored_prometheus_query_url(urls):
+    """Prefer executor-local URLs when GraphDB has duplicate hasQuery triples."""
+    if not urls:
+        return None
+    if len(urls) == 1:
+        return urls[0]
+
+    def score(url):
+        value = 0
+        if '127.0.0.1' in url or 'localhost' in url:
+            value += 20
+        if '/prometheus/' in url or url.rstrip('/').endswith('/prometheus'):
+            value += 10
+        if 'start5g-1' in url:
+            value += 5
+        if 'host.docker.internal' in url:
+            value -= 10
+        if url.rstrip('/').endswith(':9090') or url.rstrip('/').endswith(':9090/'):
+            value -= 5
+        return value
+
+    return max(urls, key=score)
+
+
+def rewrite_prometheus_query_url(stored_url):
+    """
+    Rewrite GraphDB hasQuery URLs to PROMETHEUS_EXECUTOR_URL so this proxy always
+    queries Prometheus on the host, regardless of duplicate or public metadata URLs.
+    """
+    if not stored_url or not is_prometheus_query_url(stored_url):
+        return stored_url
+
+    parsed = urlparse(stored_url)
+    params = parse_qs(parsed.query)
+    promql_values = params.get('query')
+    if not promql_values or not promql_values[0]:
+        logger.warning(f"Prometheus metadata URL missing query= param: {stored_url}")
+        return stored_url
+
+    promql = promql_values[0]
+    api_path = 'api/v1/query_range' if 'query_range' in parsed.path else 'api/v1/query'
+    return f"{PROMETHEUS_EXECUTOR_URL}/{api_path}?query={quote(promql, safe='')}"
 
 
 def resolve_repository_id(raw_repository_id):
@@ -170,6 +231,82 @@ def parse_bounds_bindings(result):
     return {'value1': value1, 'value2': value2}
 
 
+PROMETHEUS_STEP_PATTERN = re.compile(
+    r'^(?P<value>\d+(?:\.\d+)?)(?P<unit>ms|s|m|h|d|w|y)$',
+    re.IGNORECASE,
+)
+PROMETHEUS_MAX_RANGE_POINTS = 10_000
+PROMETHEUS_UNIT_SECONDS = {
+    'ms': 0.001,
+    's': 1,
+    'm': 60,
+    'h': 3600,
+    'd': 86400,
+    'w': 604800,
+    'y': 31_557_600,
+}
+
+
+def parse_prometheus_step_to_seconds(step):
+    """Parse Prometheus duration steps (e.g. 60s, 6h) to seconds."""
+    if step is None:
+        return None
+    normalized = str(step).strip().lower()
+    if not normalized:
+        return None
+    match = PROMETHEUS_STEP_PATTERN.match(normalized)
+    if match:
+        value = float(match.group('value'))
+        unit = match.group('unit').lower()
+        return int(value * PROMETHEUS_UNIT_SECONDS[unit])
+    if normalized.isdigit():
+        return int(normalized)
+    return None
+
+
+def format_prometheus_step(seconds):
+    """Format seconds as a Prometheus step string."""
+    seconds = max(1, int(seconds))
+    for unit, multiplier in (
+        ('w', 604_800),
+        ('d', 86_400),
+        ('h', 3600),
+        ('m', 60),
+        ('s', 1),
+    ):
+        if seconds >= multiplier and seconds % multiplier == 0:
+            return f'{seconds // multiplier}{unit}'
+    return f'{seconds}s'
+
+
+def resolve_prometheus_step(step, time_range_seconds):
+    """Choose a Prometheus step that honors Grafana input and stays under point limits."""
+    step_seconds = parse_prometheus_step_to_seconds(step)
+    if step_seconds is None or step_seconds <= 0:
+        if time_range_seconds <= 3600:
+            step_seconds = 30
+        elif time_range_seconds <= 86_400:
+            step_seconds = 60
+        elif time_range_seconds <= 604_800:
+            step_seconds = 300
+        else:
+            step_seconds = 3600
+
+    estimated_points = time_range_seconds / step_seconds
+    if estimated_points > PROMETHEUS_MAX_RANGE_POINTS:
+        adjusted = max(60, int(time_range_seconds / PROMETHEUS_MAX_RANGE_POINTS) + 1)
+        logger.info(
+            'Step adjusted from %ss to %ss for Prometheus limit (range=%ss, estimated=%.0f points)',
+            step_seconds,
+            adjusted,
+            time_range_seconds,
+            estimated_points,
+        )
+        step_seconds = adjusted
+
+    return format_prometheus_step(step_seconds)
+
+
 def query_intent_metric_bounds(intent_id, condition_metric, graph_iri, repository_id):
     params, error = validate_bounds_params(intent_id, condition_metric, graph_iri)
     if error:
@@ -223,13 +360,25 @@ def get_metric_query(metric_name, repository_id):
         if response.status_code == 200:
             result = response.json()
             logger.info(f"GraphDB response: {result}")
-            if result.get('results', {}).get('bindings'):
-                query_value = result['results']['bindings'][0]['object']['value']
-                logger.info(f"Retrieved query value: {query_value}")
+            bindings = result.get('results', {}).get('bindings') or []
+            if bindings:
+                urls = [
+                    row['object']['value']
+                    for row in bindings
+                    if row.get('object', {}).get('value')
+                ]
+                if len(urls) > 1:
+                    logger.warning(
+                        f"Metric {metric_name} has {len(urls)} hasQuery URLs in metadata; "
+                        "using best match and rewriting for executor"
+                    )
+                stored = choose_stored_prometheus_query_url(urls)
+                query_value = rewrite_prometheus_query_url(stored)
+                logger.info(f"Retrieved query value (executor): {query_value}")
                 return query_value
             else:
                 logger.warning(f"No query found for metric: {metric_name}")
-                logger.warning(f"GraphDB response bindings: {result.get('results', {}).get('bindings')}")
+                logger.warning(f"GraphDB response bindings: {bindings}")
                 return None
         else:
             logger.error(f"GraphDB request failed with status {response.status_code}")
@@ -253,8 +402,7 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
         modified_query = query
         if start_time and end_time:
             # Handle different query types
-            # Check if this is a Prometheus query (contains :9090 or api/v1/query endpoints)
-            is_prometheus_query = (':9090' in query or 'api/v1/query' in query or 'api/v1/query_range' in query)
+            is_prometheus_query = is_prometheus_query_url(query)
             logger.info(f"Query detection debug - query: {query}")
             logger.info(f"Query detection debug - contains :9090: {':9090' in query}")
             logger.info(f"Query detection debug - contains api/v1/query: {'api/v1/query' in query}")
@@ -269,58 +417,21 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
                 
                 # Add time range parameters to the URL
                 separator = '&' if '?' in modified_query else '?'
-                # Use provided step parameter or calculate appropriate step based on time range
-                if step and step.strip():
-                    step_param = step
-                else:
-                    # Calculate appropriate step based on time range
-                    try:
-                        # Parse ISO timestamps to calculate time range
-                        start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-                        end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
-                        time_range = int((end_dt - start_dt).total_seconds())
-                        logger.info(f"Calculated time range: {time_range} seconds")
-                        
-                        if time_range <= 3600:  # 1 hour or less
-                            step_param = '30s'
-                        elif time_range <= 86400:  # 1 day or less
-                            step_param = '60s'
-                        elif time_range <= 604800:  # 1 week or less
-                            step_param = '300s'  # 5 minutes
-                        else:  # More than 1 week
-                            step_param = '3600s'  # 1 hour
-                    except Exception as e:
-                        logger.warning(f"Could not calculate time range from ISO timestamps: {e}")
-                        step_param = '60s'  # Default fallback
-                
-                # Ensure step parameter is never empty
-                if not step_param or step_param.strip() == '':
-                    step_param = '60s'
-                
-                # Validate step parameter to avoid exceeding Prometheus limits
+                time_range = None
                 try:
-                    # Calculate time range if not already calculated
-                    if 'time_range' not in locals():
-                        start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-                        end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
-                        time_range = int((end_dt - start_dt).total_seconds())
-                        logger.info(f"Calculated time range for validation: {time_range} seconds")
-                    
-                    step_seconds = int(step_param.replace('s', ''))
-                    estimated_points = time_range / step_seconds
-                    
-                    if estimated_points > 10000:  # Prometheus limit is ~11,000
-                        # Recalculate step to stay under limit, but not too large
-                        new_step_seconds = max(60, time_range // 10000)  # Minimum 60s
-                        if new_step_seconds > 3600:  # If still too large, cap at 1 hour
-                            new_step_seconds = 3600
-                        step_param = f"{new_step_seconds}s"
-                        logger.info(f"Step parameter adjusted to avoid exceeding Prometheus limits: {step_param}")
-                except:
-                    # If parsing fails, use default
-                    step_param = '60s'
-                
-                logger.info(f"Step parameter debug - provided: '{step}', calculated: '{step_param}'")
+                    start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                    end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                    time_range = int((end_dt - start_dt).total_seconds())
+                    logger.info(f"Calculated time range: {time_range} seconds")
+                except Exception as e:
+                    logger.warning(f"Could not calculate time range from ISO timestamps: {e}")
+
+                if time_range is None or time_range <= 0:
+                    step_param = step.strip() if step and step.strip() else '60s'
+                else:
+                    step_param = resolve_prometheus_step(step, time_range)
+
+                logger.info(f"Step parameter debug - provided: '{step}', resolved: '{step_param}'")
                 
                 # Always add step parameter for Prometheus range queries
                 modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step={step_param}"

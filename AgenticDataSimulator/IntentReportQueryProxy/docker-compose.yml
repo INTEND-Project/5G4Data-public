@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   intent-report-proxy:
     build: .
@@ -12,6 +10,8 @@ services:
       - GRAPHDB_URL=https://start5g-1.cs.uit.no/graphdb
       # Fallback when Grafana does not pass repository_id
       - GRAPHDB_REPOSITORY=telenor-5g4data-simulator-demo
+      # Prometheus API base on this host (direct :9090; public URL uses /prometheus prefix via Caddy)
+      - PROMETHEUS_EXECUTOR_URL=http://127.0.0.1:9090
     env_file:
       - ../SimulatorController/.env
     restart: unless-stopped

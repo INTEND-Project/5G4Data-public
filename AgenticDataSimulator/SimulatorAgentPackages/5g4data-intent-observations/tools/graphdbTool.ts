@@ -213,7 +213,7 @@ WHERE {
   async storePrometheusMetadata(
     /** GraphDB / Grafana linkToken compound name (may contain hyphens). */
     metricName: string,
-    prometheusUrl = process.env.PROMETHEUS_URL?.trim() || "http://127.0.0.1:9090",
+    prometheusUrl = process.env.PROMETHEUS_URL?.trim() || "http://127.0.0.1:9090/prometheus",
     opts?: { intentId?: string; conditionId?: string | null }
   ): Promise<boolean> {
     try {
@@ -225,22 +225,42 @@ WHERE {
       const readableQuery = buildPrometheusReadableQuery(identity);
       const prometheusQueryUrl = buildPrometheusInstantQueryUrl(prometheusUrl, identity);
       const escapedReadableQuery = readableQuery.replace(/"/g, '\\"');
+      const subject = `<http://5g4data.eu/5g4data#${metricName}>`;
+
+      const deleteQuery = `
+PREFIX data5g: <http://5g4data.eu/5g4data#>
+
+DELETE {
+  GRAPH <http://intent-reports-metadata> {
+    ${subject} data5g:hasQuery ?q .
+    ${subject} data5g:hasReadableQuery ?r .
+  }
+}
+`.trim();
 
       const insertQuery = `
 PREFIX data5g: <http://5g4data.eu/5g4data#>
 
 INSERT DATA {
   GRAPH <http://intent-reports-metadata> {
-    <http://5g4data.eu/5g4data#${metricName}>
+    ${subject}
       data5g:hasQuery <${prometheusQueryUrl}> ;
       data5g:hasReadableQuery "${escapedReadableQuery}" .
   }
 }
 `.trim();
 
+      const headers = graphDbAuthHeaders({ "Content-Type": "application/sparql-update" });
+      const deleteResponse = await fetch(this.statementsEndpoint(), {
+        method: "POST",
+        headers,
+        body: deleteQuery
+      });
+      if (!deleteResponse.ok) return false;
+
       const response = await fetch(this.statementsEndpoint(), {
         method: "POST",
-        headers: graphDbAuthHeaders({ "Content-Type": "application/sparql-update" }),
+        headers,
         body: insertQuery
       });
       if (!response.ok) return false;

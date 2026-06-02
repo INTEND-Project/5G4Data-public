@@ -97,7 +97,7 @@ async function enrichIntentEntry(input: {
   prometheusBaseUrl?: string | null;
   graphDbBaseUrl?: string | null;
 }): Promise<IntentListEntry> {
-  const { intentId, owner, prometheusSet, mode, grafanaLoginUsername, prometheusBaseUrl, graphDbBaseUrl } =
+  const { intentId, owner, prometheusSet, grafanaLoginUsername, prometheusBaseUrl, graphDbBaseUrl } =
     input;
   const hasGraphTarget = Boolean(owner?.repositoryId && owner.graphIri);
 

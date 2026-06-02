@@ -72,7 +72,9 @@ export class TurnOrchestrator {
       graphDbEndpoint: this.config.graphDbEndpoint,
       graphDbNamedGraph: this.config.graphDbNamedGraph,
       graphDbQueryLimit: this.config.graphDbQueryLimit,
-      graphTargetBinding: session.graphTargetBinding ?? null
+      graphTargetBinding: session.graphTargetBinding ?? null,
+      observationStorageOverride: session.observationStorage ?? null,
+      createIntentStorage: session.createIntentStorage ?? null
     });
 
     if (replHookResult.handled) {

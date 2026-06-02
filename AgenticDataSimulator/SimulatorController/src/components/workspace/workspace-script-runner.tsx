@@ -22,6 +22,10 @@ import type {
 } from "@/lib/dsl/types";
 import { resolveMetricStemsInObservationInstructions, mergeMetricCatalog } from "@/lib/dsl/analysis/extract-metric-catalog";
 import { buildObservationReportSeed } from "@/lib/dsl/observation-report-seed";
+import {
+  formatHistoricObservationRunHint,
+  parseHistoricObservationWindow,
+} from "@/lib/dsl/historic-observation-ticks";
 import type { ObservationStorageType } from "@/lib/dsl/types";
 import { buildIntentGenerationStorageHint } from "@/lib/observation-storage";
 import { parseCanonicalIntentLocalId } from "@/lib/intent/extract-intent-turtle";
@@ -115,7 +119,6 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     beginScriptRun,
     endActiveScriptRun,
     openRunLogDialog,
-    closeRunLogDialog,
     setScriptExtractedMetricNames,
     setWorkloadPreviewMetricStems,
     storageDeletionInProgress,
@@ -647,6 +650,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   const [runBusy, setRunBusy] = useState(false);
   const [kgRequiredDialogOpen, setKgRequiredDialogOpen] = useState(false);
   const [storageDeletionDialogOpen, setStorageDeletionDialogOpen] = useState(false);
+  const [backgroundGenerationDialogOpen, setBackgroundGenerationDialogOpen] = useState(false);
   const [intentSession, setIntentSession] = useState<{
     wellKnownURI: string;
     prompt: string;
@@ -825,17 +829,29 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       const bindings = new Map<string, string>();
       let lastWorkspaceIntentWellKnownUri: string | null = null;
       const discoverCache = new Map<string, string>();
+      let startedBackgroundObservation = false;
 
       const fetchAgentWellKnownUri = async (
         apiUrl: string,
         domain: string,
       ): Promise<string | null> => {
-        const response = await fetch(apiUrl, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ domain }),
-        });
+        let response: Response;
+        try {
+          response = await fetch(apiUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ domain }),
+            signal: AbortSignal.timeout(120_000),
+          });
+        } catch (err) {
+          const message =
+            err instanceof Error && err.name === "TimeoutError"
+              ? "Registry discovery timed out after 120s."
+              : `Registry discovery failed: ${String(err)}`;
+          appendRunnerLog(message);
+          return null;
+        }
 
         const body = (await response.json().catch(() => ({}))) as {
           error?: string;
@@ -1041,6 +1057,9 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           appendRunnerLog(
             `Conversation uses a single persistent task/context pair; reuse them as you iterate with Send.`,
           );
+          appendRunnerLog(
+            `Line ${statement.line}: Script paused — complete the intent dialog and click Close to continue.`,
+          );
           if (!persistIntentStoreUrl) {
             appendRunnerLog(
               "Intent Turtle will not be stored: choose or create a knowledge graph target in the sidebar.",
@@ -1090,6 +1109,8 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           }
 
           const { catalog: metricCatalog, canonicalId } = loadedCatalog;
+          markIntentAwaitingObservation(canonicalId);
+          startedBackgroundObservation = true;
           const stemResolution = resolveMetricStemsInObservationInstructions(
             stmt.instructions,
             metricCatalog,
@@ -1126,6 +1147,18 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
             `Line ${statement.line}: Observation storage for session: ${storageNote}.`,
           );
 
+          const historicWindow = parseHistoricObservationWindow(stemResolution.instructions);
+          if (historicWindow) {
+            const effectiveStorage: ObservationStorageType =
+              stmt.storage ?? createIntentStorage ?? "graphdb";
+            appendRunnerLog(
+              `Line ${statement.line}: ${formatHistoricObservationRunHint(
+                historicWindow,
+                effectiveStorage,
+              )}`,
+            );
+          }
+
           const intentRefNote = parseCanonicalIntentLocalId(stmt.intentAlias)
             ? `canonical id ${canonicalId} from script \`for\` clause`
             : `DSL intent "${stmt.intentAlias}" (stored id ${canonicalId})`;
@@ -1138,6 +1171,9 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           );
           appendRunnerLog(
             `Line ${statement.line}: Opening A2A session for observation reporting; task/context are reused until you Close.`,
+          );
+          appendRunnerLog(
+            `Line ${statement.line}: Script paused — complete the observation dialog and click Close to continue.`,
           );
 
           await new Promise<void>((finish) => {
@@ -1197,6 +1233,13 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       }
 
       appendRunnerLog("Run Script: finished scripted steps.");
+
+      if (startedBackgroundObservation) {
+        appendRunnerLog(
+          "Observation generators are running in the background. Watch the Intents list: each intent stays yellow until data is ready, then turns green (Grafana opens when green).",
+        );
+        setBackgroundGenerationDialogOpen(true);
+      }
     } finally {
       await endActiveScriptRun({
         mode: "execute",
@@ -1219,10 +1262,10 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     selectedDomain,
     selectedKgTargetId,
     kgTargets,
-    graphDbBaseUrl,
     resolveSelectedGraphTargetBinding,
     setScriptExtractedMetricNames,
     notifyStorageChanged,
+    markIntentAwaitingObservation,
   ]);
 
   const handleIntentDialogFinish = useCallback(() => {
@@ -1466,6 +1509,44 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
               <button
                 className="workspace-button"
                 onClick={() => setStorageDeletionDialogOpen(false)}
+                type="button"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {backgroundGenerationDialogOpen ? (
+        <div
+          className="workspace-save-name-dialog-backdrop"
+          onClick={() => setBackgroundGenerationDialogOpen(false)}
+          role="presentation"
+        >
+          <div
+            aria-labelledby="workspace-background-generation-dialog-title"
+            aria-modal="true"
+            className="workspace-save-name-dialog"
+            onClick={(event) => event.stopPropagation()}
+            role="alertdialog"
+          >
+            <h3 id="workspace-background-generation-dialog-title">
+              Observation generation running in background
+            </h3>
+            <p className="workspace-save-as-dialog-hint">
+              All scripted steps are complete. Synthetic observation workers are
+              still writing data to Prometheus or the knowledge graph. Wait for
+              generation to finish before relying on dashboards or downstream
+              steps. Watch the Intents list in the right panel: each intent stays
+              yellow while data is being generated, then turns green when
+              observation data is ready. The Grafana button becomes available
+              when an intent is green.
+            </p>
+            <div className="workspace-save-name-dialog-actions">
+              <button
+                className="workspace-button"
+                onClick={() => setBackgroundGenerationDialogOpen(false)}
                 type="button"
               >
                 OK

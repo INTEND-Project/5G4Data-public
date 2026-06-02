@@ -54,6 +54,23 @@ The simulator **agents** and **controller** rely on several other services. Star
 
 After **re-cloning agents** (`package load`), restart the controller so it loads fresh `AGENT_API_KEYS` from `SimulatorController/.env`.
 
+### Restart entire lab from current source
+
+After pulling or editing code across agents, Controller, and registry consumers, rebuild and restart everything in one step (stops prod and dev Controllers, force-reloads agents, syncs `AGENT_API_KEYS`, restarts registry and proxy, rebuilds both Controllers):
+
+```bash
+cd ~/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator
+./scripts/restart-lab-from-source.sh
+```
+
+Options: `--dev-mode=fast|hot|systemd`, `--with-prometheus`, `--skip-prod`, `--skip-dev`, `--skip-agents`, `--dry-run`. Systemd steps need `sudo` on start5g-1.
+
+Agent-only forced reload (removes clones, `package load`, syncs keys — then restart Controller and `a2a-registry` api/worker, or run the script above):
+
+```bash
+./agent-control reload
+```
+
 ### Start commands and health checks
 
 **GraphDB** — confirm SPARQL responds (repository name varies by deployment):
@@ -221,7 +238,7 @@ Source edits on dev are picked up via hot reload; prod is unchanged until you `n
   ```bash
    ./agent-control start
   ```
-   Other commands: `./agent-control stop`, `./agent-control restart`, `./agent-control --help`
+   Other commands: `./agent-control stop`, `./agent-control restart`, `./agent-control reload`, `./agent-control --help`
    To run `agent-control` without `./`, add `bin` to your `PATH` once per shell (or add to `~/.bashrc`):
 
 ## Agent logs on the host
@@ -327,6 +344,7 @@ Ensure the [Caddy routes](#infrastructure-on-start5g-1-caddy) are active so agen
 | `PROMETHEUS_URL`              | Metadata/query base for proxy on host: `http://127.0.0.1:9090/prometheus`        |
 | `PROMETHEUS_REMOTE_WRITE_URL` | Historic batch write: `http://host.docker.internal:9090/prometheus/api/v1/write` |
 | `PUSHGATEWAY_URL`             | Streaming push: `http://host.docker.internal:9091`                               |
+| `SYNTH_OBS_PROM_FLUSH_CHUNK`  | Historic remote-write batch size (default 10000; agent worker env)               |
 
 
 

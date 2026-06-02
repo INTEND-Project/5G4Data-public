@@ -19,6 +19,7 @@ import {
 import { startOpenApiServer } from "./core/httpApiServer.js";
 import {
   applyPackageMappingEnvDefaults,
+  applyPreservedAgentApiKeyFromEnv,
   ensureAgentApiKeyForClone,
   readDotEnvKey,
   syncAgentApiKeyToConsumers,
@@ -357,6 +358,7 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   const cloneEnvPath = join(cloned.cloneDir, ".env");
   updateEnvFile(cloneEnvPath, cloneEnvUpdates);
   applyPackageMappingEnvDefaults(cloneEnvPath, installed.packageDir);
+  applyPreservedAgentApiKeyFromEnv(cloneEnvPath);
   const agentApiKey = ensureAgentApiKeyForClone(cloneEnvPath);
   const cloneConfig = loadA2AConfigFromDirectory(cloned.cloneDir);
   const clonePackage = loadDomainPackage(cloned.cloneDir);

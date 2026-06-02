@@ -1,0 +1,43 @@
+
+> openclaw-controller@0.1.0 dev:lab:fast
+> bash scripts/run-dev-lab-fast.sh
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3001
+   - Network:      http://0.0.0.0:3001
+
+ ✓ Starting...
+ ✓ Ready in 566ms
+Killed
+
+> openclaw-controller@0.1.0 dev:lab:fast
+> bash scripts/run-dev-lab-fast.sh
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3001
+   - Network:      http://0.0.0.0:3001
+
+ ✓ Starting...
+ ✓ Ready in 574ms
+Killed
+
+> openclaw-controller@0.1.0 dev:lab:fast
+> bash scripts/run-dev-lab-fast.sh
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3001
+   - Network:      http://0.0.0.0:3001
+
+ ✓ Starting...
+ ✓ Ready in 553ms
+Killed
+
+> openclaw-controller@0.1.0 dev:lab:fast
+> bash scripts/run-dev-lab-fast.sh
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3001
+   - Network:      http://0.0.0.0:3001
+
+ ✓ Starting...
+ ✓ Ready in 548ms

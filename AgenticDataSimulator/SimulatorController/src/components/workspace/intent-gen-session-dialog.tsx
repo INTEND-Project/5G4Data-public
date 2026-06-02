@@ -357,6 +357,7 @@ export function IntentGenSessionDialog({
       createIntentStorage,
       prometheusBaseUrl,
       graphDbBaseUrl,
+      observationStorage,
     ],
   );
 

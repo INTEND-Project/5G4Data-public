@@ -90,6 +90,14 @@ export function updateEnvFile(path: string, updates: EnvUpdate[]): void {
   renameSync(tmpPath, path);
 }
 
+/** Apply PRESERVE_AGENT_API_KEY from the environment before ensureAgentApiKeyForClone (package load reload). */
+export function applyPreservedAgentApiKeyFromEnv(cloneEnvPath: string): void {
+  const preserve = process.env.PRESERVE_AGENT_API_KEY?.trim();
+  if (preserve) {
+    updateEnvFile(cloneEnvPath, [{ key: "AGENT_API_KEY", value: preserve }]);
+  }
+}
+
 /** Generate and persist AGENT_API_KEY for a new clone unless one is already set. */
 export function ensureAgentApiKeyForClone(cloneEnvPath: string): string {
   const existing = readDotEnvKey(cloneEnvPath, "AGENT_API_KEY")?.trim();

@@ -39,8 +39,10 @@ describe("observation-report seed with create-intent alias", () => {
     const seed = buildObservationReportSeed(canonicalId!, instructions);
 
     expect(seed).toContain(
-      "Instructions:\n`intent_id=I9fde73e5715a43beb4dcd6053c7b8b82`, `mode=historic`, `start=17.05.2026 05:00:00`",
+      "`intent_id=I9fde73e5715a43beb4dcd6053c7b8b82`, `mode=historic`, `start=17.05.2026 05:00:00`",
     );
     expect(seed).toContain("`metric=p99-token-target`");
+    expect(seed).not.toContain("Generate observation reports for");
+    expect(seed).not.toContain("Instructions:");
   });
 });

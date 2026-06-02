@@ -127,6 +127,39 @@ export function readSynthObsHistoricMaxPoints(
   return Math.floor(parsed);
 }
 
+export const DEFAULT_SYNTH_OBS_PROM_FLUSH_CHUNK = 10_000;
+
+export function readSynthObsPromFlushChunk(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.SYNTH_OBS_PROM_FLUSH_CHUNK?.trim();
+  if (!raw) return DEFAULT_SYNTH_OBS_PROM_FLUSH_CHUNK;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_SYNTH_OBS_PROM_FLUSH_CHUNK;
+  return Math.floor(parsed);
+}
+
+export function formatHistoricObservationRunHint(
+  window: ParsedHistoricObservationWindow,
+  storage: "prometheus" | "graphdb" | null | undefined,
+): string {
+  const tickLabel = window.tickCount.toLocaleString("en-US");
+  if (storage !== "prometheus") {
+    return `Historic observation will generate about ${tickLabel} ticks (frequency ${window.frequencySeconds}s).`;
+  }
+  const chunk = readSynthObsPromFlushChunk();
+  if (chunk <= 0) {
+    return (
+      `Historic Prometheus observation will generate about ${tickLabel} ticks; ` +
+      "samples are remote-written once at the end (SYNTH_OBS_PROM_FLUSH_CHUNK=0)."
+    );
+  }
+  return (
+    `Historic Prometheus observation will generate about ${tickLabel} ticks; ` +
+    `remote-write flushes every ${chunk.toLocaleString("en-US")} samples so intents can turn green incrementally.`
+  );
+}
+
 export function formatHistoricTickCapExceededMessage(
   window: ParsedHistoricObservationWindow,
   maxPoints: number,

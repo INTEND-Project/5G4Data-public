@@ -107,13 +107,14 @@ export function IntentsPanel({
 
   useEffect(() => {
     const timeouts = grafanaFeedbackTimeoutsRef.current;
+    const pending = pendingGrafanaIntentIdsRef.current;
 
     return () => {
       for (const timeoutId of timeouts.values()) {
         clearTimeout(timeoutId);
       }
       timeouts.clear();
-      pendingGrafanaIntentIdsRef.current.clear();
+      pending.clear();
     };
   }, []);
 

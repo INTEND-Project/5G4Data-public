@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  scriptListRevision,
   useWorkspaceScriptSession,
   type ServerScript,
 } from "@/components/workspace/workspace-script-session-context";
@@ -52,10 +51,6 @@ export function ScriptList({ scriptsApiUrl, currentUserId }: ScriptListProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<ScriptListSortMode>("name");
   const [displayedScripts, setDisplayedScripts] = useState(scriptsFromServer);
-  const scriptsRevision = useMemo(
-    () => scriptListRevision(scriptsFromServer),
-    [scriptsFromServer],
-  );
   const visibleScripts = useMemo(
     () => sortScripts(displayedScripts, sortMode),
     [displayedScripts, sortMode],
@@ -63,7 +58,7 @@ export function ScriptList({ scriptsApiUrl, currentUserId }: ScriptListProps) {
 
   useEffect(() => {
     setDisplayedScripts(scriptsFromServer);
-  }, [scriptsRevision]);
+  }, [scriptsFromServer]);
 
   const handleDelete = useCallback(
     async (script: { id: string; name: string }) => {

@@ -136,6 +136,14 @@ describe("workspace shell bootstrap", () => {
     expect(scriptRunnerSource).toContain("kgRequiredDialogOpen");
     expect(scriptRunnerSource).toContain("storageDeletionInProgress");
     expect(scriptRunnerSource).toContain("storageDeletionDialogOpen");
+    expect(scriptRunnerSource).toContain("backgroundGenerationDialogOpen");
+    expect(scriptRunnerSource).toContain("Observation generation running in background");
+    expect(scriptRunnerSource).toContain("observation data is ready");
+    expect(scriptRunnerSource).toContain("markIntentAwaitingObservation(canonicalId)");
+    expect(scriptRunnerSource).not.toContain("autoCloseAfterFirstAgentReply");
+    expect(scriptRunnerSource).toContain("reused until you Close");
+    expect(scriptSessionContextSource).toContain("syncActiveRunLinesToList()");
+    expect(scriptRunnerSource).toContain("AbortSignal.timeout(120_000)");
     expect(scriptRunnerSource).toContain("Storage deletion in progress");
     expect(scriptRunnerSource).toContain("Knowledge graph required");
     expect(scriptRunnerSource).toContain('role="alertdialog"');

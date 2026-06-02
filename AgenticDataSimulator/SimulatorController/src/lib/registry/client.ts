@@ -38,6 +38,7 @@ async function enrichRegistryRecord(record: RegistryAgentRecord): Promise<Regist
     const response = await fetch(record.wellKnownURI, {
       cache: "no-store",
       headers: authHeaders,
+      signal: AbortSignal.timeout(8_000),
     });
 
     if (!response.ok) {

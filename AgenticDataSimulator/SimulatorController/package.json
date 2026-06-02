@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern .next-dev --ignore-pattern next-env.d.ts",
     "test": "vitest run",
-    "prisma:generate": "prisma generate",
+    "prisma:generate": "prisma generate --no-hints",
     "dev:lab": "bash scripts/run-dev-lab.sh",
     "dev:lab:build": "bash scripts/build-dev-lab.sh",
     "dev:lab:fast": "bash scripts/run-dev-lab-fast.sh",

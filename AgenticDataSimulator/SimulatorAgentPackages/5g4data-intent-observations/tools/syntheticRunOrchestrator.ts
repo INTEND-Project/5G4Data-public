@@ -216,11 +216,12 @@ export async function startSyntheticObservationFromParsed(args: {
       ["--yes", "tsx", workerAbsTs, cfgPath],
       {
         cwd: process.cwd(),
-        detached: false,
-        stdio: "inherit",
+        detached: true,
+        stdio: "ignore",
         env: process.env
       }
     );
+    cp.unref();
 
     cp.on("error", (error) => {
       process.stderr.write(`synthetic spawn error (${resolvedMetric}): ${String(error)}\n`);
@@ -285,7 +286,7 @@ export async function handleSyntheticObservationUserLine(opts: {
   const parsed = parseSyntheticPrompt(trimmed);
   if (!parsed.ok) return { started: true, assistantText: parsed.error };
 
-  const assistantText = await startSyntheticObservationFromParsed({
+  const runArgs = {
     sessionId: opts.sessionId,
     packageDir: opts.packageDir,
     graphDbEndpoint: opts.graphDbEndpoint,
@@ -295,6 +296,31 @@ export async function handleSyntheticObservationUserLine(opts: {
     parsed: parsed.value,
     observationStorageOverride: opts.observationStorageOverride,
     createIntentStorage: opts.createIntentStorage
-  });
-  return { started: true, assistantText };
+  };
+
+  void startSyntheticObservationFromParsed(runArgs)
+    .then((detail) => {
+      process.stderr.write(
+        `[synthetic-background] session=${opts.sessionId} intent=${parsed.value.intentId}\n${detail}\n`
+      );
+    })
+    .catch((error) => {
+      appendObservationError({
+        kind: "synthetic_worker_exit",
+        message: `Synthetic observation background run failed: ${error instanceof Error ? error.message : String(error)}`,
+        intentId: parsed.value.intentId,
+        sessionId: opts.sessionId
+      });
+    });
+
+  const modeNote =
+    parsed.value.mode === "historic" ? "historic replay" : "streaming";
+  return {
+    started: true,
+    assistantText: [
+      `Synthetic observation generation for intent ${parsed.value.intentId} is starting in the background (${modeNote}, ${parsed.value.metricSlices.length} metric(s)).`,
+      "Codegen and worker processes run asynchronously; data will appear in storage as metrics complete.",
+      "You can continue this dialogue while generation runs. Use `observe status` to list synthetic worker PIDs for this session."
+    ].join("\n")
+  };
 }

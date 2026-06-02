@@ -29,16 +29,15 @@ describe("observation-report seed", () => {
     expect(looksStructuredObservationInstructions("For metric bandwidth.")).toBe(false);
   });
 
-  it("injects intent_id into structured Instructions globals", () => {
+  it("sends structured prompts as synthetic DSL only (no LLM preamble)", () => {
     const instructions =
       "`intent_id=I6be57670fcad46fba1f648ad28b9cdb5`, `mode=historic`. For metric=foo.";
     const seed = buildObservationReportSeed("I6be57670fcad46fba1f648ad28b9cdb5", instructions);
     expect(seed).toContain(
-      "Generate observation reports for `intent_id=I6be57670fcad46fba1f648ad28b9cdb5`.",
+      "`intent_id=I6be57670fcad46fba1f648ad28b9cdb5`, `mode=historic`. For metric=foo.",
     );
-    expect(seed).toContain(
-      "Instructions:\n`intent_id=I6be57670fcad46fba1f648ad28b9cdb5`, `mode=historic`. For metric=foo.",
-    );
+    expect(seed).not.toContain("Generate observation reports for");
+    expect(seed).not.toContain("Instructions:");
   });
 
   it("does not duplicate intent_id in Instructions for natural-language prompts", () => {
@@ -60,12 +59,12 @@ describe("observation-report seed", () => {
       "`mode=historic`, `start=17.05.2026 05:00:00`, `stop=18.05.2026 05:00:00`, `frequency=60s`. " +
       "For `metric=p99-token-target_CO5e797700affd4ed880fe0ea6c2adf6b4`, between 06:00 and 18:00 keep values in the 500-2000 range.";
     const seed = buildObservationReportSeed(canonicalId, instructions);
-    expect(seed).toContain(`Generate observation reports for \`intent_id=${canonicalId}\`.`);
     expect(seed).toContain(
-      `Instructions:\n\`intent_id=${canonicalId}\`, \`mode=historic\`, \`start=17.05.2026 05:00:00\``,
+      `\`intent_id=${canonicalId}\`, \`mode=historic\`, \`start=17.05.2026 05:00:00\``,
     );
     expect(seed).toContain(
       "For `metric=p99-token-target_CO5e797700affd4ed880fe0ea6c2adf6b4`, between 06:00 and 18:00",
     );
+    expect(seed).not.toContain("Generate observation reports for");
   });
 });

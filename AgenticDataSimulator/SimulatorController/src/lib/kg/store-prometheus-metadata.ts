@@ -2,17 +2,36 @@ import { graphDbAuthHeaders } from "@/lib/graphdb/auth";
 import { INTENT_REPORTS_METADATA_GRAPH_IRI } from "@/lib/graphdb/clear-knowledge-graph-query";
 import { runRepositorySparqlSelect } from "@/lib/graphdb/client";
 import { resolveGraphDbBaseUrl } from "@/lib/graphdb/resolve-base-url";
-import { buildMetricCatalogQuery } from "@/lib/kg/metric-catalog-query";
-import { parseIntentLocalIdForMetricCatalog } from "@/lib/kg/metric-catalog-query";
+import { buildMetricCatalogQuery, graphIriForSparqlAngleBrackets, parseIntentLocalIdForMetricCatalog } from "@/lib/kg/metric-catalog-query";
 import { parseCompoundMetricParts } from "@/lib/prometheus/parse-compound-metric";
 import {
   buildPrometheusInstantQueryUrl,
   buildPrometheusReadableQuery,
 } from "@/lib/prometheus/prometheus-query-metadata";
-import { resolvePrometheusBaseUrl } from "@/lib/prometheus/resolve-base-url";
+import { resolvePrometheusExecutorBaseUrl } from "@/lib/prometheus/resolve-executor-base-url";
 
 function escapeTurtleString(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function metricSubjectIri(compoundMetric: string): string {
+  return `<http://5g4data.eu/5g4data#${compoundMetric}>`;
+}
+
+export function buildDeletePrometheusMetadataUpdate(compoundMetric: string): string {
+  const graphIri = graphIriForSparqlAngleBrackets(INTENT_REPORTS_METADATA_GRAPH_IRI);
+  const subject = metricSubjectIri(compoundMetric);
+
+  return `
+PREFIX data5g: <http://5g4data.eu/5g4data#>
+
+DELETE {
+  GRAPH <${graphIri}> {
+    ${subject} data5g:hasQuery ?q .
+    ${subject} data5g:hasReadableQuery ?r .
+  }
+}
+`.trim();
 }
 
 function buildInsertPrometheusMetadataUpdate(input: {
@@ -21,13 +40,14 @@ function buildInsertPrometheusMetadataUpdate(input: {
   readableQuery: string;
 }): string {
   const escapedReadable = escapeTurtleString(input.readableQuery);
+  const graphIri = graphIriForSparqlAngleBrackets(INTENT_REPORTS_METADATA_GRAPH_IRI);
 
   return `
 PREFIX data5g: <http://5g4data.eu/5g4data#>
 
 INSERT DATA {
-  GRAPH <${INTENT_REPORTS_METADATA_GRAPH_IRI}> {
-    <http://5g4data.eu/5g4data#${input.compoundMetric}>
+  GRAPH <${graphIri}> {
+    ${metricSubjectIri(input.compoundMetric)}
       data5g:hasQuery <${input.prometheusQueryUrl}> ;
       data5g:hasReadableQuery "${escapedReadable}" .
   }
@@ -83,6 +103,7 @@ export async function storePrometheusQueryMetadata(input: {
   repositoryId: string;
   intentId: string;
   compoundMetric: string;
+  /** Ignored for hasQuery embedding; metadata always uses the local executor base. */
   prometheusBaseUrl?: string | null;
   graphDbBaseUrl?: string | null;
 }): Promise<void> {
@@ -91,7 +112,7 @@ export async function storePrometheusQueryMetadata(input: {
     return;
   }
 
-  const baseUrl = resolvePrometheusBaseUrl(input.prometheusBaseUrl);
+  const baseUrl = resolvePrometheusExecutorBaseUrl();
   const { conditionId } = parseCompoundMetricParts(input.compoundMetric);
   const identity = {
     compoundMetric: input.compoundMetric,
@@ -101,13 +122,15 @@ export async function storePrometheusQueryMetadata(input: {
 
   const readableQuery = buildPrometheusReadableQuery(identity);
   const prometheusQueryUrl = buildPrometheusInstantQueryUrl(baseUrl, identity);
-  const update = buildInsertPrometheusMetadataUpdate({
+  const deleteUpdate = buildDeletePrometheusMetadataUpdate(input.compoundMetric);
+  const insertUpdate = buildInsertPrometheusMetadataUpdate({
     compoundMetric: input.compoundMetric,
     prometheusQueryUrl,
     readableQuery,
   });
 
-  await postMetadataUpdate(input.repositoryId, update, input.graphDbBaseUrl);
+  await postMetadataUpdate(input.repositoryId, deleteUpdate, input.graphDbBaseUrl);
+  await postMetadataUpdate(input.repositoryId, insertUpdate, input.graphDbBaseUrl);
 }
 
 export async function storePrometheusMetadataForIntent(input: {

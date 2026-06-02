@@ -58,15 +58,34 @@ function numberOrUndefined(v: string | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function syntheticPromptCandidates(line: string): string[] {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const candidates = [trimmed];
+  const instructionsMatch = /instructions:\s*/i.exec(trimmed);
+  if (instructionsMatch) {
+    const after = trimmed.slice(instructionsMatch.index + instructionsMatch[0].length).trim();
+    if (after.length > 0) {
+      candidates.push(after);
+    }
+  }
+  return candidates;
+}
+
 export async function handleReplLine(
   ctx: ReplObserveHookContext
 ): Promise<{ handled: boolean; assistantText?: string }> {
   const line = ctx.line.trim();
 
   if (!line.toLowerCase().startsWith("observe")) {
-    if (looksLikeSyntheticObservationPrompt(line)) {
+    for (const candidate of syntheticPromptCandidates(line)) {
+      if (!looksLikeSyntheticObservationPrompt(candidate)) {
+        continue;
+      }
       const synth = await handleSyntheticObservationUserLine({
-        line,
+        line: candidate,
         sessionId: ctx.session.sessionId,
         packageDir: ctx.packageDir,
         graphDbEndpoint: ctx.graphDbEndpoint,

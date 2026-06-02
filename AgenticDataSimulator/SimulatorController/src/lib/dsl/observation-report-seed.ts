@@ -21,14 +21,19 @@ export function buildObservationReportSeed(
 ): string {
   const stripped = stripIntentIdFromInstructions(instructions);
   const intentGlobal = `\`intent_id=${canonicalIntentId}\``;
-  const body = looksStructuredObservationInstructions(stripped)
-    ? `${intentGlobal}, ${stripped}`
-    : stripped;
+
+  if (looksStructuredObservationInstructions(stripped)) {
+    const lines = [`${intentGlobal}, ${stripped}`];
+    if (storageOverride) {
+      lines.push("", buildObservationStorageOverrideHint(storageOverride));
+    }
+    return lines.join("\n");
+  }
 
   const lines = [`Generate observation reports for ${intentGlobal}.`];
   if (storageOverride) {
     lines.push("", buildObservationStorageOverrideHint(storageOverride));
   }
-  lines.push("", "Instructions:", body);
+  lines.push("", "Instructions:", stripped);
   return lines.join("\n");
 }

@@ -8,7 +8,15 @@ import { basename } from "node:path";
 import { GraphDbTool } from "./graphdbTool.js";
 import { ObservationTool, type ObservationPayload } from "./observationTool.js";
 import { persistObservationWithStorage, registerObservationMetadataForMetric } from "./persistObservation.js";
-import { flushBufferedPrometheusRemoteWrite } from "./observationStorageRegistry.js";
+import {
+  bufferPrometheusSample,
+  bufferedPrometheusSampleCount,
+  flushBufferedPrometheusRemoteWrite,
+  flushBufferedPrometheusRemoteWriteChunk,
+  initPrometheusSampleBuffer,
+  prometheusSampleFromParts,
+  readPrometheusFlushChunkSize,
+} from "./observationStorage/prometheusBackend.js";
 import type { ObservationStorageId } from "./observationStorageTypes.js";
 import { resolveObservationStorageTypes } from "./resolveObservationStorage.js";
 import {
@@ -106,6 +114,17 @@ function loadCfg(path: string): SyntheticMetricWorkerConfig {
   return JSON.parse(raw) as SyntheticMetricWorkerConfig;
 }
 
+function isPrometheusOnlyHistoric(
+  cfg: SyntheticMetricWorkerConfig,
+  storageIds: ObservationStorageId[],
+): boolean {
+  return (
+    cfg.mode === "historic" &&
+    storageIds.length === 1 &&
+    storageIds[0] === "prometheus"
+  );
+}
+
 async function insertOrPrint(
   graphDb: GraphDbTool,
   payload: ObservationPayload,
@@ -136,6 +155,83 @@ async function insertOrPrint(
   });
 }
 
+type PrometheusFlushCtx = {
+  intentId: string;
+  metric: string;
+};
+
+async function maybeFlushPrometheusChunk(
+  flushCtx: PrometheusFlushCtx,
+  chunkSize: number,
+  totalFlushed: { count: number },
+): Promise<void> {
+  if (chunkSize <= 0) {
+    return;
+  }
+  while (bufferedPrometheusSampleCount() >= chunkSize) {
+    const result = await flushBufferedPrometheusRemoteWriteChunk(
+      { intentId: flushCtx.intentId, metric: flushCtx.metric, source: "synthetic" },
+      { chunkSize },
+    );
+    if (result.sampleCount > 0) {
+      totalFlushed.count += result.sampleCount;
+      process.stderr.write(
+        `[synthetic-historic] intent=${flushCtx.intentId} metric=${flushCtx.metric} ` +
+          `remote_write_chunk=${result.sampleCount} total_flushed=${totalFlushed.count} ` +
+          `buffered=${result.remainingBuffered}\n`,
+      );
+    }
+    if (!result.ok) {
+      throw new Error(result.error ?? "Prometheus remote write chunk flush failed");
+    }
+    if (result.sampleCount === 0) {
+      break;
+    }
+  }
+}
+
+async function finalizePrometheusHistoricFlush(
+  cfg: SyntheticMetricWorkerConfig,
+  flushCtx: PrometheusFlushCtx,
+  totalFlushed: { count: number },
+  tickCount: number,
+  startedMs: number,
+): Promise<void> {
+  const chunkSize = readPrometheusFlushChunkSize();
+  if (chunkSize > 0) {
+    const remainder = await flushBufferedPrometheusRemoteWriteChunk(
+      { intentId: flushCtx.intentId, metric: flushCtx.metric, source: "synthetic" },
+      { force: true },
+    );
+    if (!remainder.ok) {
+      throw new Error(
+        remainder.error ??
+          `Prometheus remote write flush failed for ${cfg.compoundMetric} (${remainder.sampleCount} samples)`,
+      );
+    }
+    totalFlushed.count += remainder.sampleCount;
+  } else {
+    const flushResult = await flushBufferedPrometheusRemoteWrite({
+      intentId: flushCtx.intentId,
+      metric: flushCtx.metric,
+      source: "synthetic",
+    });
+    if (!flushResult.ok) {
+      throw new Error(
+        flushResult.error ??
+          `Prometheus remote write flush failed for ${cfg.compoundMetric} (${flushResult.sampleCount} samples)`,
+      );
+    }
+    totalFlushed.count += flushResult.sampleCount;
+  }
+
+  const elapsedSec = ((Date.now() - startedMs) / 1000).toFixed(1);
+  process.stderr.write(
+    `[synthetic-historic] intent=${flushCtx.intentId} metric=${flushCtx.metric} ` +
+      `ticks=${tickCount} samples_flushed=${totalFlushed.count} elapsed_s=${elapsedSec}\n`,
+  );
+}
+
 async function historicRun(
   cfg: SyntheticMetricWorkerConfig,
   run: (ctx: SnippetCtx) => number,
@@ -150,6 +246,24 @@ async function historicRun(
   const maxPoints = numericEnv("SYNTH_OBS_HISTORIC_MAX_POINTS", 250_000);
   const freqMs = Math.max(1, cfg.frequencySeconds) * 1000;
 
+  const storageIds = resolveObservationStorageTypes({
+    sessionOverride: cfg.observationStorageOverride,
+    intentDestinations: cfg.storageTypes,
+    createIntentStorage: cfg.createIntentStorage
+  });
+  const prometheusOnly = isPrometheusOnlyHistoric(cfg, storageIds);
+  const chunkSize = readPrometheusFlushChunkSize();
+  const flushCtx: PrometheusFlushCtx = {
+    intentId: cfg.intentId,
+    metric: cfg.compoundMetric,
+  };
+  const totalFlushed = { count: 0 };
+  const startedMs = Date.now();
+
+  if (prometheusOnly) {
+    initPrometheusSampleBuffer();
+  }
+
   let t = start.getTime();
   const stop = end.getTime();
   let tickIndex = 0;
@@ -162,32 +276,41 @@ async function historicRun(
     const ctx = buildSnippetCtx(cfg, simTime, tickIndex, rnd);
     let value = Number(run(ctx));
     if (!Number.isFinite(value)) throw new Error("Snippet returned non-numeric observation.");
-    const payload = tool.generateObservationForCompound(cfg.compoundMetric, cfg.unit, value, isoNoMillis(ctx.simTime));
-    if (!payload) throw new Error("Invalid compoundMetric for Observation.");
-    await insertOrPrint(graphDb, payload, tool.toTurtle(payload), cfg);
+    const obtainedAt = isoNoMillis(ctx.simTime);
+
+    if (prometheusOnly) {
+      bufferPrometheusSample(
+        prometheusSampleFromParts({
+          compoundMetric: cfg.compoundMetric,
+          intentId: cfg.intentId,
+          conditionId: cfg.conditionId,
+          unit: cfg.unit,
+          value,
+          obtainedAt,
+        }),
+      );
+      await maybeFlushPrometheusChunk(flushCtx, chunkSize, totalFlushed);
+    } else {
+      const payload = tool.generateObservationForCompound(
+        cfg.compoundMetric,
+        cfg.unit,
+        value,
+        obtainedAt,
+      );
+      if (!payload) throw new Error("Invalid compoundMetric for Observation.");
+      await insertOrPrint(graphDb, payload, tool.toTurtle(payload), cfg);
+      if (storageIds.includes("prometheus")) {
+        await maybeFlushPrometheusChunk(flushCtx, chunkSize, totalFlushed);
+      }
+    }
 
     tickIndex += 1;
     t += freqMs;
     if (tickIndex % 4096 === 0) await new Promise<void>((resolve) => setImmediate(resolve));
   }
 
-  const storageIds = resolveObservationStorageTypes({
-    sessionOverride: cfg.observationStorageOverride,
-    intentDestinations: cfg.storageTypes,
-    createIntentStorage: cfg.createIntentStorage
-  });
   if (storageIds.includes("prometheus")) {
-    const flushResult = await flushBufferedPrometheusRemoteWrite({
-      intentId: cfg.intentId,
-      metric: cfg.compoundMetric,
-      source: "synthetic",
-    });
-    if (!flushResult.ok) {
-      throw new Error(
-        flushResult.error ??
-          `Prometheus remote write flush failed for ${cfg.compoundMetric} (${flushResult.sampleCount} samples)`,
-      );
-    }
+    await finalizePrometheusHistoricFlush(cfg, flushCtx, totalFlushed, tickIndex, startedMs);
   }
 }
 

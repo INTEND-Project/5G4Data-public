@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   appendGeneratedObservation,
+  capObservationLogFile,
+  resetObservationLogAppendCountersForTests,
   appendObservationError,
   DEFAULT_OBS_LOG_N,
   observationLogPathForMetric,
@@ -80,6 +82,7 @@ test("resolveObsLogMaxEntries defaults to 100", () => {
 
 test("appendGeneratedObservation keeps only the last maxEntries lines", () => {
   const dir = mkdtempSync(join(tmpdir(), "obs-log-cap-"));
+  resetObservationLogAppendCountersForTests();
   try {
     const metric = "cap_test_COabc";
     const logPath = join(dir, `observations-${metric}.ndjson`);
@@ -99,6 +102,7 @@ test("appendGeneratedObservation keeps only the last maxEntries lines", () => {
         3
       );
     }
+    capObservationLogFile(logPath, 3);
     const lines = readFileSync(logPath, "utf8").trim().split("\n");
     assert.equal(lines.length, 3);
     assert.equal(JSON.parse(lines[0] as string).value, 2);

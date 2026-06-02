@@ -14,6 +14,22 @@ export type MetricQueryMetadata = {
   backend: MetricQueryBackend;
 };
 
+/** One row per compound metric (GraphDB may contain duplicate `hasQuery` INSERTs). */
+export function dedupeMetricQueryMetadata(
+  metadata: MetricQueryMetadata[],
+): MetricQueryMetadata[] {
+  const seen = new Set<string>();
+  const unique: MetricQueryMetadata[] = [];
+  for (const entry of metadata) {
+    if (seen.has(entry.compoundMetric)) {
+      continue;
+    }
+    seen.add(entry.compoundMetric);
+    unique.push(entry);
+  }
+  return unique;
+}
+
 /** Classify retrieval URL stored in `data5g:hasQuery` (same heuristics as IntentReportQueryProxy). */
 export function classifyMetricQueryUrl(queryUrl: string): MetricQueryBackend {
   const url = queryUrl.trim();
@@ -78,7 +94,7 @@ export async function fetchMetricQueryMetadata(
       graphDbBaseUrl,
     });
 
-    return bindings
+    const rows = bindings
       .map((row) => {
         const metricIri = row.metric?.value?.trim();
         const queryUrl = row.query?.value?.trim();
@@ -94,6 +110,8 @@ export async function fetchMetricQueryMetadata(
         } satisfies MetricQueryMetadata;
       })
       .filter((entry): entry is MetricQueryMetadata => Boolean(entry));
+
+    return dedupeMetricQueryMetadata(rows);
   } catch {
     return [];
   }
@@ -126,9 +144,16 @@ export function compoundMetricsForBackend(
   metadata: MetricQueryMetadata[],
   backend: MetricQueryBackend,
 ): string[] {
-  return metadata
-    .filter((entry) => entry.backend === backend)
-    .map((entry) => entry.compoundMetric);
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const entry of dedupeMetricQueryMetadata(metadata)) {
+    if (entry.backend !== backend || seen.has(entry.compoundMetric)) {
+      continue;
+    }
+    seen.add(entry.compoundMetric);
+    names.push(entry.compoundMetric);
+  }
+  return names;
 }
 
 export function metadataUsesBackend(

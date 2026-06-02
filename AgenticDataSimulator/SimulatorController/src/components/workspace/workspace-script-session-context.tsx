@@ -365,11 +365,12 @@ export function WorkspaceScriptSessionProvider({
         return;
       }
       activeRun.lines = [...activeRun.lines, entry];
+      syncActiveRunLinesToList();
       if (runLogDialogOpenRef.current) {
         scheduleLiveRunLogRevision();
       }
     },
-    [scheduleLiveRunLogRevision],
+    [scheduleLiveRunLogRevision, syncActiveRunLinesToList],
   );
 
   const endActiveScriptRun = useCallback(
@@ -439,11 +440,14 @@ export function WorkspaceScriptSessionProvider({
   );
 
   const openRunLogDialog = useCallback(() => {
+    runLogDialogOpenRef.current = true;
+    syncActiveRunLinesToList();
     bumpLiveRunLogRevision();
     setRunLogDialogOpen(true);
-  }, [bumpLiveRunLogRevision]);
+  }, [bumpLiveRunLogRevision, syncActiveRunLinesToList]);
 
   const closeRunLogDialog = useCallback(() => {
+    runLogDialogOpenRef.current = false;
     setRunLogDialogOpen(false);
   }, []);
 
@@ -862,6 +866,7 @@ export function WorkspaceScriptSessionProvider({
   }, []);
 
   const selectedRunLogLines = useMemo(() => {
+    void liveRunLogRevision;
     if (!selectedScriptRunId) {
       return [];
     }
@@ -977,7 +982,7 @@ export function WorkspaceScriptSessionProvider({
       selectedRunLogLines,
       runLogDialogOpen,
     }),
-    [liveRunLogRevision, runLogDialogOpen, selectedRunLogLines],
+    [runLogDialogOpen, selectedRunLogLines],
   );
 
   return (

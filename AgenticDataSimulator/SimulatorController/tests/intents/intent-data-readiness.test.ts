@@ -26,4 +26,29 @@ describe("metricsExpectedForStorage", () => {
   it("returns empty when catalog is empty", () => {
     expect(metricsExpectedForStorage("prometheus", [], metadata)).toEqual([]);
   });
+
+  it("dedupes duplicate prometheus metadata rows for the same compound metric", () => {
+    const duplicated: MetricQueryMetadata[] = [
+      ...metadata,
+      {
+        compoundMetric: "m1_COa",
+        queryUrl: "http://127.0.0.1:9090/api/v1/query?query=duplicate",
+        backend: "prometheus",
+      },
+      {
+        compoundMetric: "m2_COb",
+        queryUrl: "http://127.0.0.1:9090/api/v1/query?query=duplicate2",
+        backend: "prometheus",
+      },
+      {
+        compoundMetric: "m2_COb",
+        queryUrl: "http://127.0.0.1:9090/api/v1/query?query=duplicate3",
+        backend: "prometheus",
+      },
+    ];
+
+    expect(
+      metricsExpectedForStorage("prometheus", ["m1_COa", "m2_COb", "m3_COc"], duplicated),
+    ).toEqual(["m1_COa", "m2_COb"]);
+  });
 });

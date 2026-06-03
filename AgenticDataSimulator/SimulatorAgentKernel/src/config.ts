@@ -10,6 +10,7 @@ export interface AppConfig {
   anthropicModel: string;
   anthropicBaseUrl: string;
   openClawModel: string;
+  openAiTemperature: number;
   workloadCatalogBaseUrl: string;
   graphDbEndpoint: string;
   graphDbNamedGraph: string;
@@ -45,6 +46,17 @@ function numberFromEnv(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+function floatFromEnv(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseFloat(value);
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+export function clampTemperature(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(2, Math.max(0, value));
 }
 
 function normalizedBaseUrl(value: string | undefined, fallback: string): string {
@@ -142,6 +154,7 @@ export function loadConfig(): AppConfig {
       "https://api.anthropic.com"
     ),
     openClawModel: process.env.OPENCLAW_MODEL ?? derivedModel,
+    openAiTemperature: clampTemperature(floatFromEnv(process.env.OPENAI_TEMPERATURE, 0)),
     workloadCatalogBaseUrl:
       process.env.WORKLOAD_CATALOG_BASE_URL ?? "https://start5g-1.cs.uit.no/wchartmuseum",
     graphDbEndpoint:

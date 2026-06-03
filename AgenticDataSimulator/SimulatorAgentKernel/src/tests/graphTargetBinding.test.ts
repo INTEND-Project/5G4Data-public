@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   bindingsConflict,
   parseGraphTargetBindingFromMetadata,
+  parseOpenClawControllerMetadata,
 } from "../core/graphTargetBinding.js";
 
 test("parseGraphTargetBindingFromMetadata accepts v1 envelope", () => {
@@ -35,6 +36,31 @@ test("parseGraphTargetBindingFromMetadata rejects unsupported version", () => {
     },
   });
   assert.equal(binding, null);
+});
+
+test("parseOpenClawControllerMetadata accepts llm-only envelope", () => {
+  const parsed = parseOpenClawControllerMetadata({
+    openclaw: {
+      controllerBindingVersion: "1",
+      llmModel: "gpt-4o-mini",
+      temperature: 0.4,
+    },
+  });
+  assert.ok(parsed);
+  assert.equal(parsed.llmModel, "gpt-4o-mini");
+  assert.equal(parsed.temperature, 0.4);
+  assert.equal(parsed.graphTarget, null);
+});
+
+test("parseOpenClawControllerMetadata clamps temperature", () => {
+  const parsed = parseOpenClawControllerMetadata({
+    openclaw: {
+      controllerBindingVersion: "1",
+      temperature: 9,
+    },
+  });
+  assert.ok(parsed);
+  assert.equal(parsed.temperature, 2);
 });
 
 test("bindingsConflict detects repository or graph drift", () => {

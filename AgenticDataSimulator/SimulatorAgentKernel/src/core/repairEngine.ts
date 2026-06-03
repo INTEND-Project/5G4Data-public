@@ -1,7 +1,7 @@
 import {
   collectOutputIssues
 } from "./outputPolicyValidator.js";
-import type { LlmCallRecord, ModelInvocationResult } from "../models.js";
+import type { LlmCallRecord, ModelInvocationResult, ModelInvokeOptions } from "../models.js";
 import type { LoadedDomainPackage, ValidatorRules } from "./packageLoader.js";
 import type { IntentFlags } from "./workflowEngine.js";
 import { runConfiguredPostprocessors } from "./postprocessorRunner.js";
@@ -18,7 +18,7 @@ export class RepairEngine {
   constructor(
     private readonly invokeModel: (
       messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
-      metadata?: { stage: string }
+      options?: ModelInvokeOptions
     ) => Promise<ModelInvocationResult>
   ) {}
 
@@ -26,7 +26,8 @@ export class RepairEngine {
     responseText: string,
     context: RepairContext,
     systemBlocks: string[],
-    history: Array<{ role: "user" | "assistant"; content: string }>
+    history: Array<{ role: "user" | "assistant"; content: string }>,
+    invokeOptions: ModelInvokeOptions = { stage: "repair" }
   ): Promise<{ text: string; debug: string[]; calls: LlmCallRecord[] }> {
     const debug: string[] = [];
     const calls: LlmCallRecord[] = [];
@@ -68,7 +69,7 @@ ${preprocessed}`;
         ...history,
         { role: "user" as const, content: repairInstruction }
       ],
-      { stage: "repair" }
+      invokeOptions
     );
     calls.push(repaired.call);
     const secondIssues = collectOutputIssues({

@@ -40,12 +40,16 @@ export type OpenClawControllerMetadata = {
   graphTarget?: GraphTargetBinding;
   observationStorage?: "graphdb" | "prometheus";
   createIntentStorage?: "graphdb" | "prometheus";
+  llmModel?: string;
+  temperature?: number;
 };
 
 export function openClawMetadataEnvelope(opts: {
   graphTarget?: GraphTargetBinding;
   observationStorage?: "graphdb" | "prometheus";
   createIntentStorage?: "graphdb" | "prometheus";
+  llmModel?: string;
+  temperature?: number;
 }): {
   openclaw: OpenClawControllerMetadata;
 } {
@@ -55,5 +59,26 @@ export function openClawMetadataEnvelope(opts: {
   if (opts.graphTarget) openclaw.graphTarget = opts.graphTarget;
   if (opts.observationStorage) openclaw.observationStorage = opts.observationStorage;
   if (opts.createIntentStorage) openclaw.createIntentStorage = opts.createIntentStorage;
+  const model = opts.llmModel?.trim();
+  if (model) openclaw.llmModel = model;
+  if (opts.temperature !== undefined && Number.isFinite(opts.temperature)) {
+    openclaw.temperature = Math.min(2, Math.max(0, opts.temperature));
+  }
   return { openclaw };
+}
+
+export function hasOpenClawMetadataFields(opts: {
+  graphTarget?: GraphTargetBinding;
+  observationStorage?: "graphdb" | "prometheus";
+  createIntentStorage?: "graphdb" | "prometheus";
+  llmModel?: string;
+  temperature?: number;
+}): boolean {
+  return Boolean(
+    opts.graphTarget ||
+      opts.observationStorage ||
+      opts.createIntentStorage ||
+      opts.llmModel?.trim() ||
+      (opts.temperature !== undefined && Number.isFinite(opts.temperature)),
+  );
 }

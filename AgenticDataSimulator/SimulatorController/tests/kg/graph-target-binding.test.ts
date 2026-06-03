@@ -26,6 +26,18 @@ describe("graph-target-binding", () => {
     });
   });
 
+  it("wraps llm settings in openclaw metadata envelope v1", () => {
+    expect(
+      openClawMetadataEnvelope({ llmModel: "gpt-4o-mini", temperature: 0.25 }),
+    ).toEqual({
+      openclaw: {
+        controllerBindingVersion: "1",
+        llmModel: "gpt-4o-mini",
+        temperature: 0.25,
+      },
+    });
+  });
+
   it("wraps binding in openclaw metadata envelope v1", () => {
     const binding = buildGraphTargetBinding(
       { id: "t", repositoryId: "r", graphIri: "urn:g" },

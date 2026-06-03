@@ -61,11 +61,16 @@ const appEnvSchema = z.object({
   APP_BASE_PATH: z.string().optional(),
   ASSISTANT_MODEL: z.string().default("gpt-4.1-mini"),
   ASSISTANT_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
   AGENT_API_KEYS: agentApiKeysSchema,
   AGENT_API_KEY: z.string().optional(),
   AGENT_API_KEY_HEADER: z.string().default("X-Api-Key"),
   /** Direct kernel control API base (e.g. http://127.0.0.1:3012/v1) when the public agent card URL does not expose observation-progress. */
   OBSERVATION_AGENT_CONTROL_BASE_URL: z.string().url().optional(),
+  /** Optional TMF921 API base hints for extra-functional tools (Tools panel). */
+  INSUSTAIN_TMF_BASE_URL: z.string().url().optional(),
+  INCOORD_TMF_BASE_URL: z.string().url().optional(),
+  INEXPLAIN_TMF_BASE_URL: z.string().url().optional(),
 });
 
 export type AppEnv = {
@@ -94,6 +99,9 @@ export type AppEnv = {
   agentApiKey?: string;
   agentApiKeyHeader: string;
   observationAgentControlBaseUrl?: string;
+  inSustainTmfBaseUrl?: string;
+  inCoordTmfBaseUrl?: string;
+  inExplainTmfBaseUrl?: string;
 };
 
 export function loadAppEnv(source: Partial<Record<string, string | undefined>>): AppEnv {
@@ -119,10 +127,14 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     APP_BASE_PATH: source.APP_BASE_PATH,
     ASSISTANT_MODEL: source.ASSISTANT_MODEL,
     ASSISTANT_API_KEY: source.ASSISTANT_API_KEY,
+    OPENAI_API_KEY: source.OPENAI_API_KEY,
     AGENT_API_KEYS: source.AGENT_API_KEYS,
     AGENT_API_KEY: source.AGENT_API_KEY,
     AGENT_API_KEY_HEADER: source.AGENT_API_KEY_HEADER,
     OBSERVATION_AGENT_CONTROL_BASE_URL: source.OBSERVATION_AGENT_CONTROL_BASE_URL,
+    INSUSTAIN_TMF_BASE_URL: source.INSUSTAIN_TMF_BASE_URL,
+    INCOORD_TMF_BASE_URL: source.INCOORD_TMF_BASE_URL,
+    INEXPLAIN_TMF_BASE_URL: source.INEXPLAIN_TMF_BASE_URL,
   });
 
   return {
@@ -157,5 +169,8 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     agentApiKeyHeader: parsed.AGENT_API_KEY_HEADER,
     observationAgentControlBaseUrl:
       parsed.OBSERVATION_AGENT_CONTROL_BASE_URL?.trim() || undefined,
+    inSustainTmfBaseUrl: parsed.INSUSTAIN_TMF_BASE_URL?.trim() || undefined,
+    inCoordTmfBaseUrl: parsed.INCOORD_TMF_BASE_URL?.trim() || undefined,
+    inExplainTmfBaseUrl: parsed.INEXPLAIN_TMF_BASE_URL?.trim() || undefined,
   };
 }

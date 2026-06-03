@@ -12,6 +12,7 @@ const baseConfig: AppConfig = {
   anthropicModel: "claude-3-5-sonnet-latest",
   anthropicBaseUrl: "https://api.anthropic.com",
   openClawModel: "gpt-5.3-chat-latest",
+  openAiTemperature: 0,
   workloadCatalogBaseUrl: "",
   graphDbEndpoint: "",
   graphDbNamedGraph: "",
@@ -35,6 +36,34 @@ const baseConfig: AppConfig = {
   apiServerPort: 3010,
   agentApiKeyHeader: "X-Api-Key"
 };
+
+test("openai adapter applies session model and temperature overrides", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody: Record<string, unknown> = {};
+  globalThis.fetch = (async (_url, init) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        id: "req_2",
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }) as typeof fetch;
+  try {
+    const invoker = createOpenClawModelInvoker(baseConfig);
+    await invoker([{ role: "user", content: "hi" }], {
+      stage: "main_turn",
+      llmModel: "gpt-4o-mini",
+      temperature: 0.7
+    });
+    assert.equal(requestBody.model, "gpt-4o-mini");
+    assert.equal(requestBody.temperature, 0.7);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 test("openai adapter captures usage fields", async () => {
   const originalFetch = globalThis.fetch;

@@ -7,7 +7,10 @@ import { buildA2AAuthHeaders } from "@/lib/a2a/auth-headers";
 import { interpretSendMessageResult } from "@/lib/a2a/interpret-message-result";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { loadAppEnv } from "@/lib/env";
-import { openClawMetadataEnvelope } from "@/lib/kg/graph-target-binding";
+import {
+  hasOpenClawMetadataFields,
+  openClawMetadataEnvelope,
+} from "@/lib/kg/graph-target-binding";
 
 const graphTargetSchema = z.object({
   graphTargetId: z.string().optional(),
@@ -25,6 +28,8 @@ const bodySchema = z.object({
   graphTarget: graphTargetSchema.optional(),
   observationStorage: z.enum(["graphdb", "prometheus"]).optional(),
   createIntentStorage: z.enum(["graphdb", "prometheus"]).optional(),
+  llmModel: z.string().trim().optional(),
+  temperature: z.number().min(0).max(2).optional(),
 });
 
 async function fetchAgentRpcUrl(
@@ -114,12 +119,15 @@ export async function POST(request: Request) {
   if (body.contextId) {
     message.contextId = body.contextId;
   }
-  if (body.graphTarget || body.observationStorage || body.createIntentStorage) {
-    message.metadata = openClawMetadataEnvelope({
-      graphTarget: body.graphTarget,
-      observationStorage: body.observationStorage,
-      createIntentStorage: body.createIntentStorage,
-    });
+  const metadataOpts = {
+    graphTarget: body.graphTarget,
+    observationStorage: body.observationStorage,
+    createIntentStorage: body.createIntentStorage,
+    llmModel: body.llmModel,
+    temperature: body.temperature,
+  };
+  if (hasOpenClawMetadataFields(metadataOpts)) {
+    message.metadata = openClawMetadataEnvelope(metadataOpts);
   }
 
   const requestId = randomUUID();

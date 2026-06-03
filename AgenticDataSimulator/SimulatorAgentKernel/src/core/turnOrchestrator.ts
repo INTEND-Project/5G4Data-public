@@ -8,7 +8,8 @@ import type {
   ChatMessage,
   ChatSession,
   LlmCallRecord,
-  ModelInvocationResult
+  ModelInvocationResult,
+  ModelInvokeOptions
 } from "../models.js";
 import {
   assistantRequestedConfirmation,
@@ -39,7 +40,7 @@ export class TurnOrchestrator {
     private readonly domainPackage: LoadedDomainPackage,
   private readonly invokeModel: (
     messages: ModelMessage[],
-    metadata?: { stage: string }
+    options?: ModelInvokeOptions
   ) => Promise<ModelInvocationResult>
   ) {
     this.contextBuilder = new RuntimeContextBuilder(config, domainPackage);
@@ -143,7 +144,7 @@ export class TurnOrchestrator {
         ...systemBlocks.map((content) => ({ role: "system" as const, content })),
         ...history
       ],
-      { stage: "main_turn" }
+      this.modelInvokeOptions(session, "main_turn")
     );
     calls.push(mainResult.call);
     let text = mainResult.text;
@@ -159,7 +160,8 @@ export class TurnOrchestrator {
         domainPackage: this.domainPackage
       },
       systemBlocks,
-      history
+      history,
+      this.modelInvokeOptions(session, "repair")
     );
     text = repaired.text;
     debug.push(...repaired.debug);
@@ -194,6 +196,14 @@ export class TurnOrchestrator {
 
   getAppConfig(): AppConfig {
     return this.config;
+  }
+
+  private modelInvokeOptions(session: ChatSession, stage: string): ModelInvokeOptions {
+    return {
+      stage,
+      llmModel: session.llmModelOverride ?? undefined,
+      temperature: session.temperatureOverride ?? undefined
+    };
   }
 
   async resolveWorkloadPreview(

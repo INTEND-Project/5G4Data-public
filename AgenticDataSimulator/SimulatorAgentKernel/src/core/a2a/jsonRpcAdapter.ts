@@ -156,6 +156,12 @@ function applyOpenClawMetadataToSession(
   if (parsed.createIntentStorage && !session.createIntentStorage) {
     session.createIntentStorage = parsed.createIntentStorage;
   }
+  if (parsed.llmModel) {
+    session.llmModelOverride = parsed.llmModel;
+  }
+  if (parsed.temperature !== null) {
+    session.temperatureOverride = parsed.temperature;
+  }
   return null;
 }
 

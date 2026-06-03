@@ -46,6 +46,8 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
     "/api/registry/discover-observation-agent",
   );
   const a2aMessageSendUrl = withAppBasePath("/api/a2a/message-send");
+  const openAiModelsApiUrl = withAppBasePath("/api/openai/models");
+  const agentRuntimeLlmApiUrlBase = withAppBasePath("/api/agents");
   const previewMetricsApiUrl = withAppBasePath("/api/workload-catalogue/preview-metrics");
   const infraStatusApiUrl = withAppBasePath("/api/infra/status");
   const intentsApiUrl = withAppBasePath("/api/intents");
@@ -89,6 +91,8 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
     <WorkspaceShell
       agents={[]}
       agentsRefreshUrl={agentsRefreshUrl}
+      openAiModelsApiUrl={openAiModelsApiUrl}
+      agentRuntimeLlmApiUrlBase={agentRuntimeLlmApiUrlBase}
       assistantContext={assistantContext}
       domains={[selectedDomain]}
       domainsApiUrl={domainsApiUrl}

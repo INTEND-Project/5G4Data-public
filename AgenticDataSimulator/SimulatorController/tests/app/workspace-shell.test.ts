@@ -29,6 +29,21 @@ describe("workspace shell bootstrap", () => {
       resolve(process.cwd(), "src/components/workspace/agent-list.tsx"),
       "utf8",
     );
+    const scriptListSource = readFileSync(
+      resolve(process.cwd(), "src/components/workspace/script-list.tsx"),
+      "utf8",
+    );
+    const toolsPanelSource = readFileSync(
+      resolve(process.cwd(), "src/components/workspace/tools-panel.tsx"),
+      "utf8",
+    );
+    const collapsibleSectionSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/components/workspace/workspace-collapsible-section.tsx",
+      ),
+      "utf8",
+    );
     const domainSelectorSource = readFileSync(
       resolve(process.cwd(), "src/components/workspace/domain-selector.tsx"),
       "utf8",
@@ -190,7 +205,20 @@ describe("workspace shell bootstrap", () => {
     expect(agentListSource).toContain("setDisplayedAgents");
     expect(agentListSource).toContain("isHealthy === false");
     expect(agentListSource).toContain("workspace-partner-grid");
+    expect(agentListSource).toContain("WorkspaceCollapsibleSection");
+    expect(agentListSource).toContain('sectionId="agents"');
+    expect(agentListSource).not.toContain('<div className="workspace-section">');
+    expect(scriptListSource).toContain("WorkspaceCollapsibleSection");
+    expect(scriptListSource).toContain('sectionId="scripts"');
+    expect(toolsPanelSource).toContain("WorkspaceCollapsibleSection");
+    expect(toolsPanelSource).toContain('sectionId="tools"');
+    expect(collapsibleSectionSource).toContain("aria-expanded");
+    expect(collapsibleSectionSource).toContain("localStorage");
+    expect(collapsibleSectionSource).toContain("openclaw-workspace-section-");
+    expect(domainSelectorSource).not.toContain("WorkspaceCollapsibleSection");
     expect(domainSelectorSource).toContain("workspace-section-title");
+    expect(globalsSource).toContain(".workspace-collapsible-trigger");
+    expect(globalsSource).toContain(".workspace-collapsible-chevron-expanded");
     expect(domainSelectorSource).toContain("workspace-select-compact");
     expect(domainSelectorSource).toContain("workspace-section-compact");
     expect(domainSelectorSource).toContain("workspace-section-domain");

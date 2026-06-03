@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useAgentLlmPreferences } from "@/components/workspace/agent-llm-preferences-context";
 import { ObservationProgressBar } from "@/components/workspace/observation-progress-bar";
+import { preferenceForOpenClawMetadata } from "@/lib/agents/agent-llm-preferences";
 import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
 import type { ObservationProgressSnapshot } from "@/lib/observation-agent/progress-types";
 import {
@@ -23,6 +25,7 @@ export type IntentGenSessionDialogVariant = "intent-generation" | "observation-r
 export type IntentGenSessionDialogProps = {
   open: boolean;
   a2aMessageSendUrl: string;
+  agentName: string;
   agentCardWellKnownURI: string;
   intentArtifactLabel: string;
   /** UI copy; observation sessions do not store intent Turtle via this modal. Defaults to intent generation. */
@@ -59,6 +62,7 @@ export type IntentGenSessionDialogProps = {
 export function IntentGenSessionDialog({
   open,
   a2aMessageSendUrl,
+  agentName,
   agentCardWellKnownURI,
   intentArtifactLabel,
   variant = "intent-generation",
@@ -78,6 +82,7 @@ export function IntentGenSessionDialog({
   onFinished,
 }: IntentGenSessionDialogProps) {
   const { prometheusBaseUrl, graphDbBaseUrl } = useWorkspaceScriptSession();
+  const { preference: llmPreference, hasStored: hasLlmPreference } = useAgentLlmPreferences(agentName);
   const taskBindingsRef = useRef<{ taskId?: string; contextId?: string }>({});
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
   const [draft, setDraft] = useState("");
@@ -195,6 +200,13 @@ export function IntentGenSessionDialog({
         }
         if (createIntentStorage) {
           payload.createIntentStorage = createIntentStorage;
+        }
+        const llmFields = preferenceForOpenClawMetadata(llmPreference, hasLlmPreference);
+        if (llmFields.llmModel) {
+          payload.llmModel = llmFields.llmModel;
+        }
+        if (llmFields.temperature !== undefined) {
+          payload.temperature = llmFields.temperature;
         }
 
         const response = await fetch(a2aMessageSendUrl, {
@@ -365,6 +377,8 @@ export function IntentGenSessionDialog({
       prometheusBaseUrl,
       graphDbBaseUrl,
       observationStorage,
+      llmPreference,
+      hasLlmPreference,
     ],
   );
 

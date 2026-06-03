@@ -6,6 +6,7 @@ import {
   useWorkspaceScriptSession,
   type ServerScript,
 } from "@/components/workspace/workspace-script-session-context";
+import { WorkspaceCollapsibleSection } from "@/components/workspace/workspace-collapsible-section";
 import {
   sortScripts,
   type ScriptListSortMode,
@@ -118,10 +119,9 @@ export function ScriptList({ scriptsApiUrl, currentUserId }: ScriptListProps) {
   );
 
   return (
-    <div className="workspace-section">
-      <div className="workspace-heading-row">
-        <h2>Scripts</h2>
-        <div className="workspace-heading-row-end">
+    <WorkspaceCollapsibleSection
+      headerEnd={
+        <>
           <select
             aria-label="Sort scripts"
             className="workspace-select workspace-select-compact workspace-script-sort"
@@ -134,8 +134,11 @@ export function ScriptList({ scriptsApiUrl, currentUserId }: ScriptListProps) {
             <option value="created">Newest first</option>
           </select>
           <span className="workspace-chip">{visibleScripts.length} scripts</span>
-        </div>
-      </div>
+        </>
+      }
+      sectionId="scripts"
+      title="Scripts"
+    >
       <div className="workspace-stack">
         {visibleScripts.length === 0 ? (
           <article className="workspace-card">
@@ -187,6 +190,6 @@ export function ScriptList({ scriptsApiUrl, currentUserId }: ScriptListProps) {
           );
         })}
       </div>
-    </div>
+    </WorkspaceCollapsibleSection>
   );
 }

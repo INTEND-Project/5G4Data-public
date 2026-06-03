@@ -1,3 +1,5 @@
+import { clampTemperature } from "../config.js";
+
 /** openclaw.controller.v1 — parsed from A2A message.metadata.openclaw */
 
 export type GraphTargetBinding = {
@@ -36,7 +38,20 @@ export type OpenClawControllerMetadata = {
   graphTarget: GraphTargetBinding | null;
   observationStorage: ObservationStorageType | null;
   createIntentStorage: ObservationStorageType | null;
+  llmModel: string | null;
+  temperature: number | null;
 };
+
+function parseTemperatureField(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return clampTemperature(value);
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseFloat(value.trim());
+    if (Number.isFinite(parsed)) return clampTemperature(parsed);
+  }
+  return null;
+}
 
 export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawControllerMetadata | null {
   if (!isRecord(metadata)) return null;
@@ -70,10 +85,14 @@ export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawCont
 
   const observationStorage = parseStorageField(openclaw.observationStorage);
   const createIntentStorage = parseStorageField(openclaw.createIntentStorage);
+  const llmModel = readNonEmptyString(openclaw.llmModel);
+  const temperature = parseTemperatureField(openclaw.temperature);
 
-  if (!graphTarget && !observationStorage && !createIntentStorage) return null;
+  if (!graphTarget && !observationStorage && !createIntentStorage && !llmModel && temperature === null) {
+    return null;
+  }
 
-  return { graphTarget, observationStorage, createIntentStorage };
+  return { graphTarget, observationStorage, createIntentStorage, llmModel, temperature };
 }
 
 export function parseGraphTargetBindingFromMetadata(metadata: unknown): GraphTargetBinding | null {

@@ -55,6 +55,10 @@ import {
   type GraphTargetBinding,
 } from "@/lib/kg/graph-target-binding";
 import {
+  INTENT_GENERATING_AGENT_NAME,
+  OBSERVATION_GENERATING_AGENT_NAME,
+} from "@/lib/agents/known-agent-names";
+import {
   fetchWorkloadPreviewMetrics,
   type WorkloadPreviewMetrics,
 } from "@/lib/workload-catalogue/preview-metrics-client";
@@ -1878,6 +1882,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
       <IntentGenSessionDialog
         a2aMessageSendUrl={a2aMessageSendUrl}
+        agentName={INTENT_GENERATING_AGENT_NAME}
         agentCardWellKnownURI={intentSession?.wellKnownURI ?? ""}
         createIntentStorage={intentSession?.storage ?? null}
         intentArtifactLabel={intentSession?.intentArtifactLabel ?? ""}
@@ -1893,6 +1898,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       />
       <IntentGenSessionDialog
         a2aMessageSendUrl={a2aMessageSendUrl}
+        agentName={OBSERVATION_GENERATING_AGENT_NAME}
         agentCardWellKnownURI={observationSession?.wellKnownURI ?? ""}
         createIntentStorage={observationSession?.createIntentStorage ?? null}
         externalBannerError={observationAgentError}

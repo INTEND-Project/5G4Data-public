@@ -29,7 +29,17 @@ export interface ChatSession {
   observationStorage?: ObservationStorageType | null;
   /** From Controller `create intent … storage` for the bound intent alias. */
   createIntentStorage?: ObservationStorageType | null;
+  /** From A2A metadata.openclaw.llmModel for this task. */
+  llmModelOverride?: string | null;
+  /** From A2A metadata.openclaw.temperature for this task. */
+  temperatureOverride?: number | null;
 }
+
+export type ModelInvokeOptions = {
+  stage: string;
+  llmModel?: string | null;
+  temperature?: number | null;
+};
 
 export interface AgentTurnResult {
   response: string;

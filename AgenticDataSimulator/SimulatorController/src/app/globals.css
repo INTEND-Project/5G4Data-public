@@ -944,6 +944,57 @@ select.workspace-script-run-select:disabled {
   flex-shrink: 0;
 }
 
+.workspace-collapsible-heading h2 {
+  margin: 0;
+  min-width: 0;
+}
+
+.workspace-collapsible-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+
+.workspace-collapsible-trigger:hover {
+  color: var(--foreground);
+}
+
+.workspace-collapsible-trigger:focus-visible {
+  outline: 2px solid rgba(125, 180, 255, 0.65);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.workspace-collapsible-chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.workspace-collapsible-chevron-expanded {
+  transform: rotate(90deg);
+}
+
+.workspace-collapsible-section.is-collapsed {
+  gap: 8px;
+}
+
+.workspace-collapsible-body {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
 .workspace-script-sort {
   min-width: 7.5rem;
 }
@@ -1261,6 +1312,112 @@ select.workspace-script-run-select:disabled {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.workspace-agent-configure-button {
+  padding: 6px 8px;
+  min-width: 0;
+}
+
+.workspace-agent-settings-dialog .workspace-input {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.workspace-tools-section-hint {
+  margin-top: 0;
+}
+
+.workspace-tools-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.workspace-tools-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workspace-tools-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.workspace-tools-row-label {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.workspace-tools-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.workspace-tools-action {
+  padding: 6px 8px;
+  min-width: 0;
+}
+
+.workspace-tool-intent-picker-dialog {
+  width: min(560px, 100%);
+  max-height: min(90vh, 720px);
+  overflow: auto;
+}
+
+.workspace-tool-test-send-dialog {
+  width: min(920px, 96vw);
+  max-height: min(92vh, 900px);
+}
+
+.workspace-tool-test-send-dialog .workspace-tool-turtle-preview {
+  max-height: min(62vh, 560px);
+  font-size: 0.8rem;
+}
+
+.workspace-tool-test-send-dialog .workspace-tool-response-snippet {
+  max-height: min(40vh, 360px);
+}
+
+.workspace-tool-settings-dialog .workspace-input {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.workspace-tool-turtle-preview,
+.workspace-tool-response-snippet {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  max-height: 280px;
+  overflow: auto;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.workspace-tools-payload-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 .workspace-agent-registry-chip {

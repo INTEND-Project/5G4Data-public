@@ -1,9 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
+import { AgentSettingsDialog } from "@/components/workspace/agent-settings-dialog";
 import { registryPollIntervalMs } from "@/components/workspace/infra-connection-status";
+import { WorkspaceCollapsibleSection } from "@/components/workspace/workspace-collapsible-section";
 
 type AgentListItem = {
   name: string;
@@ -14,6 +16,10 @@ type AgentListProps = {
   agents: AgentListItem[];
   refreshUrl: string;
   registryConnected: boolean;
+  openAiModelsApiUrl: string;
+  agentRuntimeLlmApiUrlBase: string;
+  /** Rendered after the agent list (e.g. Tools panel); partner logos render below toolsSlot. */
+  toolsSlot?: ReactNode;
 };
 
 function agentsEqual(left: AgentListItem[], right: AgentListItem[]): boolean {
@@ -77,8 +83,34 @@ function AgentHealthIcon({ isHealthy }: { isHealthy: boolean | null }) {
   );
 }
 
-export function AgentList({ agents, refreshUrl, registryConnected }: AgentListProps) {
+function AgentConfigureIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
+      <path
+        d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+      />
+      <path
+        d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.51 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.51-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34 1.7 1.7 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87 1.7 1.7 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.75"
+      />
+    </svg>
+  );
+}
+
+export function AgentList({
+  agents,
+  refreshUrl,
+  registryConnected,
+  openAiModelsApiUrl,
+  agentRuntimeLlmApiUrlBase,
+  toolsSlot,
+}: AgentListProps) {
   const [displayedAgents, setDisplayedAgents] = useState(agents);
+  const [settingsAgentName, setSettingsAgentName] = useState<string | null>(null);
   const registryConnectedRef = useRef(registryConnected);
 
   useEffect(() => {
@@ -162,23 +194,43 @@ export function AgentList({ agents, refreshUrl, registryConnected }: AgentListPr
   }, [refreshAgents, registryConnected]);
 
   return (
-    <div className="workspace-section">
-      <div className="workspace-heading-row">
-        <h2>Available agents</h2>
-      </div>
-      <div className="workspace-stack">
-        {displayedAgents.map((agent) => (
-          <article className="workspace-agent" key={agent.name}>
-            <strong>{agent.name}</strong>
-            <div className="workspace-agent-indicators">
-              <span className="workspace-chip workspace-chip-live workspace-agent-registry-chip">
-                registered
-              </span>
-              <AgentHealthIcon isHealthy={agent.isHealthy} />
-            </div>
-          </article>
-        ))}
-      </div>
+    <>
+      <WorkspaceCollapsibleSection sectionId="agents" title="Available agents">
+        <div className="workspace-stack">
+          {displayedAgents.map((agent) => (
+            <article className="workspace-agent" key={agent.name}>
+              <strong>{agent.name}</strong>
+              <div className="workspace-agent-indicators">
+                <button
+                  aria-label={`Configure LLM settings for ${agent.name}`}
+                  className="workspace-button workspace-button-secondary workspace-kg-target-action workspace-agent-configure-button"
+                  onClick={() => setSettingsAgentName(agent.name)}
+                  title="Configure model and temperature"
+                  type="button"
+                >
+                  <AgentConfigureIcon />
+                </button>
+                <span className="workspace-chip workspace-chip-live workspace-agent-registry-chip">
+                  registered
+                </span>
+                <AgentHealthIcon isHealthy={agent.isHealthy} />
+              </div>
+            </article>
+          ))}
+        </div>
+      </WorkspaceCollapsibleSection>
+      <AgentSettingsDialog
+        agentName={settingsAgentName ?? ""}
+        agentRuntimeLlmApiUrl={
+          settingsAgentName
+            ? `${agentRuntimeLlmApiUrlBase}/${encodeURIComponent(settingsAgentName)}/runtime-llm`
+            : ""
+        }
+        open={settingsAgentName !== null}
+        openAiModelsApiUrl={openAiModelsApiUrl}
+        onClose={() => setSettingsAgentName(null)}
+      />
+      {toolsSlot}
       <div aria-label="Project partners" className="workspace-partner-grid">
         <div className="workspace-partner-tile">
           <Image
@@ -217,6 +269,6 @@ export function AgentList({ agents, refreshUrl, registryConnected }: AgentListPr
           />
         </div>
       </div>
-    </div>
+    </>
   );
 }

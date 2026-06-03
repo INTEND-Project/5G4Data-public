@@ -302,6 +302,8 @@ export function startOpenApiServer(options: OpenApiServerOptions) {
             packageName: manifest.name,
             packageVersion: manifest.version,
             model: options.runtime.getAppConfig().openClawModel,
+            temperature: options.runtime.getAppConfig().openAiTemperature,
+            llmProvider: options.runtime.getAppConfig().llmProvider,
             intentBindingMetadata: options.runtime.getDomainPackage().intentBindingMetadata ?? null
           })
         );

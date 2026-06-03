@@ -4,12 +4,14 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
 import { AgentList } from "@/components/workspace/agent-list";
+import { AgentLlmPreferencesProvider } from "@/components/workspace/agent-llm-preferences-context";
 import { AssistantPanel } from "@/components/workspace/assistant-panel";
 import { DomainSelector } from "@/components/workspace/domain-selector";
 import { IntentsPanel } from "@/components/workspace/intents-panel";
 import { KgTargetPanel } from "@/components/workspace/kg-target-panel";
 import { MetricStemsPanel } from "@/components/workspace/metric-stems-panel";
 import { PrometheusPanel } from "@/components/workspace/prometheus-panel";
+import { ToolsPanel } from "@/components/workspace/tools-panel";
 import { ScriptList } from "@/components/workspace/script-list";
 import { WorkspaceLeftSidebarResizable } from "@/components/workspace/workspace-left-sidebar-resizable";
 import { WorkspaceRightSidebarResizable } from "@/components/workspace/workspace-right-sidebar-resizable";
@@ -28,6 +30,8 @@ type WorkspaceShellProps = {
     isHealthy: boolean | null;
   }>;
   agentsRefreshUrl: string;
+  openAiModelsApiUrl: string;
+  agentRuntimeLlmApiUrlBase: string;
   kgTargetsCreateUrl: string;
   kgTargetsDeleteUrlBase: string;
   scriptsApiUrl: string;
@@ -88,6 +92,8 @@ export function WorkspaceShell({
   domainsApiUrl,
   agents,
   agentsRefreshUrl,
+  openAiModelsApiUrl,
+  agentRuntimeLlmApiUrlBase,
   kgTargetsCreateUrl,
   kgTargetsDeleteUrlBase,
   scriptsApiUrl,
@@ -215,6 +221,7 @@ export function WorkspaceShell({
   );
 
   return (
+    <AgentLlmPreferencesProvider>
     <main className="workspace-shell">
       <WorkspaceScriptSessionProvider
         currentUserId={currentUserId}
@@ -269,8 +276,16 @@ export function WorkspaceShell({
               </div>
               <AgentList
                 agents={agents}
+                agentRuntimeLlmApiUrlBase={agentRuntimeLlmApiUrlBase}
+                openAiModelsApiUrl={openAiModelsApiUrl}
                 refreshUrl={agentsRefreshUrl}
                 registryConnected={infraStatus.registryConnected}
+                toolsSlot={
+                  <ToolsPanel
+                    kgTargets={kgTargetsList}
+                    selectedKgTargetId={selectedKgTargetId}
+                  />
+                }
               />
             </aside>
           </WorkspaceLeftSidebarResizable>
@@ -320,5 +335,6 @@ export function WorkspaceShell({
         </section>
       </WorkspaceScriptSessionProvider>
     </main>
+    </AgentLlmPreferencesProvider>
   );
 }

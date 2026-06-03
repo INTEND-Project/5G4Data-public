@@ -7,15 +7,39 @@ import time
 from datetime import datetime
 
 class GraphDBClient:
-    def __init__(self, base_url="http://localhost:7200", repository="intents"):
-        self.base_url = base_url
+    def __init__(
+        self,
+        base_url="http://localhost:7200",
+        repository="intents",
+        username=None,
+        password=None,
+    ):
+        self.base_url = (base_url or "http://localhost:7200").rstrip("/")
         self.repository = repository
-        self.sparql_endpoint = f"{base_url}/repositories/{repository}/statements"
-        self.query_endpoint = f"{base_url}/repositories/{repository}/sparql"
+        self.sparql_endpoint = f"{self.base_url}/repositories/{repository}/statements"
+        self.query_endpoint = f"{self.base_url}/repositories/{repository}/sparql"
+
+        user = (
+            username
+            if username is not None
+            else os.getenv("GRAPHDB_USERNAME", "")
+        ).strip()
+        pwd = password if password is not None else os.getenv("GRAPHDB_PASSWORD", "")
+        self.auth = (user, pwd) if user and pwd else None
+
         # Create intents directory if it doesn't exist
         self.intents_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'intents')
         os.makedirs(self.intents_dir, exist_ok=True)
-        print(f"[DEBUG] [GraphDB] [{time.strftime('%Y-%m-%d %H:%M:%S')}] GraphDBClient initialized: base_url={base_url}, repository={repository}")
+        auth_status = "yes" if self.auth else "no"
+        print(
+            f"[DEBUG] [GraphDB] [{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+            f"GraphDBClient initialized: base_url={self.base_url}, repository={repository}, "
+            f"authentication={auth_status}"
+        )
+
+    def _request_auth(self):
+        """HTTP Basic auth kwargs for requests when credentials are configured."""
+        return {"auth": self.auth} if self.auth else {}
 
     def store_intent(self, intent_data, file_path=None):
         """Store an intent in GraphDB and return its ID"""
@@ -36,7 +60,8 @@ class GraphDBClient:
                 self.sparql_endpoint,
                 data=intent_data,
                 headers=headers,
-                timeout=60  # 60 second timeout
+                timeout=60,  # 60 second timeout
+                **self._request_auth(),
             )
             request_elapsed = time.time() - request_start
             print(f"[DEBUG] [GraphDB] [{time.strftime('%Y-%m-%d %H:%M:%S')}] GraphDB response received in {request_elapsed:.2f}s")
@@ -127,7 +152,8 @@ class GraphDBClient:
                 f"{self.base_url}/repositories/{self.repository}",
                 data=construct_query.encode("utf-8"),
                 headers=headers,
-                timeout=30
+                timeout=30,
+                **self._request_auth(),
             )
             response.raise_for_status()
             
@@ -163,7 +189,8 @@ class GraphDBClient:
             f"{self.base_url}/repositories/{self.repository}",
             data=query.encode("utf-8"),
             headers=headers,
-            timeout=30
+            timeout=30,
+            **self._request_auth(),
         )
         response.raise_for_status()
         return response.json()
@@ -186,7 +213,8 @@ class GraphDBClient:
             self.sparql_endpoint,
             data=delete_query,
             headers=headers,
-            timeout=30
+            timeout=30,
+            **self._request_auth(),
         )
         response.raise_for_status()
         return response.text
@@ -218,7 +246,8 @@ class GraphDBClient:
                 self.sparql_endpoint,
                 data=delete_query,
                 headers=headers,
-                timeout=30
+                timeout=30,
+                **self._request_auth(),
             )
             response.raise_for_status()
             

@@ -345,6 +345,8 @@ describe("workspace shell bootstrap", () => {
     expect(scriptRunnerSource).not.toContain("Run mode");
     expect(globalsSource).toContain(".workspace-runner-field");
     expect(globalsSource).toContain(".workspace-sidebar-column");
+    expect(globalsSource).toContain("container-name: workspace-sidebar");
+    expect(globalsSource).toContain("@container workspace-sidebar");
     expect(globalsSource).toContain(".workspace-sidebar-resizer");
     expect(globalsSource).toContain("grid-template-columns: auto 12px minmax(0, 1fr) 12px auto");
     expect(globalsSource).toContain(".workspace-script-name");

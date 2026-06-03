@@ -26,24 +26,29 @@ pip install -r requirements.txt
 ```
 
 3. Configure environment variables:
-Create a `.env` file in the root directory with these variables and set them according to your environment:
+Create a `.env` file in the Intent-Simulator directory with these variables and set them according to your environment:
 ```
-FLASK_APP=backend/app.py
+FLASK_APP=app.py
 FLASK_ENV=development
-GRAPHDB_URL=http://localhost:7200
+GRAPHDB_URL=https://start5g-1.cs.uit.no/graphdb
+GRAPHDB_REPOSITORY=intents_and_intent_reports
+GRAPHDB_USERNAME=your-graphdb-user
+GRAPHDB_PASSWORD=your-graphdb-password
 # ChatGPT is used to generate region polygons based on geographical names.
 OPENAI_API_KEY=sk-proj-xxxxxxxxx
 ```
+
+For a local GraphDB without authentication, omit `GRAPHDB_USERNAME` and `GRAPHDB_PASSWORD` and set `GRAPHDB_URL` to your instance (e.g. `http://localhost:7200`).
 
 ## Running the Application
 
 1. Start the backend server:
 ```bash
 export PYTHONPATH=$PYTHONPATH:.
-flask run # optional add port like this --port 3004
+flask run --port 3004
 ```
 
-2. Open your browser and navigate to `http://localhost:3000` (or other port number, if you changed it)
+2. Open your browser and navigate to `http://localhost:3004` (or the port you chose)
 
 ## Usage
 

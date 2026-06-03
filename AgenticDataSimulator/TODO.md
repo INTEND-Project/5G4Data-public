@@ -8,14 +8,22 @@ Always move recently closed TODOs to the top of the closed list.
 ### Complex TODO´s
 - [ ] The simulator PoC is complete in the sense that we can generate both historic and streaming timeseries for all metrics mentioned in an intent´s Conditions. What remains is to handle events, i.e. changes in how the timeseries are generated based on events that inCoord, inSustain and inExplain might initiate (e.g. actions, meaning modification of existing intents or creation of new intents). We need to discuss this...
 - [ ] The different tools (inCoord, inSustain, inExplain) may have requirements on how the timeseries needs to be created that is currently not supported. We need to include support for those requirements both in scripts (extend the DSL, add support for freetext key words, etc.) and in the SimulatorAgentPackages/5g4data-intent-observations agent package. Support in the agent can be implemented using more prompt modules (e.g SimulatorAgentPackages/5g4data-intent-observations/prompt_modules), as code (parse keywords in structured and freetext used in "request observation-report ..." commands in scripts and add code to support it), as refinements of the agent SKILL.md file, as agent tools, etc.
+- [ ] The PoC intent agent is good since we enforce determinism in many ways, but the observation agent probably needs improvement along many lines.... Having a good observation generating agent is very important... Maybe partners have insight that could help creating good observation generating agents? This is linked to the TODO item above, but even more holistic.
 - [ ] Add status report agent (or should the observation agent do that based on observed metrics?)
 
 ### Easy TODO´s?
-- [ ] Share as is not working anymore?
+- [ ] Make the turtle in the "Test send" window readable (as intent simulator does)
+- [ ] Make the sections in the panels "collapsable"
+- [ ] The sections in the right and left panel goes ouside the panel width on resize. Fix it (by make the elements smaller when resizing).
+- [ ] Full separation of dev and prod
 - [ ] Add functionality for the About/Help button
+- [ ]  Remove the agent sidecar API, and use only A2A to comunicate with agents to ensure A2A conformance for our agents. Reflect over if it is possible, the progress bar (GET …/observation-progress?intentId=…) and observation errors (GET …/observation-errors) might be a challenge....
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed
+- [x] Make it possible to select the model and the temperature for an agent. Add a configure icon for each agent in the agent list and when clicked, popup a settings window where the model name and temperature can be set. Available models can be selected from a list. The list should be generated using the OpenAI API (https://api.openai.com/v1/models).
+- [x] Add to SimulatorController that an intent can be sent to inSustain, inCoord or inExplain the same way ../inServ sends intents (TMF921). in the SimulatorController GUI, add a "Tools" section in the right panel where the tools inSustain, inCoord and inExplain is listed. For each tool in the list, add a "Settings" icon that when clicked pop ups a window that allows the user to set the URL for the tool and a "Send" icon that when clicked pop ups a window where an intent can be selected. The intents are stored in GraphDB and the list should be populated using a SPARQL query to get the intents from the selected repository (KG target). 
+- [x] Share as is not working anymore? Cookie problem between dev and prod.
 - [x] Send Ericsson/Mario description of how the metadata query thingy works.
 - [x] Add a progress bar per metric that is being generated. For long historic timeseries with 100K++ tics the generation takes a long time and the user needs some sort of feedback.
 - [x] For long timeseries the Grafana dashboard is not showing data, fix it. It was related to how the url timeframe for the grafana dashboard was constructed.

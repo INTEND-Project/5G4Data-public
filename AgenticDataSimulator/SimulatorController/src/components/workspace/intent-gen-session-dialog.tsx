@@ -216,6 +216,10 @@ export function IntentGenSessionDialog({
         } else if (llmFields.reportingIntervalMinutes !== undefined) {
           payload.reportingIntervalMinutes = llmFields.reportingIntervalMinutes;
         }
+        const trimmedPrometheusBase = prometheusBaseUrl.trim();
+        if (trimmedPrometheusBase) {
+          payload.prometheusBaseUrl = trimmedPrometheusBase;
+        }
 
         const response = await fetch(a2aMessageSendUrl, {
           method: "POST",
@@ -286,6 +290,7 @@ export function IntentGenSessionDialog({
                 domain,
                 intentId: canonical,
                 storage,
+                prometheusBaseUrl: prometheusBaseUrl.trim() || undefined,
               }),
             });
           } catch {

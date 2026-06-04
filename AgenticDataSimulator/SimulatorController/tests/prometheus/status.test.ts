@@ -11,7 +11,7 @@ describe("prometheus status", () => {
       DATABASE_URL: "file:./dev.db",
       A2A_REGISTRY_BASE_URL: "https://registry.example",
       GRAPHDB_BASE_URL: "http://graphdb.example/",
-      PROMETHEUS_URL: "http://prometheus.example:9090/",
+      PROMETHEUS_URL: "http://127.0.0.1:9090/",
       PUSHGATEWAY_URL: "http://pushgateway.example:9091",
     };
   });
@@ -29,7 +29,22 @@ describe("prometheus status", () => {
     const prometheusStatusModule = await import("../../src/lib/prometheus/status");
 
     await expect(prometheusStatusModule.getPrometheusConnectionStatus()).resolves.toBe(true);
-    expect(fetchMock).toHaveBeenCalledWith("http://prometheus.example:9090/-/healthy", {
+    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:9090/-/healthy", {
+      cache: "no-store",
+    });
+  });
+
+  it("does not fall back to executor URL when workspace override is provided", async () => {
+    process.env.PROMETHEUS_EXECUTOR_URL = "http://127.0.0.1:9090";
+    const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const prometheusStatusModule = await import("../../src/lib/prometheus/status");
+
+    await expect(
+      prometheusStatusModule.getPrometheusConnectionStatus("https://partner.example/prometheus"),
+    ).resolves.toBe(false);
+    expect(fetchMock).toHaveBeenCalledWith("https://partner.example/prometheus/-/healthy", {
       cache: "no-store",
     });
   });

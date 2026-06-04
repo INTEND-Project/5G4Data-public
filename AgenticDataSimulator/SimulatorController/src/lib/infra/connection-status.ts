@@ -15,6 +15,7 @@ let cachedAt = 0;
 
 export async function getInfraConnectionStatus(options?: {
   forceRefresh?: boolean;
+  prometheusBaseUrl?: string | null;
 }): Promise<InfraConnectionStatus> {
   if (
     !options?.forceRefresh &&
@@ -27,7 +28,7 @@ export async function getInfraConnectionStatus(options?: {
   const [registryConnected, graphDbConnected, prometheusConnected] = await Promise.all([
     getRegistryConnectionStatus(),
     getGraphDbConnectionStatus(),
-    getPrometheusConnectionStatus(),
+    getPrometheusConnectionStatus(options?.prometheusBaseUrl),
   ]);
 
   cachedStatus = { registryConnected, graphDbConnected, prometheusConnected };

@@ -60,6 +60,7 @@ export async function listOwnedIntentIdsForUser(
 export async function unregisterGraphStoredIntentsForTarget(
   userId: string,
   graphTargetId: string,
+  prometheusBaseUrl?: string | null,
 ): Promise<void> {
   const rows = await db.userIntent.findMany({
     where: {
@@ -77,9 +78,9 @@ export async function unregisterGraphStoredIntentsForTarget(
   }
 
   let prometheusIds = new Set<string>();
-  if (await getPrometheusConnectionStatus()) {
+  if (await getPrometheusConnectionStatus(prometheusBaseUrl)) {
     try {
-      prometheusIds = new Set(await listIntentIds());
+      prometheusIds = new Set(await listIntentIds(prometheusBaseUrl));
     } catch {
       prometheusIds = new Set();
     }

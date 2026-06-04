@@ -1,20 +1,19 @@
-import { z } from "zod";
-
-import { normalizePrometheusBaseUrl } from "@/lib/prometheus/urls";
-
-const prometheusExecutorUrlSchema = z
-  .string()
-  .trim()
-  .url({ message: "Enter a valid HTTP or HTTPS URL." });
+import { resolvePrometheusBaseUrl } from "@/lib/prometheus/resolve-base-url";
 
 /**
- * Prometheus API base used in GraphDB `hasQuery` metadata and by IntentReportQueryProxy
- * on the same host as Prometheus. Not the public HTTPS URL from the Controller UI.
+ * Prometheus API base for GraphDB `hasQuery` metadata and IntentReportQueryProxy.
+ * Uses workspace override when provided; otherwise PROMETHEUS_EXECUTOR_URL or PROMETHEUS_URL.
  */
-export function resolvePrometheusExecutorBaseUrl(): string {
-  const raw = process.env.PROMETHEUS_EXECUTOR_URL?.trim();
-  if (raw) {
-    return normalizePrometheusBaseUrl(prometheusExecutorUrlSchema.parse(raw));
+export function resolvePrometheusExecutorBaseUrl(prometheusBaseUrl?: string | null): string {
+  const override = prometheusBaseUrl?.trim();
+  if (override) {
+    return resolvePrometheusBaseUrl(override);
   }
-  return normalizePrometheusBaseUrl("http://127.0.0.1:9090");
+
+  const fromExecutor = process.env.PROMETHEUS_EXECUTOR_URL?.trim();
+  if (fromExecutor) {
+    return resolvePrometheusBaseUrl(fromExecutor);
+  }
+
+  return resolvePrometheusBaseUrl();
 }

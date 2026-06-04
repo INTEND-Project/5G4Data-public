@@ -75,14 +75,14 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-async function listPrometheusIntentIds(): Promise<string[]> {
-  const connected = await getPrometheusConnectionStatus();
+async function listPrometheusIntentIds(prometheusBaseUrl?: string | null): Promise<string[]> {
+  const connected = await getPrometheusConnectionStatus(prometheusBaseUrl);
   if (!connected) {
     return [];
   }
 
   try {
-    return await listIntentIds();
+    return await listIntentIds(prometheusBaseUrl);
   } catch {
     return [];
   }
@@ -222,7 +222,7 @@ export async function listIntentsForDomain(
     return [];
   }
 
-  const prometheusIntentIds = await listPrometheusIntentIds();
+  const prometheusIntentIds = await listPrometheusIntentIds(options.prometheusBaseUrl);
   const prometheusSet = new Set(prometheusIntentIds);
   const { owners: intentOwners, graphPresentIds } = await resolveIntentOwners(
     targets,

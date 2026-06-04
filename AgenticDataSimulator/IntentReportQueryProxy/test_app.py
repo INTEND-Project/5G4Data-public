@@ -72,6 +72,15 @@ class PrometheusQueryUrlTests(unittest.TestCase):
             )
         )
 
+    def test_external_partner_url_not_rewritten(self):
+        stored = (
+            "https://partner-prometheus.example/api/v1/query?"
+            "query=energyconsumption_COf1%7Bjob%3D%22intent_reports%22%7D"
+        )
+        with patch.object(proxy, "PROMETHEUS_EXECUTOR_URL", "http://127.0.0.1:9090"):
+            rewritten = proxy.rewrite_prometheus_query_url(stored)
+        self.assertEqual(rewritten, stored)
+
 
 class PrometheusStepParsingTests(unittest.TestCase):
     def test_parse_duration_units(self):

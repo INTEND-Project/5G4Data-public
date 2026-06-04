@@ -18,7 +18,7 @@ describe("prometheus client", () => {
       DATABASE_URL: "file:./dev.db",
       A2A_REGISTRY_BASE_URL: "https://registry.example",
       GRAPHDB_BASE_URL: "http://graphdb.example/",
-      PROMETHEUS_URL: "http://prometheus.example:9090/",
+      PROMETHEUS_URL: "http://127.0.0.1:9090/",
       PUSHGATEWAY_URL: "http://pushgateway.example:9091",
     };
   });
@@ -48,9 +48,60 @@ describe("prometheus client", () => {
       "Iaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://prometheus.example:9090/api/v1/label/intent_id/values",
+      "http://127.0.0.1:9090/api/v1/label/intent_id/values",
       { cache: "no-store" },
     );
+  });
+
+  it("skips Pushgateway delete for external Prometheus base URL", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && url.includes("/api/v1/series")) {
+        return new Response(JSON.stringify({ status: "success", data: [] }), { status: 200 });
+      }
+
+      if (method === "POST" && url.includes("/api/v1/admin/tsdb/delete_series")) {
+        return new Response(null, { status: 204 });
+      }
+
+      if (method === "POST" && url.endsWith("/api/v1/admin/tsdb/clean_tombstones")) {
+        return new Response(null, { status: 200 });
+      }
+
+      if (method === "GET" && url.includes("/api/v1/query")) {
+        return new Response(
+          JSON.stringify({
+            status: "success",
+            data: { resultType: "vector", result: [] },
+          }),
+          { status: 200 },
+        );
+      }
+
+      return new Response(null, { status: 500 });
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const prometheusClientModule = await import("../../src/lib/prometheus/client");
+
+    await expect(
+      prometheusClientModule.clearIntentMetrics(canonicalIntentId, {
+        prometheusBaseUrl: "https://partner.example/prometheus",
+      }),
+    ).resolves.toMatchObject({
+      intentId: canonicalIntentId,
+      pushgatewayCleared: true,
+      verifiedEmpty: true,
+    });
+
+    const pushgatewayDeletes = fetchMock.mock.calls.filter(([input, init]) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : String(input);
+      return (init?.method ?? "GET") === "DELETE" && url.includes("pushgateway");
+    });
+    expect(pushgatewayDeletes).toHaveLength(0);
   });
 
   it("clears Pushgateway group and Prometheus TSDB series for an intent", async () => {

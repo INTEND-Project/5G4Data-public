@@ -38,10 +38,20 @@ function parseStorageField(value: unknown): ObservationStorageType | null {
   return null;
 }
 
+function parsePrometheusStorageModeField(value: unknown): PrometheusStackMode | null {
+  const t = readNonEmptyString(value)?.toLowerCase();
+  if (t === "local" || t === "external") return t;
+  return null;
+}
+
+export type PrometheusStackMode = "local" | "external";
+
 export type OpenClawControllerMetadata = {
   graphTarget: GraphTargetBinding | null;
   observationStorage: ObservationStorageType | null;
   createIntentStorage: ObservationStorageType | null;
+  prometheusBaseUrl: string | null;
+  prometheusStorageMode: PrometheusStackMode | null;
   llmModel: string | null;
   temperature: number | null;
   reportingIntervalMinutes: number | null;
@@ -113,6 +123,8 @@ export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawCont
 
   const observationStorage = parseStorageField(openclaw.observationStorage);
   const createIntentStorage = parseStorageField(openclaw.createIntentStorage);
+  const prometheusBaseUrl = readNonEmptyString(openclaw.prometheusBaseUrl);
+  const prometheusStorageMode = parsePrometheusStorageModeField(openclaw.prometheusStorageMode);
   const llmModel = readNonEmptyString(openclaw.llmModel);
   const temperature = parseTemperatureField(openclaw.temperature);
   const reportingIntervalMinutes = parseReportingIntervalMinutesField(
@@ -126,6 +138,7 @@ export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawCont
     !graphTarget &&
     !observationStorage &&
     !createIntentStorage &&
+    !prometheusBaseUrl &&
     !llmModel &&
     temperature === null &&
     reportingIntervalMinutes === null &&
@@ -138,6 +151,8 @@ export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawCont
     graphTarget,
     observationStorage,
     createIntentStorage,
+    prometheusBaseUrl,
+    prometheusStorageMode,
     llmModel,
     temperature,
     reportingIntervalMinutes,

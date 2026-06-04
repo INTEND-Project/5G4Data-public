@@ -132,12 +132,36 @@ def choose_stored_prometheus_query_url(urls):
     return max(urls, key=score)
 
 
+LOCAL_PROMETHEUS_HOSTS = frozenset({'127.0.0.1', 'localhost', 'host.docker.internal'})
+
+
+def should_rewrite_prometheus_query_url(stored_url):
+    """Rewrite only lab/local metadata URLs; partner Prometheus URLs run as stored."""
+    if not stored_url:
+        return False
+    try:
+        host = (urlparse(stored_url).hostname or '').lower()
+    except ValueError:
+        return False
+    if host in LOCAL_PROMETHEUS_HOSTS:
+        return True
+    if 'host.docker.internal' in stored_url:
+        return True
+    if 'start5g-1' in host or 'start5g-1' in stored_url:
+        return True
+    if '/prometheus/' in stored_url.lower() or stored_url.rstrip('/').endswith('/prometheus'):
+        return True
+    return False
+
+
 def rewrite_prometheus_query_url(stored_url):
     """
-    Rewrite GraphDB hasQuery URLs to PROMETHEUS_EXECUTOR_URL so this proxy always
-    queries Prometheus on the host, regardless of duplicate or public metadata URLs.
+    Rewrite GraphDB hasQuery URLs to PROMETHEUS_EXECUTOR_URL for the lab stack.
+    External/partner Prometheus URLs are executed as stored.
     """
     if not stored_url or not is_prometheus_query_url(stored_url):
+        return stored_url
+    if not should_rewrite_prometheus_query_url(stored_url):
         return stored_url
 
     parsed = urlparse(stored_url)

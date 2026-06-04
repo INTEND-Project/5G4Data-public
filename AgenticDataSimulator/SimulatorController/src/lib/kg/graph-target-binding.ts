@@ -35,11 +35,15 @@ export function buildGraphTargetBinding(
   };
 }
 
+export type PrometheusStackMode = "local" | "external";
+
 export type OpenClawControllerMetadata = {
   controllerBindingVersion: "1";
   graphTarget?: GraphTargetBinding;
   observationStorage?: "graphdb" | "prometheus";
   createIntentStorage?: "graphdb" | "prometheus";
+  prometheusBaseUrl?: string;
+  prometheusStorageMode?: PrometheusStackMode;
   llmModel?: string;
   temperature?: number;
   reportingIntervalMinutes?: number;
@@ -50,6 +54,8 @@ export function openClawMetadataEnvelope(opts: {
   graphTarget?: GraphTargetBinding;
   observationStorage?: "graphdb" | "prometheus";
   createIntentStorage?: "graphdb" | "prometheus";
+  prometheusBaseUrl?: string;
+  prometheusStorageMode?: PrometheusStackMode;
   llmModel?: string;
   temperature?: number;
   reportingIntervalMinutes?: number;
@@ -63,6 +69,13 @@ export function openClawMetadataEnvelope(opts: {
   if (opts.graphTarget) openclaw.graphTarget = opts.graphTarget;
   if (opts.observationStorage) openclaw.observationStorage = opts.observationStorage;
   if (opts.createIntentStorage) openclaw.createIntentStorage = opts.createIntentStorage;
+  const promBase = opts.prometheusBaseUrl?.trim();
+  if (promBase) {
+    openclaw.prometheusBaseUrl = promBase;
+    if (opts.prometheusStorageMode) {
+      openclaw.prometheusStorageMode = opts.prometheusStorageMode;
+    }
+  }
   const model = opts.llmModel?.trim();
   if (model) openclaw.llmModel = model;
   if (opts.temperature !== undefined && Number.isFinite(opts.temperature)) {
@@ -87,6 +100,8 @@ export function hasOpenClawMetadataFields(opts: {
   graphTarget?: GraphTargetBinding;
   observationStorage?: "graphdb" | "prometheus";
   createIntentStorage?: "graphdb" | "prometheus";
+  prometheusBaseUrl?: string;
+  prometheusStorageMode?: PrometheusStackMode;
   llmModel?: string;
   temperature?: number;
   reportingIntervalMinutes?: number;
@@ -96,6 +111,7 @@ export function hasOpenClawMetadataFields(opts: {
     opts.graphTarget ||
       opts.observationStorage ||
       opts.createIntentStorage ||
+      opts.prometheusBaseUrl?.trim() ||
       opts.llmModel?.trim() ||
       (opts.temperature !== undefined && Number.isFinite(opts.temperature)) ||
       (opts.reportingIntervalMinutes !== undefined && Number.isFinite(opts.reportingIntervalMinutes)) ||

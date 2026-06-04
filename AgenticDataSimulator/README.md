@@ -301,7 +301,7 @@ Set in the observation clone `.env` (see `SimulatorAgentPackages/5g4data-intent-
 | `GRAPHDB_NAMED_GRAPH`                   | Named graph for observation reports (e.g. `http://intent-reports`)                                                                               |
 | `PROMETHEUS_URL`                        | Prometheus API base for GraphDB `hasQuery` metadata (IntentReportQueryProxy reads this URL); use `http://127.0.0.1:9090/prometheus` on start5g-1 |
 | `PROMETHEUS_REMOTE_WRITE_URL`           | Historic observation batch write endpoint; use `http://host.docker.internal:9090/prometheus/api/v1/write` from Dockerized agent                  |
-| `PUSHGATEWAY_URL`                       | Pushgateway base for streaming samples; use `http://host.docker.internal:9091` from Dockerized agent                                             |
+| `PUSHGATEWAY_URL`                       | Pushgateway base for streaming samples on the **local** lab stack only; external Prometheus sessions use remote write for streaming too (set via Controller UI → A2A `openclaw`) |
 | `NO_GRAPHDB`                            | When `true`, skip GraphDB observation inserts (metadata registration still attempted)                                                            |
 
 

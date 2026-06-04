@@ -4,6 +4,7 @@ import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { clearKnowledgeGraph } from "@/lib/graphdb/client";
 import { parseGraphDbBaseUrlInput } from "@/lib/graphdb/resolve-base-url";
+import { parsePrometheusBaseUrlFromSearchParams } from "@/lib/prometheus/parse-request-base-url";
 import { invalidateLiteListCache } from "@/lib/intents/list-intents-cache";
 import { unregisterGraphStoredIntentsForTarget } from "@/lib/intents/user-intent-registry";
 
@@ -58,7 +59,12 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
-  await unregisterGraphStoredIntentsForTarget(user.id, target.id);
+  const parsedPrometheus = parsePrometheusBaseUrlFromSearchParams(new URL(request.url).searchParams);
+  if (!parsedPrometheus.ok) {
+    return NextResponse.json({ error: parsedPrometheus.error }, { status: 400 });
+  }
+
+  await unregisterGraphStoredIntentsForTarget(user.id, target.id, parsedPrometheus.url);
   invalidateLiteListCache();
 
   return NextResponse.json({ emptiedTargetId: target.id });

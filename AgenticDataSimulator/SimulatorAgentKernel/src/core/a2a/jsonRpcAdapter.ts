@@ -168,6 +168,16 @@ function applyOpenClawMetadataToSession(
   if (parsed.reportingIntervalSeconds !== null) {
     session.reportingIntervalSecondsOverride = parsed.reportingIntervalSeconds;
   }
+  if (parsed.prometheusBaseUrl) {
+    session.prometheusBaseUrl = parsed.prometheusBaseUrl;
+    session.prometheusStorageMode =
+      parsed.prometheusStorageMode ??
+      (parsed.prometheusBaseUrl.includes("127.0.0.1") ||
+      parsed.prometheusBaseUrl.includes("localhost") ||
+      parsed.prometheusBaseUrl.includes("host.docker.internal")
+        ? "local"
+        : "external");
+  }
   return null;
 }
 

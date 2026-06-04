@@ -109,7 +109,7 @@ export async function storePrometheusQueryMetadata(input: {
   repositoryId: string;
   intentId: string;
   compoundMetric: string;
-  /** Ignored for hasQuery embedding; metadata always uses the local executor base. */
+  /** Workspace Prometheus base URL for hasQuery embedding. */
   prometheusBaseUrl?: string | null;
   graphDbBaseUrl?: string | null;
 }): Promise<void> {
@@ -118,7 +118,7 @@ export async function storePrometheusQueryMetadata(input: {
     return;
   }
 
-  const baseUrl = resolvePrometheusExecutorBaseUrl();
+  const baseUrl = resolvePrometheusExecutorBaseUrl(input.prometheusBaseUrl);
   const { conditionId } = parseCompoundMetricParts(input.compoundMetric);
   const identity = {
     compoundMetric: input.compoundMetric,

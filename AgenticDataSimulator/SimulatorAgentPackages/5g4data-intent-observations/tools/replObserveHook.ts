@@ -16,10 +16,15 @@ import {
   syntheticObservationStatus
 } from "./syntheticRunOrchestrator.js";
 import type { ObservationStorageId } from "./observationStorageTypes.js";
+import {
+  applySessionPrometheusBinding,
+  resetPrometheusBackendForSession,
+  type SessionPrometheusBinding,
+} from "./sessionPrometheusEnv.js";
 
 interface ReplObserveHookContext {
   line: string;
-  session: { sessionId: string };
+  session: { sessionId: string } & SessionPrometheusBinding;
   debug: boolean;
   debugLogPath: string;
   packageDir: string;
@@ -77,6 +82,9 @@ function syntheticPromptCandidates(line: string): string[] {
 export async function handleReplLine(
   ctx: ReplObserveHookContext
 ): Promise<{ handled: boolean; assistantText?: string }> {
+  applySessionPrometheusBinding(ctx.session);
+  resetPrometheusBackendForSession();
+
   const line = ctx.line.trim();
 
   if (!line.toLowerCase().startsWith("observe")) {

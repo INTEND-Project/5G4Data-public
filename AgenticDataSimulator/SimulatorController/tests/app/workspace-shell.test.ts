@@ -97,7 +97,7 @@ describe("workspace shell bootstrap", () => {
     expect(shellSource).toContain("intend-icon.png");
     expect(shellSource).not.toContain("agent registry connected");
     expect(shellSource).not.toContain("agent registry disconnected");
-    expect(shellSource).toContain("useInfraConnectionStatus");
+    expect(shellSource).toContain("useWorkspaceInfraConnectionStatus");
     expect(shellSource).toContain("infraStatusApiUrl");
     expect(shellSource).toContain("infraStatus.registryConnected");
     expect(shellSource).not.toContain("WorkspaceRunIdChip");
@@ -236,7 +236,8 @@ describe("workspace shell bootstrap", () => {
     expect(kgTargetPanelSource).toContain("window.confirm");
     expect(kgTargetPanelSource).toContain("beginStorageDeletion");
     expect(kgTargetPanelSource).toContain("endStorageDeletion");
-    expect(kgTargetPanelSource).toContain("graphDbBaseUrlParams");
+    expect(kgTargetPanelSource).toContain("workspaceInfraUrlParams");
+    expect(kgTargetPanelSource).toContain("prometheusBaseUrl");
     expect(kgTargetPanelSource).toContain("/empty${query");
     expect(kgTargetPanelSource).toContain('method: "POST"');
     expect(kgTargetPanelSource).toContain('method: "DELETE"');

@@ -5,10 +5,18 @@ import type { GraphDbEnvFallback } from "./graphTargetBinding.js";
 import { resolveObsLogMaxEntries } from "./observationLog.js";
 import { ObservationTool, type ConditionMetric, type ReportableObservationStream } from "./observationTool.js";
 import {
+  flushBufferedPrometheusRemoteWriteChunk,
+} from "./observationStorage/prometheusBackend.js";
+import {
   persistObservationWithStorage,
   registerObservationMetadataForMetric
 } from "./persistObservation.js";
+import { resolveObservationStorageTypes } from "./resolveObservationStorage.js";
 import type { ObservationStorageId } from "./observationStorageTypes.js";
+import {
+  resolvePrometheusWriteMode,
+  usesRemoteWriteForStreaming,
+} from "./sessionPrometheusEnv.js";
 
 export interface StartObservationStreamsArgs {
   sessionId: string;
@@ -88,6 +96,13 @@ async function emitTick(
   const payload = tool.generateObservation(streamAsConditionMetric(stream), value, iso);
   const turtle = tool.toTurtle(payload);
 
+  const storageIds = resolveObservationStorageTypes({
+    sessionOverride: args.observationStorageOverride,
+    intentDestinations: stream.storageTypes,
+    createIntentStorage: args.createIntentStorage,
+  });
+  const prometheusWriteMode = resolvePrometheusWriteMode("streaming", storageIds.includes("prometheus"));
+
   await persistObservationWithStorage({
     graphTool,
     intentId: state.intentId,
@@ -99,8 +114,16 @@ async function emitTick(
     storageTypes: stream.storageTypes,
     sessionOverride: args.observationStorageOverride,
     createIntentStorage: args.createIntentStorage,
-    log: { source: "stream", sessionId, frequencySeconds: stream.frequencySeconds }
+    prometheusWriteMode,
+    log: { source: "stream", sessionId, frequencySeconds: stream.frequencySeconds },
   });
+
+  if (usesRemoteWriteForStreaming() && storageIds.includes("prometheus")) {
+    await flushBufferedPrometheusRemoteWriteChunk(
+      { intentId: state.intentId, metric },
+      { force: true },
+    );
+  }
 
   if (!args.debug) return;
 

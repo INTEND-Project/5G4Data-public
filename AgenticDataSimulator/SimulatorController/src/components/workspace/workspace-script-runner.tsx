@@ -153,6 +153,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     setScriptRunInProgress,
     replaceServerScripts,
     graphDbBaseUrl,
+    prometheusBaseUrl,
   } = useWorkspaceScriptSession();
 
   const appendA2ATranscriptTurn = useCallback(
@@ -927,12 +928,19 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           intentId: canonicalIntentId,
           storage,
           graphTargetId: selectedKgTargetId || undefined,
+          prometheusBaseUrl: prometheusBaseUrl.trim() || undefined,
         }),
       }).catch(() => {
         // Best-effort; store-intent and intent dialog also register.
       });
     },
-    [intentsRegisterUrl, markIntentAwaitingObservation, selectedDomain, selectedKgTargetId],
+    [
+      intentsRegisterUrl,
+      markIntentAwaitingObservation,
+      prometheusBaseUrl,
+      selectedDomain,
+      selectedKgTargetId,
+    ],
   );
 
   const handleRunScript = useCallback(async () => {

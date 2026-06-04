@@ -1,6 +1,10 @@
-import { loadAppEnv } from "@/lib/env";
 import { parseIntentLocalIdForMetricCatalog } from "@/lib/kg/metric-catalog-query";
 import { resolvePrometheusBaseUrl } from "@/lib/prometheus/resolve-base-url";
+import {
+  isLocalPrometheusStack,
+  resolvePushgatewayBaseUrl,
+  usesPushgatewayForStreaming,
+} from "@/lib/prometheus/resolve-stack-urls";
 import { runIntentTsdbRewrite } from "@/lib/prometheus/tsdb-intent-rewrite";
 import { normalizePushgatewayBaseUrl } from "@/lib/prometheus/urls";
 
@@ -39,18 +43,9 @@ export type ClearIntentMetricsResult = {
   oooRewriteFallbackUsed: boolean;
 };
 
-function prometheusBaseUrl(override?: string | null): string {
-  return resolvePrometheusBaseUrl(override);
-}
-
-function pushgatewayBaseUrlFromEnv(): string {
-  const env = loadAppEnv(process.env);
-  return normalizePushgatewayBaseUrl(env.pushgatewayUrl);
-}
-
-export function validateIntentIdForPrometheusClear(raw: string): string | null {
-  return parseIntentLocalIdForMetricCatalog(raw);
-}
+export type ClearIntentMetricsOptions = {
+  prometheusBaseUrl?: string | null;
+};
 
 function escapePrometheusLabelValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -68,8 +63,12 @@ function buildSeriesMatcher(labels: Record<string, string>): string {
   return `{${parts.join(",")}}`;
 }
 
-export async function listIntentIds(): Promise<string[]> {
-  const baseUrl = prometheusBaseUrl();
+export function validateIntentIdForPrometheusClear(raw: string): string | null {
+  return parseIntentLocalIdForMetricCatalog(raw);
+}
+
+export async function listIntentIds(prometheusBaseUrl?: string | null): Promise<string[]> {
+  const baseUrl = resolvePrometheusBaseUrl(prometheusBaseUrl);
   const response = await fetch(
     `${baseUrl}api/v1/label/intent_id/values`,
     { cache: "no-store" },
@@ -84,21 +83,27 @@ export async function listIntentIds(): Promise<string[]> {
   return [...values].sort((left, right) => left.localeCompare(right));
 }
 
-function pushgatewayIntentGroupUrl(intentId: string): string {
-  const base = pushgatewayBaseUrlFromEnv();
+function pushgatewayIntentGroupUrl(intentId: string, pushgatewayBase: string): string {
+  const base = normalizePushgatewayBaseUrl(pushgatewayBase);
   return `${base}/metrics/job/${encodeURIComponent(INTENT_REPORTS_JOB)}/intent_id/${encodeURIComponent(intentId)}`;
 }
 
-async function clearPushgatewayIntentGroup(intentId: string): Promise<boolean> {
-  const response = await fetch(pushgatewayIntentGroupUrl(intentId), {
+async function clearPushgatewayIntentGroup(
+  intentId: string,
+  pushgatewayBase: string,
+): Promise<boolean> {
+  const response = await fetch(pushgatewayIntentGroupUrl(intentId, pushgatewayBase), {
     method: "DELETE",
   });
 
   return response.ok || response.status === 404;
 }
 
-async function listPrometheusSeriesForIntent(intentId: string): Promise<Array<Record<string, string>>> {
-  const baseUrl = prometheusBaseUrl();
+async function listPrometheusSeriesForIntent(
+  intentId: string,
+  prometheusBaseUrl?: string | null,
+): Promise<Array<Record<string, string>>> {
+  const baseUrl = resolvePrometheusBaseUrl(prometheusBaseUrl);
   const url = `${baseUrl}api/v1/series?${new URLSearchParams({
     "match[]": buildIntentMatcher(intentId),
   }).toString()}`;
@@ -113,8 +118,13 @@ async function listPrometheusSeriesForIntent(intentId: string): Promise<Array<Re
   return payload.data ?? [];
 }
 
-async function postDeleteSeries(match: string, start?: number, end?: number): Promise<void> {
-  const baseUrl = prometheusBaseUrl();
+async function postDeleteSeries(
+  match: string,
+  prometheusBaseUrl?: string | null,
+  start?: number,
+  end?: number,
+): Promise<void> {
+  const baseUrl = resolvePrometheusBaseUrl(prometheusBaseUrl);
   const params = new URLSearchParams({ "match[]": match });
 
   if (start !== undefined) {
@@ -134,22 +144,25 @@ async function postDeleteSeries(match: string, start?: number, end?: number): Pr
   }
 }
 
-async function deletePrometheusSeriesForIntent(intentId: string): Promise<void> {
+async function deletePrometheusSeriesForIntent(
+  intentId: string,
+  prometheusBaseUrl?: string | null,
+): Promise<void> {
   const matchers = new Set<string>([buildIntentMatcher(intentId)]);
 
-  const series = await listPrometheusSeriesForIntent(intentId);
+  const series = await listPrometheusSeriesForIntent(intentId, prometheusBaseUrl);
 
   for (const labels of series) {
     matchers.add(buildSeriesMatcher(labels));
   }
 
   for (const match of matchers) {
-    await postDeleteSeries(match);
+    await postDeleteSeries(match, prometheusBaseUrl);
   }
 }
 
-async function cleanPrometheusTombstones(): Promise<void> {
-  const baseUrl = prometheusBaseUrl();
+async function cleanPrometheusTombstones(prometheusBaseUrl?: string | null): Promise<void> {
+  const baseUrl = resolvePrometheusBaseUrl(prometheusBaseUrl);
   const response = await fetch(`${baseUrl}api/v1/admin/tsdb/clean_tombstones`, {
     method: "POST",
   });
@@ -159,8 +172,11 @@ async function cleanPrometheusTombstones(): Promise<void> {
   }
 }
 
-async function countIntentSamples(intentId: string): Promise<number> {
-  const baseUrl = prometheusBaseUrl();
+async function countIntentSamples(
+  intentId: string,
+  prometheusBaseUrl?: string | null,
+): Promise<number> {
+  const baseUrl = resolvePrometheusBaseUrl(prometheusBaseUrl);
   const matcher = buildIntentMatcher(intentId);
   const query = `sum(count_over_time(${matcher}[${INTENT_SAMPLE_LOOKBACK}]))`;
   const url = `${baseUrl}api/v1/query?${new URLSearchParams({ query }).toString()}`;
@@ -183,24 +199,33 @@ async function countIntentSamples(intentId: string): Promise<number> {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export async function clearIntentMetrics(intentIdRaw: string): Promise<ClearIntentMetricsResult> {
+export async function clearIntentMetrics(
+  intentIdRaw: string,
+  options: ClearIntentMetricsOptions = {},
+): Promise<ClearIntentMetricsResult> {
   const intentId = validateIntentIdForPrometheusClear(intentIdRaw);
 
   if (!intentId) {
     throw new Error("intentId must be canonical I + 32 hex characters");
   }
 
-  const pushgatewayCleared = await clearPushgatewayIntentGroup(intentId);
-  await deletePrometheusSeriesForIntent(intentId);
-  await cleanPrometheusTombstones();
+  const baseUrl = resolvePrometheusBaseUrl(options.prometheusBaseUrl);
+  const usePushgateway = usesPushgatewayForStreaming(baseUrl);
 
-  let samplesRemaining = await countIntentSamples(intentId);
+  const pushgatewayCleared = usePushgateway
+    ? await clearPushgatewayIntentGroup(intentId, resolvePushgatewayBaseUrl())
+    : true;
+
+  await deletePrometheusSeriesForIntent(intentId, options.prometheusBaseUrl);
+  await cleanPrometheusTombstones(options.prometheusBaseUrl);
+
+  let samplesRemaining = await countIntentSamples(intentId, options.prometheusBaseUrl);
   let oooRewriteFallbackUsed = false;
 
-  if (samplesRemaining > 0) {
+  if (samplesRemaining > 0 && isLocalPrometheusStack(baseUrl)) {
     await runIntentTsdbRewrite(intentId);
     oooRewriteFallbackUsed = true;
-    samplesRemaining = await countIntentSamples(intentId);
+    samplesRemaining = await countIntentSamples(intentId, options.prometheusBaseUrl);
   }
 
   if (samplesRemaining > 0) {

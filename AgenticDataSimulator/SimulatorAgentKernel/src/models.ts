@@ -37,6 +37,10 @@ export interface ChatSession {
   reportingIntervalMinutesOverride?: number | null;
   /** From A2A metadata.openclaw.reportingIntervalSeconds for this task (takes precedence over minutes). */
   reportingIntervalSecondsOverride?: number | null;
+  /** Workspace Prometheus API base from Controller UI. */
+  prometheusBaseUrl?: string | null;
+  /** local = Pushgateway streaming; external = remote-write only. */
+  prometheusStorageMode?: "local" | "external" | null;
 }
 
 export type ModelInvokeOptions = {

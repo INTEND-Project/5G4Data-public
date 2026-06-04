@@ -85,6 +85,19 @@ test("parseOpenClawControllerMetadata clamps reportingIntervalMinutes", () => {
   assert.equal(parsed.reportingIntervalMinutes, 1440);
 });
 
+test("parseOpenClawControllerMetadata accepts prometheusBaseUrl", () => {
+  const parsed = parseOpenClawControllerMetadata({
+    openclaw: {
+      controllerBindingVersion: "1",
+      prometheusBaseUrl: "https://partner.example/prometheus",
+      prometheusStorageMode: "external",
+    },
+  });
+  assert.ok(parsed);
+  assert.equal(parsed.prometheusBaseUrl, "https://partner.example/prometheus");
+  assert.equal(parsed.prometheusStorageMode, "external");
+});
+
 test("parseOpenClawControllerMetadata accepts reportingIntervalSeconds", () => {
   const parsed = parseOpenClawControllerMetadata({
     openclaw: {

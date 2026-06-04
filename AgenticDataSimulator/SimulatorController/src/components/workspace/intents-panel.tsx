@@ -407,9 +407,13 @@ export function IntentsPanel({
 
     try {
       const params = new URLSearchParams({ domain: selectedDomain });
+      const trimmedPrometheusBase = prometheusBaseUrl.trim();
+      if (intent.storage === "prometheus" && trimmedPrometheusBase) {
+        params.set("prometheusBaseUrl", trimmedPrometheusBase);
+      }
       const endpoint =
         intent.storage === "prometheus"
-          ? `${prometheusClearUrlBase}/${encodeURIComponent(intent.intentId)}/empty`
+          ? `${prometheusClearUrlBase}/${encodeURIComponent(intent.intentId)}/empty?${params.toString()}`
           : `${intentsUrlBase}/${encodeURIComponent(intent.intentId)}/empty-graphdb?${params.toString()}`;
 
       const response = await fetch(endpoint, {

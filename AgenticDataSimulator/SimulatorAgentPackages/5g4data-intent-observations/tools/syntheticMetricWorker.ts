@@ -18,6 +18,7 @@ import {
   readPrometheusFlushChunkSize,
 } from "./observationStorage/prometheusBackend.js";
 import type { ObservationStorageId } from "./observationStorageTypes.js";
+import { resolvePrometheusWriteMode } from "./sessionPrometheusEnv.js";
 import { resolveObservationStorageTypes } from "./resolveObservationStorage.js";
 import {
   markMetricCompleted,
@@ -143,8 +144,10 @@ async function insertOrPrint(
     intentDestinations: cfg.storageTypes,
     createIntentStorage: cfg.createIntentStorage
   });
-  const prometheusWriteMode =
-    cfg.mode === "historic" && storageIds.includes("prometheus") ? "buffer" : "push";
+  const prometheusWriteMode = resolvePrometheusWriteMode(
+    cfg.mode,
+    storageIds.includes("prometheus"),
+  );
 
   await persistObservationWithStorage({
     graphTool: graphDb,

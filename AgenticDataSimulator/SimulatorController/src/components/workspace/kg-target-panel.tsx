@@ -25,11 +25,15 @@ type KgTargetPanelProps = {
   targets: KgTargetRecord[];
 };
 
-function graphDbBaseUrlParams(baseUrl: string): URLSearchParams {
+function workspaceInfraUrlParams(graphDbBaseUrl: string, prometheusBaseUrl: string): URLSearchParams {
   const params = new URLSearchParams();
-  const trimmed = baseUrl.trim();
-  if (trimmed) {
-    params.set("graphDbBaseUrl", trimmed);
+  const trimmedGraph = graphDbBaseUrl.trim();
+  if (trimmedGraph) {
+    params.set("graphDbBaseUrl", trimmedGraph);
+  }
+  const trimmedPrometheus = prometheusBaseUrl.trim();
+  if (trimmedPrometheus) {
+    params.set("prometheusBaseUrl", trimmedPrometheus);
   }
   return params;
 }
@@ -86,6 +90,7 @@ export function KgTargetPanel({
     endStorageDeletion,
     defaultGraphDbBaseUrl,
     graphDbBaseUrl,
+    prometheusBaseUrl,
     setGraphDbBaseUrl,
   } = useWorkspaceScriptSession();
   const [draftUrl, setDraftUrl] = useState(graphDbBaseUrl);
@@ -239,7 +244,7 @@ export function KgTargetPanel({
     beginStorageDeletion();
 
     try {
-      const params = graphDbBaseUrlParams(graphDbBaseUrl);
+      const params = workspaceInfraUrlParams(graphDbBaseUrl, prometheusBaseUrl);
       const query = params.toString();
       const response = await fetch(
         `${deleteUrlBase}/${target.id}/empty${query ? `?${query}` : ""}`,
@@ -276,7 +281,7 @@ export function KgTargetPanel({
     beginStorageDeletion();
 
     try {
-      const params = graphDbBaseUrlParams(graphDbBaseUrl);
+      const params = workspaceInfraUrlParams(graphDbBaseUrl, prometheusBaseUrl);
       const query = params.toString();
       const response = await fetch(
         `${deleteUrlBase}/${target.id}${query ? `?${query}` : ""}`,

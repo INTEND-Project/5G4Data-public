@@ -17,7 +17,7 @@ import { WorkspaceLeftSidebarResizable } from "@/components/workspace/workspace-
 import { WorkspaceRightSidebarResizable } from "@/components/workspace/workspace-right-sidebar-resizable";
 import { WorkspaceScriptRunner } from "@/components/workspace/workspace-script-runner";
 import { WorkspaceScriptSessionProvider } from "@/components/workspace/workspace-script-session-context";
-import { useInfraConnectionStatus } from "@/components/workspace/use-infra-connection-status";
+import { useWorkspaceInfraConnectionStatus } from "@/components/workspace/use-infra-connection-status";
 import { withAppBasePath } from "@/lib/app-paths";
 
 type WorkspaceShellProps = {
@@ -215,10 +215,11 @@ export function WorkspaceShell({
     [assistantContext.metricNames],
   );
 
-  const infraStatus = useInfraConnectionStatus(
-    { registryConnected, graphDbConnected, prometheusConnected },
-    infraStatusApiUrl,
-  );
+  const initialInfraStatus = {
+    registryConnected,
+    graphDbConnected,
+    prometheusConnected,
+  };
 
   return (
     <AgentLlmPreferencesProvider>
@@ -232,6 +233,122 @@ export function WorkspaceShell({
         scripts={scriptsPayload}
         selectedDomain={selectedDomain}
       >
+        <WorkspaceShellBody
+          initialInfraStatus={initialInfraStatus}
+          infraStatusApiUrl={infraStatusApiUrl}
+          username={username}
+          selectedDomain={selectedDomain}
+          domainOptions={domainOptions}
+          agents={agents}
+          agentsRefreshUrl={agentsRefreshUrl}
+          openAiModelsApiUrl={openAiModelsApiUrl}
+          agentRuntimeLlmApiUrlBase={agentRuntimeLlmApiUrlBase}
+          scriptsApiUrl={scriptsApiUrl}
+          currentUserId={currentUserId}
+          kgTargetsList={kgTargetsList}
+          selectedKgTargetId={selectedKgTargetId}
+          setSelectedKgTargetId={setSelectedKgTargetId}
+          handleKgTargetCreated={handleKgTargetCreated}
+          handleKgTargetDeleted={handleKgTargetDeleted}
+          kgTargetsCreateUrl={kgTargetsCreateUrl}
+          kgTargetsDeleteUrlBase={kgTargetsDeleteUrlBase}
+          runLogsApiUrl={runLogsApiUrl}
+          intentsRegisterUrl={intentsRegisterUrl}
+          discoverIntentAgentApiUrl={discoverIntentAgentApiUrl}
+          discoverObservationAgentApiUrl={discoverObservationAgentApiUrl}
+          a2aMessageSendUrl={a2aMessageSendUrl}
+          previewMetricsApiUrl={previewMetricsApiUrl}
+          scriptRunnerKgTargets={scriptRunnerKgTargets}
+          scriptRunnerMetricNames={scriptRunnerMetricNames}
+          intentsApiUrl={intentsApiUrl}
+          intentsUrlBase={intentsUrlBase}
+          prometheusClearUrlBase={prometheusClearUrlBase}
+          assistantContext={assistantContext}
+        />
+      </WorkspaceScriptSessionProvider>
+    </main>
+    </AgentLlmPreferencesProvider>
+  );
+}
+
+type WorkspaceShellBodyProps = {
+  initialInfraStatus: {
+    registryConnected: boolean;
+    graphDbConnected: boolean;
+    prometheusConnected: boolean;
+  };
+  infraStatusApiUrl: string;
+  username: string;
+  selectedDomain: string;
+  domainOptions: string[];
+  agents: WorkspaceShellProps["agents"];
+  agentsRefreshUrl: string;
+  openAiModelsApiUrl: string;
+  agentRuntimeLlmApiUrlBase: string;
+  scriptsApiUrl: string;
+  currentUserId: string;
+  kgTargetsList: KgTargetRecord[];
+  selectedKgTargetId: string;
+  setSelectedKgTargetId: (id: string) => void;
+  handleKgTargetCreated: (target: KgTargetRecord) => void;
+  handleKgTargetDeleted: (targetId: string) => void;
+  kgTargetsCreateUrl: string;
+  kgTargetsDeleteUrlBase: string;
+  runLogsApiUrl: string;
+  intentsRegisterUrl: string;
+  discoverIntentAgentApiUrl: string;
+  discoverObservationAgentApiUrl: string;
+  a2aMessageSendUrl: string;
+  previewMetricsApiUrl: string;
+  scriptRunnerKgTargets: Array<{
+    id: string;
+    displayName: string;
+    repositoryId: string;
+    graphIri: string;
+  }>;
+  scriptRunnerMetricNames: string[];
+  intentsApiUrl: string;
+  intentsUrlBase: string;
+  prometheusClearUrlBase: string;
+  assistantContext: WorkspaceShellProps["assistantContext"];
+};
+
+function WorkspaceShellBody({
+  initialInfraStatus,
+  infraStatusApiUrl,
+  username,
+  selectedDomain,
+  domainOptions,
+  agents,
+  agentsRefreshUrl,
+  openAiModelsApiUrl,
+  agentRuntimeLlmApiUrlBase,
+  scriptsApiUrl,
+  currentUserId,
+  kgTargetsList,
+  selectedKgTargetId,
+  setSelectedKgTargetId,
+  handleKgTargetCreated,
+  handleKgTargetDeleted,
+  kgTargetsCreateUrl,
+  kgTargetsDeleteUrlBase,
+  runLogsApiUrl,
+  intentsRegisterUrl,
+  discoverIntentAgentApiUrl,
+  discoverObservationAgentApiUrl,
+  a2aMessageSendUrl,
+  previewMetricsApiUrl,
+  scriptRunnerKgTargets,
+  scriptRunnerMetricNames,
+  intentsApiUrl,
+  intentsUrlBase,
+  prometheusClearUrlBase,
+  assistantContext,
+}: WorkspaceShellBodyProps) {
+  const infraStatus = useWorkspaceInfraConnectionStatus(initialInfraStatus, infraStatusApiUrl);
+
+  return (
+    <>
         <header className="workspace-topbar">
           <div className="workspace-brand">
             <Image
@@ -333,8 +450,6 @@ export function WorkspaceShell({
             </div>
           </WorkspaceRightSidebarResizable>
         </section>
-      </WorkspaceScriptSessionProvider>
-    </main>
-    </AgentLlmPreferencesProvider>
+    </>
   );
 }

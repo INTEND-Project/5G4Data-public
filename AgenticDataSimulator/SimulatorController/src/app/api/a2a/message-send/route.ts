@@ -11,6 +11,8 @@ import {
   hasOpenClawMetadataFields,
   openClawMetadataEnvelope,
 } from "@/lib/kg/graph-target-binding";
+import { parsePrometheusBaseUrlInput } from "@/lib/prometheus/resolve-base-url";
+import { prometheusStackMode } from "@/lib/prometheus/resolve-stack-urls";
 
 const graphTargetSchema = z.object({
   graphTargetId: z.string().optional(),
@@ -32,6 +34,7 @@ const bodySchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
   reportingIntervalMinutes: z.number().int().min(1).max(1440).optional(),
   reportingIntervalSeconds: z.number().int().min(1).max(86_400).optional(),
+  prometheusBaseUrl: z.string().trim().optional(),
 });
 
 async function fetchAgentRpcUrl(
@@ -97,6 +100,18 @@ export async function POST(request: Request) {
   }
 
   const body = parsedBody.data;
+
+  let prometheusBaseUrl: string | undefined;
+  let prometheusStorageMode: ReturnType<typeof prometheusStackMode> | undefined;
+  if (body.prometheusBaseUrl?.trim()) {
+    const parsedProm = parsePrometheusBaseUrlInput(body.prometheusBaseUrl);
+    if (!parsedProm.ok) {
+      return NextResponse.json({ error: parsedProm.error }, { status: 400 });
+    }
+    prometheusBaseUrl = parsedProm.url;
+    prometheusStorageMode = prometheusStackMode(prometheusBaseUrl);
+  }
+
   const env = loadAppEnv(process.env);
   const initialAuthHeaders = buildA2AAuthHeaders(env, { wellKnownUri: body.wellKnownURI });
   const rpc = await fetchAgentRpcUrl(body.wellKnownURI, initialAuthHeaders);
@@ -125,6 +140,8 @@ export async function POST(request: Request) {
     graphTarget: body.graphTarget,
     observationStorage: body.observationStorage,
     createIntentStorage: body.createIntentStorage,
+    prometheusBaseUrl,
+    prometheusStorageMode,
     llmModel: body.llmModel,
     temperature: body.temperature,
     reportingIntervalMinutes: body.reportingIntervalMinutes,

@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   infraPollIntervalMs,
   infraStatusEquals,
 } from "@/components/workspace/infra-connection-status";
+import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
 import type { InfraConnectionStatus } from "@/lib/infra/connection-status";
 
 export function useInfraConnectionStatus(
@@ -81,4 +82,23 @@ export function useInfraConnectionStatus(
   }, [status, schedule]);
 
   return status;
+}
+
+/** Polls infra status using the workspace Prometheus base URL from session context. */
+export function useWorkspaceInfraConnectionStatus(
+  initialStatus: InfraConnectionStatus,
+  statusApiUrl: string,
+): InfraConnectionStatus {
+  const { prometheusBaseUrl } = useWorkspaceScriptSession();
+  const resolvedStatusApiUrl = useMemo(() => {
+    const trimmed = prometheusBaseUrl.trim();
+    if (!trimmed) {
+      return statusApiUrl;
+    }
+    const params = new URLSearchParams({ prometheusBaseUrl: trimmed });
+    const separator = statusApiUrl.includes("?") ? "&" : "?";
+    return `${statusApiUrl}${separator}${params.toString()}`;
+  }, [prometheusBaseUrl, statusApiUrl]);
+
+  return useInfraConnectionStatus(initialStatus, resolvedStatusApiUrl);
 }

@@ -63,6 +63,40 @@ test("parseOpenClawControllerMetadata clamps temperature", () => {
   assert.equal(parsed.temperature, 2);
 });
 
+test("parseOpenClawControllerMetadata accepts reportingIntervalMinutes", () => {
+  const parsed = parseOpenClawControllerMetadata({
+    openclaw: {
+      controllerBindingVersion: "1",
+      reportingIntervalMinutes: 15,
+    },
+  });
+  assert.ok(parsed);
+  assert.equal(parsed.reportingIntervalMinutes, 15);
+});
+
+test("parseOpenClawControllerMetadata clamps reportingIntervalMinutes", () => {
+  const parsed = parseOpenClawControllerMetadata({
+    openclaw: {
+      controllerBindingVersion: "1",
+      reportingIntervalMinutes: 99999,
+    },
+  });
+  assert.ok(parsed);
+  assert.equal(parsed.reportingIntervalMinutes, 1440);
+});
+
+test("parseOpenClawControllerMetadata accepts reportingIntervalSeconds", () => {
+  const parsed = parseOpenClawControllerMetadata({
+    openclaw: {
+      controllerBindingVersion: "1",
+      reportingIntervalSeconds: 60,
+    },
+  });
+  assert.ok(parsed);
+  assert.equal(parsed.reportingIntervalSeconds, 60);
+  assert.equal(parsed.reportingIntervalMinutes, null);
+});
+
 test("bindingsConflict detects repository or graph drift", () => {
   const existing = {
     repositoryId: "a",

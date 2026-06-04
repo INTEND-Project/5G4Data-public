@@ -42,6 +42,8 @@ export type OpenClawControllerMetadata = {
   createIntentStorage?: "graphdb" | "prometheus";
   llmModel?: string;
   temperature?: number;
+  reportingIntervalMinutes?: number;
+  reportingIntervalSeconds?: number;
 };
 
 export function openClawMetadataEnvelope(opts: {
@@ -50,6 +52,8 @@ export function openClawMetadataEnvelope(opts: {
   createIntentStorage?: "graphdb" | "prometheus";
   llmModel?: string;
   temperature?: number;
+  reportingIntervalMinutes?: number;
+  reportingIntervalSeconds?: number;
 }): {
   openclaw: OpenClawControllerMetadata;
 } {
@@ -64,6 +68,18 @@ export function openClawMetadataEnvelope(opts: {
   if (opts.temperature !== undefined && Number.isFinite(opts.temperature)) {
     openclaw.temperature = Math.min(2, Math.max(0, opts.temperature));
   }
+  if (opts.reportingIntervalMinutes !== undefined && Number.isFinite(opts.reportingIntervalMinutes)) {
+    openclaw.reportingIntervalMinutes = Math.min(
+      1440,
+      Math.max(1, Math.round(opts.reportingIntervalMinutes)),
+    );
+  }
+  if (opts.reportingIntervalSeconds !== undefined && Number.isFinite(opts.reportingIntervalSeconds)) {
+    openclaw.reportingIntervalSeconds = Math.min(
+      86_400,
+      Math.max(1, Math.round(opts.reportingIntervalSeconds)),
+    );
+  }
   return { openclaw };
 }
 
@@ -73,12 +89,16 @@ export function hasOpenClawMetadataFields(opts: {
   createIntentStorage?: "graphdb" | "prometheus";
   llmModel?: string;
   temperature?: number;
+  reportingIntervalMinutes?: number;
+  reportingIntervalSeconds?: number;
 }): boolean {
   return Boolean(
     opts.graphTarget ||
       opts.observationStorage ||
       opts.createIntentStorage ||
       opts.llmModel?.trim() ||
-      (opts.temperature !== undefined && Number.isFinite(opts.temperature)),
+      (opts.temperature !== undefined && Number.isFinite(opts.temperature)) ||
+      (opts.reportingIntervalMinutes !== undefined && Number.isFinite(opts.reportingIntervalMinutes)) ||
+      (opts.reportingIntervalSeconds !== undefined && Number.isFinite(opts.reportingIntervalSeconds)),
   );
 }

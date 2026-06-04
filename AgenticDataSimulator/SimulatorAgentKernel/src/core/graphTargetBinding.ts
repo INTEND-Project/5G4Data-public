@@ -1,4 +1,8 @@
-import { clampTemperature } from "../config.js";
+import {
+  clampReportingIntervalMinutes,
+  clampReportingIntervalSeconds,
+  clampTemperature,
+} from "../config.js";
 
 /** openclaw.controller.v1 — parsed from A2A message.metadata.openclaw */
 
@@ -40,6 +44,8 @@ export type OpenClawControllerMetadata = {
   createIntentStorage: ObservationStorageType | null;
   llmModel: string | null;
   temperature: number | null;
+  reportingIntervalMinutes: number | null;
+  reportingIntervalSeconds: number | null;
 };
 
 function parseTemperatureField(value: unknown): number | null {
@@ -49,6 +55,28 @@ function parseTemperatureField(value: unknown): number | null {
   if (typeof value === "string" && value.trim()) {
     const parsed = Number.parseFloat(value.trim());
     if (Number.isFinite(parsed)) return clampTemperature(parsed);
+  }
+  return null;
+}
+
+function parseReportingIntervalMinutesField(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return clampReportingIntervalMinutes(value);
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseInt(value.trim(), 10);
+    if (Number.isFinite(parsed)) return clampReportingIntervalMinutes(parsed);
+  }
+  return null;
+}
+
+function parseReportingIntervalSecondsField(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return clampReportingIntervalSeconds(value);
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseInt(value.trim(), 10);
+    if (Number.isFinite(parsed)) return clampReportingIntervalSeconds(parsed);
   }
   return null;
 }
@@ -87,12 +115,34 @@ export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawCont
   const createIntentStorage = parseStorageField(openclaw.createIntentStorage);
   const llmModel = readNonEmptyString(openclaw.llmModel);
   const temperature = parseTemperatureField(openclaw.temperature);
+  const reportingIntervalMinutes = parseReportingIntervalMinutesField(
+    openclaw.reportingIntervalMinutes
+  );
+  const reportingIntervalSeconds = parseReportingIntervalSecondsField(
+    openclaw.reportingIntervalSeconds
+  );
 
-  if (!graphTarget && !observationStorage && !createIntentStorage && !llmModel && temperature === null) {
+  if (
+    !graphTarget &&
+    !observationStorage &&
+    !createIntentStorage &&
+    !llmModel &&
+    temperature === null &&
+    reportingIntervalMinutes === null &&
+    reportingIntervalSeconds === null
+  ) {
     return null;
   }
 
-  return { graphTarget, observationStorage, createIntentStorage, llmModel, temperature };
+  return {
+    graphTarget,
+    observationStorage,
+    createIntentStorage,
+    llmModel,
+    temperature,
+    reportingIntervalMinutes,
+    reportingIntervalSeconds
+  };
 }
 
 export function parseGraphTargetBindingFromMetadata(metadata: unknown): GraphTargetBinding | null {

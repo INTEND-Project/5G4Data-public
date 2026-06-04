@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAgentLlmPreferences } from "@/components/workspace/agent-llm-preferences-context";
 import {
   DEFAULT_AGENT_TEMPERATURE,
+  DEFAULT_REPORTING_INTERVAL_MINUTES,
+  isIntentGenerationAgent,
   normalizeAgentLlmPreference,
 } from "@/lib/agents/agent-llm-preferences";
 
@@ -38,8 +40,12 @@ export function AgentSettingsDialog({
   onClose,
 }: AgentSettingsDialogProps) {
   const { preference, hasStored, setPreference } = useAgentLlmPreferences(agentName);
+  const showReportingInterval = isIntentGenerationAgent(agentName);
   const [model, setModel] = useState("");
   const [temperature, setTemperature] = useState(DEFAULT_AGENT_TEMPERATURE);
+  const [reportingIntervalMinutes, setReportingIntervalMinutes] = useState(
+    DEFAULT_REPORTING_INTERVAL_MINUTES,
+  );
   const [models, setModels] = useState<string[]>([]);
   const [runtimeDefaults, setRuntimeDefaults] = useState<AgentRuntimeLlmDefaults | null>(null);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -61,15 +67,20 @@ export function AgentSettingsDialog({
     if (hasStored) {
       setModel(preference.model);
       setTemperature(preference.temperature);
+      setReportingIntervalMinutes(
+        preference.reportingIntervalMinutes ?? DEFAULT_REPORTING_INTERVAL_MINUTES,
+      );
       return;
     }
     setModel("");
     setTemperature(runtimeDefaults?.temperature ?? DEFAULT_AGENT_TEMPERATURE);
+    setReportingIntervalMinutes(DEFAULT_REPORTING_INTERVAL_MINUTES);
   }, [
     open,
     hasStored,
     preference.model,
     preference.temperature,
+    preference.reportingIntervalMinutes,
     runtimeDefaults?.temperature,
   ]);
 
@@ -165,11 +176,26 @@ export function AgentSettingsDialog({
       normalizeAgentLlmPreference({
         model,
         temperature: Number.parseFloat(String(temperature)),
+        ...(showReportingInterval
+          ? {
+              reportingIntervalMinutes: Number.parseInt(
+                String(reportingIntervalMinutes),
+                10,
+              ),
+            }
+          : {}),
       }),
     );
     setSaved(true);
     onClose();
-  }, [model, onClose, setPreference, temperature]);
+  }, [
+    model,
+    onClose,
+    reportingIntervalMinutes,
+    setPreference,
+    showReportingInterval,
+    temperature,
+  ]);
 
   if (!open) {
     return null;
@@ -234,6 +260,33 @@ export function AgentSettingsDialog({
               ? `Agent environment default: ${runtimeTemperature}`
               : `Using agent environment default: ${runtimeTemperature}`}
         </p>
+
+        {showReportingInterval ? (
+          <>
+            <label
+              className="workspace-label"
+              htmlFor="workspace-agent-settings-reporting-interval"
+            >
+              Reporting interval (minutes)
+            </label>
+            <input
+              className="workspace-input"
+              id="workspace-agent-settings-reporting-interval"
+              max={1440}
+              min={1}
+              onChange={(event) =>
+                setReportingIntervalMinutes(Number.parseInt(event.target.value, 10))
+              }
+              step={1}
+              type="number"
+              value={reportingIntervalMinutes}
+            />
+            <p className="workspace-hint">
+              Default is {DEFAULT_REPORTING_INTERVAL_MINUTES} minutes. Used for observation
+              report triggers in generated intents (per-expectation event URIs).
+            </p>
+          </>
+        ) : null}
 
         {error ? (
           <p className="workspace-save-name-dialog-error" role="alert">

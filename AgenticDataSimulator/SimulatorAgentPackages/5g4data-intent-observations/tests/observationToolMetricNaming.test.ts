@@ -61,14 +61,14 @@ data5g:DE1 a data5g:DeploymentExpectation, icm:Expectation ;
 
 data5g:RE1 a icm:ObservationReportingExpectation ;
   icm:target data5g:deployment ;
-  icm:reportTriggers [ rdfs:member data5g:TenMinuteReportEventDeployment ] .
+  icm:reportTriggers [ rdfs:member data5g:TenMinuteReportEventDeployment_CO1 ] .
 
-data5g:tenMinutesDeployment a time:DurationDescription ;
+data5g:durationDeployment_CO1 a time:DurationDescription ;
   time:numericDuration "10"^^xsd:decimal ;
   time:unitType time:unitMinute .
 
-data5g:TenMinuteReportEventDeployment a rdfs:Class ;
-  time:delay ( data5g:lastReportInstant data5g:tenMinutesDeployment ) ;
+data5g:TenMinuteReportEventDeployment_CO1 a rdfs:Class ;
+  time:delay ( data5g:lastReportInstant data5g:durationDeployment_CO1 ) ;
   imo:eventFor data5g:DE1 .`;
 
   const tool = new ObservationTool();

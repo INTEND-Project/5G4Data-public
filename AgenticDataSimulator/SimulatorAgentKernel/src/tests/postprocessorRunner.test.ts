@@ -59,6 +59,91 @@ data5g:CO__ID_CONDITION_P99_1__ a icm:Condition ;
   assert.equal(text.includes("__ID_"), false);
 });
 
+test("reporting-triggers postprocessor scopes global TenMinute events", async () => {
+  const domainPackage = loadDomainPackage(basePackageDir);
+  const input = `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+data5g:DE0d1ce26a35b94f358117d671456b01e7 a data5g:DeploymentExpectation, icm:Expectation ;
+  icm:target data5g:deployment ;
+  log:allOf data5g:COc5f7b82460cf4207a5a93ca4183ccbdf .
+
+data5g:tenMinutesDeployment a time:DurationDescription ;
+  time:numericDuration "10"^^xsd:decimal ;
+  time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventDeployment a rdfs:Class ;
+  rdfs:subClassOf imo:Event ;
+  time:delay ( data5g:lastReportInstant data5g:tenMinutesDeployment ) ;
+  imo:eventFor data5g:DE0d1ce26a35b94f358117d671456b01e7 .
+
+data5g:RE97978a1a7e50424ebebfbed023838ba1 a icm:ObservationReportingExpectation ;
+  icm:target data5g:deployment ;
+  icm:reportTriggers [ a rdfs:Container ;
+      rdfs:member data5g:TenMinuteReportEventDeployment ] .`;
+  const debug: string[] = [];
+  const text = await runConfiguredPostprocessors({
+    text: input,
+    context: {
+      runtimeContext: "runtime",
+      intentFlags: { deployment: true, locality: false, networkQos: false },
+      validatorRules: domainPackage.validatorRules,
+      reportingIntervalMinutes: 5
+    },
+    domainPackage,
+    when: "always",
+    debug
+  });
+  assert.ok(debug.some((line) => line.includes("postprocessor_applied=reporting-triggers")));
+  assert.ok(/FiveMinuteReportEventDeployment_COc5f7b82460cf4207a5a93ca4183ccbdf/.test(text));
+  assert.equal(/\bTenMinuteReportEventDeployment\b/.test(text), false);
+});
+
+test("reporting-triggers postprocessor uses unitSecond for reportingIntervalSeconds", async () => {
+  const domainPackage = loadDomainPackage(basePackageDir);
+  const input = `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+data5g:DE0d1ce26a35b94f358117d671456b01e7 a data5g:DeploymentExpectation, icm:Expectation ;
+  icm:target data5g:deployment ;
+  log:allOf data5g:COc5f7b82460cf4207a5a93ca4183ccbdf .
+
+data5g:TenMinuteReportEventDeployment a rdfs:Class ;
+  rdfs:subClassOf imo:Event ;
+  time:delay ( data5g:lastReportInstant data5g:tenMinutesDeployment ) ;
+  imo:eventFor data5g:DE0d1ce26a35b94f358117d671456b01e7 .
+
+data5g:RE97978a1a7e50424ebebfbed023838ba1 a icm:ObservationReportingExpectation ;
+  icm:target data5g:deployment ;
+  icm:reportTriggers [ a rdfs:Container ;
+      rdfs:member data5g:TenMinuteReportEventDeployment ] .`;
+  const debug: string[] = [];
+  const text = await runConfiguredPostprocessors({
+    text: input,
+    context: {
+      runtimeContext: "runtime",
+      intentFlags: { deployment: true, locality: false, networkQos: false },
+      validatorRules: domainPackage.validatorRules,
+      reportingIntervalSeconds: 60
+    },
+    domainPackage,
+    when: "always",
+    debug
+  });
+  assert.ok(/SixtySecondReportEventDeployment_COc5f7b82460cf4207a5a93ca4183ccbdf/.test(text));
+  assert.ok(/time:numericDuration "60"[\s\S]*time:unitType time:unitSecond/.test(text));
+});
+
 test("postprocessor resolves lowercase placeholders and CO-prefixed metric forms from LLM", async () => {
   const domainPackage = loadDomainPackage(basePackageDir);
   const input = `@prefix data5g: <http://5g4data.eu/5g4data#> .

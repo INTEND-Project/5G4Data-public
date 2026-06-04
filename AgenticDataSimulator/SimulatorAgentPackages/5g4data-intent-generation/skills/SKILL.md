@@ -104,56 +104,56 @@ data5g:SE<uuid4> a data5g:SustainabilityExpectation,
     log:allOf data5g:CO<sustainability-condition-uuid4>,
         data5g:CX<deployment-context-uuid4> .
 
-data5g:tenMinutesDeployment a time:DurationDescription ;
-    time:numericDuration "10"^^xsd:decimal ;
+data5g:durationDeployment_CO__ID_CONDITION_1__ a time:DurationDescription ;
+    time:numericDuration "<reporting-interval-minutes>"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:TenMinuteReportEventDeployment a rdfs:Class ;
+data5g:TenMinuteReportEventDeployment_CO__ID_CONDITION_1__ a rdfs:Class ;
     rdfs:subClassOf imo:Event ;
-    time:delay ( data5g:lastReportInstant data5g:tenMinutesDeployment ) ;
+    time:delay ( data5g:lastReportInstant data5g:durationDeployment_CO__ID_CONDITION_1__ ) ;
     imo:eventFor data5g:DE<uuid4> .
 
 data5g:RE<uuid4> a icm:ObservationReportingExpectation ;
-    dct:description "Deployment observation reports every 10 minutes." ;
+    dct:description "Deployment observation reports on the configured interval." ;
     icm:target data5g:deployment ;
     icm:reportDestinations [ a rdfs:Container ;
             rdfs:member data5g:prometheus ] ;
     icm:reportTriggers [ a rdfs:Container ;
-            rdfs:member data5g:TenMinuteReportEventDeployment ] .
+            rdfs:member data5g:TenMinuteReportEventDeployment_CO__ID_CONDITION_1__ ] .
 
-data5g:tenMinutesSustainability a time:DurationDescription ;
-    time:numericDuration "10"^^xsd:decimal ;
+data5g:durationSustainability_CO__ID_CONDITION_2__ a time:DurationDescription ;
+    time:numericDuration "<reporting-interval-minutes>"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:TenMinuteReportEventSustainability a rdfs:Class ;
+data5g:TenMinuteReportEventSustainability_CO__ID_CONDITION_2__ a rdfs:Class ;
     rdfs:subClassOf imo:Event ;
-    time:delay ( data5g:lastReportInstant data5g:tenMinutesSustainability ) ;
+    time:delay ( data5g:lastReportInstant data5g:durationSustainability_CO__ID_CONDITION_2__ ) ;
     imo:eventFor data5g:SE<uuid4> .
 
 data5g:RE<uuid4> a icm:ObservationReportingExpectation ;
-    dct:description "Sustainability observation reports every 10 minutes." ;
+    dct:description "Sustainability observation reports on the configured interval." ;
     icm:target data5g:sustainability ;
     icm:reportDestinations [ a rdfs:Container ;
             rdfs:member data5g:prometheus ] ;
     icm:reportTriggers [ a rdfs:Container ;
-            rdfs:member data5g:TenMinuteReportEventSustainability ] .
+            rdfs:member data5g:TenMinuteReportEventSustainability_CO__ID_CONDITION_2__ ] .
 
-data5g:tenMinutesNetwork a time:DurationDescription ;
-    time:numericDuration "10"^^xsd:decimal ;
+data5g:durationNetwork_CO__ID_CONDITION_3__ a time:DurationDescription ;
+    time:numericDuration "<reporting-interval-minutes>"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:TenMinuteReportEventNetwork a rdfs:Class ;
+data5g:TenMinuteReportEventNetwork_CO__ID_CONDITION_3__ a rdfs:Class ;
     rdfs:subClassOf imo:Event ;
-    time:delay ( data5g:lastReportInstant data5g:tenMinutesNetwork ) ;
+    time:delay ( data5g:lastReportInstant data5g:durationNetwork_CO__ID_CONDITION_3__ ) ;
     imo:eventFor data5g:NE<uuid4> .
 
 data5g:RE<uuid4> a icm:ObservationReportingExpectation ;
-    dct:description "Network observation reports every 10 minutes." ;
+    dct:description "Network observation reports on the configured interval." ;
     icm:target data5g:network-slice ;
     icm:reportDestinations [ a rdfs:Container ;
             rdfs:member data5g:prometheus ] ;
     icm:reportTriggers [ a rdfs:Container ;
-            rdfs:member data5g:TenMinuteReportEventNetwork ] .
+            rdfs:member data5g:TenMinuteReportEventNetwork_CO__ID_CONDITION_3__ ] .
 ```
 
 ## Required Data Sources
@@ -324,8 +324,9 @@ Rules:
 - Each expectation has exactly one `icm:target`.
 - Targets: deployment -> `data5g:deployment`, sustainability -> `data5g:sustainability`, network -> `data5g:network-slice`, observation reporting -> same target it reports on.
 - Include one observation reporting expectation per target by default.
-- Observation reporting must include `icm:reportDestinations` (default `data5g:graphdb`; use `data5g:prometheus` when the user or runtime context requests Prometheus) and `icm:reportTriggers` with a target-specific TenMinute event.
-- Each TenMinute event must include `imo:eventFor` pointing to the corresponding expectation (`DE`, `SE`, or `NE`).
+- Observation reporting must include `icm:reportDestinations` (default `data5g:graphdb`; use `data5g:prometheus` when the user or runtime context requests Prometheus) and `icm:reportTriggers` with a **per-expectation** event class (never global `TenMinuteReportEventDeployment` shared across intents).
+- Event class locals: `{IntervalLabel}ReportEvent{Deployment|Sustainability|Network}_CO<condition-id>` (or `_NE<id>` when no condition). Duration locals: `duration{Kind}_CO<condition-id>` with `time:numericDuration` from runtime reporting interval (default 10 minutes).
+- Each event class must include exactly one `imo:eventFor` pointing to the corresponding expectation (`DE`, `SE`, or `NE`).
 
 ## Context guidance
 
@@ -368,7 +369,7 @@ Before returning:
 - No unsupported expectation classes.
 - Expectation targets are correct.
 - Observation reporting expectations target the resource they report on.
-- Observation reporting uses target-specific TenMinute events with correct `imo:eventFor` mappings.
+- Observation reporting uses per-anchor event classes and durations (not global `tenMinutesDeployment` / `TenMinuteReportEventDeployment`) with correct `imo:eventFor` mappings.
 - Deployment workload and descriptor come from catalogue.
 - `data5g:DataCenter` from coordinate + SPARQL nearest-edge process when locality used.
 - Units: latency `"ms"`, bandwidth `"mbit/s"` (unless chart objective defines differently).

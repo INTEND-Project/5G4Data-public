@@ -3,6 +3,10 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { AppConfig } from "../config.js";
+import {
+  clampReportingIntervalMinutes,
+  clampReportingIntervalSeconds,
+} from "../config.js";
 import type {
   AgentTurnResult,
   ChatMessage,
@@ -123,10 +127,15 @@ export class TurnOrchestrator {
       .filter((text): text is string => Boolean(text))
       .map((text) => text.trim())
       .filter((text) => text.length > 0);
+    const reportingInterval = resolveReportingIntervalForPostprocessor(
+      session,
+      this.config.intentReportIntervalMinutes
+    );
     const systemBlocks = [
       this.domainPackage.systemPromptText,
       ...moduleBlocks,
-      `Use this runtime grounding context when relevant. If it conflicts with your assumptions, trust it.\n\n${context.runtimeContext}`
+      `Use this runtime grounding context when relevant. If it conflicts with your assumptions, trust it.\n\n${context.runtimeContext}`,
+      buildReportingIntervalHint(reportingInterval)
     ];
     if (confirmationAck) {
       systemBlocks.push(
@@ -157,7 +166,9 @@ export class TurnOrchestrator {
         knownMetricStems: context.knownMetricStems,
         intentFlags,
         validatorRules: this.domainPackage.validatorRules,
-        domainPackage: this.domainPackage
+        domainPackage: this.domainPackage,
+        reportingIntervalMinutes: reportingInterval.reportingIntervalMinutes,
+        reportingIntervalSeconds: reportingInterval.reportingIntervalSeconds
       },
       systemBlocks,
       history,
@@ -307,6 +318,43 @@ export class TurnOrchestrator {
     }
   }
 
+}
+
+export type ReportingIntervalForPostprocessor = {
+  reportingIntervalMinutes?: number;
+  reportingIntervalSeconds?: number;
+};
+
+export function resolveReportingIntervalForPostprocessor(
+  session: ChatSession,
+  envDefaultMinutes: number
+): ReportingIntervalForPostprocessor {
+  if (session.reportingIntervalSecondsOverride != null) {
+    return {
+      reportingIntervalSeconds: clampReportingIntervalSeconds(
+        session.reportingIntervalSecondsOverride
+      )
+    };
+  }
+  const minutes =
+    session.reportingIntervalMinutesOverride != null
+      ? clampReportingIntervalMinutes(session.reportingIntervalMinutesOverride)
+      : clampReportingIntervalMinutes(envDefaultMinutes);
+  return { reportingIntervalMinutes: minutes };
+}
+
+function buildReportingIntervalHint(interval: ReportingIntervalForPostprocessor): string {
+  const intervalLine =
+    interval.reportingIntervalSeconds !== undefined
+      ? `- Reporting interval: ${interval.reportingIntervalSeconds} second(s) (time:unitSecond).`
+      : `- Reporting interval: ${interval.reportingIntervalMinutes ?? 10} minute(s) (time:unitMinute).`;
+  return [
+    "Observation reporting policy for this session:",
+    intervalLine,
+    "- Use per-reporting-expectation event class URIs (e.g. SixtySecondReportEventDeployment_CO<condition-id>), never global TenMinuteReportEventDeployment / tenMinutesDeployment shared across intents.",
+    "- Each event class must have exactly one imo:eventFor to its DE, SE, or NE expectation.",
+    "- Use paired duration locals durationDeployment_<anchor> (or Sustainability/Network) with matching time:numericDuration and unitType."
+  ].join("\n");
 }
 
 export function createSession(sessionId?: string): ChatSession {

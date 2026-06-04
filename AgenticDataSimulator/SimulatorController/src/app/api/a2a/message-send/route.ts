@@ -30,6 +30,8 @@ const bodySchema = z.object({
   createIntentStorage: z.enum(["graphdb", "prometheus"]).optional(),
   llmModel: z.string().trim().optional(),
   temperature: z.number().min(0).max(2).optional(),
+  reportingIntervalMinutes: z.number().int().min(1).max(1440).optional(),
+  reportingIntervalSeconds: z.number().int().min(1).max(86_400).optional(),
 });
 
 async function fetchAgentRpcUrl(
@@ -125,6 +127,8 @@ export async function POST(request: Request) {
     createIntentStorage: body.createIntentStorage,
     llmModel: body.llmModel,
     temperature: body.temperature,
+    reportingIntervalMinutes: body.reportingIntervalMinutes,
+    reportingIntervalSeconds: body.reportingIntervalSeconds,
   };
   if (hasOpenClawMetadataFields(metadataOpts)) {
     message.metadata = openClawMetadataEnvelope(metadataOpts);

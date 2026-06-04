@@ -10,17 +10,21 @@ Always move recently closed TODOs to the top of the closed list.
 - [ ] The different tools (inCoord, inSustain, inExplain) may have requirements on how the timeseries needs to be created that is currently not supported. We need to include support for those requirements both in scripts (extend the DSL, add support for freetext key words, etc.) and in the SimulatorAgentPackages/5g4data-intent-observations agent package. Support in the agent can be implemented using more prompt modules (e.g SimulatorAgentPackages/5g4data-intent-observations/prompt_modules), as code (parse keywords in structured and freetext used in "request observation-report ..." commands in scripts and add code to support it), as refinements of the agent SKILL.md file, as agent tools, etc.
 - [ ] The PoC intent agent is good since we enforce determinism in many ways, but the observation agent probably needs improvement along many lines.... Having a good observation generating agent is very important... Maybe partners have insight that could help creating good observation generating agents? This is linked to the TODO item above, but even more holistic.
 - [ ] Add status report agent (or should the observation agent do that based on observed metrics?)
+- [ ]  Remove the agent sidecar API, and use only A2A to comunicate with agents to ensure A2A conformance for our agents. Reflect over if it is possible, the progress bar (GET …/observation-progress?intentId=…) and observation errors (GET …/observation-errors) might be a challenge....
+- [ ] Full separation of dev and prod (today they use the same GraphDB, Prometheus and agents). Not sure if we neeed this, but could be good...
 
 ### Easy TODO´s?
-- [ ] Make the turtle in the "Test send" window readable (as intent simulator does)
-- [ ] Make the sections in the panels "collapsable"
-- [ ] The sections in the right and left panel goes ouside the panel width on resize. Fix it (by make the elements smaller when resizing).
-- [ ] Full separation of dev and prod
+- [ ] When Prometheus base URL is set in the COnt
+- [ ] Although the turtle is now better in the Controller, it still shows blank nodes...
+- [ ] Change the intent generating agent to support the format (with CoordinationExpectation and utility functions) that inCoord expects.
 - [ ] Add functionality for the About/Help button
-- [ ]  Remove the agent sidecar API, and use only A2A to comunicate with agents to ensure A2A conformance for our agents. Reflect over if it is possible, the progress bar (GET …/observation-progress?intentId=…) and observation errors (GET …/observation-errors) might be a challenge....
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed
+- [x] The old Intent-Simulator wiped the entire repository when I clicked "Delete all intents" button, including the infrastructure graph and the TIO ontology.... Get it back and fix the Intent-Simulator...
+- [x] Make the turtle in the "Test send" window readable. The Intent-Simulator creates more readable turtle, make it similar in the Controller.
+- [x] Make the sections in the panels "collapsable"
+- [x] The sections in the right and left panel goes ouside the panel width on panel resize. Fix it (by makeing the elements smaller when size decreases beyond inner items min size).
 - [x] Make it possible to select the model and the temperature for an agent. Add a configure icon for each agent in the agent list and when clicked, popup a settings window where the model name and temperature can be set. Available models can be selected from a list. The list should be generated using the OpenAI API (https://api.openai.com/v1/models).
 - [x] Add to SimulatorController that an intent can be sent to inSustain, inCoord or inExplain the same way ../inServ sends intents (TMF921). in the SimulatorController GUI, add a "Tools" section in the right panel where the tools inSustain, inCoord and inExplain is listed. For each tool in the list, add a "Settings" icon that when clicked pop ups a window that allows the user to set the URL for the tool and a "Send" icon that when clicked pop ups a window where an intent can be selected. The intents are stored in GraphDB and the list should be populated using a SPARQL query to get the intents from the selected repository (KG target). 
 - [x] Share as is not working anymore? Cookie problem between dev and prod.

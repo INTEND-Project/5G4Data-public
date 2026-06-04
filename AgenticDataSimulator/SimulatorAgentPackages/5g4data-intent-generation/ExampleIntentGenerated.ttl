@@ -59,13 +59,13 @@ data5g:SE5420c491e4fb435ab4f189c920811fbe a data5g:SustainabilityExpectation,
         data5g:COe71bfa4e593b4de6b7272a43c020d23c,
         data5g:CX8c9a8c0dee4b41d8a02a6f64f2f37594 .
 
-data5g:tenMinutesDeployment a time:DurationDescription ;
+data5g:durationDeployment_COc5f7b82460cf4207a5a93ca4183ccbdf a time:DurationDescription ;
     time:numericDuration "10"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:TenMinuteReportEventDeployment a rdfs:Class ;
+data5g:TenMinuteReportEventDeployment_COc5f7b82460cf4207a5a93ca4183ccbdf a rdfs:Class ;
     rdfs:subClassOf imo:Event ;
-    time:delay ( data5g:lastReportInstant data5g:tenMinutesDeployment ) ;
+    time:delay ( data5g:lastReportInstant data5g:durationDeployment_COc5f7b82460cf4207a5a93ca4183ccbdf ) ;
     imo:eventFor data5g:DE0d1ce26a35b94f358117d671456b01e7 .
 
 data5g:RE97978a1a7e50424ebebfbed023838ba1 a icm:ObservationReportingExpectation ;
@@ -74,15 +74,15 @@ data5g:RE97978a1a7e50424ebebfbed023838ba1 a icm:ObservationReportingExpectation 
     icm:reportDestinations [ a rdfs:Container ;
             rdfs:member data5g:graphdb ] ;
     icm:reportTriggers [ a rdfs:Container ;
-            rdfs:member data5g:TenMinuteReportEventDeployment ] .
+            rdfs:member data5g:TenMinuteReportEventDeployment_COc5f7b82460cf4207a5a93ca4183ccbdf ] .
 
-data5g:tenMinutesSustainability a time:DurationDescription ;
+data5g:durationSustainability_CO72a1524ea1904d429ecd23cc1c536d1c a time:DurationDescription ;
     time:numericDuration "10"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:TenMinuteReportEventSustainability a rdfs:Class ;
+data5g:TenMinuteReportEventSustainability_CO72a1524ea1904d429ecd23cc1c536d1c a rdfs:Class ;
     rdfs:subClassOf imo:Event ;
-    time:delay ( data5g:lastReportInstant data5g:tenMinutesSustainability ) ;
+    time:delay ( data5g:lastReportInstant data5g:durationSustainability_CO72a1524ea1904d429ecd23cc1c536d1c ) ;
     imo:eventFor data5g:SE5420c491e4fb435ab4f189c920811fbe .
 
 data5g:REe334ce282b49454bb9bd0d9c67264d13 a icm:ObservationReportingExpectation ;
@@ -91,4 +91,4 @@ data5g:REe334ce282b49454bb9bd0d9c67264d13 a icm:ObservationReportingExpectation 
     icm:reportDestinations [ a rdfs:Container ;
             rdfs:member data5g:graphdb ] ;
     icm:reportTriggers [ a rdfs:Container ;
-            rdfs:member data5g:TenMinuteReportEventSustainability ] .
+            rdfs:member data5g:TenMinuteReportEventSustainability_CO72a1524ea1904d429ecd23cc1c536d1c ] .

@@ -15,10 +15,10 @@ describe("store-prometheus-metadata", () => {
     expect(update).toContain("intent-reports-metadata");
   });
 
-  it("resolvePrometheusExecutorBaseUrl defaults to local Caddy path", () => {
+  it("resolvePrometheusExecutorBaseUrl defaults to local host port", () => {
     const previous = process.env.PROMETHEUS_EXECUTOR_URL;
     delete process.env.PROMETHEUS_EXECUTOR_URL;
-    expect(resolvePrometheusExecutorBaseUrl()).toBe("http://127.0.0.1:9090/prometheus/");
+    expect(resolvePrometheusExecutorBaseUrl()).toBe("http://127.0.0.1:9090/");
     if (previous !== undefined) {
       process.env.PROMETHEUS_EXECUTOR_URL = previous;
     }

@@ -52,6 +52,8 @@ export type IntentGenSessionDialogProps = {
   graphTargetBinding?: GraphTargetBinding | null;
   observationStorage?: "graphdb" | "prometheus" | null;
   createIntentStorage?: "graphdb" | "prometheus" | null;
+  /** From script preparse: observation-report frequency=… (seconds); overrides agent reporting interval. */
+  scriptReportingIntervalSeconds?: number;
   /** Live tick progress from observation agent (observation-report variant). */
   observationProgress?: ObservationProgressSnapshot | null;
   observationProgressIntentId?: string | null;
@@ -77,6 +79,7 @@ export function IntentGenSessionDialog({
   graphTargetBinding = null,
   observationStorage = null,
   createIntentStorage = null,
+  scriptReportingIntervalSeconds,
   observationProgress = null,
   observationProgressIntentId = null,
   onFinished,
@@ -207,6 +210,11 @@ export function IntentGenSessionDialog({
         }
         if (llmFields.temperature !== undefined) {
           payload.temperature = llmFields.temperature;
+        }
+        if (scriptReportingIntervalSeconds !== undefined) {
+          payload.reportingIntervalSeconds = scriptReportingIntervalSeconds;
+        } else if (llmFields.reportingIntervalMinutes !== undefined) {
+          payload.reportingIntervalMinutes = llmFields.reportingIntervalMinutes;
         }
 
         const response = await fetch(a2aMessageSendUrl, {

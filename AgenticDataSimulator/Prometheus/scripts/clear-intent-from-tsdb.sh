@@ -17,7 +17,7 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TSDB_DIR="${PROMETHEUS_TSDB_DIR:-${ROOT}/tsdb}"
 COMPOSE_DIR="${PROMETHEUS_COMPOSE_DIR:-${ROOT}}"
-IMAGE="${PROMETHEUS_IMAGE:-prom/prometheus:v2.54.1}"
+IMAGE="${PROMETHEUS_IMAGE:-prom/prometheus:v3.12.0}"
 CONTAINER="${PROMETHEUS_CONTAINER:-5g4data-prometheus}"
 
 if [ ! -d "${TSDB_DIR}" ]; then

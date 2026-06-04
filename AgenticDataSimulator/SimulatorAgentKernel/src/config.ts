@@ -35,6 +35,8 @@ export interface AppConfig {
   apiServerPort: number;
   agentApiKey?: string;
   agentApiKeyHeader: string;
+  /** Default observation reporting interval for intent generation (minutes). */
+  intentReportIntervalMinutes: number;
 }
 
 function boolFromEnv(value: string | undefined, fallback: boolean): boolean {
@@ -57,6 +59,16 @@ function floatFromEnv(value: string | undefined, fallback: number): number {
 export function clampTemperature(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(2, Math.max(0, value));
+}
+
+export function clampReportingIntervalMinutes(value: number): number {
+  if (!Number.isFinite(value)) return 10;
+  return Math.min(1440, Math.max(1, Math.round(value)));
+}
+
+export function clampReportingIntervalSeconds(value: number): number {
+  if (!Number.isFinite(value)) return 600;
+  return Math.min(86_400, Math.max(1, Math.round(value)));
 }
 
 function normalizedBaseUrl(value: string | undefined, fallback: string): string {
@@ -184,7 +196,10 @@ export function loadConfig(): AppConfig {
     apiServerHost: process.env.API_SERVER_HOST?.trim() || "0.0.0.0",
     apiServerPort: Math.max(1, numberFromEnv(process.env.API_SERVER_PORT, 3011)),
     agentApiKey: process.env.AGENT_API_KEY?.trim() || undefined,
-    agentApiKeyHeader: process.env.AGENT_API_KEY_HEADER?.trim() || "X-Api-Key"
+    agentApiKeyHeader: process.env.AGENT_API_KEY_HEADER?.trim() || "X-Api-Key",
+    intentReportIntervalMinutes: clampReportingIntervalMinutes(
+      numberFromEnv(process.env.INTENT_REPORT_INTERVAL_MINUTES, 10)
+    )
   };
 }
 

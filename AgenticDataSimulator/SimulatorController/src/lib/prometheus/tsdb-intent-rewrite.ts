@@ -48,7 +48,7 @@ export async function runIntentTsdbRewrite(intentId: string): Promise<void> {
       PROMETHEUS_COMPOSE_DIR: process.env.PROMETHEUS_COMPOSE_DIR?.trim() || stackDir,
       PROMETHEUS_TSDB_DIR:
         process.env.PROMETHEUS_TSDB_DIR?.trim() || path.join(stackDir, "tsdb"),
-      PROMETHEUS_IMAGE: process.env.PROMETHEUS_IMAGE?.trim() || "prom/prometheus:v2.54.1",
+      PROMETHEUS_IMAGE: process.env.PROMETHEUS_IMAGE?.trim() || "prom/prometheus:v3.12.0",
       PROMETHEUS_CONTAINER: process.env.PROMETHEUS_CONTAINER?.trim() || "5g4data-prometheus",
     },
     timeout: 600_000,

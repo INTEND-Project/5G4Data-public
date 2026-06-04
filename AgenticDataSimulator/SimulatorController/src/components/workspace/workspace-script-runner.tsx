@@ -16,6 +16,7 @@ import { WorkspaceRunIdChip } from "@/components/workspace/workspace-run-id-chip
 import { WorkspaceRunLogDialog } from "@/components/workspace/workspace-run-log-dialog";
 import { withAppBasePath } from "@/lib/app-paths";
 import { analyzeScript } from "@/lib/dsl/analysis/analyze-script";
+import { deriveIntentReportingIntervalFromScript } from "@/lib/dsl/analysis/derive-intent-reporting-interval";
 import { findCreateIntentStatements } from "@/lib/dsl/analysis/find-create-intent-statements";
 import type { CreateIntentCandidate } from "@/lib/dsl/analysis/find-create-intent-statements";
 import type {
@@ -36,7 +37,10 @@ import {
   parseObservationSyntheticMode,
 } from "@/lib/dsl/historic-observation-ticks";
 import type { ObservationStorageType } from "@/lib/dsl/types";
-import { buildIntentGenerationStorageHint } from "@/lib/observation-storage";
+import {
+  buildIntentGenerationStorageHint,
+  buildScriptReportingIntervalHint,
+} from "@/lib/observation-storage";
 import { parseCanonicalIntentLocalId } from "@/lib/intent/extract-intent-turtle";
 import { resolveIntentIdForObservation } from "@/lib/intent/resolve-intent-ref";
 import type { ObservationAgentErrorEntry } from "@/app/api/observation-agent/errors/route";
@@ -681,6 +685,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     prompt: string;
     intentArtifactLabel: string;
     storage: ObservationStorageType;
+    reportingIntervalSeconds?: number;
   } | null>(null);
   const [observationSession, setObservationSession] = useState<{
     wellKnownURI: string;
@@ -957,6 +962,13 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       }
 
       const orderedStatements = [...statements].sort((a, b) => a.line - b.line);
+      const { byIntentAlias: reportingIntervalSecondsByAlias, diagnostics: reportingDerivationDiagnostics } =
+        deriveIntentReportingIntervalFromScript(statements);
+      for (const diagnostic of reportingDerivationDiagnostics) {
+        appendRunnerLog(
+          `[line ${diagnostic.line}, ${diagnostic.code}] ${diagnostic.message}`,
+        );
+      }
 
       appendRunnerLog("Run Script: executing supported statements in order.");
 
@@ -1206,15 +1218,27 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
             );
           }
 
+          const scriptReportingSeconds = reportingIntervalSecondsByAlias.get(stmt.intentAlias);
+          if (scriptReportingSeconds !== undefined) {
+            appendRunnerLog(
+              `Script reporting interval for "${stmt.intentAlias}": ${scriptReportingSeconds} seconds (from observation-report frequency=…).`,
+            );
+          }
+
+          const promptParts = [buildIntentGenerationStorageHint(stmt.storage)];
+          if (scriptReportingSeconds !== undefined) {
+            promptParts.push(buildScriptReportingIntervalHint(scriptReportingSeconds));
+          }
+          promptParts.push("", stmt.prompt);
+
           await new Promise<void>((finish) => {
             intentFinishRef.current = finish;
             setIntentSession({
               intentArtifactLabel: stmt.intentAlias,
-              prompt: [buildIntentGenerationStorageHint(stmt.storage), "", stmt.prompt].join(
-                "\n",
-              ),
+              prompt: promptParts.join("\n"),
               wellKnownURI: resolved,
               storage: stmt.storage,
+              reportingIntervalSeconds: scriptReportingSeconds,
             });
           });
           continue;
@@ -1885,6 +1909,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         agentName={INTENT_GENERATING_AGENT_NAME}
         agentCardWellKnownURI={intentSession?.wellKnownURI ?? ""}
         createIntentStorage={intentSession?.storage ?? null}
+        scriptReportingIntervalSeconds={intentSession?.reportingIntervalSeconds}
         intentArtifactLabel={intentSession?.intentArtifactLabel ?? ""}
         intentsRegisterUrl={intentsRegisterUrl}
         onFinished={handleIntentDialogFinish}

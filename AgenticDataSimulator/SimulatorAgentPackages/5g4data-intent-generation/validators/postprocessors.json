@@ -6,6 +6,11 @@
       "when": "always"
     },
     {
+      "id": "reporting-triggers",
+      "module": "tools/postprocess/reportingTriggers.ts",
+      "when": "always"
+    },
+    {
       "id": "required-prefixes",
       "module": "tools/postprocess/requiredPrefixes.ts",
       "when": "always"

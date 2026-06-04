@@ -41,3 +41,8 @@ AgenticDataSimulator/requirements-python.txt
 AgenticDataSimulator/ObservationAgentRequirements.md
 AgenticDataSimulator/SimulatorController/logs/restart-lab-3001.log
 AgenticDataSimulator/SimulatorController/logs/restart-lab-3001.log
+AgenticDataSimulator/scripts/complete-restart-lab-from-source.sh
+AgenticDataSimulator/scripts/restart-controller-from-source.sh
+AgenticDataSimulator/SimulatorController/logs/restart-controller-3001.log
+AgenticDataSimulator/SimulatorController/logs/restart-controller-3001.log
+AgenticDataSimulator/.cache-infra-reload/telenorKG.jsonld

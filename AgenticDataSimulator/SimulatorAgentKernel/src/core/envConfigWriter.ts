@@ -17,7 +17,8 @@ const CLONE_EXPLICIT_ENV_KEYS = new Set(["DOMAIN_PACKAGE_DIR", "SKILL_FILE", "SH
 const CLONE_SAFE_DEFAULT_ENV_KEYS = new Set([
   "A2A_AGENT_BASE_URL",
   "A2A_REGISTRY_BASE_URL",
-  "API_SERVER_PORT"
+  "API_SERVER_PORT",
+  "INTENT_REPORT_INTERVAL_MINUTES"
 ]);
 
 export function readDotEnvKey(envFilePath: string, key: string): string | undefined {

@@ -22,3 +22,10 @@ export function buildObservationStorageOverrideHint(
 ): string {
   return `Observation storage override: ${storage}. Use this storage for observation datapoints for this session (overrides intent reportDestinations unless intent Turtle specifies otherwise at runtime).`;
 }
+
+export function buildScriptReportingIntervalHint(seconds: number): string {
+  return [
+    `Observation reporting interval for this intent (from script): ${seconds} seconds.`,
+    "Use time:unitSecond and matching numericDuration on duration nodes; per-anchor event class URIs as in the skill."
+  ].join("\n");
+}

@@ -38,6 +38,24 @@ describe("graph-target-binding", () => {
     });
   });
 
+  it("wraps reportingIntervalMinutes in openclaw metadata envelope v1", () => {
+    expect(openClawMetadataEnvelope({ reportingIntervalMinutes: 15 })).toEqual({
+      openclaw: {
+        controllerBindingVersion: "1",
+        reportingIntervalMinutes: 15,
+      },
+    });
+  });
+
+  it("wraps reportingIntervalSeconds in openclaw metadata envelope v1", () => {
+    expect(openClawMetadataEnvelope({ reportingIntervalSeconds: 60 })).toEqual({
+      openclaw: {
+        controllerBindingVersion: "1",
+        reportingIntervalSeconds: 60,
+      },
+    });
+  });
+
   it("wraps binding in openclaw metadata envelope v1", () => {
     const binding = buildGraphTargetBinding(
       { id: "t", repositoryId: "r", graphIri: "urn:g" },

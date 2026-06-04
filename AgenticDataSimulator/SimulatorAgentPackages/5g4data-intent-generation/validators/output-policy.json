@@ -6,7 +6,13 @@
     "i will proceed",
     "please hold on",
     "now i will create",
-    "icm:ReportingExpectation"
+    "icm:ReportingExpectation",
+    "data5g:TenMinuteReportEventDeployment",
+    "data5g:TenMinuteReportEventSustainability",
+    "data5g:TenMinuteReportEventNetwork",
+    "data5g:tenMinutesDeployment",
+    "data5g:tenMinutesSustainability",
+    "data5g:tenMinutesNetwork"
   ],
   "requiredTokens": [
     "icm:Intent",

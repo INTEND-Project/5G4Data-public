@@ -12,6 +12,8 @@ export interface RepairContext {
   intentFlags: IntentFlags;
   validatorRules: ValidatorRules;
   domainPackage: LoadedDomainPackage;
+  reportingIntervalMinutes?: number;
+  reportingIntervalSeconds?: number;
 }
 
 export class RepairEngine {
@@ -37,7 +39,9 @@ export class RepairEngine {
         runtimeContext: context.runtimeContext,
         knownMetricStems: context.knownMetricStems,
         intentFlags: context.intentFlags,
-        validatorRules: context.validatorRules
+        validatorRules: context.validatorRules,
+        reportingIntervalMinutes: context.reportingIntervalMinutes,
+        reportingIntervalSeconds: context.reportingIntervalSeconds
       },
       domainPackage: context.domainPackage,
       when: "always",
@@ -85,7 +89,9 @@ ${preprocessed}`;
           runtimeContext: context.runtimeContext,
           knownMetricStems: context.knownMetricStems,
           intentFlags: context.intentFlags,
-          validatorRules: context.validatorRules
+          validatorRules: context.validatorRules,
+          reportingIntervalMinutes: context.reportingIntervalMinutes,
+          reportingIntervalSeconds: context.reportingIntervalSeconds
         },
         domainPackage: context.domainPackage,
         when: "on_validation_failure",

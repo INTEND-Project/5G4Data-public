@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   hasAgentLlmPreference,
+  isIntentGenerationAgent,
   normalizeAgentLlmPreference,
   parseAgentLlmPreferencesMap,
   preferenceForOpenClawMetadata,
@@ -27,6 +28,12 @@ describe("agent-llm-preferences", () => {
 
   it("maps stored preference to openclaw metadata fields", () => {
     expect(
+      preferenceForOpenClawMetadata(
+        { model: "gpt-4o", temperature: 0.5, reportingIntervalMinutes: 5 },
+        true,
+      ),
+    ).toEqual({ llmModel: "gpt-4o", temperature: 0.5, reportingIntervalMinutes: 5 });
+    expect(
       preferenceForOpenClawMetadata({ model: "gpt-4o", temperature: 0.5 }, true),
     ).toEqual({ llmModel: "gpt-4o", temperature: 0.5 });
     expect(preferenceForOpenClawMetadata({ model: "", temperature: 0 }, true)).toEqual({
@@ -45,6 +52,12 @@ describe("agent-llm-preferences", () => {
 
   it("clamps temperature on normalize", () => {
     expect(normalizeAgentLlmPreference({ model: "x", temperature: 9 }).temperature).toBe(2);
+  });
+
+  it("isIntentGenerationAgent matches registry name variants", () => {
+    expect(isIntentGenerationAgent("5g4data-intent-generating-agent")).toBe(true);
+    expect(isIntentGenerationAgent("5g4data-intent-generation-agent")).toBe(true);
+    expect(isIntentGenerationAgent("5g4data-intent-observation-generating-agent")).toBe(false);
   });
 });
 

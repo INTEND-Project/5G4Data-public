@@ -1,4 +1,5 @@
 import { graphDbAuthHeaders } from "@/lib/graphdb/auth";
+import { prettyPrintIntentTurtle } from "@/lib/kg/pretty-print-intent-turtle";
 import { runRepositorySparqlSelect } from "@/lib/graphdb/client";
 import { resolveGraphDbBaseUrl } from "@/lib/graphdb/resolve-base-url";
 import {
@@ -77,8 +78,11 @@ export async function fetchIntentTurtle(input: {
     return null;
   }
 
-  const turtle = (await response.text()).trim();
-  return turtle.length > 0 ? turtle : null;
+  const raw = (await response.text()).trim();
+  if (raw.length === 0) {
+    return null;
+  }
+  return prettyPrintIntentTurtle(raw);
 }
 
 export async function listIntentIdsFromGraph(input: {

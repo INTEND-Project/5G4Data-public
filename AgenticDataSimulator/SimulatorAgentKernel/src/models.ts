@@ -33,6 +33,10 @@ export interface ChatSession {
   llmModelOverride?: string | null;
   /** From A2A metadata.openclaw.temperature for this task. */
   temperatureOverride?: number | null;
+  /** From A2A metadata.openclaw.reportingIntervalMinutes for this task. */
+  reportingIntervalMinutesOverride?: number | null;
+  /** From A2A metadata.openclaw.reportingIntervalSeconds for this task (takes precedence over minutes). */
+  reportingIntervalSecondsOverride?: number | null;
 }
 
 export type ModelInvokeOptions = {

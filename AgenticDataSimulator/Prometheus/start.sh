@@ -11,8 +11,8 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-# Behind Caddy subpath on start5g-1:
-#   export PROMETHEUS_EXTERNAL_URL=https://start5g-1.cs.uit.no/prometheus
+# Prometheus listens at :9090 root; Caddy strips /prometheus before proxying.
+# Do not set external-url to a path (e.g. …/prometheus) or v3 serves only under that prefix.
 export PROMETHEUS_EXTERNAL_URL="${PROMETHEUS_EXTERNAL_URL:-http://127.0.0.1:9090}"
 
 TSDB_DIR="${ROOT}/tsdb"
@@ -20,7 +20,7 @@ mkdir -p "$TSDB_DIR"
 # prom/prometheus runs as nobody (65534)
 docker run --rm --user root --entrypoint chown \
   -v "${TSDB_DIR}:/prometheus" \
-  prom/prometheus:v2.54.1 \
+  prom/prometheus:${PROMETHEUS_VERSION:-v3.12.0} \
   -R 65534:65534 /prometheus
 
 docker compose up -d

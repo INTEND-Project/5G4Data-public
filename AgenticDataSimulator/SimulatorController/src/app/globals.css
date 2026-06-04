@@ -1600,7 +1600,11 @@ select.workspace-script-run-select:disabled {
 
 .workspace-tool-test-send-dialog .workspace-tool-turtle-preview {
   max-height: min(62vh, 560px);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  font-family: ui-monospace, monospace;
+  white-space: pre;
+  word-break: normal;
 }
 
 .workspace-tool-test-send-dialog .workspace-tool-response-snippet {
@@ -1612,7 +1616,21 @@ select.workspace-script-run-select:disabled {
   margin-bottom: 10px;
 }
 
-.workspace-tool-turtle-preview,
+.workspace-tool-turtle-preview {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  max-height: 280px;
+  overflow: auto;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  font-family: ui-monospace, monospace;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: pre;
+  word-break: normal;
+}
+
 .workspace-tool-response-snippet {
   margin: 8px 0 0;
   padding: 10px 12px;

@@ -325,12 +325,14 @@ cd Prometheus
 
 TSDB time series persist in `**Prometheus/tsdb/**` across `./stop.sh` and `./start.sh`. To wipe all Prometheus and Pushgateway metrics, run `./delete-data.sh` in `Prometheus/`.
 
+The stack uses **Prometheus 3.12.x** and **Pushgateway 1.11.x** (see `[Prometheus/docker-compose.yml](Prometheus/docker-compose.yml)`). Upgrading from Prometheus 2.x requires a TSDB wipe; see `[Prometheus/UPGRADE.md](Prometheus/UPGRADE.md)`.
+
 This runs Pushgateway on **9091** and Prometheus on **9090**. Prometheus scrapes Pushgateway using `[Prometheus/prometheus.yml](Prometheus/prometheus.yml)` (pushed intent metrics use job `intent_reports`; internal `pushgateway_`* metrics are dropped). The same config sets `storage.tsdb.out_of_order_time_window: 365d` so historic observation batches can remote-write samples with past `obtainedAt` timestamps.
 
-**On start5g-1** (so the Prometheus UI links work behind Caddy):
+**On start5g-1** — start Prometheus at `:9090` root (Caddy strips `/prometheus` before proxying). Do **not** set `PROMETHEUS_EXTERNAL_URL` to a path URL in v3 or health checks and Caddy will 404.
 
 ```bash
-export PROMETHEUS_EXTERNAL_URL=https://start5g-1.cs.uit.no/prometheus
+cd Prometheus
 ./start.sh
 ```
 

@@ -1,13 +1,13 @@
 services:
   pushgateway:
-    image: prom/pushgateway:v1.9.0
+    image: prom/pushgateway:${PUSHGATEWAY_VERSION:-v1.11.2}
     container_name: 5g4data-pushgateway
     restart: unless-stopped
     ports:
       - "9091:9091"
 
   prometheus:
-    image: prom/prometheus:v2.54.1
+    image: prom/prometheus:${PROMETHEUS_VERSION:-v3.12.0}
     container_name: 5g4data-prometheus
     restart: unless-stopped
     depends_on:

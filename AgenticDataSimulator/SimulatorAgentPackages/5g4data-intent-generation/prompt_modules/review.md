@@ -6,8 +6,8 @@ Human review policy:
 - If sustainability is included, you MUST include an "Extracted sustainability objectives" section.
 - In that section, list each sustainability metric from runtime context with exact metric name, numeric threshold, quantifier, and unit when available.
 - Confirm reporting uses `icm:ObservationReportingExpectation` (never `icm:ReportingExpectation`).
-- Confirm deployment/sustainability/network reporting each use separate TenMinute event resources when those expectations are present.
-- Confirm each event has `imo:eventFor` pointing to its respective expectation.
+- Confirm deployment/sustainability/network reporting each use per-anchor event and duration URIs (not global `TenMinuteReportEventDeployment` / `tenMinutesDeployment`).
+- Confirm each event has exactly one `imo:eventFor` pointing to its respective expectation.
 - Confirm sustainability reuses the existing complete deployment context when applicable; do not add a duplicate partial `icm:Context`.
 - Do not use vague labels like "latency objective" without objective names and values.
 - End review text with: "Type OK to confirm generation of Turtle."

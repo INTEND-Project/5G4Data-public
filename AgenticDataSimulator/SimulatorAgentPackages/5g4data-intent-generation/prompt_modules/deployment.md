@@ -7,5 +7,5 @@ Deployment policy:
 - Prefer `tmf-quantifier-hint` when available for the condition operator (`quan:larger`, `quan:smaller`); network-only metrics keep their defaults (latency `quan:smaller`, bandwidth `quan:larger`).
 - Prefer `tmf-unit-hint` when available for `quan:unit` on the condition constraint; emit `quan:<op> [ quan:unit "<unit>" ; rdf:value <threshold> ]` matching catalogue hints unless the user overrides.
 - For deployment reporting, use `icm:ObservationReportingExpectation` (not `icm:ReportingExpectation`).
-- Add deployment-specific reporting trigger resources: `data5g:tenMinutesDeployment` and `data5g:TenMinuteReportEventDeployment`.
-- Ensure deployment event uses `imo:eventFor` pointing to the deployment expectation and reporting uses `icm:reportTriggers` / `icm:reportDestinations` per the reporting-storage policy.
+- Add deployment-specific reporting trigger resources scoped to the first deployment condition: `data5g:durationDeployment_CO<condition-id>` and `data5g:<IntervalLabel>ReportEventDeployment_CO<condition-id>` (never global `TenMinuteReportEventDeployment`).
+- Ensure deployment event uses exactly one `imo:eventFor` pointing to the deployment expectation and reporting uses `icm:reportTriggers` / `icm:reportDestinations` per the reporting-storage policy. Use the session reporting interval for `time:numericDuration`.

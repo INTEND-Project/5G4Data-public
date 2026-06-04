@@ -9,6 +9,8 @@ export interface PostprocessorContext {
   knownMetricStems?: string[];
   intentFlags: IntentFlags;
   validatorRules: ValidatorRules;
+  reportingIntervalMinutes?: number;
+  reportingIntervalSeconds?: number;
 }
 
 interface PostprocessorModule {

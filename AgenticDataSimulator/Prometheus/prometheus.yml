@@ -9,7 +9,10 @@ scrape_configs:
   - job_name: pushgateway
     honor_labels: true
     honor_timestamps: true
-    scrape_timeout: 5s  # Specific timeout for pushgateway
+    scrape_timeout: 5s
+    # Prometheus v3 requires a recognized Content-Type on scrape targets.
+    # Uncomment if pushgateway targets fail after upgrade:
+    # fallback_scrape_protocol: PrometheusText0.0.4
     static_configs:
       - targets: ["pushgateway:9091"]
     metric_relabel_configs:

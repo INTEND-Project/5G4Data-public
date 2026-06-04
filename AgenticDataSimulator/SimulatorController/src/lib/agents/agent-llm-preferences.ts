@@ -3,15 +3,23 @@ export const AGENT_LLM_PREFERENCES_STORAGE_KEY = "simulator.agentLlmPreferences.
 export type AgentLlmPreference = {
   model: string;
   temperature: number;
+  /** Intent-generation only: observation reporting interval in minutes. */
+  reportingIntervalMinutes?: number;
 };
 
 export type AgentLlmPreferencesMap = Record<string, AgentLlmPreference>;
 
 export const DEFAULT_AGENT_TEMPERATURE = 0;
+export const DEFAULT_REPORTING_INTERVAL_MINUTES = 10;
 
 export function clampAgentTemperature(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_AGENT_TEMPERATURE;
   return Math.min(2, Math.max(0, value));
+}
+
+export function clampReportingIntervalMinutes(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_REPORTING_INTERVAL_MINUTES;
+  return Math.min(1440, Math.max(1, Math.round(value)));
 }
 
 export function normalizeAgentLlmPreference(
@@ -21,7 +29,11 @@ export function normalizeAgentLlmPreference(
   const temperature = clampAgentTemperature(
     typeof input?.temperature === "number" ? input.temperature : DEFAULT_AGENT_TEMPERATURE,
   );
-  return { model, temperature };
+  const out: AgentLlmPreference = { model, temperature };
+  if (typeof input?.reportingIntervalMinutes === "number") {
+    out.reportingIntervalMinutes = clampReportingIntervalMinutes(input.reportingIntervalMinutes);
+  }
+  return out;
 }
 
 export function parseAgentLlmPreferencesMap(raw: string | null): AgentLlmPreferencesMap {
@@ -63,9 +75,25 @@ export function hasAgentLlmPreference(
 export function preferenceForOpenClawMetadata(
   pref: AgentLlmPreference | undefined,
   stored: boolean,
-): { llmModel?: string; temperature?: number } {
+): { llmModel?: string; temperature?: number; reportingIntervalMinutes?: number } {
   if (!stored || !pref) return {};
-  const out: { llmModel?: string; temperature?: number } = { temperature: pref.temperature };
+  const out: { llmModel?: string; temperature?: number; reportingIntervalMinutes?: number } = {
+    temperature: pref.temperature,
+  };
   if (pref.model) out.llmModel = pref.model;
+  if (typeof pref.reportingIntervalMinutes === "number") {
+    out.reportingIntervalMinutes = pref.reportingIntervalMinutes;
+  }
   return out;
+}
+
+/** True for intent authoring agents (registry names vary: generating vs generation). */
+export function isIntentGenerationAgent(agentName: string): boolean {
+  const lower = agentName.trim().toLowerCase();
+  if (!lower) return false;
+  return (
+    lower.includes("intent-generating") ||
+    lower.includes("intent-generation") ||
+    lower.includes("5g4data-intent-gen")
+  );
 }

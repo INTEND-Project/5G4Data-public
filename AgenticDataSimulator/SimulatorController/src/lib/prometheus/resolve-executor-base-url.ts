@@ -16,5 +16,5 @@ export function resolvePrometheusExecutorBaseUrl(): string {
   if (raw) {
     return normalizePrometheusBaseUrl(prometheusExecutorUrlSchema.parse(raw));
   }
-  return normalizePrometheusBaseUrl("http://127.0.0.1:9090/prometheus");
+  return normalizePrometheusBaseUrl("http://127.0.0.1:9090");
 }

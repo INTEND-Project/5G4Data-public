@@ -8,5 +8,5 @@ Sustainability policy:
 - Prefer `tmf-quantifier-hint` when available for the condition operator (`quan:larger`, `quan:smaller`).
 - Prefer `tmf-unit-hint` when available for `quan:unit` on the condition constraint; emit `quan:<op> [ quan:unit "<unit>" ; rdf:value <threshold> ]` matching catalogue hints unless the user overrides.
 - For sustainability reporting, use `icm:ObservationReportingExpectation` (not `icm:ReportingExpectation`).
-- Add sustainability-specific reporting trigger resources: `data5g:tenMinutesSustainability` and `data5g:TenMinuteReportEventSustainability`.
-- Ensure sustainability event uses `imo:eventFor` pointing to the sustainability expectation and reporting uses `icm:reportTriggers` / `icm:reportDestinations` per the reporting-storage policy.
+- Add sustainability-specific reporting trigger resources scoped to the first sustainability condition: `data5g:durationSustainability_CO<condition-id>` and `data5g:<IntervalLabel>ReportEventSustainability_CO<condition-id>` (never global `TenMinuteReportEventSustainability`).
+- Ensure sustainability event uses exactly one `imo:eventFor` pointing to the sustainability expectation and reporting uses `icm:reportTriggers` / `icm:reportDestinations` per the reporting-storage policy. Use the session reporting interval for `time:numericDuration`.

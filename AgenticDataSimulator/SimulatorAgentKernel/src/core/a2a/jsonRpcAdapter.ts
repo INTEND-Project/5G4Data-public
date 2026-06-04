@@ -162,6 +162,12 @@ function applyOpenClawMetadataToSession(
   if (parsed.temperature !== null) {
     session.temperatureOverride = parsed.temperature;
   }
+  if (parsed.reportingIntervalMinutes !== null) {
+    session.reportingIntervalMinutesOverride = parsed.reportingIntervalMinutes;
+  }
+  if (parsed.reportingIntervalSeconds !== null) {
+    session.reportingIntervalSecondsOverride = parsed.reportingIntervalSeconds;
+  }
   return null;
 }
 

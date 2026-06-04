@@ -76,12 +76,12 @@ Get all stored intents with their metadata.
 ### 4. Delete Intent
 **DELETE** `/api/delete-intent/<intent_id>`
 
-Delete a specific intent and its associated file.
+Delete one intent and its local `.ttl` file. Only triples reachable from `data5g:I<intent_id>` are removed (not infrastructure or other intents).
 
 ### 5. Delete All Intents
 **POST** `/api/delete-all-intents`
 
-Delete all intents from GraphDB and the intents directory.
+Delete all simulator intents from GraphDB (one intent subgraph at a time) and remove local `.ttl` files under `intents/`. Does **not** delete infrastructure, polygon, workload, or other non-intent triples in the repository.
 
 ## Intent Types and Parameters
 

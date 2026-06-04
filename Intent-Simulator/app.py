@@ -107,23 +107,13 @@ def get_intent(intent_id):
 
 @app.route('/api/delete-all-intents', methods=['POST'])
 def delete_all_intents():
-    """Delete all intents from the repository and the intents directory"""
+    """Delete all simulator intents from GraphDB and the intents directory."""
     try:
-        # Delete all intents from GraphDB
-        graphdb_client.delete_all_intents()
-        
-        # Delete all .ttl files from the intents directory
-        intents_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'intents')
-        for file in os.listdir(intents_dir):
-            if file.endswith('.ttl'):
-                file_path = os.path.join(intents_dir, file)
-                try:
-                    os.remove(file_path)
-                    print(f"Deleted file: {file_path}")
-                except Exception as e:
-                    print(f"Error deleting file {file_path}: {str(e)}")
-        
-        return jsonify({"message": "All intents deleted successfully"})
+        deleted_count = graphdb_client.delete_all_intents()
+        return jsonify({
+            "message": f"Deleted {deleted_count} intent(s). Infrastructure and other knowledge graphs were not modified.",
+            "deleted_count": deleted_count,
+        })
     except Exception as e:
         print(f"Error deleting intents: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -195,9 +185,14 @@ def query_intents():
 def delete_intent(intent_id):
     """Delete a specific intent and its associated file"""
     try:
-        # Delete from GraphDB
-        graphdb_client.delete_intent(intent_id)
-        return jsonify({"message": f"Intent {intent_id} deleted successfully"})
+        canonical_id = GraphDBClient.normalize_intent_id(intent_id)
+        graphdb_client.delete_intent(canonical_id)
+        return jsonify({
+            "message": f"Intent {canonical_id} deleted successfully",
+            "intent_id": canonical_id,
+        })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         print(f"Error deleting intent: {str(e)}")  # Debug print
         return jsonify({"error": str(e)}), 400

@@ -195,32 +195,76 @@ class GraphDBClient:
         response.raise_for_status()
         return response.json()
 
-    def delete_all_intents(self):
-        """Delete all intents from the repository"""
-        # SPARQL query to delete all triples
-        delete_query = """
-        DELETE {
-            ?s ?p ?o
-        }
+    @staticmethod
+    def normalize_intent_id(intent_id: str) -> str:
+        """Return canonical 32-char hex intent id; raise ValueError if invalid."""
+        normalized = intent_id.strip()
+        if normalized.startswith("I"):
+            normalized = normalized[1:]
+        if not re.fullmatch(r"[a-f0-9]{32}", normalized):
+            raise ValueError(
+                f"Invalid intent ID {intent_id!r}: expected I + 32 hex characters"
+            )
+        return normalized
+
+    def list_intent_ids(self) -> list[str]:
+        """List intent local ids (hex) stored in GraphDB."""
+        query = """
+        PREFIX data5g: <http://5g4data.eu/5g4data#>
+        PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>
+        PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>
+        SELECT DISTINCT ?id
         WHERE {
-            ?s ?p ?o
+            ?intent a icm:Intent ;
+                log:allOf ?extype .
+            ?extype icm:target ?target .
+            BIND(REPLACE(STR(?intent), ".*#I", "") AS ?id)
         }
+        ORDER BY ?id
         """
-        headers = {
-            'Content-Type': 'application/sparql-update'
-        }
-        response = requests.post(
-            self.sparql_endpoint,
-            data=delete_query,
-            headers=headers,
-            timeout=30,
-            **self._request_auth(),
-        )
-        response.raise_for_status()
-        return response.text
+        results = self.query_intents(query)
+        return [
+            binding["id"]["value"]
+            for binding in results.get("results", {}).get("bindings", [])
+        ]
+
+    def _clear_local_intent_files(self) -> int:
+        """Remove all .ttl files under the intents directory."""
+        removed = 0
+        for filename in os.listdir(self.intents_dir):
+            if not filename.endswith(".ttl"):
+                continue
+            os.remove(os.path.join(self.intents_dir, filename))
+            removed += 1
+        return removed
+
+    def delete_all_intents(self) -> int:
+        """Delete every intent in GraphDB; does not touch infrastructure or other KG data."""
+        intent_ids = self.list_intent_ids()
+        deleted = 0
+        errors: list[str] = []
+
+        for intent_id in intent_ids:
+            try:
+                self.delete_intent(intent_id)
+                deleted += 1
+            except Exception as exc:
+                errors.append(f"{intent_id}: {exc}")
+
+        self._clear_local_intent_files()
+
+        if errors:
+            raise Exception(
+                f"Deleted {deleted} intent(s); failed for {len(errors)}: "
+                + "; ".join(errors[:5])
+                + ("..." if len(errors) > 5 else "")
+            )
+
+        return deleted
 
     def delete_intent(self, intent_id: str):
         """Delete a specific intent and its associated file"""
+        intent_id = self.normalize_intent_id(intent_id)
         try:
             # Delete the file if it exists
             file_path = os.path.join(self.intents_dir, f"{intent_id}.ttl")

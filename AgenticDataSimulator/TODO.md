@@ -15,12 +15,12 @@ Always move recently closed TODOs to the top of the closed list.
 
 ### Easy TODO´s?
 
-- [ ] Although the turtle is now better in the Controller, it still shows blank nodes...
 - [ ] Change the intent generating agent to support the format (with CoordinationExpectation and utility functions) that inCoord expects.
 - [ ] Add functionality for the About/Help button
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed
+- [x] Although the turtle is now better in the Controller, it still shows blank nodes...
 - [x] When Prometheus base URL is set in the Controller all services needs to use it. Still needs testing...
 - [x] The old Intent-Simulator wiped the entire repository when I clicked "Delete all intents" button, including the infrastructure graph and the TIO ontology.... Get it back and fix the Intent-Simulator...
 - [x] Make the turtle in the "Test send" window readable. The Intent-Simulator creates more readable turtle, make it similar in the Controller.

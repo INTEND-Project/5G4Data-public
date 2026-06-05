@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
+import { AboutHelpDialog } from "@/components/workspace/about-help-dialog";
 import { AgentList } from "@/components/workspace/agent-list";
 import { AgentLlmPreferencesProvider } from "@/components/workspace/agent-llm-preferences-context";
 import { AssistantPanel } from "@/components/workspace/assistant-panel";
@@ -346,9 +347,11 @@ function WorkspaceShellBody({
   assistantContext,
 }: WorkspaceShellBodyProps) {
   const infraStatus = useWorkspaceInfraConnectionStatus(initialInfraStatus, infraStatusApiUrl);
+  const [aboutHelpOpen, setAboutHelpOpen] = useState(false);
 
   return (
     <>
+        <AboutHelpDialog open={aboutHelpOpen} onClose={() => setAboutHelpOpen(false)} />
         <header className="workspace-topbar">
           <div className="workspace-brand">
             <Image
@@ -364,7 +367,11 @@ function WorkspaceShellBody({
             </div>
           </div>
           <div className="workspace-top-actions">
-            <button className="workspace-button workspace-top-action-button" type="button">
+            <button
+              className="workspace-button workspace-top-action-button"
+              onClick={() => setAboutHelpOpen(true)}
+              type="button"
+            >
               About/Help
             </button>
             <div className="workspace-user-controls">

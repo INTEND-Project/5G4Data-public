@@ -696,6 +696,98 @@ a {
   overflow: auto;
 }
 
+.workspace-about-help-dialog {
+  width: min(640px, 100%);
+  max-height: min(85vh, 720px);
+  overflow: auto;
+}
+
+.workspace-about-help-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.workspace-about-help-logo {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.workspace-about-help-brand-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.workspace-about-help-brand-copy strong {
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.workspace-about-help-brand-copy span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.workspace-about-help-section {
+  margin: 0;
+}
+
+.workspace-about-help-section h4 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.workspace-about-help-section .workspace-save-as-dialog-hint + .workspace-save-as-dialog-hint {
+  margin-top: 8px;
+}
+
+.workspace-about-help-steps {
+  margin: 0;
+  padding-left: 1.35rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.workspace-about-help-steps li {
+  margin-bottom: 8px;
+}
+
+.workspace-about-help-steps li:last-child {
+  margin-bottom: 0;
+}
+
+.workspace-about-help-steps strong {
+  color: var(--foreground);
+}
+
+.workspace-about-help-steps code {
+  font-size: 0.86rem;
+}
+
+.workspace-about-help-footer {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.workspace-about-help-dialog a {
+  color: #9fd4ff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.workspace-about-help-dialog a:hover {
+  color: #c8e8ff;
+}
+
 .workspace-show-metrics-prompt {
   margin: 12px 0;
   font-size: 0.9rem;

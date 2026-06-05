@@ -114,6 +114,9 @@ describe("workspace shell bootstrap", () => {
     expect(scriptSessionContextSource).toContain("window.confirm");
     expect(scriptSessionContextSource).toContain("slice(0, 10)");
     expect(shellSource).toContain("About/Help");
+    expect(shellSource).toContain("AboutHelpDialog");
+    expect(shellSource).toContain("aboutHelpOpen");
+    expect(shellSource).toContain("setAboutHelpOpen");
     expect(shellSource).toContain("workspace-user-controls");
     expect(shellSource).toContain("workspace-user-label");
     expect(shellSource).toContain("User:");
@@ -358,6 +361,10 @@ describe("workspace shell bootstrap", () => {
     expect(globalsSource).toContain("font-size: 2.3rem;");
     expect(globalsSource).toContain("font-size: 1.64rem;");
     expect(globalsSource).toContain("font-size: 1.5rem;");
+    expect(globalsSource).toContain(".workspace-about-help-dialog");
+    expect(globalsSource).toContain(".workspace-about-help-header");
+    expect(globalsSource).toContain(".workspace-about-help-section");
+    expect(globalsSource).toContain(".workspace-about-help-steps");
     expect(globalsSource).toContain(".workspace-top-action-button");
     expect(globalsSource).toContain("font-size: 1.2rem;");
   });

@@ -1,4 +1,15 @@
-import { Parser, Writer, type Quad } from "n3";
+import { Parser, Writer, type BlankNode, type BlankTriple, type Quad } from "n3";
+
+const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+const RDF_FIRST = "http://www.w3.org/1999/02/22-rdf-syntax-ns#first";
+const RDF_REST = "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest";
+const RDF_NIL = "http://www.w3.org/1999/02/22-rdf-syntax-ns#nil";
+const LOG_ALLOF = "http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/allOf";
+const ICM_INTENT = "http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/Intent";
+const ICM_CONDITION = "http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/Condition";
+const ICM_CONTEXT = "http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/Context";
+const IMO_EVENT_FOR = "http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/eventFor";
+const NS1_DELAY = "http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/delay";
 
 /** Preferred Turtle prefixes (aligned with Intent-Simulator graphdb_client). */
 const INTENT_TURTLE_PREFIXES: Record<string, string> = {
@@ -11,13 +22,403 @@ const INTENT_TURTLE_PREFIXES: Record<string, string> = {
   dct: "http://purl.org/dc/terms/",
   geo: "http://www.opengis.net/ont/geosparql#",
   rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+  rdfs: "http://www.w3.org/2000/01/rdf-schema#",
+  ns1: "http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/",
   xsd: "http://www.w3.org/2001/XMLSchema#",
 };
 
-function serializeQuads(quads: Quad[]): string {
-  const writer = new Writer({ format: "text/turtle", prefixes: INTENT_TURTLE_PREFIXES });
+function isBlankNode(term: Quad["subject"] | Quad["object"]): term is BlankNode {
+  return term.termType === "BlankNode";
+}
+
+function extractPrefixesFromTurtle(raw: string): Record<string, string> {
+  const prefixes: Record<string, string> = {};
+  const pattern = /@prefix\s+([\w-]+):\s+<([^>]+)>\s*\./gi;
+  let match = pattern.exec(raw);
+  while (match) {
+    prefixes[match[1]] = match[2];
+    match = pattern.exec(raw);
+  }
+  return prefixes;
+}
+
+function mergePrefixes(raw: string): Record<string, string> {
+  return { ...INTENT_TURTLE_PREFIXES, ...extractPrefixesFromTurtle(raw) };
+}
+
+function blankObjectRefCounts(quads: Quad[]): Map<string, number> {
+  const counts = new Map<string, number>();
   for (const quad of quads) {
-    writer.addQuad(quad);
+    if (!isBlankNode(quad.object)) {
+      continue;
+    }
+    const key = quad.object.value;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function quadsBySubject(quads: Quad[]): Map<string, Quad[]> {
+  const map = new Map<string, Quad[]>();
+  for (const quad of quads) {
+    const key = quad.subject.value;
+    const existing = map.get(key);
+    if (existing) {
+      existing.push(quad);
+    } else {
+      map.set(key, [quad]);
+    }
+  }
+  return map;
+}
+
+function predicateSortKey(predicate: Quad["predicate"]): string {
+  if (predicate.value === RDF_TYPE) {
+    return "\u0000";
+  }
+  return predicate.value;
+}
+
+function sortQuadsForSubject(quads: Quad[]): Quad[] {
+  return [...quads].sort((left, right) => {
+    const predicateOrder = predicateSortKey(left.predicate).localeCompare(
+      predicateSortKey(right.predicate),
+    );
+    if (predicateOrder !== 0) {
+      return predicateOrder;
+    }
+    return left.object.value.localeCompare(right.object.value);
+  });
+}
+
+function tryExtractRdfList(
+  head: BlankNode,
+  bySubject: Map<string, Quad[]>,
+): Quad["object"][] | null {
+  const items: Quad["object"][] = [];
+  let current: Quad["object"] | null = head;
+
+  while (current && isBlankNode(current)) {
+    const propertyQuads = bySubject.get(current.value);
+    if (!propertyQuads?.length) {
+      return null;
+    }
+
+    const firstQuad = propertyQuads.find((quad) => quad.predicate.value === RDF_FIRST);
+    const restQuad = propertyQuads.find((quad) => quad.predicate.value === RDF_REST);
+    if (!firstQuad || !restQuad) {
+      return null;
+    }
+
+    items.push(firstQuad.object);
+
+    if (restQuad.object.value === RDF_NIL) {
+      return items;
+    }
+    if (!isBlankNode(restQuad.object)) {
+      return null;
+    }
+    current = restQuad.object;
+  }
+
+  return null;
+}
+
+function encodeObject(
+  writer: Writer,
+  object: Quad["object"],
+  refCounts: Map<string, number>,
+  bySubject: Map<string, Quad[]>,
+): Quad["object"] {
+  if (isBlankNode(object) && (refCounts.get(object.value) ?? 0) === 1) {
+    const listItems = tryExtractRdfList(object, bySubject);
+    if (listItems?.length) {
+      return writer.list(listItems) as unknown as Quad["object"];
+    }
+  }
+
+  if (!isBlankNode(object) || (refCounts.get(object.value) ?? 0) !== 1) {
+    return object;
+  }
+
+  const propertyQuads = bySubject.get(object.value);
+  if (!propertyQuads?.length) {
+    return object;
+  }
+
+  const children: BlankTriple[] = sortQuadsForSubject(propertyQuads).map((quad) => ({
+    predicate: quad.predicate,
+    object: encodeObject(writer, quad.object, refCounts, bySubject) as Quad["object"],
+  }));
+
+  if (children.length === 1) {
+    return writer.blank(children[0].predicate, children[0].object) as Quad["object"];
+  }
+
+  return writer.blank(children) as Quad["object"];
+}
+
+function localName(iri: string): string {
+  const hash = iri.lastIndexOf("#");
+  const slash = iri.lastIndexOf("/");
+  const separator = Math.max(hash, slash);
+  return separator >= 0 ? iri.slice(separator + 1) : iri;
+}
+
+function subjectTypeValues(bySubject: Map<string, Quad[]>, subjectValue: string): string[] {
+  return (bySubject.get(subjectValue) ?? [])
+    .filter((quad) => quad.predicate.value === RDF_TYPE)
+    .map((quad) => quad.object.value);
+}
+
+function hasSubjectType(
+  bySubject: Map<string, Quad[]>,
+  subjectValue: string,
+  typeIri: string,
+): boolean {
+  return subjectTypeValues(bySubject, subjectValue).includes(typeIri);
+}
+
+function isIntentSubject(bySubject: Map<string, Quad[]>, subjectValue: string): boolean {
+  if (hasSubjectType(bySubject, subjectValue, ICM_INTENT)) {
+    return true;
+  }
+  return /^I[a-f0-9]{32}$/i.test(localName(subjectValue));
+}
+
+function isConditionSubject(bySubject: Map<string, Quad[]>, subjectValue: string): boolean {
+  if (hasSubjectType(bySubject, subjectValue, ICM_CONDITION)) {
+    return true;
+  }
+  return localName(subjectValue).startsWith("CO");
+}
+
+function isContextSubject(bySubject: Map<string, Quad[]>, subjectValue: string): boolean {
+  if (hasSubjectType(bySubject, subjectValue, ICM_CONTEXT)) {
+    return true;
+  }
+  return localName(subjectValue).startsWith("CX");
+}
+
+function logAllOfObjectValues(bySubject: Map<string, Quad[]>, subjectValue: string): string[] {
+  return (bySubject.get(subjectValue) ?? [])
+    .filter((quad) => quad.predicate.value === LOG_ALLOF && quad.object.termType === "NamedNode")
+    .map((quad) => quad.object.value);
+}
+
+function collectDelayListItems(
+  bySubject: Map<string, Quad[]>,
+  subjectValue: string,
+): string[] {
+  for (const quad of bySubject.get(subjectValue) ?? []) {
+    if (quad.predicate.value !== NS1_DELAY || !isBlankNode(quad.object)) {
+      continue;
+    }
+    const listItems = tryExtractRdfList(quad.object, bySubject);
+    if (listItems?.length) {
+      return listItems
+        .filter((item) => item.termType === "NamedNode")
+        .map((item) => item.value);
+    }
+  }
+  return [];
+}
+
+function appendExpectationSatellites(
+  bySubject: Map<string, Quad[]>,
+  expectationValue: string,
+  addSubject: (subjectValue: string) => void,
+): void {
+  for (const [subjectValue, quads] of bySubject) {
+    if (quads.some((quad) => quad.predicate.value === IMO_EVENT_FOR && quad.object.value === expectationValue)) {
+      addSubject(subjectValue);
+      for (const related of collectDelayListItems(bySubject, subjectValue)) {
+        addSubject(related);
+      }
+    }
+  }
+}
+
+function buildIntentSubjectOrder(
+  bySubject: Map<string, Quad[]>,
+  subjectValues: string[],
+): string[] {
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+
+  const addSubject = (subjectValue: string) => {
+    if (seen.has(subjectValue) || !bySubject.has(subjectValue)) {
+      return;
+    }
+    seen.add(subjectValue);
+    ordered.push(subjectValue);
+  };
+
+  const intents = subjectValues
+    .filter((value) => isIntentSubject(bySubject, value))
+    .sort((left, right) => left.localeCompare(right));
+
+  for (const intentValue of intents) {
+    addSubject(intentValue);
+  }
+
+  for (const intentValue of intents) {
+    for (const expectationValue of logAllOfObjectValues(bySubject, intentValue)) {
+      addSubject(expectationValue);
+
+      const children = logAllOfObjectValues(bySubject, expectationValue);
+      for (const childValue of children) {
+        if (isConditionSubject(bySubject, childValue)) {
+          addSubject(childValue);
+        }
+      }
+      for (const childValue of children) {
+        if (isContextSubject(bySubject, childValue)) {
+          addSubject(childValue);
+        }
+      }
+      for (const childValue of children) {
+        if (
+          !isConditionSubject(bySubject, childValue) &&
+          !isContextSubject(bySubject, childValue)
+        ) {
+          addSubject(childValue);
+        }
+      }
+
+      appendExpectationSatellites(bySubject, expectationValue, addSubject);
+    }
+  }
+
+  for (const subjectValue of [...subjectValues].sort((left, right) => left.localeCompare(right))) {
+    addSubject(subjectValue);
+  }
+
+  return ordered;
+}
+
+function isTopLevelSubject(subject: Quad["subject"], refCounts: Map<string, number>): boolean {
+  if (subject.termType === "NamedNode") {
+    return true;
+  }
+  if (!isBlankNode(subject)) {
+    return true;
+  }
+  return (refCounts.get(subject.value) ?? 0) !== 1;
+}
+
+function polishOutsideQuotes(line: string, replacer: (segment: string) => string): string {
+  const parts = line.split(/("(?:\\.|[^"\\])*")/g);
+  return parts
+    .map((part, index) => (index % 2 === 1 ? part : replacer(part)))
+    .join("");
+}
+
+function polishTurtleLine(line: string): string {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return line;
+  }
+  if (trimmed.startsWith("@prefix")) {
+    return line.replace(/\.\s*$/, " .");
+  }
+
+  let polished = polishOutsideQuotes(line, (segment) => segment.replace(/;(?!\s)/g, " ;"));
+
+  if (/[;[]\s*$/.test(trimmed)) {
+    polished = polished.replace(/\s*$/, "");
+  } else if (trimmed.endsWith(".")) {
+    polished = polished.replace(/\.\s*$/, " .");
+  }
+
+  return polished;
+}
+
+function improveBracketIndentation(text: string): string {
+  const lines = text.split("\n");
+  const output: string[] = [];
+  const bracketIndents: number[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("@prefix")) {
+      output.push(polishTurtleLine(line));
+      continue;
+    }
+
+    const leading = line.match(/^(\s*)/)?.[1] ?? "";
+
+    if (/\[\s*$/.test(trimmed) && !trimmed.includes("]")) {
+      bracketIndents.push(leading.length + 4);
+      output.push(polishTurtleLine(line));
+      continue;
+    }
+
+    if (bracketIndents.length > 0) {
+      const closeIndent = bracketIndents[bracketIndents.length - 1];
+      if (/^]\s*;?\s*\.?\s*$/.test(trimmed)) {
+        bracketIndents.pop();
+        output.push(`${" ".repeat(Math.max(0, closeIndent - 4))}${trimmed}`);
+        continue;
+      }
+
+      output.push(`${" ".repeat(closeIndent)}${trimmed}`);
+      continue;
+    }
+
+    output.push(polishTurtleLine(line));
+  }
+
+  return output.join("\n");
+}
+
+function splitRepeatedObjectLists(text: string): string {
+  return text.replace(/^(\s*)(\S+)\s+(a\s+[^;]+);$/gm, (full, indent, subject, typeObjects) => {
+    const types = typeObjects
+      .replace(/^a\s+/, "")
+      .split(",")
+      .map((type: string) => type.trim())
+      .filter(Boolean);
+    if (types.length <= 1) {
+      return full;
+    }
+    const continuationIndent = `${indent}    `;
+    return `${indent}${subject} a ${types[0]},\n${continuationIndent}${types.slice(1).join(`,\n${continuationIndent}`)} ;`;
+  });
+}
+
+function polishTurtleOutput(serialized: string): string {
+  const indented = improveBracketIndentation(serialized);
+  const listSpaced = indented.replace(/\(([^\s)])/g, "( $1").replace(/([^\s(])\)/g, "$1 )");
+  return splitRepeatedObjectLists(listSpaced);
+}
+
+function serializeQuadsWithInlineBlanks(quads: Quad[], prefixes: Record<string, string>): string {
+  const refCounts = blankObjectRefCounts(quads);
+  const bySubject = quadsBySubject(quads);
+  const writer = new Writer({ format: "text/turtle", prefixes });
+
+  const topLevelSubjectValues = [...bySubject.keys()]
+    .map((value) => bySubject.get(value)?.[0]?.subject)
+    .filter((subject): subject is Quad["subject"] => Boolean(subject))
+    .filter((subject) => isTopLevelSubject(subject, refCounts))
+    .map((subject) => subject.value);
+
+  const orderedSubjectValues = buildIntentSubjectOrder(bySubject, topLevelSubjectValues);
+  const topLevelSubjects = orderedSubjectValues
+    .map((value) => bySubject.get(value)?.[0]?.subject)
+    .filter((subject): subject is Quad["subject"] => Boolean(subject));
+
+  for (const subject of topLevelSubjects) {
+    const subjectQuads = sortQuadsForSubject(bySubject.get(subject.value) ?? []);
+    for (const quad of subjectQuads) {
+      writer.addQuad(
+        quad.subject,
+        quad.predicate,
+        encodeObject(writer, quad.object, refCounts, bySubject) as Quad["object"],
+        quad.graph,
+      );
+    }
   }
 
   let result = "";
@@ -27,11 +428,12 @@ function serializeQuads(quads: Quad[]): string {
     }
     result = serialized;
   });
-  return result.trim();
+  return polishTurtleOutput(result.trim());
 }
 
 /**
  * Parse and re-serialize Turtle for display (Intent-Simulator uses rdflib the same way).
+ * Single-reference blank nodes use `[ ... ]`; RDF lists use `( ... )`.
  * Returns the original string when parsing or serialization fails.
  */
 export function prettyPrintIntentTurtle(raw: string): string {
@@ -47,7 +449,7 @@ export function prettyPrintIntentTurtle(raw: string): string {
       return trimmed;
     }
 
-    const formatted = serializeQuads(quads);
+    const formatted = serializeQuadsWithInlineBlanks(quads, mergePrefixes(trimmed));
     return formatted.length > 0 ? formatted : trimmed;
   } catch {
     return trimmed;

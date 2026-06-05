@@ -42,4 +42,96 @@ describe("prettyPrintIntentTurtle", () => {
     expect(prettyPrintIntentTurtle("")).toBe("");
     expect(prettyPrintIntentTurtle("   ")).toBe("");
   });
+
+  it("inlines single-use blank nodes as square brackets instead of _: labels", () => {
+    const expanded = `
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+_:b0 icm:valuesOfTargetProperty data5g:lat .
+_:b1 quan:unit "ms" ; rdf:value 20.0 .
+_:b0 quan:smaller _:b1 .
+data5g:CO1 a icm:Condition ; set:forAll _:b0 .
+`.trim();
+
+    const formatted = prettyPrintIntentTurtle(expanded);
+
+    expect(formatted).toContain("set:forAll [");
+    expect(formatted).toContain("quan:smaller [");
+    expect(formatted).not.toMatch(/_:b[01]\b/);
+  });
+
+  it("serializes RDF lists as parenthesized notation and uses rdfs/ns1 prefixes", () => {
+    const expanded = `
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+data5g:Event1 a <http://www.w3.org/2000/01/rdf-schema#Class> .
+_:l0 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> data5g:lastReportInstant ;
+    <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> _:l1 .
+_:l1 <http://www.w3.org/1999/02/22-rdf-syntax-ns#first> data5g:duration1 ;
+    <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest> <http://www.w3.org/1999/02/22-rdf-syntax-ns#nil> .
+data5g:Event1 <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/delay> _:l0 .
+data5g:duration1 a <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/DurationDescription> ;
+    <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/numericDuration> 60.0 .
+`.trim();
+
+    const formatted = prettyPrintIntentTurtle(expanded);
+
+    expect(formatted).toContain("@prefix rdfs:");
+    expect(formatted).toContain("@prefix ns1:");
+    expect(formatted).toContain("a rdfs:Class");
+    expect(formatted).toMatch(/ns1:delay \( data5g:lastReportInstant data5g:duration1 \)/);
+    expect(formatted).toContain("ns1:numericDuration 60.0");
+    expect(formatted).not.toContain("rdf:first");
+    expect(formatted).not.toContain("rdf:rest");
+    expect(formatted).toContain("ns1:DurationDescription");
+    expect(formatted).toContain("ns1:numericDuration");
+  });
+
+  it("orders subjects with Intent first, then each Expectation and its Conditions and Context", () => {
+    const expanded = `
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+data5g:COdeployment a icm:Condition .
+data5g:CXshared a icm:Context .
+data5g:COsustain1 a icm:Condition .
+data5g:COsustain2 a icm:Condition .
+data5g:DE1 a data5g:DeploymentExpectation ; log:allOf data5g:CXshared, data5g:COdeployment .
+data5g:SE1 a data5g:SustainabilityExpectation ; log:allOf data5g:COsustain2, data5g:COsustain1, data5g:CXshared .
+data5g:RE1 a icm:ObservationReportingExpectation .
+data5g:I1 a icm:Intent ; log:allOf data5g:SE1, data5g:DE1, data5g:RE1 .
+`.trim();
+
+    const formatted = prettyPrintIntentTurtle(expanded);
+    const order = [...formatted.matchAll(/^data5g:(\S+)/gm)].map((match) => `data5g:${match[1]}`);
+
+    expect(order.indexOf("data5g:I1")).toBe(0);
+    expect(order.indexOf("data5g:SE1")).toBeLessThan(order.indexOf("data5g:COsustain2"));
+    expect(order.indexOf("data5g:COsustain2")).toBeLessThan(order.indexOf("data5g:COsustain1"));
+    expect(order.indexOf("data5g:COsustain1")).toBeLessThan(order.indexOf("data5g:CXshared"));
+    expect(order.indexOf("data5g:DE1")).toBeLessThan(order.indexOf("data5g:COdeployment"));
+    expect(order.indexOf("data5g:COdeployment")).toBeLessThan(order.indexOf("data5g:RE1"));
+  });
+
+  it("formats rdfs containers with square brackets", () => {
+    const expanded = `
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+data5g:RE1 a icm:ObservationReportingExpectation ;
+    icm:reportDestinations _:c0 .
+_:c0 a rdfs:Container ;
+    rdfs:member data5g:prometheus .
+`.trim();
+
+    const formatted = prettyPrintIntentTurtle(expanded);
+
+    expect(formatted).toContain("icm:reportDestinations [");
+    expect(formatted).toContain("a rdfs:Container");
+    expect(formatted).toContain("rdfs:member data5g:prometheus");
+    expect(formatted).not.toMatch(/_:c0\b/);
+  });
 });

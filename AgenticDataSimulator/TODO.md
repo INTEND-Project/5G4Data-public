@@ -14,13 +14,14 @@ Always move recently closed TODOs to the top of the closed list.
 - [ ] Full separation of dev and prod (today they use the same GraphDB, Prometheus and agents). Not sure if we neeed this, but could be good...
 
 ### Easy TODO´s?
-- [ ] When Prometheus base URL is set in the COnt
+
 - [ ] Although the turtle is now better in the Controller, it still shows blank nodes...
 - [ ] Change the intent generating agent to support the format (with CoordinationExpectation and utility functions) that inCoord expects.
 - [ ] Add functionality for the About/Help button
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed
+- [x] When Prometheus base URL is set in the Controller all services needs to use it. Still needs testing...
 - [x] The old Intent-Simulator wiped the entire repository when I clicked "Delete all intents" button, including the infrastructure graph and the TIO ontology.... Get it back and fix the Intent-Simulator...
 - [x] Make the turtle in the "Test send" window readable. The Intent-Simulator creates more readable turtle, make it similar in the Controller.
 - [x] Make the sections in the panels "collapsable"

@@ -1,5 +1,7 @@
 import {
-  collectOutputIssues
+  collectOutputIssues,
+  extractTurtlePayload,
+  looksLikeTurtleIntent
 } from "./outputPolicyValidator.js";
 import type { LlmCallRecord, ModelInvocationResult, ModelInvokeOptions } from "../models.js";
 import type { LoadedDomainPackage, ValidatorRules } from "./packageLoader.js";
@@ -24,6 +26,11 @@ export class RepairEngine {
     ) => Promise<ModelInvocationResult>
   ) {}
 
+  private normalizeCandidateText(text: string): string {
+    if (!looksLikeTurtleIntent(text)) return text;
+    return extractTurtlePayload(text);
+  }
+
   async repairIfNeeded(
     responseText: string,
     context: RepairContext,
@@ -33,8 +40,9 @@ export class RepairEngine {
   ): Promise<{ text: string; debug: string[]; calls: LlmCallRecord[] }> {
     const debug: string[] = [];
     const calls: LlmCallRecord[] = [];
+    const normalizedInput = this.normalizeCandidateText(responseText);
     const preprocessed = await runConfiguredPostprocessors({
-      text: responseText,
+      text: normalizedInput,
       context: {
         runtimeContext: context.runtimeContext,
         knownMetricStems: context.knownMetricStems,
@@ -53,7 +61,9 @@ export class RepairEngine {
       intentFlags: context.intentFlags,
       validatorRules: context.validatorRules
     });
-    if (issues.length === 0) return { text: preprocessed, debug, calls };
+    if (issues.length === 0) {
+      return { text: this.normalizeCandidateText(preprocessed), debug, calls };
+    }
     debug.push("output_policy_violation_detected=true");
     const issuesBlock = issues.map((i) => `- ${i}`).join("\n");
     const repairInstruction = `Your previous response violated output policy.
@@ -64,6 +74,8 @@ Rewrite now following all rules exactly. Return either:
 
 Validation failures to fix:
 ${issuesBlock}
+
+Return final Turtle only as raw @prefix blocks with no narration, markdown fences, or prose before/after the Turtle.
 
 Previous invalid response:
 ${preprocessed}`;
@@ -76,45 +88,36 @@ ${preprocessed}`;
       invokeOptions
     );
     calls.push(repaired.call);
-    const secondIssues = collectOutputIssues({
-      text: repaired.text,
+    const repostprocessed = await runConfiguredPostprocessors({
+      text: this.normalizeCandidateText(repaired.text),
+      context: {
+        runtimeContext: context.runtimeContext,
+        knownMetricStems: context.knownMetricStems,
+        intentFlags: context.intentFlags,
+        validatorRules: context.validatorRules,
+        reportingIntervalMinutes: context.reportingIntervalMinutes,
+        reportingIntervalSeconds: context.reportingIntervalSeconds
+      },
+      domainPackage: context.domainPackage,
+      when: "always",
+      debug
+    });
+    const postRepairIssues = collectOutputIssues({
+      text: repostprocessed,
       runtimeContext: context.runtimeContext,
       intentFlags: context.intentFlags,
       validatorRules: context.validatorRules
     });
-    if (secondIssues.length > 0) {
-      const postprocessed = await runConfiguredPostprocessors({
-        text: repaired.text,
-        context: {
-          runtimeContext: context.runtimeContext,
-          knownMetricStems: context.knownMetricStems,
-          intentFlags: context.intentFlags,
-          validatorRules: context.validatorRules,
-          reportingIntervalMinutes: context.reportingIntervalMinutes,
-          reportingIntervalSeconds: context.reportingIntervalSeconds
-        },
-        domainPackage: context.domainPackage,
-        when: "on_validation_failure",
-        debug
-      });
-      const postprocessIssues = collectOutputIssues({
-        text: postprocessed,
-        runtimeContext: context.runtimeContext,
-        intentFlags: context.intentFlags,
-        validatorRules: context.validatorRules
-      });
-      if (postprocessIssues.length === 0) {
-        return { text: postprocessed, debug, calls };
-      }
-      debug.push("output_repair_still_invalid=true");
-      debug.push(`output_repair_failure_issues=${postprocessIssues.join(" | ")}`);
-      const issueSummary = postprocessIssues.map((issue) => `- ${issue}`).join("\n");
-      return {
-        text: `I cannot produce a valid final Turtle intent yet. Validation still failed after repair:\n${issueSummary}\n\nCheck runtime grounding (catalogue workload, GraphDB locality) or ask me to regenerate with strict validation.`,
-        debug,
-        calls
-      };
+    if (postRepairIssues.length === 0) {
+      return { text: this.normalizeCandidateText(repostprocessed), debug, calls };
     }
-    return { text: repaired.text, debug, calls };
+    debug.push("output_repair_still_invalid=true");
+    debug.push(`output_repair_failure_issues=${postRepairIssues.join(" | ")}`);
+    const issueSummary = postRepairIssues.map((issue) => `- ${issue}`).join("\n");
+    return {
+      text: `I cannot produce a valid final Turtle intent yet. Validation still failed after repair:\n${issueSummary}\n\nCheck runtime grounding (catalogue workload, GraphDB locality) or ask me to regenerate with strict validation.`,
+      debug,
+      calls
+    };
   }
 }

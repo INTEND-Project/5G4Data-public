@@ -73,15 +73,63 @@ function stripShaclValidationComments(text: string): string {
   return idx >= 0 ? text.slice(0, idx).trimEnd() : text;
 }
 
+function stripLeadingNarration(text: string): string {
+  const prefixMatch = text.match(/@prefix\s+\S+/);
+  if (!prefixMatch || prefixMatch.index === undefined || prefixMatch.index === 0) {
+    return text;
+  }
+  return text.slice(prefixMatch.index).trimStart();
+}
+
+function looksLikeNarrationLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed === "") return false;
+  if (trimmed.startsWith("#")) return false;
+  if (/^@prefix\b|^@base\b/.test(trimmed)) return false;
+  if (
+    /data5g:|icm:|imo:|log:|set:|quan:|ut:|fun:|mf:|time:|geo:|rdfs:|rdf:|dct:/.test(line)
+  ) {
+    return false;
+  }
+  if (/^[\[\](){}.;,\s]+$/.test(trimmed)) return false;
+  if (/^\.\s*$/.test(trimmed)) return false;
+  if (/^\s+[a-zA-Z]+:/.test(line)) return false;
+  return (
+    /^(?:here['’]s|here is|below is|the following is|this is|note:|summary:)/i.test(trimmed) ||
+    /^[A-Za-z"']/.test(trimmed)
+  );
+}
+
+function stripInterleavedNarration(text: string): string {
+  const lines = text.split("\n");
+  const filtered = lines.filter((line) => !looksLikeNarrationLine(line));
+  let end = filtered.length;
+  while (end > 0 && (filtered[end - 1]?.trim() ?? "") === "") {
+    end -= 1;
+  }
+  while (end > 0 && looksLikeNarrationLine(filtered[end - 1] ?? "")) {
+    end -= 1;
+  }
+  return filtered.slice(0, end).join("\n");
+}
+
 export function extractTurtlePayload(text: string): string {
-  return stripShaclValidationComments(stripMarkdownFence(text));
+  const withoutFence = stripShaclValidationComments(stripMarkdownFence(text)).trim();
+  const fromPrefix = stripLeadingNarration(withoutFence);
+  return stripInterleavedNarration(fromPrefix).trimEnd();
+}
+
+function turtlePayloadForValidation(text: string): string {
+  if (!text.includes("@prefix")) return text;
+  const extracted = extractTurtlePayload(text);
+  return looksLikeTurtleIntent(extracted) ? extracted : text;
 }
 
 function collectTurtleSyntaxIssues(text: string): string[] {
   if (!looksLikeTurtleIntent(text)) return [];
   try {
     const parser = new Parser({ format: "text/turtle" });
-    parser.parse(extractTurtlePayload(text));
+    parser.parse(text);
     return [];
   } catch (error) {
     return [`Turtle syntax is invalid and must be repaired: ${String(error)}`];
@@ -106,6 +154,7 @@ export function collectOutputIssues(args: {
   }
 
   const turtleLike = text.includes("@prefix");
+  const turtleText = turtleLike ? turtlePayloadForValidation(text) : text;
   if (turtleLike) {
     if (
       validatorRules.clarificationTag &&
@@ -115,28 +164,31 @@ export function collectOutputIssues(args: {
         "Deployment without geolocation hint requires a clarification question before generating Turtle."
       );
     }
-    const missing = validatorRules.requiredTokens.filter((token) => !text.includes(token));
+    const missing = validatorRules.requiredTokens.filter((token) => !turtleText.includes(token));
     if (missing.length > 0) {
       issues.push(`Missing required classes/blocks: ${missing.join(", ")}`);
     }
     for (const requirement of validatorRules.conditionalRequirements) {
       if (!intentFlags[requirement.intentFlag]) continue;
-      const present = requirement.requiresAnyTokens.some((token) => text.includes(token));
+      const present = requirement.requiresAnyTokens.some((token) => turtleText.includes(token));
       if (!present) {
         issues.push(requirement.error);
       }
     }
-    const configuredIdentifierIssues = collectRegexRuleViolations(text, validatorRules.identifierRules);
+    const configuredIdentifierIssues = collectRegexRuleViolations(
+      turtleText,
+      validatorRules.identifierRules
+    );
     issues.push(...configuredIdentifierIssues);
     if (!validatorRules.identifierRules || validatorRules.identifierRules.length === 0) {
-      const invalidIds = collectInvalidUuid4LocalNames(text);
+      const invalidIds = collectInvalidUuid4LocalNames(turtleText);
       if (invalidIds.length > 0) {
         issues.push(
           `Identifier local names must be UUIDv4-derived (32 hex, version=4, variant=8|9|a|b). Invalid: ${invalidIds.slice(0, 8).join(", ")}`
         );
       }
     }
-    issues.push(...collectTurtleSyntaxIssues(text));
+    issues.push(...collectTurtleSyntaxIssues(turtleText));
     if (intentFlags.deployment || intentFlags.sustainability) {
       if (!runtimeLowered.includes("[selected workload objectives]")) {
         issues.push(

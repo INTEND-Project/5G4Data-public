@@ -192,6 +192,70 @@ test("package includes coordination classification and workflow hooks", () => {
   assert.match(workflow, /"id": "coordination"/);
 });
 
+test("normalizeCoordinationUtility derives utility from metric-only CE conditions", () => {
+  const metricReferenceCe = `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
+
+data5g:I1 a icm:Intent ;
+    log:allOf data5g:DE1, data5g:SE1, data5g:CE1 .
+
+data5g:DE1 a data5g:DeploymentExpectation ;
+    icm:target data5g:deployment ;
+    log:allOf data5g:COdeploy .
+
+data5g:COdeploy a icm:Condition ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:p99-token-target_COdeploy ;
+        quan:larger [ quan:unit "token/s" ; rdf:value 400 ]
+    ] .
+
+data5g:SE1 a data5g:SustainabilityExpectation ;
+    icm:target data5g:sustainability ;
+    log:allOf data5g:COsustain .
+
+data5g:COsustain a icm:Condition ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:energy-consumption_COsustain ;
+        quan:larger [ quan:unit "J" ; rdf:value 50 ]
+    ] .
+
+data5g:CE1 a data5g:CoordinationExpectation ;
+    icm:target data5g:llm-service ;
+    log:allOf data5g:COcoordTps, data5g:COcoordEnergy ;
+    ut:utility data5g:U_coord ;
+    data5g:coordinates data5g:DE1, data5g:SE1 .
+
+data5g:COcoordTps a icm:Condition ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_COcoordTps ] .
+
+data5g:COcoordEnergy a icm:Condition ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:energy-consumption_COcoordEnergy ] .
+`;
+
+  const result = normalizeCoordinationUtility({
+    text: metricReferenceCe,
+    flags: { coordinationSymmetric: true },
+    userText: "symmetric coordination between token throughput and energy consumption",
+  });
+
+  assert.match(result.text, /a ut:UtilityInformation/);
+  assert.match(result.text, /a fun:function/);
+  assert.match(result.text, /data5g:U_arg_p99-token-target/);
+  assert.match(result.text, /data5g:U_arg_energy-consumption/);
+  assert.match(
+    result.text,
+    /ut:forMetric\s+\(\s*data5g:U_arg_p99-token-target\s+data5g:p99-token-target_COcoordTps/,
+  );
+  assert.match(
+    result.text,
+    /ut:forMetric\s+\(\s*data5g:U_arg_energy-consumption\s+data5g:energy-consumption_COcoordEnergy/,
+  );
+});
+
 test("user coordination guide exists", () => {
   const doc = readFileSync(
     resolve(process.cwd(), "docs/how-coordination-works.md"),

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   collectOutputIssues,
+  extractTurtlePayload,
   looksLikeTurtleIntent
 } from "../core/outputPolicyValidator.js";
 
@@ -41,6 +42,43 @@ data5g:DE11112222333344445555666677778888 a data5g:DeploymentExpectation .`,
   assert.ok(
     issues.some((i) => i.includes("[selected workload objectives]")),
   );
+});
+
+test("extractTurtlePayload strips narration before and between turtle blocks", () => {
+  const text = `Here's the final Turtle intent:
+
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://example/icm/> .
+Here's the deployment expectation block.
+data5g:I11112222333344445555666677778888 a icm:Intent .
+Let me know if you need changes.`;
+  const extracted = extractTurtlePayload(text);
+  assert.doesNotMatch(extracted, /Here's/i);
+  assert.doesNotMatch(extracted, /Let me know/i);
+  assert.match(extracted, /@prefix data5g:/);
+  assert.match(extracted, /data5g:I11112222333344445555666677778888 a icm:Intent/);
+});
+
+test("collectOutputIssues accepts turtle wrapped in narration", () => {
+  const text = `Here's the corrected intent:
+
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+data5g:I11112222333344445555666677778888 a icm:Intent ;
+    imo:handler "inServ" ;
+    imo:owner "inChat" .`;
+  const issues = collectOutputIssues({
+    text,
+    runtimeContext: "runtime",
+    intentFlags: { deployment: false, locality: false, networkQos: false },
+    validatorRules: {
+      forbiddenPhrases: [],
+      requiredTokens: ["icm:Intent", "imo:handler \"inServ\"", "imo:owner \"inChat\""],
+      conditionalRequirements: []
+    }
+  });
+  assert.equal(issues.some((i) => i.includes("Turtle syntax is invalid")), false);
 });
 
 test("collectOutputIssues flags invalid turtle syntax", () => {

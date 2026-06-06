@@ -40,6 +40,56 @@ function parseConditionBlock(block: string, local: string): ParsedCoordinationCo
   };
 }
 
+function parseConditionBlockMetricOnly(
+  block: string,
+  local: string,
+): Pick<ParsedCoordinationCondition, "local" | "metricLocal" | "metricStem"> | null {
+  const metricMatch = block.match(/valuesOfTargetProperty\s+(data5g:[^\s;\]]+)/i);
+  if (!metricMatch) return null;
+  const metricLocal = metricMatch[1];
+  return {
+    local,
+    metricLocal,
+    metricStem: metricStemFromScopedLocal(metricLocal),
+  };
+}
+
+function findAllConditionLocals(text: string): string[] {
+  return [...text.matchAll(/\bdata5g:(CO[A-Za-z0-9_]+)\s+a\b/gi)].map((m) => m[1]);
+}
+
+function resolveConditionForCoordination(
+  text: string,
+  ceConditionLocal: string,
+): ParsedCoordinationCondition | null {
+  const ceBlock = extractSubjectBlock(text, ceConditionLocal);
+  if (!ceBlock) return null;
+
+  const withQuantifier = parseConditionBlock(ceBlock, ceConditionLocal);
+  if (withQuantifier) return withQuantifier;
+
+  const metricOnly = parseConditionBlockMetricOnly(ceBlock, ceConditionLocal);
+  if (!metricOnly) return null;
+
+  for (const local of findAllConditionLocals(text)) {
+    if (local === ceConditionLocal) continue;
+    const block = extractSubjectBlock(text, local);
+    if (!block) continue;
+    const sourced = parseConditionBlock(block, local);
+    if (!sourced || sourced.metricStem !== metricOnly.metricStem) continue;
+    return {
+      local: ceConditionLocal,
+      metricLocal: metricOnly.metricLocal,
+      metricStem: metricOnly.metricStem,
+      quantifier: sourced.quantifier,
+      unit: sourced.unit,
+      threshold: sourced.threshold,
+    };
+  }
+
+  return null;
+}
+
 function findCoordinationExpectationLocal(text: string): string | null {
   const match = text.match(
     /\bdata5g:(CE[A-Za-z0-9_]+)\s+a[\s\S]*?CoordinationExpectation/is,
@@ -368,9 +418,7 @@ export function normalizeCoordinationUtility(args: {
   const conditionLocals = extractLocalsFromAllOf(ceBlock).filter((l) => l.startsWith("CO"));
   const conditions: ParsedCoordinationCondition[] = [];
   for (const local of conditionLocals) {
-    const block = extractSubjectBlock(args.text, local);
-    if (!block) continue;
-    const parsed = parseConditionBlock(block, local);
+    const parsed = resolveConditionForCoordination(text, local);
     if (parsed) conditions.push(parsed);
   }
   if (conditions.length === 0) {
@@ -449,9 +497,7 @@ export function parseCoordinationConditionsFromText(text: string): ParsedCoordin
   const conditionLocals = extractLocalsFromAllOf(ceBlock).filter((l) => l.startsWith("CO"));
   const conditions: ParsedCoordinationCondition[] = [];
   for (const local of conditionLocals) {
-    const block = extractSubjectBlock(text, local);
-    if (!block) continue;
-    const parsed = parseConditionBlock(block, local);
+    const parsed = resolveConditionForCoordination(text, local);
     if (parsed) conditions.push(parsed);
   }
   return conditions;

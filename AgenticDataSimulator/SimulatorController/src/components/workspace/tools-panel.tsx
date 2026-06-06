@@ -165,7 +165,7 @@ export function ToolsPanel({ selectedKgTargetId, kgTargets }: ToolsPanelProps) {
       <WorkspaceCollapsibleSection
         className="workspace-tools-section"
         sectionId="tools"
-        title="Tools"
+        title="Tools (integration testing)"
       >
         <p className="workspace-hint workspace-tools-section-hint">
           Send intents to extra-functional partners via TMF921. Intents are loaded from the selected

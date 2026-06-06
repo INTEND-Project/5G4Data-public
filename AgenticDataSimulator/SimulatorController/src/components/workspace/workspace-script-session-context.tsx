@@ -161,6 +161,11 @@ export type WorkspaceScriptSessionContextValue = {
   /** User override for GraphDB API base URL (localStorage + used in KG operations). */
   graphDbBaseUrl: string;
   setGraphDbBaseUrl: (url: string) => void;
+  /** Server default from WORKLOAD_CATALOG_BASE_URL (read-only hint in UI). */
+  defaultWorkloadCatalogBaseUrl: string;
+  /** User override for workload catalogue base URL (localStorage). */
+  workloadCatalogBaseUrl: string;
+  setWorkloadCatalogBaseUrl: (url: string) => void;
 };
 
 const WorkspaceScriptSessionContext = createContext<WorkspaceScriptSessionContextValue | null>(
@@ -192,6 +197,7 @@ export function WorkspaceScriptSessionProvider({
   currentUserId,
   defaultPrometheusBaseUrl,
   defaultGraphDbBaseUrl,
+  defaultWorkloadCatalogBaseUrl,
 }: {
   children: ReactNode;
   selectedDomain: string;
@@ -201,6 +207,7 @@ export function WorkspaceScriptSessionProvider({
   currentUserId: string;
   defaultPrometheusBaseUrl: string;
   defaultGraphDbBaseUrl: string;
+  defaultWorkloadCatalogBaseUrl: string;
 }) {
   const [bundle, setBundle] = useState<Bundle>(() =>
     buildInitialTabs(draftContent, selectedDomain),
@@ -255,6 +262,13 @@ export function WorkspaceScriptSessionProvider({
     [currentUserId],
   );
   const [graphDbBaseUrl, setGraphDbBaseUrlState] = useState(defaultGraphDbBaseUrl);
+  const workloadCatalogStorageKey = useMemo(
+    () => `simulator-controller:workload-catalog-base-url:${currentUserId}`,
+    [currentUserId],
+  );
+  const [workloadCatalogBaseUrl, setWorkloadCatalogBaseUrlState] = useState(
+    defaultWorkloadCatalogBaseUrl,
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -279,6 +293,18 @@ export function WorkspaceScriptSessionProvider({
       setGraphDbBaseUrlState(defaultGraphDbBaseUrl);
     }
   }, [defaultGraphDbBaseUrl, graphDbStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const stored = window.localStorage.getItem(workloadCatalogStorageKey)?.trim();
+    if (stored) {
+      setWorkloadCatalogBaseUrlState(stored);
+    } else {
+      setWorkloadCatalogBaseUrlState(defaultWorkloadCatalogBaseUrl);
+    }
+  }, [defaultWorkloadCatalogBaseUrl, workloadCatalogStorageKey]);
 
   const setPrometheusBaseUrl = useCallback(
     (url: string) => {
@@ -308,6 +334,21 @@ export function WorkspaceScriptSessionProvider({
       }
     },
     [graphDbStorageKey],
+  );
+
+  const setWorkloadCatalogBaseUrl = useCallback(
+    (url: string) => {
+      const trimmed = url.trim();
+      setWorkloadCatalogBaseUrlState(trimmed);
+      if (typeof window !== "undefined") {
+        if (trimmed) {
+          window.localStorage.setItem(workloadCatalogStorageKey, trimmed);
+        } else {
+          window.localStorage.removeItem(workloadCatalogStorageKey);
+        }
+      }
+    },
+    [workloadCatalogStorageKey],
   );
 
   /** Bumps when the active run log buffer changes and the log dialog should repaint. */
@@ -1057,6 +1098,9 @@ export function WorkspaceScriptSessionProvider({
       defaultGraphDbBaseUrl,
       graphDbBaseUrl,
       setGraphDbBaseUrl,
+      defaultWorkloadCatalogBaseUrl,
+      workloadCatalogBaseUrl,
+      setWorkloadCatalogBaseUrl,
     }),
     [
       selectedDomain,
@@ -1111,6 +1155,9 @@ export function WorkspaceScriptSessionProvider({
       defaultGraphDbBaseUrl,
       graphDbBaseUrl,
       setGraphDbBaseUrl,
+      defaultWorkloadCatalogBaseUrl,
+      workloadCatalogBaseUrl,
+      setWorkloadCatalogBaseUrl,
     ],
   );
 

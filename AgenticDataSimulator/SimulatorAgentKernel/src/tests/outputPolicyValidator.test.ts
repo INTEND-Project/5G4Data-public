@@ -24,6 +24,43 @@ test("collectOutputIssues flags placeholders", () => {
   assert.ok(issues.length > 0);
 });
 
+test("collectOutputIssues flags missing catalogue workload for deployment turtle", () => {
+  const issues = collectOutputIssues({
+    text: `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://example/icm/> .
+data5g:I11112222333344445555666677778888 a icm:Intent .
+data5g:DE11112222333344445555666677778888 a data5g:DeploymentExpectation .`,
+    runtimeContext: "Runtime without workload block",
+    intentFlags: { deployment: true, locality: false, networkQos: false, sustainability: true },
+    validatorRules: {
+      forbiddenPhrases: [],
+      requiredTokens: ["icm:Intent"],
+      conditionalRequirements: []
+    }
+  });
+  assert.ok(
+    issues.some((i) => i.includes("[selected workload objectives]")),
+  );
+});
+
+test("collectOutputIssues flags invalid turtle syntax", () => {
+  const issues = collectOutputIssues({
+    text: `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://example/icm/> .
+data5g:I11112222333344445555666677778888 a icm:Intent .
+data5g:utilityFn_symmetric a fun:Function ;
+    fun:aggregates (`,
+    runtimeContext: "runtime",
+    intentFlags: { deployment: false, locality: false, networkQos: false },
+    validatorRules: {
+      forbiddenPhrases: [],
+      requiredTokens: ["icm:Intent"],
+      conditionalRequirements: []
+    }
+  });
+  assert.ok(issues.some((i) => i.includes("Turtle syntax is invalid")));
+});
+
 test("collectOutputIssues flags non-uuid4 local names", () => {
   const issues = collectOutputIssues({
     text: `@prefix data5g: <http://5g4data.eu/5g4data#> .

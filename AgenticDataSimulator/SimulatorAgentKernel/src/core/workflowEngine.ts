@@ -11,7 +11,10 @@ export class WorkflowEngine {
   constructor(private readonly domainPackage: LoadedDomainPackage) {}
 
   classifyIntent(userText: string): IntentFlags {
-    const lowered = userText.toLowerCase();
+    const lowered = userText
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "");
     const flags: IntentFlags = {
       deployment: false,
       locality: false,

@@ -12,6 +12,7 @@ import { IntentsPanel } from "@/components/workspace/intents-panel";
 import { KgTargetPanel } from "@/components/workspace/kg-target-panel";
 import { MetricStemsPanel } from "@/components/workspace/metric-stems-panel";
 import { PrometheusPanel } from "@/components/workspace/prometheus-panel";
+import { WorkloadsPanel } from "@/components/workspace/workloads-panel";
 import { ToolsPanel } from "@/components/workspace/tools-panel";
 import { ScriptList } from "@/components/workspace/script-list";
 import { WorkspaceLeftSidebarResizable } from "@/components/workspace/workspace-left-sidebar-resizable";
@@ -47,7 +48,9 @@ type WorkspaceShellProps = {
   registryConnected: boolean;
   graphDbConnected: boolean;
   prometheusConnected: boolean;
+  workloadCatalogConnected: boolean;
   defaultPrometheusBaseUrl: string;
+  defaultWorkloadCatalogBaseUrl: string;
   intentsApiUrl: string;
   intentsUrlBase: string;
   prometheusClearUrlBase: string;
@@ -109,7 +112,9 @@ export function WorkspaceShell({
   registryConnected,
   graphDbConnected,
   prometheusConnected,
+  workloadCatalogConnected,
   defaultPrometheusBaseUrl,
+  defaultWorkloadCatalogBaseUrl,
   intentsApiUrl,
   intentsUrlBase,
   prometheusClearUrlBase,
@@ -220,6 +225,7 @@ export function WorkspaceShell({
     registryConnected,
     graphDbConnected,
     prometheusConnected,
+    workloadCatalogConnected,
   };
 
   return (
@@ -229,6 +235,7 @@ export function WorkspaceShell({
         currentUserId={currentUserId}
         defaultGraphDbBaseUrl={graphDbBaseUrl}
         defaultPrometheusBaseUrl={defaultPrometheusBaseUrl}
+        defaultWorkloadCatalogBaseUrl={defaultWorkloadCatalogBaseUrl}
         draftContent={draftContent}
         runLogsApiUrl={runLogsApiUrl}
         scripts={scriptsPayload}
@@ -277,6 +284,7 @@ type WorkspaceShellBodyProps = {
     registryConnected: boolean;
     graphDbConnected: boolean;
     prometheusConnected: boolean;
+    workloadCatalogConnected: boolean;
   };
   infraStatusApiUrl: string;
   username: string;
@@ -362,7 +370,7 @@ function WorkspaceShellBody({
               width={44}
             />
             <div className="workspace-brand-copy">
-              <strong>INTEND Data Generation Controller Studio</strong>
+              <strong>INTEND Integration and Data Generation Controller Studio</strong>
               <span>TM Forum intent data generation script design and execution for cognitive continuum</span>
             </div>
           </div>
@@ -443,6 +451,7 @@ function WorkspaceShellBody({
               username={username}
             />
             <PrometheusPanel prometheusConnected={infraStatus.prometheusConnected} />
+            <WorkloadsPanel workloadCatalogConnected={infraStatus.workloadCatalogConnected} />
             <IntentsPanel
               graphDbConnected={infraStatus.graphDbConnected}
               intentsApiUrl={intentsApiUrl}

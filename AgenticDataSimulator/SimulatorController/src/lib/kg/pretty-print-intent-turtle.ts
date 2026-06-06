@@ -9,23 +9,47 @@ const ICM_INTENT = "http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/I
 const ICM_CONDITION = "http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/Condition";
 const ICM_CONTEXT = "http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/Context";
 const IMO_EVENT_FOR = "http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/eventFor";
-const NS1_DELAY = "http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/delay";
+const TIME_DELAY = "http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/delay";
 
-/** Preferred Turtle prefixes (aligned with Intent-Simulator graphdb_client). */
+/** Preferred Turtle prefixes (aligned with intent-generation examples). */
 const INTENT_TURTLE_PREFIXES: Record<string, string> = {
   data5g: "http://5g4data.eu/5g4data#",
+  dct: "http://purl.org/dc/terms/",
+  geo: "http://www.opengis.net/ont/geosparql#",
   icm: "http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/",
   imo: "http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/",
   log: "http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/",
+  mf: "http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/",
   set: "http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/",
   quan: "http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/",
-  dct: "http://purl.org/dc/terms/",
-  geo: "http://www.opengis.net/ont/geosparql#",
   rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
   rdfs: "http://www.w3.org/2000/01/rdf-schema#",
-  ns1: "http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/",
+  time: "http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/",
+  ut: "http://tio.models.tmforum.org/tio/v3.6.0/Utility/",
+  uf: "http://tio.models.tmforum.org/tio/v3.6.0/UtilityFunctions/",
   xsd: "http://www.w3.org/2001/XMLSchema#",
 };
+
+const PREFERRED_PREFIX_ORDER = [
+  "data5g",
+  "dct",
+  "geo",
+  "icm",
+  "imo",
+  "log",
+  "mf",
+  "set",
+  "quan",
+  "rdf",
+  "rdfs",
+  "time",
+  "ut",
+  "uf",
+  "xsd",
+] as const;
+
+/** GraphDB / parser noise — never re-emit these as @prefix lines. */
+const BLOCKED_EXTRACTED_PREFIXES = new Set(["rdf4j", "sesame", "owl", "fn", "ns1"]);
 
 function isBlankNode(term: Quad["subject"] | Quad["object"]): term is BlankNode {
   return term.termType === "BlankNode";
@@ -43,7 +67,62 @@ function extractPrefixesFromTurtle(raw: string): Record<string, string> {
 }
 
 function mergePrefixes(raw: string): Record<string, string> {
-  return { ...INTENT_TURTLE_PREFIXES, ...extractPrefixesFromTurtle(raw) };
+  const merged = { ...INTENT_TURTLE_PREFIXES };
+  for (const [prefix, iri] of Object.entries(extractPrefixesFromTurtle(raw))) {
+    if (BLOCKED_EXTRACTED_PREFIXES.has(prefix) || prefix in INTENT_TURTLE_PREFIXES) {
+      continue;
+    }
+    merged[prefix] = iri;
+  }
+  return merged;
+}
+
+function markPrefixUse(
+  value: string,
+  prefixes: Record<string, string>,
+  used: Set<string>,
+): void {
+  for (const [prefix, iri] of Object.entries(prefixes)) {
+    if (value.startsWith(iri)) {
+      used.add(prefix);
+      return;
+    }
+  }
+}
+
+function selectPrefixesForQuads(
+  quads: Quad[],
+  availablePrefixes: Record<string, string>,
+): Record<string, string> {
+  const used = new Set<string>();
+
+  for (const quad of quads) {
+    if (quad.subject.termType === "NamedNode") {
+      markPrefixUse(quad.subject.value, availablePrefixes, used);
+    }
+    if (quad.predicate.termType === "NamedNode") {
+      markPrefixUse(quad.predicate.value, availablePrefixes, used);
+    }
+    if (quad.object.termType === "NamedNode") {
+      markPrefixUse(quad.object.value, availablePrefixes, used);
+    }
+    if (quad.object.termType === "Literal" && quad.object.datatype?.termType === "NamedNode") {
+      markPrefixUse(quad.object.datatype.value, availablePrefixes, used);
+    }
+  }
+
+  const selected: Record<string, string> = {};
+  for (const prefix of PREFERRED_PREFIX_ORDER) {
+    if (used.has(prefix) && availablePrefixes[prefix]) {
+      selected[prefix] = availablePrefixes[prefix];
+    }
+  }
+  for (const prefix of Object.keys(availablePrefixes).sort()) {
+    if (used.has(prefix) && !(prefix in selected)) {
+      selected[prefix] = availablePrefixes[prefix];
+    }
+  }
+  return selected;
 }
 
 function blankObjectRefCounts(quads: Quad[]): Map<string, number> {
@@ -211,7 +290,7 @@ function collectDelayListItems(
   subjectValue: string,
 ): string[] {
   for (const quad of bySubject.get(subjectValue) ?? []) {
-    if (quad.predicate.value !== NS1_DELAY || !isBlankNode(quad.object)) {
+    if (quad.predicate.value !== TIME_DELAY || !isBlankNode(quad.object)) {
       continue;
     }
     const listItems = tryExtractRdfList(quad.object, bySubject);
@@ -449,7 +528,9 @@ export function prettyPrintIntentTurtle(raw: string): string {
       return trimmed;
     }
 
-    const formatted = serializeQuadsWithInlineBlanks(quads, mergePrefixes(trimmed));
+    const allPrefixes = mergePrefixes(trimmed);
+    const prefixes = selectPrefixesForQuads(quads, allPrefixes);
+    const formatted = serializeQuadsWithInlineBlanks(quads, prefixes);
     return formatted.length > 0 ? formatted : trimmed;
   } catch {
     return trimmed;

@@ -53,7 +53,7 @@ export function applyPostprocessor(args: {
   };
 
   rewritten = rewritten.replace(
-    new RegExp(String.raw`\bdata5g:(I|CO|CX|DE|NE|RE|RG|SE)(${PLACEHOLDER_TOKEN})\b`, "g"),
+    new RegExp(String.raw`\bdata5g:(I|CO|CX|DE|NE|RE|RG|SE|CE)(${PLACEHOLDER_TOKEN})\b`, "g"),
     (_full, prefix, placeholder) => `data5g:${String(prefix)}${getOrCreateSuffix(String(placeholder))}`
   );
 

@@ -51,7 +51,7 @@ export function AboutHelpDialog({ open, onClose }: AboutHelpDialogProps) {
           />
           <div className="workspace-about-help-brand-copy">
             <strong id="workspace-about-help-dialog-title">
-              INTEND Data Generation Controller Studio
+              INTEND Integration and Data Generation Controller Studio
             </strong>
             <span>
               TM Forum intent data generation script design and execution for cognitive continuum
@@ -69,7 +69,7 @@ export function AboutHelpDialog({ open, onClose }: AboutHelpDialogProps) {
             .
           </p>
           <p className="workspace-save-as-dialog-hint">
-            INTEND Data Generation Controller Studio is the web workspace for designing and running
+            INTEND Integration and Data Generation Controller Studio is the web workspace for designing and running
             TM Forum intent data-generation scripts in the AgenticDataSimulator stack. It can also be
             used to control integration testing for the INTEND extra functional tools (inSustain,
             inCoord, and inExplain).

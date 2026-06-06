@@ -29,12 +29,15 @@ Use this as a starting shape, then remove the blocks that are not needed when cr
 @prefix dct: <http://purl.org/dc/terms/> .
 @prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
 @prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix fun: <http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/> .
 @prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix mf: <http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/> .
 @prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
 @prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 data5g:I<uuid4> a icm:Intent ;
@@ -267,6 +270,9 @@ Cue mapping:
 - “low response time”, “fast replies” -> latency
 - “stable/predictable performance” -> likely network QoS (possibly plus locality)
 - “high throughput”, “many users”, “large transfer” -> bandwidth
+- “symmetric coordination”, “equal weight coordination” -> coordination (symmetric utility profile)
+- “weighted coordination”, “prioritize X over Y” -> coordination (weighted utility profile)
+- “critical severity”, “strict” -> coordination severity (stricter utility curves)
 
 ## Allowed 5G4Data subset
 
@@ -274,6 +280,7 @@ Allowed expectation classes only:
 - `data5g:NetworkExpectation`
 - `data5g:DeploymentExpectation`
 - `data5g:SustainabilityExpectation`
+- `data5g:CoordinationExpectation`
 - `icm:ObservationReportingExpectation`
 
 Legal combinations:
@@ -284,6 +291,8 @@ Legal combinations:
 - deployment + sustainability
 - network + sustainability
 - network + deployment + sustainability
+- deployment + sustainability + coordination (when prompt coordinates deployment and sustainability metrics)
+- network + deployment + sustainability + coordination (when coordinated metrics and/or prompt require network QoS)
 
 Never introduce other expectation types.
 
@@ -306,6 +315,7 @@ Naming style:
 - `data5g:DE__ID_DEPLOYMENT_1__`
 - `data5g:NE__ID_NETWORK_1__`
 - `data5g:SE__ID_SUSTAINABILITY_1__`
+- `data5g:CE__ID_COORDINATION_1__`
 - `data5g:RE__ID_REPORT_<name>_1__`
 - `data5g:RG__ID_REGION_1__`
 
@@ -370,6 +380,7 @@ Before returning:
 - Expectation targets are correct.
 - Observation reporting expectations target the resource they report on.
 - Observation reporting uses per-anchor event classes and durations (not global `tenMinutesDeployment` / `TenMinuteReportEventDeployment`) with correct `imo:eventFor` mappings.
+- Coordination: when requested, include `data5g:CoordinationExpectation` targeting `data5g:llm-service` with `ut:utility`, `data5g:coordinates` (the deployment, sustainability, and/or network expectations that own the coordinated metrics), and one utility argument `U_arg_<metric-stem>` per CE condition. Include `NetworkExpectation` only when coordinated metrics are network-related or the prompt explicitly requests network QoS—not by default. Use `ut:`/`fun:`/`mf:`/`time:` only — never `UtilityFunctions/` IRIs.
 - Deployment workload and descriptor come from catalogue.
 - `data5g:DataCenter` from coordinate + SPARQL nearest-edge process when locality used.
 - Units: latency `"ms"`, bandwidth `"mbit/s"` (unless chart objective defines differently).

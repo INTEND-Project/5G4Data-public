@@ -14,6 +14,7 @@ describe("infraPollIntervalMs", () => {
         registryConnected: false,
         graphDbConnected: true,
         prometheusConnected: true,
+        workloadCatalogConnected: true,
       }),
     ).toBe(DISCONNECTED_POLL_MS);
 
@@ -22,6 +23,7 @@ describe("infraPollIntervalMs", () => {
         registryConnected: true,
         graphDbConnected: false,
         prometheusConnected: true,
+        workloadCatalogConnected: true,
       }),
     ).toBe(DISCONNECTED_POLL_MS);
 
@@ -30,6 +32,16 @@ describe("infraPollIntervalMs", () => {
         registryConnected: true,
         graphDbConnected: true,
         prometheusConnected: false,
+        workloadCatalogConnected: true,
+      }),
+    ).toBe(DISCONNECTED_POLL_MS);
+
+    expect(
+      infraPollIntervalMs({
+        registryConnected: true,
+        graphDbConnected: true,
+        prometheusConnected: true,
+        workloadCatalogConnected: false,
       }),
     ).toBe(DISCONNECTED_POLL_MS);
   });
@@ -40,6 +52,7 @@ describe("infraPollIntervalMs", () => {
         registryConnected: true,
         graphDbConnected: true,
         prometheusConnected: true,
+        workloadCatalogConnected: true,
       }),
     ).toBe(CONNECTED_POLL_MS);
   });

@@ -13,13 +13,16 @@ Always move recently closed TODOs to the top of the closed list.
 - [ ]  Remove the agent sidecar API, and use only A2A to comunicate with agents to ensure A2A conformance for our agents. Reflect over if it is possible, the progress bar (GET …/observation-progress?intentId=…) and observation errors (GET …/observation-errors) might be a challenge....
 - [ ] Full separation of dev and prod (today they use the same GraphDB, Prometheus and agents). Not sure if we neeed this, but could be good...
 
+
 ### Easy TODO´s?
 
-- [ ] Change the intent generating agent to support the format (with CoordinationExpectation and utility functions) that inCoord expects.
-- [ ] Add functionality for the About/Help button
 - [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
 
 ## Closed
+- [x] Change the intent generating agent to support the format (with CoordinationExpectation and utility functions) that inCoord expects. First version ready, needs to be aligned with TUW expectations.
+- [x] Add a "Workloads" session in the right panel, add a "Reachable" chip and list available workloads found in the workload catalogue.
+- [x] Change the name from "INTEND Data Generation Controller Studio" to "INTEND Integration and Data Generation Controller Studio"
+- [x] Add functionality for the About/Help button
 - [x] Although the turtle is now better in the Controller, it still shows blank nodes...
 - [x] When Prometheus base URL is set in the Controller all services needs to use it. Still needs testing...
 - [x] The old Intent-Simulator wiped the entire repository when I clicked "Delete all intents" button, including the infrastructure graph and the TIO ontology.... Get it back and fix the Intent-Simulator...

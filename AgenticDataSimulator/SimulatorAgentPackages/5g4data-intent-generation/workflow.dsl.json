@@ -37,6 +37,11 @@
       "whenIntentFlags": ["sustainability"]
     },
     {
+      "id": "coordination",
+      "includeModules": ["coordination"],
+      "whenIntentFlags": ["coordination"]
+    },
+    {
       "id": "repair",
       "includeModules": ["repair"],
       "confirmationRequired": false

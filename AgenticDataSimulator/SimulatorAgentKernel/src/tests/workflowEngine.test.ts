@@ -6,7 +6,7 @@ import type { LoadedDomainPackage } from "../core/packageLoader.js";
 const classificationRules = {
   intentFlags: {
     deployment: ["deploy", "llm"],
-    locality: ["near", "edge"],
+    locality: ["near", "edge", "tromso", "norway"],
     networkQos: [
       "network",
       "latency",
@@ -34,6 +34,12 @@ test("classifyIntent sets networkQos when prompt mentions network", () => {
     "good network connection for sending 4K video in near realtime"
   );
   assert.equal(flags.networkQos, true);
+});
+
+test("classifyIntent matches locality keywords with diacritics stripped", () => {
+  const engine = new WorkflowEngine(stubPackage);
+  const flags = engine.classifyIntent("Deploy near Tromsø/Norway");
+  assert.equal(flags.locality, true);
 });
 
 test("classifyIntent leaves networkQos false without network qos signals", () => {

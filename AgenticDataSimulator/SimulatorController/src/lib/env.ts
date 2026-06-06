@@ -71,6 +71,10 @@ const appEnvSchema = z.object({
   INSUSTAIN_TMF_BASE_URL: z.string().url().optional(),
   INCOORD_TMF_BASE_URL: z.string().url().optional(),
   INEXPLAIN_TMF_BASE_URL: z.string().url().optional(),
+  WORKLOAD_CATALOG_BASE_URL: z
+    .string()
+    .url()
+    .default("https://start5g-1.cs.uit.no/wchartmuseum"),
 });
 
 export type AppEnv = {
@@ -102,6 +106,7 @@ export type AppEnv = {
   inSustainTmfBaseUrl?: string;
   inCoordTmfBaseUrl?: string;
   inExplainTmfBaseUrl?: string;
+  workloadCatalogBaseUrl: string;
 };
 
 export function loadAppEnv(source: Partial<Record<string, string | undefined>>): AppEnv {
@@ -135,6 +140,7 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     INSUSTAIN_TMF_BASE_URL: source.INSUSTAIN_TMF_BASE_URL,
     INCOORD_TMF_BASE_URL: source.INCOORD_TMF_BASE_URL,
     INEXPLAIN_TMF_BASE_URL: source.INEXPLAIN_TMF_BASE_URL,
+    WORKLOAD_CATALOG_BASE_URL: source.WORKLOAD_CATALOG_BASE_URL,
   });
 
   return {
@@ -172,5 +178,6 @@ export function loadAppEnv(source: Partial<Record<string, string | undefined>>):
     inSustainTmfBaseUrl: parsed.INSUSTAIN_TMF_BASE_URL?.trim() || undefined,
     inCoordTmfBaseUrl: parsed.INCOORD_TMF_BASE_URL?.trim() || undefined,
     inExplainTmfBaseUrl: parsed.INEXPLAIN_TMF_BASE_URL?.trim() || undefined,
+    workloadCatalogBaseUrl: parsed.WORKLOAD_CATALOG_BASE_URL,
   };
 }

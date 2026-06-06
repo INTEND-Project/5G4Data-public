@@ -109,12 +109,14 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
       previewMetricsApiUrl={previewMetricsApiUrl}
       graphDbBaseUrl={appEnv.graphDbBaseUrl}
       defaultPrometheusBaseUrl={appEnv.prometheusUrl}
+      defaultWorkloadCatalogBaseUrl={appEnv.workloadCatalogBaseUrl}
       graphDbConnected={false}
       infraStatusApiUrl={infraStatusApiUrl}
       intentsApiUrl={intentsApiUrl}
       intentsUrlBase={intentsUrlBase}
       prometheusClearUrlBase={prometheusClearUrlBase}
       prometheusConnected={false}
+      workloadCatalogConnected={false}
       registryConnected={false}
       scripts={scripts}
       selectedDomain={selectedDomain}

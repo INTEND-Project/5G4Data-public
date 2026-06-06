@@ -1,3 +1,4 @@
+import { Parser } from "n3";
 import type { ValidatorRules } from "./packageLoader.js";
 import type { IntentFlags } from "./workflowEngine.js";
 
@@ -60,6 +61,33 @@ export function looksLikeTurtleIntent(text: string): boolean {
   return text.includes("@prefix") && (text.includes("icm:Intent") || text.includes("imo:Intent"));
 }
 
+function stripMarkdownFence(text: string): string {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/^```(?:turtle|ttl)?\s*([\s\S]*?)\s*```$/i);
+  return fenced?.[1]?.trim() ?? trimmed;
+}
+
+function stripShaclValidationComments(text: string): string {
+  const marker = "\n# SHACL validation result";
+  const idx = text.indexOf(marker);
+  return idx >= 0 ? text.slice(0, idx).trimEnd() : text;
+}
+
+export function extractTurtlePayload(text: string): string {
+  return stripShaclValidationComments(stripMarkdownFence(text));
+}
+
+function collectTurtleSyntaxIssues(text: string): string[] {
+  if (!looksLikeTurtleIntent(text)) return [];
+  try {
+    const parser = new Parser({ format: "text/turtle" });
+    parser.parse(extractTurtlePayload(text));
+    return [];
+  } catch (error) {
+    return [`Turtle syntax is invalid and must be repaired: ${String(error)}`];
+  }
+}
+
 export function collectOutputIssues(args: {
   text: string;
   intentFlags: IntentFlags;
@@ -105,6 +133,14 @@ export function collectOutputIssues(args: {
       if (invalidIds.length > 0) {
         issues.push(
           `Identifier local names must be UUIDv4-derived (32 hex, version=4, variant=8|9|a|b). Invalid: ${invalidIds.slice(0, 8).join(", ")}`
+        );
+      }
+    }
+    issues.push(...collectTurtleSyntaxIssues(text));
+    if (intentFlags.deployment || intentFlags.sustainability) {
+      if (!runtimeLowered.includes("[selected workload objectives]")) {
+        issues.push(
+          "Deployment/sustainability requested but runtime context has no [selected workload objectives] from the catalogue.",
         );
       }
     }

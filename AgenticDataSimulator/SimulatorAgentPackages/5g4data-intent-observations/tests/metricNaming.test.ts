@@ -22,12 +22,12 @@ test("resolveConditionScopedMetricName builds compound from stem-only property",
   assert.equal(resolved.compoundMetric, "p99-token-target_COe8af1c5b33734c109cf68d0025998898");
 });
 
-test("resolveConditionScopedMetricName keeps prometheus-style underscore stems", () => {
+test("resolveConditionScopedMetricName keeps hyphenated metric stems", () => {
   const resolved = resolveConditionScopedMetricName({
-    valuesOfTargetPropertyLocal: "kepler_container_cpu_joules_total_CO72a1524ea1904d429ecd23cc1c536d1c",
+    valuesOfTargetPropertyLocal: "energy-consumption_CO72a1524ea1904d429ecd23cc1c536d1c",
     conditionId: "CO72a1524ea1904d429ecd23cc1c536d1c"
   });
-  assert.equal(resolved.compoundMetric, "kepler_container_cpu_joules_total_CO72a1524ea1904d429ecd23cc1c536d1c");
+  assert.equal(resolved.compoundMetric, "energy-consumption_CO72a1524ea1904d429ecd23cc1c536d1c");
 });
 
 test("resolveCompoundMetricAgainstIntent returns exact GraphDB compound metric", () => {

@@ -6,6 +6,11 @@
       "when": "always"
     },
     {
+      "id": "coordination-utility",
+      "module": "tools/postprocess/coordinationUtility.ts",
+      "when": "always"
+    },
+    {
       "id": "reporting-triggers",
       "module": "tools/postprocess/reportingTriggers.ts",
       "when": "always"

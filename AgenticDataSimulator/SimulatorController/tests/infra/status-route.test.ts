@@ -28,6 +28,7 @@ describe("infra status route", () => {
       registryConnected: true,
       graphDbConnected: false,
       prometheusConnected: true,
+      workloadCatalogConnected: true,
     });
 
     const routeModule = await import("../../src/app/api/infra/status/route");
@@ -38,6 +39,7 @@ describe("infra status route", () => {
       registryConnected: true,
       graphDbConnected: false,
       prometheusConnected: true,
+      workloadCatalogConnected: true,
     });
   });
 

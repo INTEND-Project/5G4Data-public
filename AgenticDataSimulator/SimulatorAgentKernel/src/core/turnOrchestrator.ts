@@ -20,7 +20,7 @@ import {
   isConfirmationText,
   lastSubstantiveUserRequest
 } from "./confirmationState.js";
-import { looksLikeTurtleIntent } from "./outputPolicyValidator.js";
+import { extractTurtlePayload, looksLikeTurtleIntent } from "./outputPolicyValidator.js";
 import { RepairEngine } from "./repairEngine.js";
 import { RuntimeContextBuilder } from "./runtimeContextBuilder.js";
 import { ShaclValidatorTool } from "./shaclValidatorTool.js";
@@ -257,12 +257,7 @@ export class TurnOrchestrator {
   }
 
   private normalizeTurtleText(text: string): string {
-    const trimmed = text.trim();
-    const fenced = trimmed.match(/^```(?:turtle|ttl)?\s*([\s\S]*?)\s*```$/i);
-    if (fenced?.[1]) {
-      return fenced[1].trim();
-    }
-    return trimmed;
+    return extractTurtlePayload(text);
   }
 
   private resolveGraphDbToolPaths(): string[] {

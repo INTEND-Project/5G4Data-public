@@ -287,6 +287,8 @@ request observation-report using observationControl for myIntent storage prometh
 
 **Resolution order** for observation datapoints: `request observation-report … storage` override → `icm:reportDestinations` in intent Turtle → `create intent … storage` alias map → default `graphdb`.
 
+**Coordination (inCoord):** add phrases like `symmetric coordination` or `weighted coordination` inside the `prompt "…"` string. See [`SimulatorAgentPackages/5g4data-intent-generation/docs/how-coordination-works.md`](SimulatorAgentPackages/5g4data-intent-generation/docs/how-coordination-works.md).
+
 **Metadata** (how to query stored metrics) is always registered in the GraphDB metadata graph `http://intent-reports-metadata` (GraphDB SPARQL URL for graphdb storage, Prometheus `/api/v1/query` URL for prometheus storage).
 
 ### Environment (observation agent clone)

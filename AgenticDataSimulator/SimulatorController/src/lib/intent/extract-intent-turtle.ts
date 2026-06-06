@@ -17,6 +17,25 @@ function stripLeadingFence(text: string): string {
   return text.trim().replace(/^\uFEFF/, "");
 }
 
+function stripShaclValidationComments(text: string): string {
+  const marker = "\n# SHACL validation result";
+  const idx = text.indexOf(marker);
+  return idx >= 0 ? text.slice(0, idx).trimEnd() : text;
+}
+
+/** LLMs sometimes close the markdown fence before trailing Turtle subject blocks. */
+function appendTrailingTurtleFragments(fencedChunk: string, visibleText: string): string {
+  const lastFence = visibleText.lastIndexOf("```");
+  if (lastFence < 0) {
+    return fencedChunk;
+  }
+  const trailing = stripShaclValidationComments(visibleText.slice(lastFence + 3).trim());
+  if (!trailing || !/^(@prefix|data5g:)/m.test(trailing)) {
+    return fencedChunk;
+  }
+  return `${fencedChunk.trimEnd()}\n\n${trailing}`;
+}
+
 /**
  * Parses {@link visibleText} from an A2A agent turn into Turtle suitable for GraphDB ingestion.
  * Handles ```turtle fenced blocks embedded in conversational markdown.
@@ -28,14 +47,21 @@ export function extractIntentTurtle(visibleText: string): string | null {
 
   FENCED_TURTLE.lastIndex = 0;
   let match: RegExpExecArray | null;
+  let lastIntentChunk: string | null = null;
   while ((match = FENCED_TURTLE.exec(visibleText)) !== null) {
-    const chunk = stripLeadingFence(match[1] ?? "");
+    const chunk = appendTrailingTurtleFragments(
+      stripShaclValidationComments(stripLeadingFence(match[1] ?? "")),
+      visibleText,
+    );
     if (looksLikeIntentTurtle(chunk)) {
-      return chunk;
+      lastIntentChunk = chunk;
     }
   }
+  if (lastIntentChunk) {
+    return lastIntentChunk;
+  }
 
-  const whole = stripLeadingFence(visibleText);
+  const whole = stripShaclValidationComments(stripLeadingFence(visibleText));
   if (looksLikeIntentTurtle(whole)) {
     return whole;
   }

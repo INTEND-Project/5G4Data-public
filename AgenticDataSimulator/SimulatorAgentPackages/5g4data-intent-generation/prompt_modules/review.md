@@ -9,6 +9,7 @@ Human review policy:
 - Confirm deployment/sustainability/network reporting each use per-anchor event and duration URIs (not global `TenMinuteReportEventDeployment` / `tenMinutesDeployment`).
 - Confirm each event has exactly one `imo:eventFor` pointing to its respective expectation.
 - Confirm sustainability reuses the existing complete deployment context when applicable; do not add a duplicate partial `icm:Context`.
+- When coordination is included, confirm `data5g:coordinates` references the expectations that own the coordinated metrics. Do not claim network is "required for coordination" unless coordinated metrics are network-related or the prompt explicitly requests network QoS.
 - Do not use vague labels like "latency objective" without objective names and values.
 - End review text with: "Type OK to confirm generation of Turtle."
 - If input is not `OK`, treat it as adjustment and continue planning.

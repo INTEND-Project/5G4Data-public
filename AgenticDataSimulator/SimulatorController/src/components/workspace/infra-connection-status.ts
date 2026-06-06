@@ -5,7 +5,12 @@ export const DISCONNECTED_POLL_MS = 5_000;
 export const CONNECTED_POLL_MS = 120_000;
 
 export function infraPollIntervalMs(status: InfraConnectionStatus): number {
-  if (!status.registryConnected || !status.graphDbConnected || !status.prometheusConnected) {
+  if (
+    !status.registryConnected ||
+    !status.graphDbConnected ||
+    !status.prometheusConnected ||
+    !status.workloadCatalogConnected
+  ) {
     return DISCONNECTED_POLL_MS;
   }
 
@@ -20,6 +25,7 @@ export function infraStatusEquals(left: InfraConnectionStatus, right: InfraConne
   return (
     left.registryConnected === right.registryConnected &&
     left.graphDbConnected === right.graphDbConnected &&
-    left.prometheusConnected === right.prometheusConnected
+    left.prometheusConnected === right.prometheusConnected &&
+    left.workloadCatalogConnected === right.workloadCatalogConnected
   );
 }

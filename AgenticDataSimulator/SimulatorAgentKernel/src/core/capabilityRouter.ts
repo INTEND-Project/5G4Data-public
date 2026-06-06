@@ -206,6 +206,7 @@ export class CapabilityRouter {
       try {
         catalogueSummary = await catalogue.catalogueSummaryForLlm();
       } catch (error) {
+        catalogueSummary = `[catalogue lookup failed] ${String(error)}`;
         warnings.push("Workload catalogue lookup failed.");
         debug.push(`catalogue_lookup_error=${String(error)}`);
       }
@@ -219,11 +220,31 @@ export class CapabilityRouter {
           knownMetricStems = await this.parseMetricStemsFromObjectivesSummary(objectivesSummary);
           catalogueSummary = `${catalogueSummary}\n\n${rules.prompts.selectedWorkloadTag}\n${objectivesSummary}\nUse these objective thresholds, quantifiers, and units as deployment-condition defaults unless the user overrides.`;
           debug.push(`known_metric_stems=${knownMetricStems.join(",")}`);
+          if (knownMetricStems.length === 0) {
+            warnings.push(
+              `Selected chart "${selectedChart}" but could not extract deployment/sustainability objectives from values.yaml.`,
+            );
+            catalogueSummary = `${catalogueSummary}\n\n[catalogue values.yaml extraction failed] Chart "${selectedChart}" was selected but objectives/sustainability metrics could not be read. Do not invent workload metrics; ask the user to specify another chart or retry catalogue lookup.`;
+          }
+        } else {
+          const selectionFailed =
+            "[catalogue workload selection failed] No matching workload chart found for this prompt. Ask the user to name a chart/version or say they want an automatic catalogue lookup (for example: lookup a suitable LLM workload).";
+          catalogueSummary = `${catalogueSummary}\n\n${selectionFailed}`;
+          warnings.push("No matching workload chart found in catalogue for this prompt.");
+          debug.push("selected_workload_chart=null");
         }
       } catch (error) {
+        catalogueSummary = `${catalogueSummary}\n\n[catalogue workload selection error] ${String(error)}`;
         warnings.push("Selected workload objective extraction failed.");
         debug.push(`selected_workload_error=${String(error)}`);
       }
+    }
+
+    const needsCatalogueWorkload = intentFlags.deployment || intentFlags.sustainability;
+    const hasSelectedWorkload = catalogueSummary.includes(rules.prompts.selectedWorkloadTag);
+    if (needsCatalogueWorkload && capabilities.has("selected_workload_objectives") && !hasSelectedWorkload) {
+      workflowOverride =
+        "Deployment or sustainability was requested but no [selected workload objectives] block is available from the catalogue. Do not generate Turtle. Explain the catalogue failure and ask the user to name a chart/version or request automatic workload lookup.";
     }
 
     if (capabilities.has("graphdb_candidates")) {

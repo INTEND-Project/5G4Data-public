@@ -27,7 +27,7 @@ function resolveReportingDuration(context: {
   };
 }
 
-type ReportKind = "Deployment" | "Sustainability" | "Network";
+type ReportKind = "Deployment" | "Sustainability" | "Network" | "Coordination";
 
 const GLOBAL_EVENT_LOCALS = new Set([
   "TenMinuteReportEventDeployment",
@@ -52,6 +52,7 @@ function kindFromTarget(targetLocal: string): ReportKind | null {
   if (t === "deployment") return "Deployment";
   if (t === "sustainability") return "Sustainability";
   if (t === "network-slice" || t === "network") return "Network";
+  if (t === "llm-service") return "Coordination";
   return null;
 }
 
@@ -82,11 +83,15 @@ function extractSubjectBlock(text: string, local: string): string | null {
   return text.slice(start, end);
 }
 
-function extractExpectationBlock(text: string, expId: string, prefix: "DE" | "SE" | "NE"): string | null {
+function extractExpectationBlock(
+  text: string,
+  expId: string,
+  prefix: "DE" | "SE" | "NE" | "CE",
+): string | null {
   return extractSubjectBlock(text, `${prefix}${expId}`);
 }
 
-function firstConditionAnchor(expBlock: string, prefix: "DE" | "SE" | "NE"): string {
+function firstConditionAnchor(expBlock: string, prefix: "DE" | "SE" | "NE" | "CE"): string {
   const allOfMatch = expBlock.match(/log:allOf\s+([^;]+)/is);
   if (!allOfMatch?.[1]) return `${prefix}unknown`;
   const tokens = allOfMatch[1].match(/data5g:(CO|NE|CX)([A-Za-z0-9]+)/gi) ?? [];
@@ -98,13 +103,13 @@ function firstConditionAnchor(expBlock: string, prefix: "DE" | "SE" | "NE"): str
   return `${prefix}unknown`;
 }
 
-function parseEventExpectationMap(text: string): Map<string, { expPrefix: "DE" | "SE" | "NE"; expId: string }> {
-  const map = new Map<string, { expPrefix: "DE" | "SE" | "NE"; expId: string }>();
+function parseEventExpectationMap(text: string): Map<string, { expPrefix: "DE" | "SE" | "NE" | "CE"; expId: string }> {
+  const map = new Map<string, { expPrefix: "DE" | "SE" | "NE" | "CE"; expId: string }>();
   const re =
-    /data5g:([A-Za-z0-9_]+)\s+a\s+rdfs:Class[\s\S]*?imo:eventFor\s+data5g:(DE|SE|NE)([0-9a-fA-F]{32})/gi;
+    /data5g:([A-Za-z0-9_]+)\s+a\s+rdfs:Class[\s\S]*?imo:eventFor\s+data5g:(DE|SE|NE|CE)([A-Za-z0-9_]+)/gi;
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
-    map.set(match[1], { expPrefix: match[2] as "DE" | "SE" | "NE", expId: match[3] });
+    map.set(match[1], { expPrefix: match[2] as "DE" | "SE" | "NE" | "CE", expId: match[3] });
   }
   return map;
 }
@@ -121,7 +126,8 @@ function parseReportingExpectations(text: string): Array<{
     targetLocal: string;
     triggerEvent: string | null;
   }> = [];
-  const reHeader = /data5g:(RE[0-9a-fA-F]{32})\s+a\s+icm:ObservationReportingExpectation/gi;
+  const reHeader =
+    /data5g:(RE(?:[0-9a-fA-F]{32}|[A-Za-z0-9_]+))\s+a\s+icm:ObservationReportingExpectation/gi;
   let match: RegExpExecArray | null;
   while ((match = reHeader.exec(text)) !== null) {
     const reLocal = match[1];
@@ -197,7 +203,14 @@ export function applyPostprocessor(args: {
     const kind = kindFromTarget(block.targetLocal);
     if (!kind) continue;
 
-    let expPrefix: "DE" | "SE" | "NE" = kind === "Deployment" ? "DE" : kind === "Sustainability" ? "SE" : "NE";
+    let expPrefix: "DE" | "SE" | "NE" | "CE" =
+      kind === "Deployment"
+        ? "DE"
+        : kind === "Sustainability"
+          ? "SE"
+          : kind === "Coordination"
+            ? "CE"
+            : "NE";
     let expId = "";
 
     if (block.triggerEvent && eventMap.has(block.triggerEvent)) {
@@ -207,7 +220,7 @@ export function applyPostprocessor(args: {
     } else {
       const targetKey = block.targetLocal.replace(/^data5g:/i, "");
       const expRe = new RegExp(
-        String.raw`data5g:(${expPrefix}[0-9a-fA-F]{32})\s+a[\s\S]*?icm:target\s+data5g:${targetKey}`,
+        String.raw`data5g:(${expPrefix}[A-Za-z0-9_]+)\s+a[\s\S]*?icm:target\s+data5g:${targetKey}`,
         "i"
       );
       const expMatch = text.match(expRe);

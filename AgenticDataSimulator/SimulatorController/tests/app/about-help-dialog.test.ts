@@ -10,7 +10,7 @@ describe("about help dialog", () => {
     );
     expect(source).toContain('role="dialog"');
     expect(source).toContain("intend-icon.png");
-    expect(source).toContain("INTEND Data Generation Controller Studio");
+    expect(source).toContain("INTEND Integration and Data Generation Controller Studio");
     expect(source).toContain(
       "TM Forum intent data generation script design and execution for cognitive continuum",
     );

@@ -108,8 +108,9 @@ ${preprocessed}`;
       }
       debug.push("output_repair_still_invalid=true");
       debug.push(`output_repair_failure_issues=${postprocessIssues.join(" | ")}`);
+      const issueSummary = postprocessIssues.map((issue) => `- ${issue}`).join("\n");
       return {
-        text: "I cannot produce a valid final Turtle intent yet. Please provide missing deployment/network constraints or ask me to regenerate with strict validation.",
+        text: `I cannot produce a valid final Turtle intent yet. Validation still failed after repair:\n${issueSummary}\n\nCheck runtime grounding (catalogue workload, GraphDB locality) or ask me to regenerate with strict validation.`,
         debug,
         calls
       };

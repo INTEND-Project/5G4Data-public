@@ -24,6 +24,19 @@ describe("extractIntentTurtle", () => {
   it("returns null when prose has no RDF intent cues", () => {
     expect(extractIntentTurtle("still thinking…")).toBeNull();
   });
+
+  it("strips SHACL validation comments from fenced turtle", () => {
+    const visible =
+      "```turtle\n@prefix icm: <http://ex/icm/> .\ndata5g:Ie4d6d6c6bc414a5e9bd5c4b97b7c4e91 a icm:Intent .\n\n# SHACL validation result\n# Non-conformant\n```";
+    expect(extractIntentTurtle(visible)).not.toContain("SHACL validation result");
+    expect(extractIntentTurtle(visible)).toContain("icm:Intent");
+  });
+
+  it("appends turtle subject blocks emitted after the closing fence", () => {
+    const visible =
+      '```turtle\n@prefix data5g: <http://5g4data.eu/5g4data#> .\n@prefix icm: <http://ex/icm/> .\ndata5g:Ie4d6d6c6bc414a5e9bd5c4b97b7c4e91 a icm:Intent .\n```\ndata5g:REextra a icm:ObservationReportingExpectation .\n';
+    expect(extractIntentTurtle(visible)).toContain("data5g:REextra");
+  });
 });
 
 describe("extractIntentLocalIdFromTurtle", () => {

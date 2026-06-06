@@ -19,6 +19,19 @@
       "report to prometheus",
       "prometheus destination",
       "pushgateway"
-    ]
+    ],
+    "coordination": ["coordination", "coordinate", "incoord"],
+    "coordinationSymmetric": [
+      "symmetric coordination",
+      "symetric coordination",
+      "equal weight"
+    ],
+    "coordinationWeighted": [
+      "weighted coordination",
+      "unequal weight",
+      "prioritize"
+    ],
+    "coordinationSeverityCritical": ["critical", "critic", "strict"],
+    "coordinationSeverityTrivial": ["trivial", "lenient", "relaxed"]
   }
 }

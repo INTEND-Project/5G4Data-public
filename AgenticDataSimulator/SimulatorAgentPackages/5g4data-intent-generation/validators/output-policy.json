@@ -51,11 +51,26 @@
       "intentFlag": "reportToGraphdb",
       "requiresAnyTokens": ["data5g:graphdb"],
       "error": "GraphDB storage requested but reportDestinations missing data5g:graphdb."
+    },
+    {
+      "intentFlag": "coordination",
+      "requiresAnyTokens": ["CoordinationExpectation"],
+      "error": "Coordination requested but data5g:CoordinationExpectation missing."
+    },
+    {
+      "intentFlag": "coordination",
+      "requiresAnyTokens": ["ut:utility"],
+      "error": "Coordination requested but ut:utility missing."
+    },
+    {
+      "intentFlag": "coordination",
+      "requiresAnyTokens": ["data5g:coordinates"],
+      "error": "Coordination requested but data5g:coordinates missing."
     }
   ],
   "identifierRules": [
     {
-      "regex": "\\bdata5g:(I|CO|CX|DE|NE|RE|RG|SE)([A-Za-z0-9_-]+)\\b",
+      "regex": "\\bdata5g:(I|CO|CX|DE|NE|RE|RG|SE|CE)([A-Za-z0-9_-]+)\\b",
       "validateAsUuid4Suffix": true,
       "error": "Identifier local names must be UUIDv4-derived (32 hex, version=4, variant=8|9|a|b)."
     }

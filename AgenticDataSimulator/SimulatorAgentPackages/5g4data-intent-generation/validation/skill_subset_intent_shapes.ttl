@@ -8,6 +8,7 @@
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 # SHACL profile for the 5G4Data SKILL.md subset used by StandalonePythonAgent.
@@ -22,6 +23,7 @@ data5g:AllowedIntentMemberShape
     sh:or (
         [ sh:class data5g:DeploymentExpectation ]
         [ sh:class data5g:NetworkExpectation ]
+        [ sh:class data5g:CoordinationExpectation ]
         [ sh:class icm:ReportingExpectation ]
     ) .
 
@@ -186,7 +188,22 @@ data5g:ReportingExpectationShape
         sh:path icm:target ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
-        sh:in ( data5g:deployment data5g:network-slice )
+        sh:in ( data5g:deployment data5g:network-slice data5g:llm-service )
+    ] .
+
+data5g:CoordinationExpectationShape
+    a sh:NodeShape ;
+    sh:targetClass data5g:CoordinationExpectation ;
+    sh:property [
+        sh:path icm:target ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue data5g:llm-service
+    ] ;
+    sh:property [
+        sh:path ut:utility ;
+        sh:minCount 1 ;
+        sh:maxCount 1
     ] .
 
 data5g:ConditionShape

@@ -63,7 +63,7 @@ data5g:CO1 a icm:Condition ; set:forAll _:b0 .
     expect(formatted).not.toMatch(/_:b[01]\b/);
   });
 
-  it("serializes RDF lists as parenthesized notation and uses rdfs/ns1 prefixes", () => {
+  it("serializes RDF lists as parenthesized notation and uses rdfs/time prefixes", () => {
     const expanded = `
 @prefix data5g: <http://5g4data.eu/5g4data#> .
 @prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
@@ -80,14 +80,48 @@ data5g:duration1 a <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/Durati
     const formatted = prettyPrintIntentTurtle(expanded);
 
     expect(formatted).toContain("@prefix rdfs:");
-    expect(formatted).toContain("@prefix ns1:");
+    expect(formatted).toContain("@prefix time:");
+    expect(formatted).not.toContain("@prefix ns1:");
     expect(formatted).toContain("a rdfs:Class");
-    expect(formatted).toMatch(/ns1:delay \( data5g:lastReportInstant data5g:duration1 \)/);
-    expect(formatted).toContain("ns1:numericDuration 60.0");
+    expect(formatted).toMatch(/time:delay \( data5g:lastReportInstant data5g:duration1 \)/);
+    expect(formatted).toContain("time:numericDuration 60.0");
     expect(formatted).not.toContain("rdf:first");
     expect(formatted).not.toContain("rdf:rest");
-    expect(formatted).toContain("ns1:DurationDescription");
-    expect(formatted).toContain("ns1:numericDuration");
+    expect(formatted).toContain("time:DurationDescription");
+    expect(formatted).not.toContain("@prefix rdf4j:");
+    expect(formatted).not.toContain("@prefix sesame:");
+    expect(formatted).not.toContain("@prefix owl:");
+  });
+
+  it("uses mf, time, ut, and uf prefixes for coordination utility triples", () => {
+    const expanded = `
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+data5g:CE1 a data5g:CoordinationExpectation ;
+    <http://tio.models.tmforum.org/tio/v3.6.0/UtilityFunctions/utility> data5g:U_coord .
+data5g:U_arg_energy-consumption a <http://tio.models.tmforum.org/tio/v3.6.0/UtilityFunctions/UtilityArgument> ;
+    <http://tio.models.tmforum.org/tio/v3.6.0/UtilityFunctions/definedBy> data5g:energy-consumption ;
+    <http://tio.models.tmforum.org/tio/v3.6.0/UtilityFunctions/function> <http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/logistic> .
+data5g:duration1 a <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/DurationDescription> ;
+    <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/numericDuration> 5.0 .
+`.trim();
+
+    const formatted = prettyPrintIntentTurtle(expanded);
+
+    expect(formatted).toContain("@prefix mf:");
+    expect(formatted).toContain("@prefix time:");
+    expect(formatted).toContain("@prefix uf:");
+    expect(formatted).toContain("uf:utility data5g:U_coord");
+    expect(formatted).toContain("uf:UtilityArgument");
+    expect(formatted).toContain("uf:definedBy");
+    expect(formatted).toContain("mf:logistic");
+    expect(formatted).toContain("time:DurationDescription");
+    const body = formatted
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("@prefix"))
+      .join("\n");
+    expect(body).not.toContain("<http://tio.models.tmforum.org/tio/v3.6.0/UtilityFunctions/");
+    expect(body).not.toContain("<http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/");
   });
 
   it("orders subjects with Intent first, then each Expectation and its Conditions and Context", () => {

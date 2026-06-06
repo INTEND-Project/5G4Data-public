@@ -15,6 +15,27 @@ export function applyPostprocessor(args: {
   if (/\bgeo:/.test(text) && !/@prefix\s+geo\s*:/m.test(text)) {
     toInject.push("@prefix geo: <http://www.opengis.net/ont/geosparql#> .");
   }
+  if (
+    (/\bfun:/.test(text) || /FunctionOntology\//.test(text)) &&
+    !/@prefix\s+fun\s*:/m.test(text)
+  ) {
+    toInject.push("@prefix fun: <http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/> .");
+  }
+  if (
+    (/\bmf:/.test(text) || /MathFunctions\//.test(text)) &&
+    !/@prefix\s+mf\s*:/m.test(text)
+  ) {
+    toInject.push("@prefix mf: <http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/> .");
+  }
+  if (/\but:/.test(text) && !/@prefix\s+ut\s*:/m.test(text)) {
+    toInject.push("@prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .");
+  }
+  if (
+    (/\btime:/.test(text) || /TimeOntology\//.test(text)) &&
+    !/@prefix\s+time\s*:/m.test(text)
+  ) {
+    toInject.push("@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .");
+  }
 
   if (toInject.length === 0) {
     return { text, changes: 0 };

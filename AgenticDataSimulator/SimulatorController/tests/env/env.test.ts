@@ -26,6 +26,7 @@ describe("loadAppEnv", () => {
     expect(env.a2aRegistryBaseUrl).toBe("https://start5g-1.cs.uit.no/a2a-registry");
     expect(env.graphDbBaseUrl).toBe("https://start5g-1.cs.uit.no/graphdb/");
     expect(env.prometheusUrl).toBe("https://start5g-1.cs.uit.no/prometheus");
+    expect(env.workloadCatalogBaseUrl).toBe("https://start5g-1.cs.uit.no/wchartmuseum");
     expect(env.pushgatewayUrl).toBe("http://127.0.0.1:9091");
     expect(env.grafanaTimeseriesDashboardUid).toBe("Simulator-5g4data-Metrics");
     expect(env.grafanaTimeseriesDashboardSlug).toBe(

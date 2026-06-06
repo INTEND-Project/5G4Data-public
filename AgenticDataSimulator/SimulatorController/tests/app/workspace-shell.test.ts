@@ -56,6 +56,10 @@ describe("workspace shell bootstrap", () => {
       resolve(process.cwd(), "src/components/workspace/prometheus-panel.tsx"),
       "utf8",
     );
+    const workloadsPanelSource = readFileSync(
+      resolve(process.cwd(), "src/components/workspace/workloads-panel.tsx"),
+      "utf8",
+    );
     const intentsPanelSource = readFileSync(
       resolve(process.cwd(), "src/components/workspace/intents-panel.tsx"),
       "utf8",
@@ -79,7 +83,9 @@ describe("workspace shell bootstrap", () => {
     expect(workspaceSource).toContain("registryConnected");
     expect(workspaceSource).toContain("graphDbConnected");
     expect(workspaceSource).toContain("prometheusConnected");
+    expect(workspaceSource).toContain("workloadCatalogConnected");
     expect(workspaceSource).toContain("defaultPrometheusBaseUrl={appEnv.prometheusUrl}");
+    expect(workspaceSource).toContain("defaultWorkloadCatalogBaseUrl={appEnv.workloadCatalogBaseUrl}");
     expect(workspaceSource).toContain("graphDbBaseUrl={appEnv.graphDbBaseUrl}");
     expect(workspaceSource).toContain('withAppBasePath("/api/intents")');
     expect(workspaceSource).toContain('withAppBasePath("/api/prometheus/intents")');
@@ -90,7 +96,7 @@ describe("workspace shell bootstrap", () => {
     expect(shellSource).not.toContain("INTEND Controller");
     expect(shellSource).not.toContain("OpenClaw Workspace");
     expect(shellSource).toContain("registryConnected");
-    expect(shellSource).toContain("INTEND Data Generation Controller Studio");
+    expect(shellSource).toContain("INTEND Integration and Data Generation Controller Studio");
     expect(shellSource).toContain(
       "TM Forum intent data generation script design and execution for cognitive continuum",
     );
@@ -266,6 +272,20 @@ describe("workspace shell bootstrap", () => {
     expect(prometheusPanelSource).toContain("workspace-chip-down");
     expect(prometheusPanelSource).toContain("showCustomChip ? customReachable : prometheusConnected");
     expect(prometheusPanelSource).not.toContain("workspace-intent-id-label");
+    expect(shellSource).toContain("WorkloadsPanel");
+    expect(shellSource).toContain("workloadCatalogConnected={infraStatus.workloadCatalogConnected}");
+    expect(workloadsPanelSource).toContain("WorkspaceCollapsibleSection");
+    expect(workloadsPanelSource).toContain('sectionId="workloads"');
+    expect(workloadsPanelSource).toContain('title="Workloads"');
+    expect(workloadsPanelSource).toContain("headerEnd={reachabilityChip}");
+    expect(workloadsPanelSource).toContain("/api/workload-catalogue/status");
+    expect(workloadsPanelSource).toContain("/api/workload-catalogue/charts");
+    expect(workloadsPanelSource).toContain("workload-catalog-base-url");
+    expect(workloadsPanelSource).toContain("Use server default");
+    expect(workloadsPanelSource).toContain("showCustomChip ? customReachable === true : workloadCatalogConnected");
+    expect(scriptSessionContextSource).toContain("defaultWorkloadCatalogBaseUrl");
+    expect(scriptSessionContextSource).toContain("workloadCatalogBaseUrl");
+    expect(scriptSessionContextSource).toContain("simulator-controller:workload-catalog-base-url:");
     expect(scriptSessionContextSource).toContain("defaultPrometheusBaseUrl");
     expect(scriptSessionContextSource).toContain("prometheusBaseUrl");
     expect(scriptSessionContextSource).toContain("simulator-controller:prometheus-base-url:");

@@ -1,10 +1,15 @@
-# Coordination and utility functions in create-intent prompts
+# Generation of CoordinationExpectation in intents (using the Controllrer Studio)
 
-This guide explains how to activate **inCoord-compatible coordination** when authoring Controller scripts, and how the **utility functions** that drive coordination are generated. Coordination is triggered by natural-language phrases inside the quoted `prompt "…"` on a `create intent` line.
+This guide explains how to activate **inCoord-compatible CoordinationExpectation** in intents when authoring Controller scripts, and how the **utility functions** that drive coordination are generated. 
+
+Generation of a CoordinationExpectation in an intent is triggered by natural-language phrases inside the quoted `prompt "…"` on a `create intent` line. Example:
+```text
+create intent using intentGen storage prometheus prompt "Deploy a small llm in a datacenter near Tromsø/Norway with symmetric coordination on token throughput and energy consumption" as llmIntent
+```
 
 ## Overview
 
-When coordination is requested, the intent-generation agent adds:
+When coordination is requested, the intent-generating agent adds:
 
 - a `**data5g:CoordinationExpectation`** (`icm:target data5g:coordination-service`)
 - coordination **conditions** (one per coordinated metric)

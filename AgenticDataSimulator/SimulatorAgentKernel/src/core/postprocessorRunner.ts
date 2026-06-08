@@ -6,6 +6,8 @@ import type { IntentFlags } from "./workflowEngine.js";
 
 export interface PostprocessorContext {
   runtimeContext: string;
+  /** Natural-language user prompt for this turn (not the runtime grounding block). */
+  userPrompt?: string;
   knownMetricStems?: string[];
   intentFlags: IntentFlags;
   validatorRules: ValidatorRules;

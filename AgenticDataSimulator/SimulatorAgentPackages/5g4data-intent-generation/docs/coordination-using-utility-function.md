@@ -1,8 +1,9 @@
-# Generation of CoordinationExpectation in intents (using the Controllrer Studio)
+# Generation of CoordinationExpectation in intents (using the Controller Studio)
 
 This guide explains how to activate **inCoord-compatible CoordinationExpectation** in intents when authoring Controller scripts, and how the **utility functions** that drive coordination are generated. 
 
 Generation of a CoordinationExpectation in an intent is triggered by natural-language phrases inside the quoted `prompt "…"` on a `create intent` line. Example:
+
 ```text
 create intent using intentGen storage prometheus prompt "Deploy a small llm in a datacenter near Tromsø/Norway with symmetric coordination on token throughput and energy consumption" as llmIntent
 ```
@@ -81,41 +82,57 @@ When coordination is enabled, the intent-generation agent emits a draft utility 
 | `data5g:utilityFn_<profile>` | `fun:function` — sums one sub-utility per coordinated metric                                    |
 
 
-Each sub-utility is typically an `mf:logistic` call (or `mf:poly` for secondary energy metrics in weighted profiles). Reference patterns:
+Each sub-utility is typically an `mf:logistic` call (or `mf:poly` for secondary energy metrics in weighted profiles).
 
-- `[examples/intent_utility_symmetric.ttl](../examples/intent_utility_symmetric.ttl)`
-- `[examples/intent_utility_weighted.ttl](../examples/intent_utility_weighted.ttl)`
+### Reference examples
 
-Those files are **patterns**. Argument names like `U_arg_tps` and `U_arg_energy-consumption` reflect the metrics used in that specific example.
+These Turtle files show **postprocessor-canonical** coordination output (complete four-argument `mf:logistic` calls, `icm:target data5g:coordination-service` on both CE and coordination RE). They are metric-specific patterns, not copy-paste templates.
+
+
+| Example                                                                    | Profile   | Coordinated metrics (in that file)     | Notes                                                               |
+| -------------------------------------------------------------------------- | --------- | -------------------------------------- | ------------------------------------------------------------------- |
+| `[intent_utility_symmetric.ttl](../examples/intent_utility_symmetric.ttl)` | symmetric | throughput (`p99-tps-target`) + energy | equal `limit` (0.5 each); both metrics use `mf:logistic`            |
+| `[intent_utility_weighted.ttl](../examples/intent_utility_weighted.ttl)`   | weighted  | throughput + energy                    | higher throughput `limit` (0.7); energy uses `mf:poly` as secondary |
+
+
+In both files:
+
+- `data5g:CoordinationExpectation` targets `data5g:coordination-service` and lists coordinated expectations under `data5g:coordinates`.
+- `icm:ObservationReportingExpectation` for coordination targets `data5g:coordination-service` (not `data5g:llm-service`).
+- Utility argument locals follow the coordinated metric stems in that intent (for example `U_arg_tps`, `U_arg_energy-consumption`) — use `U_arg_<metric-stem>` for your own metrics.
+
+The LLM may emit incomplete drafts; the coordination utility postprocessor replaces them with shapes like these before storage.
 
 ## Generation flow
 
-The LLM may emit incomplete utility drafts (for example `mf:logistic` with only two arguments). The coordination utility postprocessor in `[tools/postprocess/coordinationUtility.ts](../tools/postprocess/coordinationUtility.ts)` always normalizes the final output.
+The LLM may emit incomplete utility drafts (for example `mf:logistic` with only two arguments, or `ut:utility data5g:U_coord` with no `U_coord` subject). The coordination utility postprocessor in `[tools/postprocess/coordinationUtility.ts](../tools/postprocess/coordinationUtility.ts)` runs whenever a `CoordinationExpectation` is present, utility wiring is incomplete, or coordination was flagged in the prompt. It always regenerates canonical utility Turtle from parsed CE conditions (draft blocks are not kept). The same normalization runs again at Controller ingest (`normalizeIntentTurtleOnIngest` on `store-intent`) as a safety net before GraphDB write.
 
 ```mermaid
 flowchart TD
   Prompt["create intent prompt text"]
-  Classify["Keyword classification"]
+  Classify["Keyword classification + coordination flags"]
   LLM["LLM emits intent Turtle + draft utility blocks"]
-  Strip["stripDraftUtilityBlocks"]
-  Complete{"Every mf:logistic has 4 typed args?"}
-  Parse["Parse CE conditions + infer missing metrics"]
-  Derive["buildSubUtilitySpecs"]
-  Remove["removeUtilityBlocks"]
-  Append["Append U_coord, UP_coord, utilityFn"]
-  Out["Final Turtle stored in GraphDB"]
+  Gate{"CoordinationExpectation,<br/>incomplete utility,<br/>or coordination flag?"}
+  Strip["stripMisalignedUtilityTurtle +<br/>stripDraftUtilityBlocks"]
+  SanitizeTargets["Rewrite legacy targets:<br/>CE + coordination RE<br/>llm-service → coordination-service"]
+  ParseCE["extractSubjectBlock on CE<br/>(includes data5g:coordinates)"]
+  ParseCond["Parse CE log:allOf conditions"]
+  Infer["inferMissingCoordinationConditions<br/>(prompt + DE/SE/NE conditions)"]
+  HasConditions{"Parseable<br/>CE conditions?"}
+  Cleanup["removeUtilityBlocks +<br/>drop ut:utility on CE"]
+  Derive["buildSubUtilitySpecs<br/>(k, limit, x0 from severity + thresholds)"]
+  UpsertCE["sanitizeCeTarget, upsertUtilityLink,<br/>upsertCoordinates on CE"]
+  Regen["removeUtilityBlocks + append<br/>U_coord, UP_coord, utilityFn_*"]
+  OtherPP["Other postprocessors<br/>(reportingTriggers, prefixes, …)"]
+  Ingest["Controller store-intent ingest<br/>normalizeIntentTurtleOnIngest"]
+  Out["Final Turtle in GraphDB"]
 
-  Prompt --> Classify
-  Classify --> LLM
-  LLM --> Strip
-  Strip --> Complete
-  Complete -->|no| Strip
-  Complete -->|yes kept only if complete| Parse
-  Strip --> Parse
-  Parse --> Derive
-  Derive --> Remove
-  Remove --> Append
-  Append --> Out
+  Prompt --> Classify --> LLM --> Gate
+  Gate -->|no| OtherPP
+  Gate -->|yes| Strip --> SanitizeTargets --> ParseCE --> ParseCond --> Infer --> HasConditions
+  HasConditions -->|no| Cleanup --> OtherPP
+  HasConditions -->|yes| Derive --> UpsertCE --> Regen --> OtherPP
+  OtherPP --> Ingest --> Out
 ```
 
 
@@ -280,4 +297,217 @@ Effect:
 - Direct numeric `k`, `x0`, or `x0Fraction` overrides per metric
 - Per-metric severity (one severity level applies to all coordinated metrics)
 - The four-argument shape of `mf:logistic` — the postprocessor always enforces `(metric, k, limit, x0)`
+
+## Example of generated intent
+
+For this "create intent ... " script line:
+
+```text
+create intent using intentGen storage prometheus prompt "Deploy a small llm in a datacenter near Tromsø/Norway with symmetric coordination on token throughput and energy consumption" as llmIntent
+```
+
+The generated intent is:
+
+```turtle
+
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix mf: <http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/> .
+@prefix fun: <http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+data5g:I78316cafbf4e4195b1e668a6ebe6ab55 a icm:Intent ;
+    dct:description "Deploy a small LLM near Tromsø with symmetric coordination between throughput and energy consumption." ;
+    imo:handler "inSustain" ;
+    imo:owner "inChat" ;
+    log:allOf data5g:CEa2e3686c731f447391197c85b4b8d1b8, 
+              data5g:DE21b3425e96b64195a1258d273db8df74, 
+              data5g:RE2fcc86687ca14cbc8e6a090052bc3a50, 
+              data5g:RE98eaffd6dbc1494389cc3b9a1834dbf4, 
+              data5g:REa657d3238c244b8a9fca66ae1877b10b, 
+              data5g:SE58b52d5c36ff421d8cc260f660f6a826 .
+
+data5g:DE21b3425e96b64195a1258d273db8df74 a data5g:DeploymentExpectation,
+    icm:Expectation,
+    icm:IntentElement  ;
+    dct:description "Deploy rusty-llm with required token throughput performance." ;
+    icm:target data5g:deployment ;
+    log:allOf data5g:COf85cf17329f54877a92e666e31290cd0, 
+              data5g:CX1853574e1d5243a0989a0fde2c7b8f85 .
+
+data5g:COf85cf17329f54877a92e666e31290cd0 a icm:Condition ;
+    dct:description "p99-token-target condition quan:larger: 400 token/s" ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:p99-token-target_COf85cf17329f54877a92e666e31290cd0 ;
+        quan:larger [
+            quan:unit "token/s" ;
+            rdf:value 400
+            ]
+        ] .
+
+data5g:CX1853574e1d5243a0989a0fde2c7b8f85 a icm:Context ;
+    data5g:Application "rusty-llm" ;
+    data5g:DataCenter "EC_31" ;
+    data5g:DeploymentDescriptor "https://start5g-1.cs.uit.no/wchartmuseum/api/charts/rusty-llm/0.1.24" .
+
+data5g:FiveMinuteReportEventDeployment_COf85cf17329f54877a92e666e31290cd0 a rdfs:Class ;
+    imo:eventFor data5g:DE21b3425e96b64195a1258d273db8df74 ;
+    time:delay ( data5g:lastReportInstant data5g:durationDeployment_COf85cf17329f54877a92e666e31290cd0 ) ;
+    rdfs:subClassOf imo:Event .
+
+data5g:durationDeployment_COf85cf17329f54877a92e666e31290cd0 a time:DurationDescription ;
+    time:numericDuration 5.0 ;
+    time:unitType time:unitMinute .
+
+data5g:SE58b52d5c36ff421d8cc260f660f6a826 a data5g:SustainabilityExpectation,
+    icm:Expectation,
+    icm:IntentElement  ;
+    dct:description "Ensure energy and power efficiency for deployed LLM." ;
+    icm:target data5g:sustainability ;
+    log:allOf data5g:COaabf568681044634b753bb67c88c5458, 
+              data5g:COdc3520b3b28c4b169b54cf49cf66051b, 
+              data5g:CX1853574e1d5243a0989a0fde2c7b8f85 .
+
+data5g:COdc3520b3b28c4b169b54cf49cf66051b a icm:Condition ;
+    dct:description "energy-consumption condition quan:smaller: 50 J" ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:energy-consumption_COdc3520b3b28c4b169b54cf49cf66051b ;
+        quan:smaller [
+            quan:unit "J" ;
+            rdf:value 50
+            ]
+        ] .
+
+data5g:COaabf568681044634b753bb67c88c5458 a icm:Condition ;
+    dct:description "power-consumption condition quan:smaller: 3000 W" ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:power-consumption_COaabf568681044634b753bb67c88c5458 ;
+        quan:smaller [
+            quan:unit "W" ;
+            rdf:value 3000
+            ]
+        ] .
+
+data5g:FiveMinuteReportEventSustainability_COdc3520b3b28c4b169b54cf49cf66051b a rdfs:Class ;
+    imo:eventFor data5g:SE58b52d5c36ff421d8cc260f660f6a826 ;
+    time:delay ( data5g:lastReportInstant data5g:durationSustainability_COdc3520b3b28c4b169b54cf49cf66051b ) ;
+    rdfs:subClassOf imo:Event .
+
+data5g:durationSustainability_COdc3520b3b28c4b169b54cf49cf66051b a time:DurationDescription ;
+    time:numericDuration 5.0 ;
+    time:unitType time:unitMinute .
+
+data5g:CEa2e3686c731f447391197c85b4b8d1b8 a data5g:CoordinationExpectation,
+    icm:Expectation,
+    icm:IntentElement  ;
+    data5g:coordinates data5g:DE21b3425e96b64195a1258d273db8df74, 
+                       data5g:SE58b52d5c36ff421d8cc260f660f6a826 ;
+    dct:description "Symmetric coordination between throughput and energy consumption." ;
+    icm:target data5g:coordination-service ;
+    log:allOf data5g:CO8d68cd7c047a4a42a985b9f669542769, 
+              data5g:CObc66582503484375a0f5b1d95f7f2328 ;
+    ut:utility data5g:U_coord .
+
+data5g:CO8d68cd7c047a4a42a985b9f669542769 a icm:Condition ;
+    dct:description "Coordination condition on p99-token-target" ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:p99-token-target_CO8d68cd7c047a4a42a985b9f669542769 ;
+        quan:larger [
+            quan:unit "token/s" ;
+            rdf:value 400
+            ]
+        ] .
+
+data5g:CObc66582503484375a0f5b1d95f7f2328 a icm:Condition ;
+    dct:description "Coordination condition on energy-consumption" ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:energy-consumption_CObc66582503484375a0f5b1d95f7f2328 ;
+        quan:smaller [
+            quan:unit "J" ;
+            rdf:value 50
+            ]
+        ] .
+
+data5g:FiveMinuteReportEventCoordination_CO8d68cd7c047a4a42a985b9f669542769 a rdfs:Class ;
+    imo:eventFor data5g:CEa2e3686c731f447391197c85b4b8d1b8 ;
+    time:delay ( data5g:lastReportInstant data5g:durationCoordination_CO8d68cd7c047a4a42a985b9f669542769 ) ;
+    rdfs:subClassOf imo:Event .
+
+data5g:durationCoordination_CO8d68cd7c047a4a42a985b9f669542769 a time:DurationDescription ;
+    time:numericDuration 5.0 ;
+    time:unitType time:unitMinute .
+
+data5g:RE2fcc86687ca14cbc8e6a090052bc3a50 a icm:ObservationReportingExpectation ;
+    dct:description "Deployment observation reports every 5 minutes to Prometheus." ;
+    icm:reportDestinations [
+        a rdfs:Container ;
+        rdfs:member data5g:prometheus
+        ]  ;
+    icm:reportTriggers [
+        a rdfs:Container ;
+        rdfs:member data5g:FiveMinuteReportEventDeployment_COf85cf17329f54877a92e666e31290cd0
+        ]  ;
+    icm:target data5g:deployment .
+
+data5g:RE98eaffd6dbc1494389cc3b9a1834dbf4 a icm:ObservationReportingExpectation ;
+    dct:description "Sustainability observation reports every 5 minutes to Prometheus." ;
+    icm:reportDestinations [
+        a rdfs:Container ;
+        rdfs:member data5g:prometheus
+        ]  ;
+    icm:reportTriggers [
+        a rdfs:Container ;
+        rdfs:member data5g:FiveMinuteReportEventSustainability_COdc3520b3b28c4b169b54cf49cf66051b
+        ]  ;
+    icm:target data5g:sustainability .
+
+data5g:REa657d3238c244b8a9fca66ae1877b10b a icm:ObservationReportingExpectation ;
+    dct:description "Coordination observation reports every 5 minutes to Prometheus." ;
+    icm:reportDestinations [
+        a rdfs:Container ;
+        rdfs:member data5g:prometheus
+        ]  ;
+    icm:reportTriggers [
+        a rdfs:Container ;
+        rdfs:member data5g:FiveMinuteReportEventCoordination_CO8d68cd7c047a4a42a985b9f669542769
+        ]  ;
+    icm:target data5g:coordination-service .
+
+data5g:U_coord a ut:UtilityInformation ;
+    ut:forMetric ( data5g:U_arg_p99-token-target data5g:p99-token-target_CO8d68cd7c047a4a42a985b9f669542769 ), ( data5g:U_arg_energy-consumption data5g:energy-consumption_CObc66582503484375a0f5b1d95f7f2328 ) ;
+    ut:function data5g:utilityFn_symmetric ;
+    ut:utilityProfile data5g:UP_coord ;
+    ut:withArguments ( data5g:U_arg_p99-token-target data5g:U_arg_energy-consumption ) .
+
+data5g:UP_coord a ut:UtilityProfile ;
+    ut:maxUtility "1.0"^^xsd:decimal ;
+    ut:minUtility "0.0"^^xsd:decimal .
+
+data5g:utilityFn_symmetric a fun:function ;
+    fun:argumentNames ( data5g:U_arg_p99-token-target data5g:U_arg_energy-consumption ) ;
+    fun:argumentTypes ( quan:Quantity ) ;
+    fun:arityMax 2 ;
+    fun:arityMin 2 ;
+    fun:resultType quan:Quantity ;
+    rdf:value [
+        quan:sum ( [
+            data5g:standardK "12.0"^^xsd:decimal ;
+            data5g:x0Fraction "0.85"^^xsd:decimal ;
+            mf:logistic ( data5g:U_arg_p99-token-target "0.03"^^xsd:decimal "0.5"^^xsd:decimal "340token/s"^^quan:quantity )
+            ] [
+            data5g:standardK "12.0"^^xsd:decimal ;
+            data5g:x0Fraction "0.85"^^xsd:decimal ;
+            mf:logistic ( data5g:U_arg_energy-consumption "-0.24"^^xsd:decimal "0.5"^^xsd:decimal "58J"^^quan:quantity )
+            ] )
+        ] .
+```
 

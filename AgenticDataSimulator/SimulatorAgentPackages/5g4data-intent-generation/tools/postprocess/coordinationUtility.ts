@@ -13,12 +13,18 @@ import {
 } from "./coordinationUtilityDerive.js";
 
 function extractSubjectBlock(text: string, local: string): string | null {
-  const start = text.search(new RegExp(String.raw`\bdata5g:${local}\s+a\b`, "i"));
+  const lines = text.split("\n");
+  const subjectRe = new RegExp(String.raw`^\s*data5g:${local}\s+a\b`, "i");
+  let start = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (subjectRe.test(lines[i])) {
+      start = i;
+      break;
+    }
+  }
   if (start < 0) return null;
-  const tail = text.slice(start);
-  const nextSubject = tail.slice(1).search(/\n\s*data5g:/);
-  const end = nextSubject >= 0 ? start + 1 + nextSubject : text.length;
-  return text.slice(start, end);
+  const end = skipSubjectBlockLines(lines, start);
+  return lines.slice(start, end).join("\n");
 }
 
 function extractLocalsFromAllOf(block: string): string[] {
@@ -418,7 +424,7 @@ function isCompleteUtilityFnBlock(block: string): boolean {
   if (
     !/a\s+fun:function\s*;/i.test(block) ||
     !/fun:argumentNames/i.test(block) ||
-    !/rdf:value\s*\[\s*quan:sum\s*\(/i.test(block)
+    !/rdf:value\s*\[[\s\S]*?quan:sum\s*\(/i.test(block)
   ) {
     return false;
   }
@@ -437,13 +443,30 @@ function isDraftUtilityFnBlock(block: string): boolean {
   );
 }
 
-function shouldStripUtilitySubject(local: string, block: string): boolean {
+function linkedUtilityFnLocal(block: string): string | null {
+  const match = block.match(/ut:(?:function|hasFunction|utilityFunction)\s+data5g:(utilityFn_[A-Za-z0-9_]+)/i);
+  return match?.[1] ?? null;
+}
+
+function linkedUtilityFnIsComplete(text: string, block: string): boolean {
+  const utilityFnLocal = linkedUtilityFnLocal(block);
+  if (!utilityFnLocal) return false;
+  const utilityFnBlock = extractSubjectBlock(text, utilityFnLocal);
+  if (!utilityFnBlock) return false;
+  return isCompleteUtilityFnBlock(utilityFnBlock) && !isDraftUtilityFnBlock(utilityFnBlock);
+}
+
+function shouldStripUtilitySubject(local: string, block: string, text: string): boolean {
   if (local.startsWith("U_arg_")) return true;
   if (local.startsWith("utilityFn_")) {
     return !isCompleteUtilityFnBlock(block) || isDraftUtilityFnBlock(block);
   }
   if (local === "U_coord") {
-    return !/a\s+ut:UtilityInformation\b/i.test(block) || isDraftUtilityFnBlock(block);
+    return (
+      !/a\s+ut:UtilityInformation\b/i.test(block) ||
+      isDraftUtilityFnBlock(block) ||
+      !linkedUtilityFnIsComplete(text, block)
+    );
   }
   if (local === "UP_coord") {
     return (
@@ -453,6 +476,64 @@ function shouldStripUtilitySubject(local: string, block: string): boolean {
     );
   }
   return false;
+}
+
+export function hasCoordinationExpectation(text: string): boolean {
+  return /\bdata5g:CE[A-Za-z0-9_]+\s+a[\s\S]*?CoordinationExpectation/i.test(text);
+}
+
+const UNTYPED_MF_LOGISTIC_ARGS =
+  /mf:(?:logistic|poly)\s*\(\s*data5g:U_arg_[A-Za-z0-9_-]+\s+(?!\"[^\"]*\"\^\^xsd:decimal)-?[0-9]/i;
+
+export function ensureCoordinationUtilityLiteralTypes(text: string): string {
+  let out = text;
+
+  if (/mf:(?:logistic|poly)\s*\(/i.test(text)) {
+    out = out.replace(
+      /mf:(logistic|poly)\s*\(\s*(data5g:U_arg_[A-Za-z0-9_-]+)\s+(-?[0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)\s+("[^"]+"\^\^quan:quantity)\s*\)/g,
+      'mf:$1 ( $2 "$3"^^xsd:decimal "$4"^^xsd:decimal $5 )',
+    );
+    out = out.replace(
+      /data5g:standardK\s+(-?[0-9]+(?:\.[0-9]+)?)\s*;/g,
+      'data5g:standardK "$1"^^xsd:decimal ;',
+    );
+    out = out.replace(
+      /data5g:x0Fraction\s+(-?[0-9]+(?:\.[0-9]+)?)\s*;/g,
+      'data5g:x0Fraction "$1"^^xsd:decimal ;',
+    );
+  }
+
+  out = out.replace(
+    /ut:minUtility\s+(-?[0-9]+(?:\.[0-9]+)?)\s*([;.])/g,
+    'ut:minUtility "$1"^^xsd:decimal $2',
+  );
+  out = out.replace(
+    /ut:maxUtility\s+(-?[0-9]+(?:\.[0-9]+)?)\s*([;.])/g,
+    'ut:maxUtility "$1"^^xsd:decimal $2',
+  );
+
+  return out;
+}
+
+export function hasIncompleteCoordinationUtility(text: string): boolean {
+  if (/ut:utility\s*\[/i.test(text) || /\but:UtilityFunction\b/i.test(text)) return true;
+  if (UNTYPED_MF_LOGISTIC_ARGS.test(text)) return true;
+  if (!/mf:(?:logistic|poly)\s*\(/i.test(text)) return false;
+  const bodies = extractMfCallBodies(text);
+  if (bodies.length === 0) return false;
+  return bodies.some((body) => !isCompleteMfLogisticCall(body));
+}
+
+function resolveUserPrompt(context: {
+  runtimeContext?: string;
+  userPrompt?: string;
+}): string {
+  const explicit = context.userPrompt?.trim();
+  if (explicit) return explicit;
+  const userTextMatch = context.runtimeContext?.match(
+    /User request:\s*([\s\S]*?)(?:\n\n|$)/i,
+  );
+  return userTextMatch?.[1]?.trim() ?? context.runtimeContext?.trim() ?? "";
 }
 
 /** Remove incomplete or wrong-namespace utility drafts the LLM sometimes emits mid-generation. */
@@ -473,7 +554,7 @@ export function stripDraftUtilityBlocks(text: string): string {
     ) {
       const blockEnd = skipSubjectBlockLines(lines, i);
       const block = lines.slice(i, blockEnd).join("\n");
-      if (shouldStripUtilitySubject(local, block)) {
+      if (shouldStripUtilitySubject(local, block, text)) {
         i = blockEnd - 1;
         continue;
       }
@@ -513,12 +594,20 @@ function removeUtilityBlocks(text: string): string {
   return out.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
+function insertCePredicates(ceBlock: string, predicates: string[]): string {
+  if (predicates.length === 0) return ceBlock;
+  const block = ceBlock.trimEnd().replace(/\s*\.\s*$/s, "");
+  const tail = predicates.map((predicate) => `\n    ${predicate}`).join("");
+  return `${block}${tail} .`;
+}
+
 function sanitizeCeUtilityLink(ceBlock: string): string {
   return ceBlock
     .replace(
       /\s*<http:\/\/tio\.models\.tmforum\.org\/tio\/v3\.6\.0\/UtilityFunctions\/utility>\s+data5g:U_coord\s*[;.]/gi,
       "",
     )
+    .replace(/\s*ut:utility\s*\[[\s\S]*?\]\s*/gi, "")
     .replace(/\s*ut:utility\s+data5g:U_coord\s*;/gi, "");
 }
 
@@ -532,6 +621,29 @@ function sanitizeCeTarget(ceBlock: string): string {
     /(a\s+data5g:CoordinationExpectation\s*;)/i,
     "$1\n    icm:target data5g:coordination-service ;",
   );
+}
+
+function sanitizeCoordinationReportingTargets(text: string): { text: string; changes: number } {
+  if (!hasCoordinationExpectation(text)) return { text, changes: 0 };
+
+  const reLocals = [
+    ...text.matchAll(/data5g:(RE[A-Za-z0-9_]+)\s+a\s+icm:ObservationReportingExpectation/gi),
+  ].map((match) => match[1]);
+
+  let changes = 0;
+  for (const local of reLocals) {
+    const block = extractSubjectBlock(text, local);
+    if (!block || !/icm:target\s+data5g:llm-service/i.test(block)) continue;
+    const fixed = block.replace(
+      /icm:target\s+data5g:llm-service/i,
+      "icm:target data5g:coordination-service",
+    );
+    if (fixed === block) continue;
+    text = text.replace(block, fixed);
+    changes += 1;
+  }
+
+  return { text, changes };
 }
 
 function upsertCoordinates(ceBlock: string, coordinateLocals: string[]): string {
@@ -549,8 +661,16 @@ function upsertCoordinates(ceBlock: string, coordinateLocals: string[]): string 
       `$1\n    data5g:coordinates ${coords} ;`,
     );
   }
-  const insert = `\n    data5g:coordinates ${coords} ;`;
-  return ceBlock.replace(/\s\.\s*$/s, `${insert} .`);
+  return insertCePredicates(ceBlock, [`data5g:coordinates ${coords} ;`]);
+}
+
+function upsertCeLogAllOf(ceBlock: string, conditionLocals: string[]): string {
+  if (conditionLocals.length === 0) return ceBlock;
+  const refs = conditionLocals.map((local) => `data5g:${local}`).join(", ");
+  if (/log:allOf/i.test(ceBlock)) {
+    return ceBlock.replace(/log:allOf\s+([^;]+);/is, `log:allOf ${refs} ;`);
+  }
+  return insertCePredicates(ceBlock, [`log:allOf ${refs} ;`]);
 }
 
 function upsertUtilityLink(ceBlock: string): string {
@@ -558,8 +678,7 @@ function upsertUtilityLink(ceBlock: string): string {
   if (/log:allOf[^;]*;/is.test(ceBlock)) {
     return ceBlock.replace(/(log:allOf[^;]*;)/is, `$1\n    ut:utility data5g:U_coord ;`);
   }
-  const insert = `\n    ut:utility data5g:U_coord ;`;
-  return ceBlock.replace(/\s\.\s*$/s, `${insert} .`);
+  return insertCePredicates(ceBlock, ["ut:utility data5g:U_coord ;"]);
 }
 
 export function normalizeCoordinationUtility(args: {
@@ -574,9 +693,14 @@ export function normalizeCoordinationUtility(args: {
     return { text, changes: text === args.text ? 0 : 1 };
   }
 
+  const reTargetSanitized = sanitizeCoordinationReportingTargets(text);
+  text = reTargetSanitized.text;
+  let changes = text === args.text ? 0 : 1;
+  if (reTargetSanitized.changes > 0) changes = Math.max(changes, 1);
+
   let ceBlock = extractSubjectBlock(text, ceLocal);
   if (!ceBlock) {
-    return { text, changes: text === args.text ? 0 : 1 };
+    return { text, changes };
   }
 
   const conditionLocals = extractLocalsFromAllOf(ceBlock).filter((l) => l.startsWith("CO"));
@@ -587,10 +711,18 @@ export function normalizeCoordinationUtility(args: {
   }
   conditions = inferMissingCoordinationConditions(text, args.userText ?? "", conditions);
   if (conditions.length === 0) {
+    text = removeUtilityBlocks(text);
+    if (ceLocal) {
+      let strippedCe = extractSubjectBlock(text, ceLocal);
+      if (strippedCe) {
+        strippedCe = sanitizeCeUtilityLink(strippedCe);
+        text = text.replace(extractSubjectBlock(text, ceLocal) ?? "", strippedCe);
+      }
+    }
     return {
       text,
-      changes: text === args.text ? 0 : 1,
-      note: "coordinationUtility: no parseable CE conditions",
+      changes: Math.max(changes, text === args.text ? 0 : 1),
+      note: "coordinationUtility: no parseable CE conditions; removed malformed utility blocks",
     };
   }
 
@@ -609,6 +741,10 @@ export function normalizeCoordinationUtility(args: {
 
   ceBlock = sanitizeCeUtilityLink(ceBlock);
   ceBlock = sanitizeCeTarget(ceBlock);
+  ceBlock = upsertCeLogAllOf(
+    ceBlock,
+    conditions.map((condition) => condition.local),
+  );
   ceBlock = upsertUtilityLink(ceBlock);
   ceBlock = upsertCoordinates(ceBlock, coordinateLocals);
 
@@ -619,10 +755,32 @@ export function normalizeCoordinationUtility(args: {
   text = removeUtilityBlocks(text);
   text = `${text.trimEnd()}\n\n${utilityInfo}\n\n${utilityFn}\n`;
 
+  const typedText = ensureCoordinationUtilityLiteralTypes(text);
   return {
-    text,
-    changes: 1,
+    text: typedText,
+    changes: Math.max(changes, 1),
     note: `coordinationUtility: normalized ${conditions.length} sub-utilities (${profileSuffix})`,
+  };
+}
+
+function deriveCoordinationFlags(
+  intentFlags: Record<string, boolean>,
+  userText: string,
+): CoordinationDeriveFlags {
+  const lowered = userText.toLowerCase();
+  return {
+    coordinationSymmetric:
+      intentFlags.coordinationSymmetric ||
+      /symmetric coordination|symetric coordination|equal weight/.test(lowered),
+    coordinationWeighted:
+      intentFlags.coordinationWeighted ||
+      /weighted coordination|unequal weight|prioritize/.test(lowered),
+    coordinationSeverityCritical:
+      intentFlags.coordinationSeverityCritical ||
+      /\b(critical|critic|strict)\b/.test(lowered),
+    coordinationSeverityTrivial:
+      intentFlags.coordinationSeverityTrivial ||
+      /\b(trivial|lenient|relaxed)\b/.test(lowered),
   };
 }
 
@@ -631,28 +789,32 @@ export function applyPostprocessor(args: {
   context: {
     intentFlags?: Record<string, boolean>;
     runtimeContext?: string;
+    userPrompt?: string;
   };
 }): { text: string; changes: number; note?: string } {
   const flags = args.context.intentFlags ?? {};
-  if (!flags.coordination) {
+  const hasCe = hasCoordinationExpectation(args.text);
+  const hasMalformedUtility = hasIncompleteCoordinationUtility(args.text);
+  if (!flags.coordination && !hasCe && !hasMalformedUtility) {
     return { text: args.text, changes: 0 };
   }
 
-  const userTextMatch = args.context.runtimeContext?.match(
-    /User request:\s*([\s\S]*?)(?:\n\n|$)/i,
-  );
-  const userText = userTextMatch?.[1]?.trim() ?? args.context.runtimeContext ?? "";
+  const userText = resolveUserPrompt(args.context);
 
-  return normalizeCoordinationUtility({
+  const result = normalizeCoordinationUtility({
     text: args.text,
-    flags: {
-      coordinationSymmetric: flags.coordinationSymmetric,
-      coordinationWeighted: flags.coordinationWeighted,
-      coordinationSeverityCritical: flags.coordinationSeverityCritical,
-      coordinationSeverityTrivial: flags.coordinationSeverityTrivial,
-    },
+    flags: deriveCoordinationFlags(flags, userText),
     userText,
   });
+  const typedText = ensureCoordinationUtilityLiteralTypes(result.text);
+  if (typedText === result.text) {
+    return result;
+  }
+  return {
+    text: typedText,
+    changes: Math.max(result.changes, 1),
+    note: result.note ?? "coordinationUtility: typed mf:logistic decimal literals",
+  };
 }
 
 export function parseCoordinationConditionsFromText(text: string): ParsedCoordinationCondition[] {

@@ -1,3 +1,4 @@
+import { ensureCoordinationUtilityLiteralTypes } from "@intent-gen-package/tools/postprocess/coordinationUtility";
 import { Parser, Writer, type BlankNode, type BlankTriple, type Quad } from "n3";
 
 const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
@@ -406,6 +407,8 @@ function polishTurtleLine(line: string): string {
 
   if (/[;[]\s*$/.test(trimmed)) {
     polished = polished.replace(/\s*$/, "");
+  } else if (/\]\s*\.\s*$/.test(trimmed)) {
+    polished = polished.replace(/\]\s*\.\s*$/, "] .");
   } else if (trimmed.endsWith(".")) {
     polished = polished.replace(/\.\s*$/, " .");
   }
@@ -413,39 +416,173 @@ function polishTurtleLine(line: string): string {
   return polished;
 }
 
-function improveBracketIndentation(text: string): string {
+const TURTLE_INDENT = "    ";
+
+function countBracketsOutsideQuotes(line: string): { open: number; close: number } {
+  const parts = line.split(/("(?:\\.|[^"\\])*")/g);
+  let open = 0;
+  let close = 0;
+  for (let index = 0; index < parts.length; index += 2) {
+    const segment = parts[index];
+    open += (segment.match(/\[/g) ?? []).length;
+    close += (segment.match(/\]/g) ?? []).length;
+  }
+  return { open, close };
+}
+
+function normalizeClosingBracketLine(content: string): string {
+  if (/^]\s*\.\s*$/.test(content)) {
+    return "] .";
+  }
+  if (/^]\s*;\s*$/.test(content)) {
+    return "] ;";
+  }
+  if (/^]\s*;\s*\.\s*$/.test(content)) {
+    return "] .";
+  }
+  return content;
+}
+
+function isSubjectDeclaration(content: string): boolean {
+  return /^data5g:\S+\s+a\b/.test(content);
+}
+
+function predicateIndentLevel(depth: number, content: string): number {
+  if (depth === 0 && isSubjectDeclaration(content)) {
+    return 0;
+  }
+  if (depth === 0 && /^data5g:/.test(content)) {
+    return 1;
+  }
+  return depth + 1;
+}
+
+function reindentTurtleBody(text: string): string {
   const lines = text.split("\n");
   const output: string[] = [];
-  const bracketIndents: number[] = [];
+  let bracketDepth = 0;
+  let prefixBlockEnded = false;
+  let previousSubjectEnded = false;
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("@prefix")) {
-      output.push(polishTurtleLine(line));
+    if (!trimmed) {
       continue;
     }
 
-    const leading = line.match(/^(\s*)/)?.[1] ?? "";
-
-    if (/\[\s*$/.test(trimmed) && !trimmed.includes("]")) {
-      bracketIndents.push(leading.length + 4);
-      output.push(polishTurtleLine(line));
+    if (trimmed.startsWith("@prefix")) {
+      output.push(polishTurtleLine(trimmed));
       continue;
     }
 
-    if (bracketIndents.length > 0) {
-      const closeIndent = bracketIndents[bracketIndents.length - 1];
-      if (/^]\s*;?\s*\.?\s*$/.test(trimmed)) {
-        bracketIndents.pop();
-        output.push(`${" ".repeat(Math.max(0, closeIndent - 4))}${trimmed}`);
-        continue;
+    if (!prefixBlockEnded) {
+      if (output.length > 0) {
+        output.push("");
       }
+      prefixBlockEnded = true;
+    }
 
-      output.push(`${" ".repeat(closeIndent)}${trimmed}`);
+    const content = normalizeClosingBracketLine(trimmed);
+    const isNewSubject = bracketDepth === 0 && isSubjectDeclaration(content);
+    if (isNewSubject && previousSubjectEnded && output.at(-1) !== "") {
+      output.push("");
+    }
+    previousSubjectEnded = false;
+
+    const { open, close } = countBracketsOutsideQuotes(content);
+    const indent = TURTLE_INDENT.repeat(predicateIndentLevel(bracketDepth, content));
+    output.push(`${indent}${polishTurtleLine(content)}`);
+
+    bracketDepth += open - close;
+    bracketDepth = Math.max(0, bracketDepth);
+
+    if (bracketDepth === 0 && /\s\.\s*$/.test(content)) {
+      previousSubjectEnded = true;
+    }
+  }
+
+  return output.join("\n");
+}
+
+function wrapCommaSeparatedPredicate(line: string, predicate: string): string {
+  const match = line.match(
+    new RegExp(`^(\\s*)(${predicate})\\s+(.+?)(\\s*)([;.])\\s*$`),
+  );
+  if (!match) {
+    return line;
+  }
+
+  const [, indent, pred, values, , terminator] = match;
+  const refs = values
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (refs.length <= 1) {
+    return line;
+  }
+
+  const valueColumn = indent.length + pred.length + 1;
+  const continuationIndent = " ".repeat(valueColumn);
+  const wrappedValues = refs
+    .map((ref, index) => (index === 0 ? ref : `\n${continuationIndent}${ref}`))
+    .join(", ");
+  const ending = terminator === "." ? " ." : " ;";
+  return `${indent}${pred} ${wrappedValues}${ending}`;
+}
+
+function wrapLongPredicateLists(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => {
+      let wrapped = wrapCommaSeparatedPredicate(line, "log:allOf");
+      wrapped = wrapCommaSeparatedPredicate(wrapped, "data5g:coordinates");
+      return wrapped;
+    })
+    .join("\n");
+}
+
+function ensurePrefixBodyBreak(text: string): string {
+  const lines = text.split("\n");
+  let lastPrefixIndex = -1;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const trimmed = lines[index].trim();
+    if (trimmed.startsWith("@prefix")) {
+      lastPrefixIndex = index;
+      continue;
+    }
+    if (!trimmed || lastPrefixIndex < 0) {
+      continue;
+    }
+    if (index === lastPrefixIndex + 1) {
+      lines.splice(index, 0, "");
+    }
+    break;
+  }
+
+  return lines.join("\n");
+}
+
+function insertSectionBreaks(text: string): string {
+  const lines = text.split("\n");
+  const output: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
       continue;
     }
 
-    output.push(polishTurtleLine(line));
+    const previous = output.at(-1)?.trim() ?? "";
+    if (
+      isSubjectDeclaration(trimmed) &&
+      previous.endsWith(".") &&
+      !previous.startsWith("@prefix")
+    ) {
+      output.push("");
+    }
+
+    output.push(line);
   }
 
   return output.join("\n");
@@ -467,9 +604,15 @@ function splitRepeatedObjectLists(text: string): string {
 }
 
 function polishTurtleOutput(serialized: string): string {
-  const indented = improveBracketIndentation(serialized);
-  const listSpaced = indented.replace(/\(([^\s)])/g, "( $1").replace(/([^\s(])\)/g, "$1 )");
-  return splitRepeatedObjectLists(listSpaced);
+  const listSpaced = serialized
+    .replace(/\(([^\s)])/g, "( $1")
+    .replace(/([^\s(])\)/g, "$1 )");
+  const splitLists = splitRepeatedObjectLists(listSpaced);
+  const reindented = reindentTurtleBody(splitLists);
+  const wrapped = wrapLongPredicateLists(reindented);
+  const sectioned = insertSectionBreaks(wrapped);
+  const withPrefixBreak = ensurePrefixBodyBreak(sectioned);
+  return ensureCoordinationUtilityLiteralTypes(withPrefixBreak);
 }
 
 function serializeQuadsWithInlineBlanks(quads: Quad[], prefixes: Record<string, string>): string {

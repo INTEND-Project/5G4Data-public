@@ -7,7 +7,7 @@ When the user prompt requests coordination (`coordination`, `symmetric coordinat
 3. Add one coordination condition per coordinated metric under CE `log:allOf` (not a fixed TPS+energy pair—choose metrics named in the prompt).
 4. Emit `ut:utility data5g:U_coord` and `data5g:coordinates` listing the expectation(s) that own the coordinated metrics (typically `DeploymentExpectation`, `SustainabilityExpectation`, and/or `NetworkExpectation`—not always all three).
 5. Include `NetworkExpectation` only when coordinated metrics are network-related (`bandwidth`, `latency`, or other network metric stems) **or** the prompt explicitly requests network QoS/latency/bandwidth/connectivity. Do **not** add network solely because coordination was requested.
-6. Add `icm:ObservationReportingExpectation` targeting `data5g:llm-service` with per-anchor report event (postprocessor will scope triggers).
+6. Add `icm:ObservationReportingExpectation` targeting `data5g:coordination-service` with per-anchor report event (postprocessor will scope triggers).
 
 Utility function rules:
 

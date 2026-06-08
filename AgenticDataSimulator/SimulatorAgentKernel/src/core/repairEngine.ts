@@ -10,6 +10,7 @@ import { runConfiguredPostprocessors } from "./postprocessorRunner.js";
 
 export interface RepairContext {
   runtimeContext: string;
+  userPrompt?: string;
   knownMetricStems?: string[];
   intentFlags: IntentFlags;
   validatorRules: ValidatorRules;
@@ -45,6 +46,7 @@ export class RepairEngine {
       text: normalizedInput,
       context: {
         runtimeContext: context.runtimeContext,
+        userPrompt: context.userPrompt,
         knownMetricStems: context.knownMetricStems,
         intentFlags: context.intentFlags,
         validatorRules: context.validatorRules,
@@ -92,6 +94,7 @@ ${preprocessed}`;
       text: this.normalizeCandidateText(repaired.text),
       context: {
         runtimeContext: context.runtimeContext,
+        userPrompt: context.userPrompt,
         knownMetricStems: context.knownMetricStems,
         intentFlags: context.intentFlags,
         validatorRules: context.validatorRules,

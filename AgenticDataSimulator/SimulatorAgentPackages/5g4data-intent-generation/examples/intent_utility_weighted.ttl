@@ -201,7 +201,7 @@ data5g:RE1a3fc1b300a847509e2b5cfead555c9e a icm:ObservationReportingExpectation 
 
 data5g:RE_coordination a icm:ObservationReportingExpectation ;
     dct:description "Coordination observation reports every 10 minutes" ;
-    icm:target data5g:llm-service ;
+    icm:target data5g:coordination-service ;
     icm:reportDestinations [ a rdfs:Container ;
             rdfs:member data5g:prometheus ] ;
     icm:reportTriggers     [ a rdfs:Container ;

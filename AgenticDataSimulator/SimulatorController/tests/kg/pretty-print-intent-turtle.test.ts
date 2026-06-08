@@ -170,6 +170,8 @@ _:log2r3 rdf:first "11500J"^^quan:quantity ;
     expect(formatted).toContain("mf:logistic ( data5g:U_arg_tps");
     expect(formatted).toContain("mf:logistic ( data5g:U_arg_energy-consumption");
     expect(formatted).toContain('data5g:standardK "12"^^xsd:decimal');
+    expect(formatted).toContain('"0.03"^^xsd:decimal');
+    expect(formatted).toContain('"0.5"^^xsd:decimal');
     expect(formatted).not.toMatch(/_:b\d/);
   });
 
@@ -197,6 +199,36 @@ data5g:I1 a icm:Intent ; log:allOf data5g:SE1, data5g:DE1, data5g:RE1 .
     expect(order.indexOf("data5g:COsustain1")).toBeLessThan(order.indexOf("data5g:CXshared"));
     expect(order.indexOf("data5g:DE1")).toBeLessThan(order.indexOf("data5g:COdeployment"));
     expect(order.indexOf("data5g:COdeployment")).toBeLessThan(order.indexOf("data5g:RE1"));
+  });
+
+  it("inserts blank lines between subject blocks and indents nested brackets", () => {
+    const expanded = `
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+data5g:I1 a icm:Intent ;
+    log:allOf data5g:DE1, data5g:SE1 .
+data5g:DE1 a data5g:DeploymentExpectation ;
+    log:allOf data5g:CO1 .
+data5g:CO1 a icm:Condition ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:metric_CO1 ;
+        quan:larger [
+            quan:unit "token/s" ;
+            rdf:value 400
+        ]
+    ] .
+`.trim();
+
+    const formatted = prettyPrintIntentTurtle(expanded);
+
+    expect(formatted).toMatch(/log:allOf data5g:DE1,\s*\n\s+data5g:SE1 \./);
+    expect(formatted).toMatch(/data5g:I1 a icm:Intent ;\n[\s\S]*?\n\ndata5g:DE1 a/);
+    expect(formatted).toContain("quan:larger [");
+    expect(formatted).toMatch(/set:forAll \[\n\s+icm:valuesOfTargetProperty[\s\S]*?\n\s+quan:larger \[/);
   });
 
   it("formats rdfs containers with square brackets", () => {

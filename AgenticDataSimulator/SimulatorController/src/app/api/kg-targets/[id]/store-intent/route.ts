@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { ingestIntentTurtle } from "@/lib/graphdb/client";
 import { storePrometheusMetadataForIntent } from "@/lib/kg/store-prometheus-metadata";
 import { extractIntentLocalIdFromTurtle } from "@/lib/intent/extract-intent-turtle";
+import { normalizeIntentTurtleOnIngest } from "@/lib/intent/normalize-intent-turtle-on-ingest";
 import { parseStorageFromIntentTurtle } from "@/lib/intents/resolve-intent-storage";
 import { registerUserIntent } from "@/lib/intents/user-intent-registry";
 import { parsePrometheusBaseUrlInput } from "@/lib/prometheus/resolve-base-url";
@@ -74,11 +75,13 @@ export async function POST(request: Request, context: RouteContext) {
     graphDbBaseUrl = parsed.url;
   }
 
+  const turtle = normalizeIntentTurtleOnIngest(body.turtle);
+
   try {
     await ingestIntentTurtle({
       repositoryId: target.repositoryId,
       graphIri: target.graphIri,
-      turtle: body.turtle,
+      turtle,
       graphDbBaseUrl,
     });
   } catch (error) {
@@ -92,8 +95,8 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
-  const intentId = extractIntentLocalIdFromTurtle(body.turtle);
-  const storage = body.storage ?? parseStorageFromIntentTurtle(body.turtle) ?? "graphdb";
+  const intentId = extractIntentLocalIdFromTurtle(turtle);
+  const storage = body.storage ?? parseStorageFromIntentTurtle(turtle) ?? "graphdb";
 
   if (intentId) {
     await registerUserIntent({

@@ -1,6 +1,15 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import type { NextConfig } from "next";
 
 import { getConfiguredAppBasePath } from "./src/lib/app-paths";
+
+const controllerRoot = path.dirname(fileURLToPath(import.meta.url));
+const intentGenPackageRoot = path.resolve(
+  controllerRoot,
+  "../SimulatorAgentPackages/5g4data-intent-generation",
+);
 
 const configuredBasePath = getConfiguredAppBasePath(process.env);
 
@@ -19,6 +28,10 @@ function resolveDistDir(): string {
 const nextConfig: NextConfig = {
   ...(configuredBasePath ? { basePath: configuredBasePath } : {}),
   distDir: resolveDistDir(),
+  // Allow bundling coordination postprocess helpers from the sibling package.
+  experimental: {
+    externalDir: true,
+  },
   env: {
     // Inlined into client bundles; APP_BASE_PATH alone is server-only at build time.
     NEXT_PUBLIC_APP_BASE_PATH: configuredBasePath,
@@ -39,6 +52,19 @@ const nextConfig: NextConfig = {
         pathname: "/intend-icon.png",
       },
     ],
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.resolve.extensionAlias = {
+        ...config.resolve.extensionAlias,
+        ".js": [".ts", ".tsx", ".js"],
+      };
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        "@intent-gen-package": intentGenPackageRoot,
+      };
+    }
+    return config;
   },
 };
 

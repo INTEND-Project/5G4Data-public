@@ -75,8 +75,8 @@ describe("workload catalogue preview-metrics route", () => {
             selectedChart: "rusty-llm",
             version: "0.1.19",
             objectives: [{ name: "p99-token-target" }],
-            sustainability: [{ name: "container-cpu-watts" }],
-            metricStems: ["container-cpu-watts", "p99-token-target"],
+            sustainability: [{ name: "energy-consumption" }],
+            metricStems: ["energy-consumption", "p99-token-target"],
             warnings: [],
           }),
           { status: 200, headers: { "content-type": "application/json" } },
@@ -97,7 +97,7 @@ describe("workload catalogue preview-metrics route", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       selectedChart: "rusty-llm",
-      metricStems: ["container-cpu-watts", "p99-token-target"],
+      metricStems: ["energy-consumption", "p99-token-target"],
     });
     fetchMock.mockRestore();
   });

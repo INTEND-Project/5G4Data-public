@@ -87,6 +87,34 @@ docker exec 5g4data-tutorial-reverse-proxy-1 wget -qO- -T 3 "http://host.docker.
 
 Do **not** expose port 3002 publicly; remote users reach Grafana via HTTPS on port 443.
 
+**Prometheus + Pushgateway** (host ports **9090** / **9091**, proxied at `/prometheus` and `/prometheus-pushgateway`):
+
+```bash
+# Remove any public/home rules for 9090/9091 if present, then:
+sudo ufw allow from 172.21.0.0/16 to any port 9090 proto tcp comment 'Prometheus from 5g4data-tutorial-app-network'
+sudo ufw allow from 172.21.0.0/16 to any port 9091 proto tcp comment 'Pushgateway from 5g4data-tutorial-app-network'
+sudo ufw reload
+```
+
+Docker publishes 9090/9091 on all interfaces, so UFW alone does not block internet scanners. Restrict the `DOCKER-USER` chain (private ranges only). Use the idempotent script and enable it on boot via systemd:
+
+```bash
+sudo cp scripts/systemd/prometheus-docker-user-firewall.service.example /etc/systemd/system/prometheus-docker-user-firewall.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now prometheus-docker-user-firewall.service
+```
+
+The script lives at `[Prometheus/configure-docker-user-firewall.sh](Prometheus/configure-docker-user-firewall.sh)`; re-run after Docker restarts if the unit is not installed: `sudo ./Prometheus/configure-docker-user-firewall.sh`.
+
+Verify from the Caddy container:
+
+```bash
+docker exec 5g4data-tutorial-reverse-proxy-1 wget -qO- -T 3 "http://host.docker.internal:9090/-/healthy"
+curl -sf "https://start5g-1.cs.uit.no/prometheus/-/healthy"
+```
+
+Do **not** expose ports 9090/9091 publicly; remote users reach Prometheus via HTTPS on port 443.
+
 If you use an optional unified proxy on **18080** (§4.2), allow that port from the same Docker subnet as well.
 
 ---

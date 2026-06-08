@@ -28,17 +28,17 @@ test("formatMetricSummaryLine falls back to value and omits absent hints", () =>
 
 test("formatMetricSummaryLine includes sustainability hints", () => {
   const line = formatMetricSummaryLine({
-    name: "container-cpu-watts",
-    value: "5000.0",
-    "tmf-value-hint": "5000",
-    "tmf-quantifier-hint": "quan:smaller",
-    "tmf-unit-hint": "W",
-    measuredBy: "intend/container-cpu-watts"
+    name: "energy-consumption",
+    value: "50",
+    "tmf-value-hint": "50",
+    "tmf-quantifier-hint": "quan:larger",
+    "tmf-unit-hint": "J",
+    measuredBy: "intend/energy-consumption"
   });
-  assert.match(line, /threshold=5000 \(source=tmf-value-hint\)/);
-  assert.match(line, /quantifier=quan:smaller \(source=tmf-quantifier-hint\)/);
-  assert.match(line, /unit=W \(source=tmf-unit-hint\)/);
-  assert.match(line, /measuredBy=intend\/container-cpu-watts/);
+  assert.match(line, /threshold=50 \(source=tmf-value-hint\)/);
+  assert.match(line, /quantifier=quan:larger \(source=tmf-quantifier-hint\)/);
+  assert.match(line, /unit=J \(source=tmf-unit-hint\)/);
+  assert.match(line, /measuredBy=intend\/energy-consumption/);
 });
 
 test("metricsForChart returns structured objectives and sustainability", async () => {
@@ -60,9 +60,9 @@ test("metricsForChart returns structured objectives and sustainability", async (
               ],
               sustainability: [
                 {
-                  name: "container-cpu-watts",
-                  "tmf-value-hint": "5000",
-                  measuredBy: "intend/container-cpu-watts",
+                  name: "energy-consumption",
+                  "tmf-value-hint": "50",
+                  measuredBy: "intend/energy-consumption",
                 },
               ],
             },
@@ -81,7 +81,7 @@ test("metricsForChart returns structured objectives and sustainability", async (
     assert.equal(metrics.chartName, "rusty-llm");
     assert.equal(metrics.version, "0.1.19");
     assert.equal(metrics.objectives[0]?.name, "p99-token-target");
-    assert.equal(metrics.sustainability[0]?.name, "container-cpu-watts");
+    assert.equal(metrics.sustainability[0]?.name, "energy-consumption");
   } finally {
     globalThis.fetch = originalFetch;
   }

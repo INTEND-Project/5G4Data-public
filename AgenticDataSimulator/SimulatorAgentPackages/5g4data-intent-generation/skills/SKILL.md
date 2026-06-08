@@ -240,15 +240,21 @@ Example:
 
 ```yaml
 sustainability:
-  - name: container-cpu-watts
-    value: "5000.0"
-    tmf-value-hint: "5000"
+  - name: energy-consumption
+    value: "50"
+    tmf-value-hint: "50"
+    tmf-quantifier-hint: "quan:larger"
+    tmf-unit-hint: "J"
+    measuredBy: intend/energy-consumption
+  - name: power-consumption
+    value: "3000"
+    tmf-value-hint: "3000"
     tmf-quantifier-hint: "quan:smaller"
     tmf-unit-hint: "W"
-    measuredBy: intend/container-cpu-watts
+    measuredBy: intend/power-consumption
 ```
 
-Use metric `data5g:container-cpu-watts___ID_CONDITION_CPU_WATTS_1__` (postprocessing yields `data5g:container-cpu-watts_CO<uuid4>`). Emit `quan:smaller [ quan:unit "W" ; rdf:value 5000 ]` from catalogue hints unless the user overrides.
+Use metric `data5g:energy-consumption___ID_CONDITION_ENERGY_1__` (postprocessing yields `data5g:energy-consumption_CO<uuid4>`). Emit sustainability thresholds from catalogue hints unless the user overrides. Legacy chart metrics such as `container-cpu-watts` and `container-cpu-joules-total` are deprecated — use `energy-consumption` and `power-consumption` instead.
 
 ## Inference rules for expectation selection
 
@@ -380,7 +386,7 @@ Before returning:
 - Expectation targets are correct.
 - Observation reporting expectations target the resource they report on.
 - Observation reporting uses per-anchor event classes and durations (not global `tenMinutesDeployment` / `TenMinuteReportEventDeployment`) with correct `imo:eventFor` mappings.
-- Coordination: when requested, include `data5g:CoordinationExpectation` targeting `data5g:llm-service` with `ut:utility`, `data5g:coordinates` (the deployment, sustainability, and/or network expectations that own the coordinated metrics), and one utility argument `U_arg_<metric-stem>` per CE condition. Include `NetworkExpectation` only when coordinated metrics are network-related or the prompt explicitly requests network QoS—not by default. Use `ut:`/`fun:`/`mf:`/`time:` only — never `UtilityFunctions/` IRIs.
+- Coordination: when requested, include `data5g:CoordinationExpectation` targeting `data5g:coordination-service` with `ut:utility`, `data5g:coordinates` (the deployment, sustainability, and/or network expectations that own the coordinated metrics), and one utility argument `U_arg_<metric-stem>` per CE condition. Include `NetworkExpectation` only when coordinated metrics are network-related or the prompt explicitly requests network QoS—not by default. Use `ut:`/`fun:`/`mf:`/`time:` only — never `UtilityFunctions/` IRIs.
 - Deployment workload and descriptor come from catalogue.
 - `data5g:DataCenter` from coordinate + SPARQL nearest-edge process when locality used.
 - Units: latency `"ms"`, bandwidth `"mbit/s"` (unless chart objective defines differently).

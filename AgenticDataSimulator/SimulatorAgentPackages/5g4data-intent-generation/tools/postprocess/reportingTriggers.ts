@@ -52,7 +52,7 @@ function kindFromTarget(targetLocal: string): ReportKind | null {
   if (t === "deployment") return "Deployment";
   if (t === "sustainability") return "Sustainability";
   if (t === "network-slice" || t === "network") return "Network";
-  if (t === "llm-service") return "Coordination";
+  if (t === "llm-service" || t === "coordination-service") return "Coordination";
   return null;
 }
 

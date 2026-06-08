@@ -26,16 +26,16 @@ data5g:COc5f7b82460cf4207a5a93ca4183ccbdf a icm:Condition ;
                     rdf:value 400 ] ] .
 
 data5g:CO72a1524ea1904d429ecd23cc1c536d1c a icm:Condition ;
-    dct:description "container-cpu-joules-total condition quan:larger: 5000 J" ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:container-cpu-joules-total_CO72a1524ea1904d429ecd23cc1c536d1c ;
+    dct:description "energy-consumption condition quan:larger: 50 J" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:energy-consumption_CO72a1524ea1904d429ecd23cc1c536d1c ;
             quan:larger [ quan:unit "J" ;
-                    rdf:value 5000 ] ] .
+                    rdf:value 50 ] ] .
 
 data5g:COe71bfa4e593b4de6b7272a43c020d23c a icm:Condition ;
-    dct:description "container-cpu-watts condition quan:smaller: 5000 W" ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:container-cpu-watts_COe71bfa4e593b4de6b7272a43c020d23c ;
+    dct:description "power-consumption condition quan:smaller: 3000 W" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:power-consumption_COe71bfa4e593b4de6b7272a43c020d23c ;
             quan:smaller [ quan:unit "W" ;
-                    rdf:value 5000 ] ] .
+                    rdf:value 3000 ] ] .
 
 data5g:CX8c9a8c0dee4b41d8a02a6f64f2f37594 a icm:Context ;
     data5g:Application "LLM inference" ;

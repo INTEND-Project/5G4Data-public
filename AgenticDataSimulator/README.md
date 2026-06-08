@@ -287,7 +287,7 @@ request observation-report using observationControl for myIntent storage prometh
 
 **Resolution order** for observation datapoints: `request observation-report … storage` override → `icm:reportDestinations` in intent Turtle → `create intent … storage` alias map → default `graphdb`.
 
-**Coordination (inCoord):** add phrases like `symmetric coordination` or `weighted coordination` inside the `prompt "…"` string. See [`SimulatorAgentPackages/5g4data-intent-generation/docs/how-coordination-works.md`](SimulatorAgentPackages/5g4data-intent-generation/docs/how-coordination-works.md).
+**Coordination (inCoord):** add phrases like `symmetric coordination` or `weighted coordination` inside the `prompt "…"` string. See [`SimulatorAgentPackages/5g4data-intent-generation/docs/coordination-using-utility-function.md`](SimulatorAgentPackages/5g4data-intent-generation/docs/coordination-using-utility-function.md).
 
 **Metadata** (how to query stored metrics) is always registered in the GraphDB metadata graph `http://intent-reports-metadata` (GraphDB SPARQL URL for graphdb storage, Prometheus `/api/v1/query` URL for prometheus storage).
 
@@ -383,6 +383,8 @@ curl -sf http://127.0.0.1:9090/prometheus/-/healthy
 Caddy routes are defined in `[5G4Data-Tutorial/Caddyfile](../5G4Data-Tutorial/Caddyfile)`.
 
 **Grafana behind `/grafana/`** — Grafana runs with `GF_SERVER_SERVE_FROM_SUB_PATH=true` and `GF_SERVER_ROOT_URL=https://start5g-1.cs.uit.no/grafana/`. Caddy forwards `/grafana*` to host port 3002 **without** stripping the prefix. Remote users reach Grafana over HTTPS on port 443 only; UFW needs a rule from the Caddy Docker subnet (`172.21.0.0/16`) to host port 3002, not a public allow on 3002. Re-run `./Grafana/configure-jwt-auth.sh` after changing `GRAFANA_BASE_URL` in `SimulatorController/.env`.
+
+**Prometheus behind `/prometheus/`** — Remote users reach Prometheus and Pushgateway over HTTPS on port 443 only (`https://start5g-1.cs.uit.no/prometheus`, `…/prometheus-pushgateway`). Do **not** expose host ports 9090/9091 publicly. UFW: allow from `172.21.0.0/16` to ports 9090 and 9091 (Caddy subnet). Because Docker publishes those ports, also restrict the `DOCKER-USER` chain so only private ranges (10/8, 172.16/12, 127/8) can reach 9090/9091 — use `[Prometheus/configure-docker-user-firewall.sh](Prometheus/configure-docker-user-firewall.sh)` with `[scripts/systemd/prometheus-docker-user-firewall.service.example](scripts/systemd/prometheus-docker-user-firewall.service.example)` for persistence across reboot; see `[a2a-registry/README-a2a-registry.md](a2a-registry/README-a2a-registry.md)`.
 
 **GraphDB Workbench behind `/graphdb/` (start5g-1)** — Caddy strips the `/graphdb` prefix before forwarding to port 7200, but the Workbench ships with `<base href="/">`, so the UI loads JS/CSS from the site root and stays on “GraphDB Workbench is loading…”. On start5g-1 this has been fixed on the native install (`~/arneme/GraphDB/graphdb-11.1.1`):
 

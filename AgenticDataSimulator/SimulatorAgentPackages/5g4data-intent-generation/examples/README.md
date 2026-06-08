@@ -7,4 +7,4 @@ Reference coordination patterns (inCoord):
 - `intent_utility_symmetric.ttl` — symmetric utility weighting example
 - `intent_utility_weighted.ttl` — weighted utility weighting example
 
-See [`docs/how-coordination-works.md`](../docs/how-coordination-works.md) for how to trigger coordination in `create intent` prompts.
+See [`docs/coordination-using-utility-function.md`](../docs/coordination-using-utility-function.md) for how to trigger coordination and utility functions in `create intent` prompts.

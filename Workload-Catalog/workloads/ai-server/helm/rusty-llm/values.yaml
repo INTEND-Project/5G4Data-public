@@ -139,7 +139,7 @@ intent:
     - name: energy-consumption
       value: "50"
       tmf-value-hint: "50"
-      tmf-quantifier-hint: "quan:larger"
+      tmf-quantifier-hint: "quan:smaller"
       tmf-unit-hint: "J"
       measuredBy: intend/energy-consumption
     - name: power-consumption

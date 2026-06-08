@@ -8,6 +8,7 @@ import {
   expectationPrefixForMetricStem,
   isNetworkMetricStem,
   metricStemFromScopedLocal,
+  metricStemsAlignForCoordination,
   resolveLimits,
   resolveSeverity,
   resolveWeightProfile,
@@ -97,6 +98,8 @@ test("expectationPrefixForMetricStem maps metric families to expectation types",
   assert.equal(expectationPrefixForMetricStem("energy-consumption"), "SE");
   assert.equal(expectationPrefixForMetricStem("bandwidth"), "NE");
   assert.equal(expectationPrefixForMetricStem("latency"), "NE");
+  assert.equal(metricStemsAlignForCoordination("energy-consumption", "power-consumption"), true);
+  assert.equal(metricStemsAlignForCoordination("p99-token-target", "power-consumption"), false);
   assert.equal(isNetworkMetricStem("networklatency"), true);
   assert.equal(isNetworkMetricStem("p99-token-target"), false);
 });

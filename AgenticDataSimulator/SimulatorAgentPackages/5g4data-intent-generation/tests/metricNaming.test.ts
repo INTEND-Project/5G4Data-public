@@ -12,17 +12,17 @@ Selected chart: rusty-llm (version 0.1.19)
 Deployment objective defaults from values.yaml objectives:
 - p99-token-target: threshold=400 (source=tmf-value-hint), quantifier=quan:larger (source=tmf-quantifier-hint), unit=token/s (source=tmf-unit-hint), measuredBy=intend/p99token
 Sustainability objective defaults from values.yaml sustainability:
-- container-cpu-watts: threshold=5000 (source=tmf-value-hint), quantifier=quan:smaller (source=tmf-quantifier-hint), unit=W (source=tmf-unit-hint), measuredBy=intend/container-cpu-watts`;
+- energy-consumption: threshold=50 (source=tmf-value-hint), quantifier=quan:larger (source=tmf-quantifier-hint), unit=J (source=tmf-unit-hint), measuredBy=intend/energy-consumption`;
 
 test("parseMetricStemsFromRuntimeContext reads values.yaml objective names", () => {
   const stems = parseMetricStemsFromRuntimeContext(runtimeContext);
-  assert.deepEqual(stems, ["p99-token-target", "container-cpu-watts"]);
+  assert.deepEqual(stems, ["p99-token-target", "energy-consumption"]);
 });
 
 test("canonicalMetricStem maps underscore variants to catalogue hyphen stems", () => {
   const stems = parseMetricStemsFromRuntimeContext(runtimeContext);
   assert.equal(canonicalMetricStem("p99_token_target", stems), "p99-token-target");
-  assert.equal(canonicalMetricStem("container_cpu_watts", stems), "container-cpu-watts");
+  assert.equal(canonicalMetricStem("energy_consumption", stems), "energy-consumption");
 });
 
 test("postprocessor normalizes valuesOfTargetProperty using catalogue stems from runtime context", () => {

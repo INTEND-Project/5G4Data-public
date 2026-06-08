@@ -93,12 +93,12 @@ data5g:duration1 a <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/Durati
     expect(formatted).not.toContain("@prefix owl:");
   });
 
-  it("uses mf, time, ut, and uf prefixes for coordination utility triples", () => {
+  it("uses fun, mf, time, and ut prefixes for coordination utility triples", () => {
     const expanded = `
 @prefix data5g: <http://5g4data.eu/5g4data#> .
 @prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
 data5g:CE1 a data5g:CoordinationExpectation ;
-    <http://tio.models.tmforum.org/tio/v3.6.0/UtilityFunctions/utility> data5g:U_coord .
+    <http://tio.models.tmforum.org/tio/v3.6.0/Utility/utility> data5g:U_coord .
 data5g:U_arg_energy-consumption a <http://tio.models.tmforum.org/tio/v3.6.0/UtilityFunctions/UtilityArgument> ;
     <http://tio.models.tmforum.org/tio/v3.6.0/UtilityFunctions/definedBy> data5g:energy-consumption ;
     <http://tio.models.tmforum.org/tio/v3.6.0/UtilityFunctions/function> <http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/logistic> .
@@ -110,10 +110,8 @@ data5g:duration1 a <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/Durati
 
     expect(formatted).toContain("@prefix mf:");
     expect(formatted).toContain("@prefix time:");
-    expect(formatted).toContain("@prefix uf:");
-    expect(formatted).toContain("uf:utility data5g:U_coord");
-    expect(formatted).toContain("uf:UtilityArgument");
-    expect(formatted).toContain("uf:definedBy");
+    expect(formatted).toContain("@prefix ut:");
+    expect(formatted).toContain("ut:utility data5g:U_coord");
     expect(formatted).toContain("mf:logistic");
     expect(formatted).toContain("time:DurationDescription");
     const body = formatted
@@ -122,6 +120,57 @@ data5g:duration1 a <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/Durati
       .join("\n");
     expect(body).not.toContain("<http://tio.models.tmforum.org/tio/v3.6.0/UtilityFunctions/");
     expect(body).not.toContain("<http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/");
+  });
+
+  it("pretty-prints utility function rdf:value quan:sum blocks from GraphDB-style triples", () => {
+    const expanded = `
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix fun: <http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/> .
+@prefix mf: <http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+data5g:utilityFn_symmetric a fun:function ;
+    fun:argumentNames ( data5g:U_arg_tps data5g:U_arg_energy-consumption ) ;
+    rdf:value _:v0 .
+_:v0 quan:sum _:l0 .
+_:l0 rdf:first _:sub1 ;
+    rdf:rest _:l1 .
+_:l1 rdf:first _:sub2 ;
+    rdf:rest rdf:nil .
+_:sub1 mf:logistic _:log1 ;
+    data5g:standardK "12"^^xsd:decimal ;
+    data5g:x0Fraction "0.85"^^xsd:decimal .
+_:log1 rdf:first data5g:U_arg_tps ;
+    rdf:rest _:log1r1 .
+_:log1r1 rdf:first "0.03"^^xsd:decimal ;
+    rdf:rest _:log1r2 .
+_:log1r2 rdf:first "0.5"^^xsd:decimal ;
+    rdf:rest _:log1r3 .
+_:log1r3 rdf:first "340tokens/s"^^quan:quantity ;
+    rdf:rest rdf:nil .
+_:sub2 mf:logistic _:log2 ;
+    data5g:standardK "12"^^xsd:decimal ;
+    data5g:x0Fraction "0.85"^^xsd:decimal .
+_:log2 rdf:first data5g:U_arg_energy-consumption ;
+    rdf:rest _:log2r1 .
+_:log2r1 rdf:first "-0.001"^^xsd:decimal ;
+    rdf:rest _:log2r2 .
+_:log2r2 rdf:first "0.5"^^xsd:decimal ;
+    rdf:rest _:log2r3 .
+_:log2r3 rdf:first "11500J"^^quan:quantity ;
+    rdf:rest rdf:nil .
+`.trim();
+
+    const formatted = prettyPrintIntentTurtle(expanded);
+
+    expect(formatted).toContain("fun:function");
+    expect(formatted).toMatch(/rdf:value\s*\[/);
+    expect(formatted).toContain("quan:sum (");
+    expect(formatted).toContain("mf:logistic ( data5g:U_arg_tps");
+    expect(formatted).toContain("mf:logistic ( data5g:U_arg_energy-consumption");
+    expect(formatted).toContain('data5g:standardK "12"^^xsd:decimal');
+    expect(formatted).not.toMatch(/_:b\d/);
   });
 
   it("orders subjects with Intent first, then each Expectation and its Conditions and Context", () => {

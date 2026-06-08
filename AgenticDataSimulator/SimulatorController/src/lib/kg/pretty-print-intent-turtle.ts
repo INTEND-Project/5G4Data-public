@@ -20,6 +20,7 @@ const INTENT_TURTLE_PREFIXES: Record<string, string> = {
   imo: "http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/",
   log: "http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/",
   mf: "http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/",
+  fun: "http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/",
   set: "http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/",
   quan: "http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/",
   rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
@@ -38,6 +39,7 @@ const PREFERRED_PREFIX_ORDER = [
   "imo",
   "log",
   "mf",
+  "fun",
   "set",
   "quan",
   "rdf",
@@ -212,7 +214,9 @@ function encodeObject(
   if (isBlankNode(object) && (refCounts.get(object.value) ?? 0) === 1) {
     const listItems = tryExtractRdfList(object, bySubject);
     if (listItems?.length) {
-      return writer.list(listItems) as unknown as Quad["object"];
+      return writer.list(
+        listItems.map((item) => encodeObject(writer, item, refCounts, bySubject)),
+      ) as unknown as Quad["object"];
     }
   }
 
@@ -229,10 +233,6 @@ function encodeObject(
     predicate: quad.predicate,
     object: encodeObject(writer, quad.object, refCounts, bySubject) as Quad["object"],
   }));
-
-  if (children.length === 1) {
-    return writer.blank(children[0].predicate, children[0].object) as Quad["object"];
-  }
 
   return writer.blank(children) as Quad["object"];
 }

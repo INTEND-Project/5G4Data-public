@@ -78,7 +78,7 @@ data5g:RG1a6924f3e91d4e7aacb416c3d4ef587a a geo:Feature ;
 # Should inCoord coordinate expectations or only conditions
 data5g:CE_coord a data5g:CoordinationExpectation;
     dct:description "Coordinate compute and network to guarantee system TPS and energy budget" ;
-    icm:target data5g:llm-service ;
+    icm:target data5g:coordination-service ;
     log:allOf  data5g:COc5f7b82460cf4207a5a93ca4183ccbdf,
                data5g:CO72a1524ea1904d429ecd23cc1c536d1c ;
     ut:utility data5g:U_coord ;

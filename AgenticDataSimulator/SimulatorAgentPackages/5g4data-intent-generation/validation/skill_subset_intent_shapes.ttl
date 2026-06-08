@@ -188,7 +188,7 @@ data5g:ReportingExpectationShape
         sh:path icm:target ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
-        sh:in ( data5g:deployment data5g:network-slice data5g:llm-service )
+        sh:in ( data5g:deployment data5g:network-slice data5g:llm-service data5g:coordination-service )
     ] .
 
 data5g:CoordinationExpectationShape
@@ -198,7 +198,7 @@ data5g:CoordinationExpectationShape
         sh:path icm:target ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
-        sh:hasValue data5g:llm-service
+        sh:hasValue data5g:coordination-service
     ] ;
     sh:property [
         sh:path ut:utility ;

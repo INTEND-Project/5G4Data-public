@@ -1,8 +1,11 @@
 import {
   argLocalFromMetricStem,
   buildSubUtilitySpecs,
+  coordinationMetricCategory,
   expectationPrefixForMetricStem,
+  isDeprecatedSustainabilityMetricStem,
   metricStemFromScopedLocal,
+  metricStemsAlignForCoordination,
   type CoordinationDeriveFlags,
   type ParsedCoordinationCondition,
   type SubUtilitySpec,
@@ -71,23 +74,118 @@ function resolveConditionForCoordination(
   const metricOnly = parseConditionBlockMetricOnly(ceBlock, ceConditionLocal);
   if (!metricOnly) return null;
 
+  const sourcedMatches: ParsedCoordinationCondition[] = [];
   for (const local of findAllConditionLocals(text)) {
     if (local === ceConditionLocal) continue;
     const block = extractSubjectBlock(text, local);
     if (!block) continue;
     const sourced = parseConditionBlock(block, local);
-    if (!sourced || sourced.metricStem !== metricOnly.metricStem) continue;
-    return {
-      local: ceConditionLocal,
-      metricLocal: metricOnly.metricLocal,
-      metricStem: metricOnly.metricStem,
-      quantifier: sourced.quantifier,
-      unit: sourced.unit,
-      threshold: sourced.threshold,
-    };
+    if (!sourced || !metricStemsAlignForCoordination(metricOnly.metricStem, sourced.metricStem)) continue;
+    sourcedMatches.push(sourced);
   }
+  const preferredSourced =
+    sourcedMatches.find((sourced) => !isDeprecatedSustainabilityMetricStem(sourced.metricStem)) ??
+    sourcedMatches[0];
+  if (!preferredSourced) return null;
+  return {
+    local: ceConditionLocal,
+    metricLocal: metricOnly.metricLocal,
+    metricStem: metricOnly.metricStem,
+    quantifier: preferredSourced.quantifier,
+    unit: preferredSourced.unit,
+    threshold: preferredSourced.threshold,
+  };
 
   return null;
+}
+
+function coordinationConditionLocals(text: string): Set<string> {
+  const ceLocal = findCoordinationExpectationLocal(text);
+  if (!ceLocal) return new Set();
+  const ceBlock = extractSubjectBlock(text, ceLocal);
+  if (!ceBlock) return new Set();
+  return new Set(extractLocalsFromAllOf(ceBlock).filter((local) => local.startsWith("CO")));
+}
+
+function collectExpectationConditions(text: string): ParsedCoordinationCondition[] {
+  const ceConditionLocals = coordinationConditionLocals(text);
+  const conditions: ParsedCoordinationCondition[] = [];
+  for (const local of findAllConditionLocals(text)) {
+    if (ceConditionLocals.has(local)) continue;
+    const block = extractSubjectBlock(text, local);
+    if (!block) continue;
+    const parsed = parseConditionBlock(block, local);
+    if (parsed) conditions.push(parsed);
+  }
+  return conditions;
+}
+
+function hasMetricCategory(
+  conditions: ParsedCoordinationCondition[],
+  category: ReturnType<typeof coordinationMetricCategory>,
+): boolean {
+  return conditions.some((condition) => coordinationMetricCategory(condition.metricStem) === category);
+}
+
+function pickExpectationCondition(
+  expectationConditions: ParsedCoordinationCondition[],
+  category: ReturnType<typeof coordinationMetricCategory>,
+  userText: string,
+): ParsedCoordinationCondition | undefined {
+  const candidates = expectationConditions.filter(
+    (condition) => coordinationMetricCategory(condition.metricStem) === category,
+  );
+  if (candidates.length === 0) return undefined;
+
+  const active = candidates.filter(
+    (condition) => !isDeprecatedSustainabilityMetricStem(condition.metricStem),
+  );
+  const pool = active.length > 0 ? active : candidates;
+  const lowered = userText.toLowerCase();
+
+  if (category === "energy") {
+    if (/energy consumption|energy-consumption/.test(lowered)) {
+      return pool.find((condition) => condition.metricStem === "energy-consumption") ?? pool[0];
+    }
+    if (/power consumption|power-consumption/.test(lowered)) {
+      return pool.find((condition) => condition.metricStem === "power-consumption") ?? pool[0];
+    }
+    return pool.find((condition) => condition.metricStem === "energy-consumption") ?? pool[0];
+  }
+
+  if (category === "throughput") {
+    return pool.find((condition) => coordinationMetricCategory(condition.metricStem) === "throughput") ?? pool[0];
+  }
+
+  return pool[0];
+}
+
+function inferMissingCoordinationConditions(
+  text: string,
+  userText: string,
+  conditions: ParsedCoordinationCondition[],
+): ParsedCoordinationCondition[] {
+  const merged = [...conditions];
+  const lowered = userText.toLowerCase();
+  const wantsThroughput = /throughput|token|\btps\b|p99/.test(lowered);
+  const wantsEnergy = /energy|joule|watt|power|consumption|sustain/.test(lowered);
+  const expectationConditions = collectExpectationConditions(text);
+
+  const addFromExpectations = (category: ReturnType<typeof coordinationMetricCategory>) => {
+    if (hasMetricCategory(merged, category)) return;
+    const candidate = pickExpectationCondition(expectationConditions, category, userText);
+    if (candidate) merged.push(candidate);
+  };
+
+  if (wantsThroughput) addFromExpectations("throughput");
+  if (wantsEnergy) addFromExpectations("energy");
+
+  if (wantsThroughput && wantsEnergy) {
+    addFromExpectations("throughput");
+    addFromExpectations("energy");
+  }
+
+  return merged;
 }
 
 function findCoordinationExpectationLocal(text: string): string | null {
@@ -288,12 +386,45 @@ export function stripMisalignedUtilityTurtle(text: string): string {
   ).replace(/\n{3,}/g, "\n\n");
 }
 
+const COMPLETE_MF_CALL_BODY =
+  /^\s*(data5g:U_arg_[A-Za-z0-9_-]+)\s+("[^"]*"\^\^xsd:decimal)\s+("[^"]*"\^\^xsd:decimal)\s+("[^"]*"\^\^quan:quantity)\s*$/s;
+
+function extractMfCallBodies(block: string): string[] {
+  const bodies: string[] = [];
+  const re = /mf:(?:logistic|poly)\s*\(/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(block)) !== null) {
+    const start = match.index + match[0].length;
+    let depth = 1;
+    let index = start;
+    while (index < block.length && depth > 0) {
+      const char = block[index];
+      if (char === "(") depth += 1;
+      else if (char === ")") depth -= 1;
+      index += 1;
+    }
+    if (depth === 0) {
+      bodies.push(block.slice(start, index - 1));
+    }
+  }
+  return bodies;
+}
+
+export function isCompleteMfLogisticCall(callBody: string): boolean {
+  return COMPLETE_MF_CALL_BODY.test(callBody.trim());
+}
+
 function isCompleteUtilityFnBlock(block: string): boolean {
-  return (
-    /a\s+fun:function\s*;/i.test(block) &&
-    /fun:argumentNames/i.test(block) &&
-    /rdf:value\s*\[\s*quan:sum\s*\([\s\S]*\)\s*\]\s*\./i.test(block)
-  );
+  if (
+    !/a\s+fun:function\s*;/i.test(block) ||
+    !/fun:argumentNames/i.test(block) ||
+    !/rdf:value\s*\[\s*quan:sum\s*\(/i.test(block)
+  ) {
+    return false;
+  }
+  const mfCalls = extractMfCallBodies(block);
+  if (mfCalls.length === 0) return false;
+  return mfCalls.every((body) => isCompleteMfLogisticCall(body));
 }
 
 function isDraftUtilityFnBlock(block: string): boolean {
@@ -315,7 +446,11 @@ function shouldStripUtilitySubject(local: string, block: string): boolean {
     return !/a\s+ut:UtilityInformation\b/i.test(block) || isDraftUtilityFnBlock(block);
   }
   if (local === "UP_coord") {
-    return !/a\s+ut:UtilityProfile\b/i.test(block) || /ut:hasFunction\b/i.test(block);
+    return (
+      !/a\s+ut:UtilityProfile\b/i.test(block) ||
+      /ut:hasFunction\b/i.test(block) ||
+      /ut:utilityFunction\b/i.test(block)
+    );
   }
   return false;
 }
@@ -353,12 +488,29 @@ export function stripDraftUtilityBlocks(text: string): string {
   return out.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
+function isUtilitySubjectLocal(local: string): boolean {
+  return (
+    local === "U_coord" ||
+    local === "UP_coord" ||
+    local.startsWith("utilityFn_") ||
+    local.startsWith("U_arg_")
+  );
+}
+
 function removeUtilityBlocks(text: string): string {
-  return text
-    .replace(/\n?data5g:U_coord[\s\S]*?ut:utilityProfile data5g:UP_coord \.\s*/gi, "\n")
-    .replace(/\n?data5g:UP_coord a ut:UtilityProfile ;[\s\S]*?ut:maxUtility "1\.0"\^\^xsd:decimal \.\s*/gi, "\n")
-    .replace(/\n?data5g:utilityFn_[A-Za-z0-9_]+ a fun:function ;[\s\S]*?\) \] \.\s*/gi, "\n")
-    .replace(/\n{3,}/g, "\n\n");
+  const lines = text.split("\n");
+  const out: string[] = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const local = subjectLocalFromLine(lines[i]);
+    if (local && isUtilitySubjectLocal(local)) {
+      i = skipSubjectBlockLines(lines, i) - 1;
+      continue;
+    }
+    out.push(lines[i]);
+  }
+
+  return out.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
 function sanitizeCeUtilityLink(ceBlock: string): string {
@@ -368,6 +520,18 @@ function sanitizeCeUtilityLink(ceBlock: string): string {
       "",
     )
     .replace(/\s*ut:utility\s+data5g:U_coord\s*;/gi, "");
+}
+
+function sanitizeCeTarget(ceBlock: string): string {
+  if (/icm:target\s+data5g:coordination-service/i.test(ceBlock)) return ceBlock;
+  if (/icm:target\s+data5g:llm-service/i.test(ceBlock)) {
+    return ceBlock.replace(/icm:target\s+data5g:llm-service/i, "icm:target data5g:coordination-service");
+  }
+  if (/icm:target/i.test(ceBlock)) return ceBlock;
+  return ceBlock.replace(
+    /(a\s+data5g:CoordinationExpectation\s*;)/i,
+    "$1\n    icm:target data5g:coordination-service ;",
+  );
 }
 
 function upsertCoordinates(ceBlock: string, coordinateLocals: string[]): string {
@@ -416,11 +580,12 @@ export function normalizeCoordinationUtility(args: {
   }
 
   const conditionLocals = extractLocalsFromAllOf(ceBlock).filter((l) => l.startsWith("CO"));
-  const conditions: ParsedCoordinationCondition[] = [];
+  let conditions: ParsedCoordinationCondition[] = [];
   for (const local of conditionLocals) {
     const parsed = resolveConditionForCoordination(text, local);
     if (parsed) conditions.push(parsed);
   }
+  conditions = inferMissingCoordinationConditions(text, args.userText ?? "", conditions);
   if (conditions.length === 0) {
     return {
       text,
@@ -443,6 +608,7 @@ export function normalizeCoordinationUtility(args: {
   const coordinateLocals = resolveCoordinateLocals(args.text, conditions);
 
   ceBlock = sanitizeCeUtilityLink(ceBlock);
+  ceBlock = sanitizeCeTarget(ceBlock);
   ceBlock = upsertUtilityLink(ceBlock);
   ceBlock = upsertCoordinates(ceBlock, coordinateLocals);
 

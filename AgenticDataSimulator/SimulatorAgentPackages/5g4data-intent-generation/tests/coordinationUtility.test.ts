@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  isCompleteMfLogisticCall,
   normalizeCoordinationUtility,
   stripDraftUtilityBlocks,
   stripMisalignedUtilityTurtle,
@@ -26,7 +27,7 @@ data5g:NE1 a data5g:NetworkExpectation ;
     log:allOf data5g:CX2 .
 
 data5g:CE1 a data5g:CoordinationExpectation ;
-    icm:target data5g:llm-service ;
+    icm:target data5g:coordination-service ;
     log:allOf data5g:COtps, data5g:COenergy .
 
 data5g:COtps a log:Condition ;
@@ -224,7 +225,7 @@ data5g:COsustain a icm:Condition ;
     ] .
 
 data5g:CE1 a data5g:CoordinationExpectation ;
-    icm:target data5g:llm-service ;
+    icm:target data5g:coordination-service ;
     log:allOf data5g:COcoordTps, data5g:COcoordEnergy ;
     ut:utility data5g:U_coord ;
     data5g:coordinates data5g:DE1, data5g:SE1 .
@@ -256,9 +257,268 @@ data5g:COcoordEnergy a icm:Condition ;
   );
 });
 
+test("normalizeCoordinationUtility aligns energy-consumption CE metric with power-consumption SE condition", () => {
+  const metricReferenceCe = `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
+
+data5g:I1 a icm:Intent ;
+    log:allOf data5g:DE1, data5g:SE1, data5g:CE1 .
+
+data5g:DE1 a data5g:DeploymentExpectation ;
+    log:allOf data5g:COdeploy .
+
+data5g:COdeploy a icm:Condition ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:p99-token-target_COdeploy ;
+        quan:larger [ quan:unit "token/s" ; rdf:value 400 ]
+    ] .
+
+data5g:SE1 a data5g:SustainabilityExpectation ;
+    log:allOf data5g:COsustain .
+
+data5g:COsustain a icm:Condition ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:power-consumption_COsustain ;
+        quan:smaller [ quan:unit "W" ; rdf:value 3000 ]
+    ] .
+
+data5g:CE1 a data5g:CoordinationExpectation ;
+    icm:target data5g:coordination-service ;
+    log:allOf data5g:COcoordTps, data5g:COcoordEnergy ;
+    ut:utility data5g:U_coord .
+
+data5g:COcoordTps a icm:Condition ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_COcoordTps ] .
+
+data5g:COcoordEnergy a icm:Condition ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:energy-consumption_COcoordEnergy ] .
+`;
+
+  const result = normalizeCoordinationUtility({
+    text: metricReferenceCe,
+    flags: { coordinationSymmetric: true },
+    userText:
+      "Deploy a small llm with symmetric coordination on token throughput and energy consumption",
+  });
+
+  assert.match(result.text, /fun:argumentNames \( data5g:U_arg_p99-token-target data5g:U_arg_energy-consumption \)/);
+  assert.match(result.text, /fun:arityMin 2 ; fun:arityMax 2/);
+  assert.match(result.text, /mf:logistic \( data5g:U_arg_p99-token-target/);
+  assert.match(result.text, /mf:logistic \( data5g:U_arg_energy-consumption/);
+});
+
+test("normalizeCoordinationUtility prefers energy-consumption over deprecated container-cpu-watts", () => {
+  const legacyAndCurrent = `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+
+data5g:I1 a icm:Intent ;
+    log:allOf data5g:DE1, data5g:SE1, data5g:CE1 .
+
+data5g:DE1 a data5g:DeploymentExpectation ;
+    log:allOf data5g:COdeploy .
+
+data5g:COdeploy a icm:Condition ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:p99-token-target_COdeploy ;
+        quan:larger [ quan:unit "token/s" ; rdf:value 400 ]
+    ] .
+
+data5g:SE1 a data5g:SustainabilityExpectation ;
+    log:allOf data5g:COlegacy, data5g:COenergy .
+
+data5g:COlegacy a icm:Condition ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:container-cpu-watts_COlegacy ;
+        quan:smaller [ quan:unit "W" ; rdf:value 5000 ]
+    ] .
+
+data5g:COenergy a icm:Condition ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:energy-consumption_COenergy ;
+        quan:larger [ quan:unit "J" ; rdf:value 50 ]
+    ] .
+
+data5g:CE1 a data5g:CoordinationExpectation ;
+    icm:target data5g:coordination-service ;
+    log:allOf data5g:COcoordTps .
+
+data5g:COcoordTps a icm:Condition ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_COcoordTps ] .
+`;
+
+  const result = normalizeCoordinationUtility({
+    text: legacyAndCurrent,
+    flags: { coordinationSymmetric: true },
+    userText:
+      "Deploy a small llm with symmetric coordination on token throughput and energy consumption",
+  });
+
+  assert.match(result.text, /fun:argumentNames \( data5g:U_arg_p99-token-target data5g:U_arg_energy-consumption \)/);
+  assert.doesNotMatch(result.text, /U_arg_container-cpu-watts/);
+});
+
+test("normalizeCoordinationUtility infers missing energy metric when CE only coordinates throughput", () => {
+  const singleCeCondition = `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+
+data5g:I1 a icm:Intent ;
+    log:allOf data5g:DE1, data5g:SE1, data5g:CE1 .
+
+data5g:DE1 a data5g:DeploymentExpectation ;
+    log:allOf data5g:COdeploy .
+
+data5g:COdeploy a icm:Condition ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:p99-token-target_COdeploy ;
+        quan:larger [ quan:unit "token/s" ; rdf:value 400 ]
+    ] .
+
+data5g:SE1 a data5g:SustainabilityExpectation ;
+    log:allOf data5g:COsustain .
+
+data5g:COsustain a icm:Condition ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:energy-consumption_COsustain ;
+        quan:larger [ quan:unit "J" ; rdf:value 50 ]
+    ] .
+
+data5g:CE1 a data5g:CoordinationExpectation ;
+    icm:target data5g:coordination-service ;
+    log:allOf data5g:COcoordTps .
+
+data5g:COcoordTps a icm:Condition ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_COcoordTps ] .
+`;
+
+  const result = normalizeCoordinationUtility({
+    text: singleCeCondition,
+    flags: { coordinationSymmetric: true },
+    userText:
+      "Deploy a small llm with symmetric coordination on token throughput and energy consumption",
+  });
+
+  assert.match(result.text, /fun:argumentNames \( data5g:U_arg_p99-token-target data5g:U_arg_energy-consumption \)/);
+  assert.match(result.text, /fun:arityMin 2 ; fun:arityMax 2/);
+  assert.match(result.text, /data5g:coordinates data5g:DE1,\s*\n\s*data5g:SE1/);
+});
+
+test("isCompleteMfLogisticCall requires four typed mf:logistic arguments", () => {
+  assert.equal(
+    isCompleteMfLogisticCall(
+      `data5g:U_arg_p99-tps-target "0.03"^^xsd:decimal "0.5"^^xsd:decimal "340tokens/s"^^quan:quantity`,
+    ),
+    true,
+  );
+  assert.equal(
+    isCompleteMfLogisticCall(
+      `data5g:U_arg_energy-consumption "-0.001"^^xsd:decimal "0.5"^^xsd:decimal "11500J"^^quan:quantity`,
+    ),
+    true,
+  );
+  assert.equal(
+    isCompleteMfLogisticCall(
+      `data5g:U_arg_p99-token-target "340token/s"^^quan:quantity`,
+    ),
+    false,
+  );
+});
+
+test("stripDraftUtilityBlocks removes incomplete mf:logistic utilityFn drafts", () => {
+  const malformed =
+    SAMPLE_CE +
+    `
+data5g:utilityFn_symmetric a fun:function ;
+    fun:argumentNames ( data5g:U_arg_p99-tps-target data5g:U_arg_energy-consumption ) ;
+    rdf:value [ quan:sum (
+        [ data5g:standardK 12.0 ;
+          data5g:x0Fraction 0.85 ;
+          mf:logistic ( data5g:U_arg_p99-tps-target "340tokens/s"^^quan:quantity ) ]
+    ) ] .
+`;
+  const stripped = stripDraftUtilityBlocks(malformed);
+  assert.doesNotMatch(stripped, /utilityFn_symmetric/);
+});
+
+test("normalizeCoordinationUtility replaces malformed mf:logistic drafts with four arguments", () => {
+  const ceWithEnergyUnit = SAMPLE_CE.replace(
+    'quan:smaller [ rdf:value 10000 ]',
+    'quan:smaller [ quan:unit "J" ; rdf:value 10000 ]',
+  );
+  const malformed =
+    ceWithEnergyUnit +
+    `
+data5g:U_coord a ut:UtilityInformation ;
+    ut:forMetric ( data5g:U_arg_p99-tps-target data5g:p99-tps-target_COtps ), ( data5g:U_arg_energy-consumption data5g:energy-consumption_COenergy ) ;
+    ut:function data5g:utilityFn_symmetric ;
+    ut:utilityProfile data5g:UP_coord ;
+    ut:withArguments ( data5g:U_arg_p99-tps-target data5g:U_arg_energy-consumption ) .
+
+data5g:UP_coord a ut:UtilityProfile ;
+    ut:maxUtility 1.0 ;
+    ut:minUtility 0.0 ;
+    ut:utilityFunction data5g:utilityFn_symmetric .
+
+data5g:utilityFn_symmetric a fun:function ;
+    fun:argumentNames ( data5g:U_arg_p99-tps-target data5g:U_arg_energy-consumption ) ;
+    fun:argumentTypes ( quan:Quantity ) ;
+    fun:arityMax 2 ;
+    fun:arityMin 2 ;
+    fun:resultType quan:Quantity ;
+    rdf:value [
+  quan:sum ( [
+      data5g:standardK 12.0 ;
+      data5g:x0Fraction 0.85 ;
+      mf:logistic ( data5g:U_arg_p99-tps-target "340tokens/s"^^quan:quantity )
+      ] [
+      data5g:standardK 12.0 ;
+      data5g:x0Fraction 0.85 ;
+      mf:logistic ( data5g:U_arg_energy-consumption "11500J"^^quan:quantity )
+      ] )
+    ] .
+`;
+
+  const result = normalizeCoordinationUtility({
+    text: malformed,
+    flags: { coordinationSymmetric: true },
+    userText: "symmetric coordination on token throughput and energy consumption",
+  });
+
+  assert.match(result.text, /mf:logistic \( data5g:U_arg_p99-tps-target[\s\S]*?"0\.03"\^\^xsd:decimal[\s\S]*?"0\.5"\^\^xsd:decimal[\s\S]*?"340tokens\/s"\^\^quan:quantity \)/);
+  assert.match(result.text, /mf:logistic \( data5g:U_arg_energy-consumption[\s\S]*?"-0\.0012"\^\^xsd:decimal[\s\S]*?"0\.5"\^\^xsd:decimal[\s\S]*?"11500J"\^\^quan:quantity \)/);
+  assert.match(result.text, /data5g:standardK "12"\^\^xsd:decimal/);
+  assert.match(result.text, /data5g:x0Fraction "0\.85"\^\^xsd:decimal/);
+  assert.equal((result.text.match(/\bdata5g:U_coord\s+a\b/g) ?? []).length, 1);
+  assert.equal((result.text.match(/\bdata5g:UP_coord\s+a\b/g) ?? []).length, 1);
+  assert.equal((result.text.match(/\bdata5g:utilityFn_symmetric\s+a\b/g) ?? []).length, 1);
+});
+
+test("normalizeCoordinationUtility rewrites CoordinationExpectation target to coordination-service", () => {
+  const legacyTarget = SAMPLE_CE.replace(
+    "icm:target data5g:coordination-service ;",
+    "icm:target data5g:llm-service ;",
+  );
+  const result = normalizeCoordinationUtility({
+    text: legacyTarget,
+    flags: { coordinationSymmetric: true },
+    userText: "symmetric coordination on token throughput and energy consumption",
+  });
+  assert.match(result.text, /data5g:CE1 a data5g:CoordinationExpectation[\s\S]*?icm:target data5g:coordination-service/);
+  assert.doesNotMatch(result.text, /CoordinationExpectation[\s\S]*?icm:target data5g:llm-service/);
+});
+
 test("user coordination guide exists", () => {
   const doc = readFileSync(
-    resolve(process.cwd(), "docs/how-coordination-works.md"),
+    resolve(process.cwd(), "docs/coordination-using-utility-function.md"),
     "utf8",
   );
   assert.match(doc, /create intent using intentGen/);

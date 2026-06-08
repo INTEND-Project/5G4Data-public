@@ -32,14 +32,48 @@ export interface SubUtilitySpec {
 
 const ENERGY_STEM_PATTERN = /joule|watt|energy|power|consumption/i;
 const NETWORK_STEM_PATTERN = /bandwidth|latency|network/i;
+const THROUGHPUT_STEM_PATTERN = /throughput|tps|token|p99/i;
+
+export function isEnergyMetricStem(metricStem: string): boolean {
+  return ENERGY_STEM_PATTERN.test(metricStem);
+}
+
+export function isThroughputMetricStem(metricStem: string): boolean {
+  return THROUGHPUT_STEM_PATTERN.test(metricStem);
+}
 
 export function isNetworkMetricStem(metricStem: string): boolean {
   return NETWORK_STEM_PATTERN.test(metricStem);
 }
 
+export type CoordinationMetricCategory = "energy" | "throughput" | "network" | "other";
+
+export function coordinationMetricCategory(metricStem: string): CoordinationMetricCategory {
+  if (isEnergyMetricStem(metricStem)) return "energy";
+  if (isThroughputMetricStem(metricStem)) return "throughput";
+  if (isNetworkMetricStem(metricStem)) return "network";
+  return "other";
+}
+
+export function metricStemsAlignForCoordination(left: string, right: string): boolean {
+  if (left === right) return true;
+  const leftCategory = coordinationMetricCategory(left);
+  const rightCategory = coordinationMetricCategory(right);
+  return leftCategory !== "other" && leftCategory === rightCategory;
+}
+
+export const DEPRECATED_SUSTAINABILITY_METRIC_STEMS = new Set([
+  "container-cpu-watts",
+  "container-cpu-joules-total",
+]);
+
+export function isDeprecatedSustainabilityMetricStem(metricStem: string): boolean {
+  return DEPRECATED_SUSTAINABILITY_METRIC_STEMS.has(metricStem);
+}
+
 export function expectationPrefixForMetricStem(metricStem: string): "DE" | "NE" | "SE" {
   if (isNetworkMetricStem(metricStem)) return "NE";
-  if (ENERGY_STEM_PATTERN.test(metricStem)) return "SE";
+  if (isEnergyMetricStem(metricStem)) return "SE";
   return "DE";
 }
 
@@ -157,7 +191,7 @@ export function resolveMfFunction(
   profile: WeightProfile,
   isPrimary: boolean,
 ): "logistic" | "poly" {
-  if (profile === "weighted" && !isPrimary && ENERGY_STEM_PATTERN.test(condition.metricStem)) {
+  if (profile === "weighted" && !isPrimary && isEnergyMetricStem(condition.metricStem)) {
     return "poly";
   }
   return "logistic";

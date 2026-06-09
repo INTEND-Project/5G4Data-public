@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { DataFactory, Parser, Store, type Term } from "n3";
 import {
-  resolveCompoundMetricAgainstIntent,
-  resolveConditionScopedMetricName
-} from "./metricNaming.js";
+  extractConditionConstraintsById,
+  extractConditionMetricsFromIntentTurtle,
+  type ConditionConstraint,
+  type ConditionMetric,
+} from "./intentMetricExtraction.js";
+import { resolveCompoundMetricAgainstIntent } from "./metricNaming.js";
 import {
   DEFAULT_OBSERVATION_STORAGE,
   type ObservationStorageId,
@@ -18,12 +21,7 @@ export interface ObservationPayload {
   obtainedAt: string;
 }
 
-export interface ConditionMetric {
-  conditionId: string;
-  targetProperty: string;
-  compoundMetric: string;
-  unit: string;
-}
+export type { ConditionMetric, ConditionConstraint } from "./intentMetricExtraction.js";
 
 export interface OverrideWindow {
   startTime: string;
@@ -54,11 +52,6 @@ const RDF_REST = DataFactory.namedNode(`${RDF_NS}rest`);
 const RDF_NIL = DataFactory.namedNode(`${RDF_NS}nil`);
 
 const DEFAULT_BASELINE_SPAN = { minValue: 10, maxValue: 100 };
-
-export interface ConditionConstraint {
-  threshold?: number;
-  quantifier?: string;
-}
 
 /** Derive baseline observation span from intent condition threshold and quantifier. */
 export function baselineSpanFromCondition(
@@ -147,68 +140,8 @@ export class ObservationTool {
 
 
 
-  private findUnit(store: Store, node: Term): string {
-    const direct = this.objectLocalsByPredicateLocal(store, node, "unit")[0];
-    if (direct) return direct;
-
-    for (const q of store.getQuads(node, null, null, null)) {
-      const child = q.object;
-      if (child.termType !== "BlankNode" && child.termType !== "NamedNode") continue;
-      const unit = this.objectLocalsByPredicateLocal(store, child, "unit")[0];
-      if (unit) return unit;
-    }
-    return "NA";
-  }
-
-  private parseConditionConstraint(store: Store, ...nodes: Term[]): ConditionConstraint {
-    for (const node of nodes) {
-      for (const q of store.getQuads(node, null, null, null)) {
-        const predLocal = this.termLocal(q.predicate);
-        if (predLocal !== "larger" && predLocal !== "smaller") continue;
-        const valueRaw = this.objectLocalsByPredicateLocal(store, q.object, "value")[0];
-        const threshold = Number(valueRaw);
-        return {
-          quantifier: `quan:${predLocal}`,
-          threshold: Number.isFinite(threshold) ? threshold : undefined
-        };
-      }
-    }
-    return {};
-  }
-
   parseConditionConstraintsById(intentTurtle: string): Map<string, ConditionConstraint> {
-    const store = this.parseStore(intentTurtle);
-    const out = new Map<string, ConditionConstraint>();
-    for (const condition of this.subjectsWithTypeLocal(store, "Condition")) {
-      const conditionId = this.termLocal(condition);
-      const forAllNodes = store
-        .getQuads(condition, null, null, null)
-        .filter((q) => this.termLocal(q.predicate) === "forAll")
-        .map((q) => q.object);
-      out.set(conditionId, this.parseConditionConstraint(store, condition, ...forAllNodes));
-    }
-    return out;
-  }
-
-  private collectConditionMetricsFromNode(
-    store: Store,
-    conditionId: string,
-    node: Term,
-  ): Array<{ targetProperty: string; compoundMetric: string; unit: string }> {
-    const targetProps = this.objectLocalsByPredicateLocal(store, node, "valuesOfTargetProperty");
-    if (targetProps.length === 0) return [];
-    const unit = this.findUnit(store, node);
-    return targetProps.map((prop) => {
-      const resolved = resolveConditionScopedMetricName({
-        valuesOfTargetPropertyLocal: prop,
-        conditionId
-      });
-      return {
-        targetProperty: resolved.targetProperty,
-        compoundMetric: resolved.compoundMetric,
-        unit
-      };
-    });
+    return extractConditionConstraintsById(intentTurtle);
   }
 
   private extractExpectationGraph(intentTurtle: string): {
@@ -250,30 +183,7 @@ export class ObservationTool {
   }
 
   parseConditionMetrics(intentTurtle: string): ConditionMetric[] {
-    const store = this.parseStore(intentTurtle);
-    const out = new Map<string, ConditionMetric>();
-
-    for (const condition of this.subjectsWithTypeLocal(store, "Condition")) {
-      const conditionId = this.termLocal(condition);
-      const constraintNodes = store
-        .getQuads(condition, null, null, null)
-        .filter((q) => this.termLocal(q.predicate) === "forAll")
-        .map((q) => q.object);
-      const metrics = [
-        ...this.collectConditionMetricsFromNode(store, conditionId, condition),
-        ...constraintNodes.flatMap((n) => this.collectConditionMetricsFromNode(store, conditionId, n))
-      ];
-      for (const metric of metrics) {
-        out.set(`${conditionId}|${metric.compoundMetric}`, {
-          conditionId,
-          targetProperty: metric.targetProperty,
-          compoundMetric: metric.compoundMetric,
-          unit: metric.unit
-        });
-      }
-    }
-
-    return [...out.values()];
+    return extractConditionMetricsFromIntentTurtle(intentTurtle);
   }
 
   parseReportableConditionMetrics(intentTurtle: string): ConditionMetric[] {

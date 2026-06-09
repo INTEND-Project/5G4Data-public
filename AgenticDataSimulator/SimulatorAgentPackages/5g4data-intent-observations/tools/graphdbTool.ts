@@ -1,9 +1,35 @@
+import { Parser } from "n3";
 import type { GraphDbEnvFallback, GraphTargetBinding } from "./graphTargetBinding.js";
 import { graphDbAuthHeaders } from "./graphdbAuth.js";
 import {
   buildPrometheusInstantQueryUrl,
   buildPrometheusReadableQuery
 } from "./prometheusMetricNaming.js";
+
+type PrettyPrintIntentTurtle = (raw: string) => string;
+let cachedPrettyPrintIntentTurtle: PrettyPrintIntentTurtle | undefined;
+
+/** Resolve pretty-print from the clone (onPackageLoad vendor) or monorepo sibling; fall back to raw Turtle. */
+async function resolvePrettyPrintIntentTurtle(): Promise<PrettyPrintIntentTurtle> {
+  if (cachedPrettyPrintIntentTurtle) return cachedPrettyPrintIntentTurtle;
+  const candidates = [
+    new URL("./prettyPrintIntentTurtle.js", import.meta.url).href,
+    new URL("../../5g4data-intent-generation/tools/prettyPrintIntentTurtle.js", import.meta.url).href
+  ];
+  for (const href of candidates) {
+    try {
+      const mod = (await import(href)) as { prettyPrintIntentTurtle?: PrettyPrintIntentTurtle };
+      if (typeof mod.prettyPrintIntentTurtle === "function") {
+        cachedPrettyPrintIntentTurtle = mod.prettyPrintIntentTurtle;
+        return cachedPrettyPrintIntentTurtle;
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+  cachedPrettyPrintIntentTurtle = (raw) => raw;
+  return cachedPrettyPrintIntentTurtle;
+}
 
 export const NEAREST_EDGE_DATACENTER_QUERY = `
 PREFIX schema: <https://intendproject.eu/schema/>
@@ -175,8 +201,19 @@ WHERE {
       body: query
     });
     if (!response.ok) return null;
-    const ttl = await response.text();
-    return ttl.trim().length > 0 ? ttl : null;
+    const raw = (await response.text()).trim();
+    if (!raw) return null;
+    try {
+      const quads = new Parser().parse(raw);
+      if (!Array.isArray(quads) || quads.length === 0) {
+        return null;
+      }
+    } catch {
+      const body = raw.replace(/@prefix[^\n]*\n/giu, "").trim();
+      if (!body) return null;
+    }
+    const prettyPrint = await resolvePrettyPrintIntentTurtle();
+    return prettyPrint(raw);
   }
 
   async insertTurtle(turtle: string): Promise<boolean> {

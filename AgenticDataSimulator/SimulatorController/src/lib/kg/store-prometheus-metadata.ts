@@ -1,8 +1,8 @@
 import { graphDbAuthHeaders } from "@/lib/graphdb/auth";
 import { INTENT_REPORTS_METADATA_GRAPH_IRI } from "@/lib/graphdb/clear-knowledge-graph-query";
-import { runRepositorySparqlSelect } from "@/lib/graphdb/client";
 import { resolveGraphDbBaseUrl } from "@/lib/graphdb/resolve-base-url";
-import { buildMetricCatalogQuery, graphIriForSparqlAngleBrackets, parseIntentLocalIdForMetricCatalog } from "@/lib/kg/metric-catalog-query";
+import { graphIriForSparqlAngleBrackets, parseIntentLocalIdForMetricCatalog } from "@/lib/kg/metric-catalog-query";
+import { resolveIntentMetricCatalog } from "@/lib/kg/resolve-intent-metric-catalog";
 import { parseCompoundMetricParts } from "@/lib/prometheus/parse-compound-metric";
 import {
   buildPrometheusInstantQueryUrl,
@@ -93,16 +93,12 @@ export async function listCompoundMetricsForIntent(input: {
     return [];
   }
 
-  const query = buildMetricCatalogQuery(input.graphIri, intentLocalId);
-  const bindings = await runRepositorySparqlSelect({
+  return resolveIntentMetricCatalog({
     repositoryId: input.repositoryId,
-    query,
+    graphIri: input.graphIri,
+    intentId: intentLocalId,
     graphDbBaseUrl: input.graphDbBaseUrl,
   });
-
-  return bindings
-    .map((row) => row.metric_name?.value?.trim())
-    .filter((value): value is string => Boolean(value));
 }
 
 export async function storePrometheusQueryMetadata(input: {

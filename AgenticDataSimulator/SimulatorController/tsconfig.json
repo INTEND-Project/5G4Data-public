@@ -28,6 +28,9 @@
       ],
       "@intent-gen-package/*": [
         "../SimulatorAgentPackages/5g4data-intent-generation/*"
+      ],
+      "@intent-obs-package/*": [
+        "../SimulatorAgentPackages/5g4data-intent-observations/*"
       ]
     }
   },

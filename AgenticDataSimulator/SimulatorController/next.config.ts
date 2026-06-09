@@ -10,6 +10,10 @@ const intentGenPackageRoot = path.resolve(
   controllerRoot,
   "../SimulatorAgentPackages/5g4data-intent-generation",
 );
+const intentObsPackageRoot = path.resolve(
+  controllerRoot,
+  "../SimulatorAgentPackages/5g4data-intent-observations",
+);
 
 const configuredBasePath = getConfiguredAppBasePath(process.env);
 
@@ -62,6 +66,7 @@ const nextConfig: NextConfig = {
       config.resolve.alias = {
         ...config.resolve.alias,
         "@intent-gen-package": intentGenPackageRoot,
+        "@intent-obs-package": intentObsPackageRoot,
       };
     }
     return config;

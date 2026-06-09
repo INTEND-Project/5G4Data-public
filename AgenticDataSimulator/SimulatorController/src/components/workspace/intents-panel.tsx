@@ -53,7 +53,11 @@ function intentDataStatusHint(
   tickProgress?: { ticksDone: number; ticksTotal: number | null; percent: number | null } | null,
 ): string {
   if (cardStatus === "ready") {
-    return `Observation data ready (${intent.metricsReady ?? 0}/${intent.metricsTotal ?? 0} metrics in ${intent.storage}).`;
+    const promNote =
+      intent.storage === "prometheus"
+        ? " PromQL names strip hyphens from compound metrics (e.g. p99tokentarget_CO…)."
+        : "";
+    return `Observation data ready (${intent.metricsReady ?? 0}/${intent.metricsTotal ?? 0} metrics in ${intent.storage}).${promNote}`;
   }
   if (
     tickProgress &&
@@ -458,6 +462,9 @@ export function IntentsPanel({
       {deletingIntentId ? (
         <p aria-live="polite" className="workspace-hint">
           Deleting {deletingIntentId}…
+          {intents.find((intent) => intent.intentId === deletingIntentId)?.storage === "prometheus"
+            ? " Local Prometheus may be briefly unavailable while TSDB data for this intent is rewritten."
+            : null}
         </p>
       ) : null}
       {actionError ? (

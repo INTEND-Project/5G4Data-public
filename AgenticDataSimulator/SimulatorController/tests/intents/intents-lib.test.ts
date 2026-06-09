@@ -130,7 +130,7 @@ describe("intent-dashboard-url", () => {
     const time = buildGrafanaTimeParams(bounds);
     expect(isStreamingBounds(bounds, nowMs)).toBe(false);
     expect(time.from).not.toBe("now-3h");
-    expect(Number(time.from)).toBeLessThan(bounds.minMs);
+    expect(Number(time.from)).toBeGreaterThanOrEqual(bounds.minMs);
     expect(Number(time.to)).toBeGreaterThan(bounds.maxMs);
   });
 
@@ -195,7 +195,7 @@ describe("observation-time-bounds helpers", () => {
       nowMs,
     );
 
-    expect(window.fromMs).toBeLessThan(1_700_000_000_000);
+    expect(window.fromMs).toBe(1_700_000_000_000);
     expect(window.toMs).toBeGreaterThan(1_700_010_000_000);
   });
 });

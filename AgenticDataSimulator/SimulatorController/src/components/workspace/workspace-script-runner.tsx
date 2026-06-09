@@ -30,6 +30,7 @@ import {
   resolveMetricStemsInObservationInstructions,
 } from "@/lib/dsl/analysis/extract-metric-catalog";
 import { mergeObservationProgressWithExpectedMetrics } from "@/lib/observation-agent/metric-progress-display";
+import { parseObservationAgentFailure } from "@/lib/observation-agent/parse-observation-agent-reply";
 import { buildObservationReportSeed } from "@/lib/dsl/observation-report-seed";
 import {
   formatHistoricObservationRunHint,
@@ -145,6 +146,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     intentIdsAwaitingObservation,
     historicObservationIntentIds,
     historicObservationMetricsByIntentId,
+    historicObservationAwaitingSinceByIntentId,
     observationProgressByIntentId,
     setObservationProgressForIntent,
     notifyStorageChanged,
@@ -155,19 +157,6 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     graphDbBaseUrl,
     prometheusBaseUrl,
   } = useWorkspaceScriptSession();
-
-  const appendA2ATranscriptTurn = useCallback(
-    (turn: { role: "user" | "agent"; text: string }) => {
-      if (turn.role === "agent") {
-        appendRunnerLog("Agent");
-      }
-      for (const line of turn.text.split("\n")) {
-        appendRunnerLog(line);
-      }
-      appendRunnerLog("");
-    },
-    [appendRunnerLog],
-  );
 
   const [editorHeightPx, setEditorHeightPx] = useState(DEFAULT_EDITOR_HEIGHT);
   const editorHeightPxRef = useRef(editorHeightPx);
@@ -699,9 +688,46 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     createIntentStorage?: ObservationStorageType;
   } | null>(null);
   const [observationAgentError, setObservationAgentError] = useState<string | null>(null);
+  const [observationAgentErrors, setObservationAgentErrors] = useState<ObservationAgentErrorEntry[]>(
+    [],
+  );
   const observationErrorPollUntilRef = useRef(0);
   const observationErrorSinceRef = useRef<string | null>(null);
   const seenObservationErrorKeysRef = useRef(new Set<string>());
+
+  const registerObservationAgentError = useCallback(
+    (entry: ObservationAgentErrorEntry) => {
+      const key = observationAgentErrorKey(entry);
+      if (seenObservationErrorKeysRef.current.has(key)) {
+        return;
+      }
+      seenObservationErrorKeysRef.current.add(key);
+      const message = formatObservationAgentErrorMessage(entry);
+      appendRunnerLog(`Observation agent error: ${message}`);
+      setObservationAgentError(message);
+      setObservationAgentErrors((current) => [...current, entry]);
+    },
+    [appendRunnerLog],
+  );
+
+  const appendA2ATranscriptTurn = useCallback(
+    (turn: { role: "user" | "agent"; text: string }) => {
+      if (turn.role === "agent") {
+        appendRunnerLog("Agent");
+      }
+      for (const line of turn.text.split("\n")) {
+        appendRunnerLog(line);
+      }
+      appendRunnerLog("");
+      if (turn.role === "agent" && observationSession?.intentId) {
+        const failure = parseObservationAgentFailure(turn.text, observationSession.intentId);
+        if (failure) {
+          registerObservationAgentError(failure);
+        }
+      }
+    },
+    [appendRunnerLog, observationSession?.intentId, registerObservationAgentError],
+  );
 
   useEffect(() => {
     setObservationGenerationActive(observationSession !== null);
@@ -721,8 +747,17 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   }, [observationSession]);
 
   useEffect(() => {
+    if (historicObservationIntentIds.size > 0 && !observationErrorSinceRef.current) {
+      observationErrorSinceRef.current = new Date().toISOString();
+      observationErrorPollUntilRef.current = Date.now() + 15 * 60 * 1000;
+    }
+  }, [historicObservationIntentIds.size]);
+
+  useEffect(() => {
     const shouldPoll = (): boolean =>
-      observationSession !== null || Date.now() < observationErrorPollUntilRef.current;
+      observationSession !== null ||
+      historicObservationIntentIds.size > 0 ||
+      Date.now() < observationErrorPollUntilRef.current;
 
     if (!observationErrorSinceRef.current) {
       return;
@@ -752,14 +787,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         };
 
         for (const entry of body.errors ?? []) {
-          const key = observationAgentErrorKey(entry);
-          if (seenObservationErrorKeysRef.current.has(key)) {
-            continue;
-          }
-          seenObservationErrorKeysRef.current.add(key);
-          const message = formatObservationAgentErrorMessage(entry);
-          appendRunnerLog(`Observation agent error: ${message}`);
-          setObservationAgentError(message);
+          registerObservationAgentError(entry);
         }
       } catch {
         /* best-effort polling */
@@ -776,7 +804,12 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     }, 4000);
 
     return () => window.clearInterval(intervalId);
-  }, [appendRunnerLog, observationSession, selectedDomain]);
+  }, [
+    historicObservationIntentIds.size,
+    observationSession,
+    registerObservationAgentError,
+    selectedDomain,
+  ]);
 
   const observationProgressIntentIds = useRef<Set<string>>(new Set());
   const observationProgressPollErrorLogged = useRef<Set<string>>(new Set());
@@ -876,17 +909,34 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
   const historicProgressStripItems = useMemo(
     () =>
-      [...historicObservationIntentIds].map((intentId) => ({
-        intentId,
-        progress: mergeObservationProgressWithExpectedMetrics(
-          observationProgressByIntentId[intentId] ?? null,
-          historicObservationMetricsByIntentId[intentId] ?? [],
+      [...historicObservationIntentIds].map((intentId) => {
+        const setupErrors = observationAgentErrors
+          .filter((entry) => !entry.intentId || entry.intentId === intentId)
+          .map((entry) => ({
+            kind: entry.kind,
+            message: entry.message,
+            metric: entry.metric,
+            intentId: entry.intentId,
+          }));
+        const rawAgentProgress = observationProgressByIntentId[intentId] ?? null;
+        return {
           intentId,
-        ),
-      })),
+          setupErrors,
+          awaitingSinceMs: historicObservationAwaitingSinceByIntentId[intentId],
+          rawAgentProgress,
+          progress: mergeObservationProgressWithExpectedMetrics(
+            rawAgentProgress,
+            historicObservationMetricsByIntentId[intentId] ?? [],
+            intentId,
+            setupErrors,
+          ),
+        };
+      }),
     [
+      historicObservationAwaitingSinceByIntentId,
       historicObservationIntentIds,
       historicObservationMetricsByIntentId,
+      observationAgentErrors,
       observationProgressByIntentId,
     ],
   );
@@ -1115,6 +1165,12 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         }
 
         const catalog = mergeMetricCatalog(catalogByIntentId, canonicalId, result.metricNames);
+
+        if (catalog.length === 0) {
+          appendRunnerLog(
+            `Line ${line}: No metrics found in GraphDB for intent ${canonicalId}. Observation generation will fail unless the intent Turtle contains condition metrics.`,
+          );
+        }
 
         if (purpose === "observation") {
           appendRunnerLog(
@@ -1589,19 +1645,25 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       </div>
       {historicProgressStripItems.length > 0 ? (
         <div className="workspace-observation-progress-strip" aria-live="polite">
-          {historicProgressStripItems.map(({ intentId, progress }) => (
+          {historicProgressStripItems.map(
+            ({ intentId, progress, setupErrors, awaitingSinceMs, rawAgentProgress }) => (
             <ObservationProgressBar
+              awaitingSinceMs={awaitingSinceMs}
               compact
+              expectedCompoundMetrics={historicObservationMetricsByIntentId[intentId] ?? []}
               intentId={intentId}
               key={intentId}
               progress={progress}
+              rawAgentProgress={rawAgentProgress}
+              setupErrors={setupErrors}
               waitingForAgent={
                 progress === null ||
                 (progress.metrics.length === 0 &&
                   (historicObservationMetricsByIntentId[intentId]?.length ?? 0) === 0)
               }
             />
-          ))}
+          ),
+          )}
         </div>
       ) : null}
       <div className="workspace-runner">
@@ -1647,7 +1709,8 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           {showMetricsError}
         </p>
       ) : null}
-      {observationAgentError && observationSession === null ? (
+      {observationAgentError &&
+      (observationSession === null || historicObservationIntentIds.size > 0) ? (
         <p className="workspace-save-error" role="alert">
           {observationAgentError}
         </p>
@@ -1942,12 +2005,53 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
         onTranscriptTurn={appendA2ATranscriptTurn}
         open={observationSession !== null}
         persistIntentStoreUrl={null}
+        observationExpectedCompoundMetrics={
+          observationSession?.isHistoric && observationSession.intentId
+            ? (historicObservationMetricsByIntentId[observationSession.intentId] ?? [])
+            : []
+        }
+        observationAwaitingSinceMs={
+          observationSession?.intentId
+            ? historicObservationAwaitingSinceByIntentId[observationSession.intentId]
+            : undefined
+        }
+        observationRawAgentProgress={
+          observationSession?.intentId
+            ? (observationProgressByIntentId[observationSession.intentId] ?? null)
+            : null
+        }
+        observationSetupErrors={
+          observationSession?.intentId
+            ? observationAgentErrors
+                .filter(
+                  (entry) =>
+                    !entry.intentId || entry.intentId === observationSession.intentId,
+                )
+                .map((entry) => ({
+                  kind: entry.kind,
+                  message: entry.message,
+                  metric: entry.metric,
+                  intentId: entry.intentId,
+                }))
+            : []
+        }
         observationProgress={
           observationSession?.isHistoric && observationSession.intentId
             ? mergeObservationProgressWithExpectedMetrics(
                 observationProgressByIntentId[observationSession.intentId] ?? null,
                 historicObservationMetricsByIntentId[observationSession.intentId] ?? [],
                 observationSession.intentId,
+                observationAgentErrors
+                  .filter(
+                    (entry) =>
+                      !entry.intentId || entry.intentId === observationSession.intentId,
+                  )
+                  .map((entry) => ({
+                    kind: entry.kind,
+                    message: entry.message,
+                    metric: entry.metric,
+                    intentId: entry.intentId,
+                  })),
               )
             : null
         }

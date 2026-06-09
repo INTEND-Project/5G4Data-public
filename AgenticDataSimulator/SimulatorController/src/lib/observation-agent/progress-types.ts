@@ -20,6 +20,7 @@ export type MetricProgressEntry = {
   ticksTotal: number | null;
   samplesFlushed?: number;
   workerPid?: number;
+  errorMessage?: string;
 };
 
 export type ObservationProgressSnapshot = {

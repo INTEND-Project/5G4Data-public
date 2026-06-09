@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import app as proxy
 
@@ -94,10 +94,73 @@ class PrometheusStepParsingTests(unittest.TestCase):
         resolved = proxy.resolve_prometheus_step('6h', time_range)
         self.assertEqual(resolved, '6h')
 
-    def test_resolve_auto_increases_step_when_too_many_points(self):
-        time_range = 14442120
-        resolved = proxy.resolve_prometheus_step('60s', time_range)
-        self.assertEqual(proxy.parse_prometheus_step_to_seconds(resolved), 1445)
+    def test_resolve_honors_native_step_for_long_range(self):
+        time_range = 3_196_800  # 37 days
+        resolved = proxy.resolve_requested_prometheus_step('300s', time_range)
+        self.assertEqual(resolved, '5m')
+
+    def test_estimate_points_for_five_minute_window(self):
+        time_range = 3_196_800
+        self.assertEqual(proxy.estimate_prometheus_range_points(time_range, 300), 10_657)
+
+    def test_chunk_ranges_for_sixty_second_window(self):
+        start = 1_776_229_200
+        end = start + 3_196_800
+        ranges = proxy.compute_prometheus_chunk_epoch_ranges(start, end, 60)
+        self.assertGreaterEqual(len(ranges), 5)
+        total_points = 0
+        for chunk_start, chunk_end in ranges:
+            total_points += proxy.estimate_prometheus_range_points(chunk_end - chunk_start, 60)
+        self.assertGreaterEqual(total_points, 53_000)
+
+    def test_merge_prometheus_matrix_dedupes_timestamps(self):
+        merged = proxy.merge_prometheus_matrix_values([
+            {'values': [[100, '1'], [160, '2']], 'metric': {'__name__': 'm'}},
+            {'values': [[160, '2b'], [220, '3']], 'metric': {'__name__': 'm'}},
+        ])
+        self.assertEqual(merged['values'], [[100, '1'], [160, '2b'], [220, '3']])
+
+
+class PrometheusRangeExecutionTests(unittest.TestCase):
+    def test_clamps_start_when_initial_range_empty(self):
+        base = 'http://127.0.0.1:9090/api/v1/query?query=powerconsumption_test'
+        empty_payload = {'status': 'success', 'data': {'result': []}}
+        probe_payload = {
+            'status': 'success',
+            'data': {
+                'result': [{
+                    'metric': {'__name__': 'powerconsumption_test'},
+                    'values': [[1776229200, '5']],
+                }],
+            },
+        }
+        chunk_payload = {
+            'status': 'success',
+            'data': {
+                'result': [{
+                    'metric': {'__name__': 'powerconsumption_test'},
+                    'values': [[1776229200, '5'], [1776229560, '6']],
+                }],
+            },
+        }
+
+        with patch('app.requests.get') as mock_get:
+            mock_get.side_effect = [
+                Mock(status_code=200, json=lambda: empty_payload),
+                Mock(status_code=200, json=lambda: probe_payload),
+                Mock(status_code=200, json=lambda: chunk_payload),
+            ]
+            result = proxy.execute_prometheus_observation_query(
+                base,
+                '2026-04-13T09:35:03Z',
+                '2026-05-24T01:17:03Z',
+                '360s',
+            )
+
+        self.assertIsNotNone(result)
+        bindings = result['results']['bindings']
+        self.assertEqual(len(bindings), 2)
+        self.assertEqual(mock_get.call_count, 3)
 
 
 class FormatForGrafanaInfinityTests(unittest.TestCase):

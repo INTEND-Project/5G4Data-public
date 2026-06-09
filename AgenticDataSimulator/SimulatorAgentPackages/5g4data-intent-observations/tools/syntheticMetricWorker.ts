@@ -29,7 +29,9 @@ import {
   hashSeed,
   localHourFromSim,
   mulberry32,
-  parseUtcOffsetMinutes
+  parseUtcOffsetMinutes,
+  tickInDayFromTickIndex,
+  tickInHourFromSim
 } from "./syntheticPrng.js";
 
 export interface SyntheticMetricWorkerConfig {
@@ -75,6 +77,10 @@ export interface SnippetCtx {
   utcOffsetMinutes: number;
   /** Hour-of-day (0–23) after applying `utcOffsetMinutes` to `simTime`. */
   localHour: number;
+  /** Day index since historic start: floor(tickIndex * frequencySeconds / 86400). */
+  tickInDay: number;
+  /** Tick slot within the current local hour (use for stress-window dip scheduling). */
+  tickInHour: number;
 }
 
 export function uniformForStepRng(
@@ -105,7 +111,9 @@ function buildSnippetCtx(
       uniformForStepRng(cfg.intentId, cfg.compoundMetric, cfg.mode, stepIndex),
     unitHint: cfg.unit,
     utcOffsetMinutes,
-    localHour: localHourFromSim(simTime, utcOffsetMinutes)
+    localHour: localHourFromSim(simTime, utcOffsetMinutes),
+    tickInDay: tickInDayFromTickIndex(tickIndex, cfg.frequencySeconds),
+    tickInHour: tickInHourFromSim(simTime, cfg.frequencySeconds, utcOffsetMinutes)
   };
 }
 

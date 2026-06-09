@@ -1,10 +1,10 @@
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import path from "node:path";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
 
 const CANONICAL_INTENT_ID = /^I[0-9a-f]{32}$/;
+
+/** Large historic TSDB dumps can exceed 10 minutes; allow up to one hour before SIGTERM. */
+const TSDB_REWRITE_TIMEOUT_MS = 3_600_000;
 
 function defaultRewriteScriptPath(): string {
   const fromEnv = process.env.PROMETHEUS_CLEAR_INTENT_TSDB_SCRIPT?.trim();
@@ -42,16 +42,66 @@ export async function runIntentTsdbRewrite(intentId: string): Promise<void> {
   const scriptPath = defaultRewriteScriptPath();
   const stackDir = prometheusStackDir();
 
-  await execFileAsync(scriptPath, [intentId], {
-    env: {
-      ...process.env,
-      PROMETHEUS_COMPOSE_DIR: process.env.PROMETHEUS_COMPOSE_DIR?.trim() || stackDir,
-      PROMETHEUS_TSDB_DIR:
-        process.env.PROMETHEUS_TSDB_DIR?.trim() || path.join(stackDir, "tsdb"),
-      PROMETHEUS_IMAGE: process.env.PROMETHEUS_IMAGE?.trim() || "prom/prometheus:v3.12.0",
-      PROMETHEUS_CONTAINER: process.env.PROMETHEUS_CONTAINER?.trim() || "5g4data-prometheus",
-    },
-    timeout: 600_000,
-    maxBuffer: 10 * 1024 * 1024,
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(scriptPath, [intentId], {
+      cwd: stackDir,
+      env: {
+        ...process.env,
+        PROMETHEUS_COMPOSE_DIR: process.env.PROMETHEUS_COMPOSE_DIR?.trim() || stackDir,
+        PROMETHEUS_TSDB_DIR:
+          process.env.PROMETHEUS_TSDB_DIR?.trim() || path.join(stackDir, "tsdb"),
+        PROMETHEUS_IMAGE: process.env.PROMETHEUS_IMAGE?.trim() || "prom/prometheus:v3.12.0",
+        PROMETHEUS_CONTAINER: process.env.PROMETHEUS_CONTAINER?.trim() || "5g4data-prometheus",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.on("data", (chunk: Buffer | string) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on("data", (chunk: Buffer | string) => {
+      stderr += chunk.toString();
+    });
+
+    const killGraceMs = 30_000;
+    let sigkillTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const timeoutTimer = setTimeout(() => {
+      child.kill("SIGTERM");
+      sigkillTimer = setTimeout(() => {
+        child.kill("SIGKILL");
+      }, killGraceMs);
+    }, TSDB_REWRITE_TIMEOUT_MS);
+
+    child.on("error", (error) => {
+      clearTimeout(timeoutTimer);
+      if (sigkillTimer) {
+        clearTimeout(sigkillTimer);
+      }
+      reject(error);
+    });
+
+    child.on("close", (code, signal) => {
+      clearTimeout(timeoutTimer);
+      if (sigkillTimer) {
+        clearTimeout(sigkillTimer);
+      }
+
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      const tail = (stderr || stdout).trim().slice(-2000);
+      reject(
+        new Error(
+          `Prometheus TSDB rewrite failed (code=${code ?? "null"}, signal=${signal ?? "null"})` +
+            (tail ? `: ${tail}` : ""),
+        ),
+      );
+    });
   });
 }

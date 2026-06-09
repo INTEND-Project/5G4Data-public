@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCodegenSystemPrompt, envelopeSnippet } from "../tools/syntheticLlmCodegen.js";
+import { buildCodegenRetryMessage, buildCodegenSystemPrompt, envelopeSnippet } from "../tools/syntheticLlmCodegen.js";
 import { parseDdMmYyyyUtc, parseSyntheticPrompt, normalizeSyntheticIntentId } from "../tools/syntheticPrompt.js";
 
 test("parseDdMmYyyyUtc parses UTC", () => {
@@ -89,6 +89,23 @@ test("buildCodegenSystemPrompt appends gauge module for baseline range instructi
   const baseline = buildCodegenSystemPrompt("baseline 50-80 with daily variation");
   assert.match(baseline, /### Gauge per-tick sampling codegen/u);
   assert.doesNotMatch(baseline, /### Cumulative counter codegen/u);
+});
+
+test("buildCodegenRetryMessage guides cumulative fixes for monotonic failures", () => {
+  const message = buildCodegenRetryMessage(
+    "Generated snippet decreases between tick 0 and tick 1",
+    {
+      fullUserPrompt: "cumulative counter",
+      intentId: "I1",
+      compoundMetric: "energy-consumption_COabc",
+      kgUnitResolved: "J",
+      instructionsSlice: "monotonically increasing cumulative counter start at 10",
+      mode: "historic",
+      frequencySeconds: 300,
+    },
+  );
+  assert.match(message, /uniformForStep/i);
+  assert.doesNotMatch(message, /per-tick gauge sample for the current tick only/i);
 });
 
 test("enrichCodegenContextSlice adds samplingKind and appendedModules", async () => {

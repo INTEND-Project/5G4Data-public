@@ -144,6 +144,8 @@ export type WorkspaceScriptSessionContextValue = {
   /** Intent ids with historic synthetic observation in flight (tick progress UI). */
   historicObservationIntentIds: ReadonlySet<string>;
   historicObservationMetricsByIntentId: Readonly<Record<string, readonly string[]>>;
+  /** Epoch ms when the Controller started waiting for historic observation progress per intent. */
+  historicObservationAwaitingSinceByIntentId: Readonly<Record<string, number>>;
   markHistoricObservationIntent: (intentId: string, compoundMetrics?: readonly string[]) => void;
   clearHistoricObservationIntent: (intentId: string) => void;
   observationProgressByIntentId: Readonly<Record<string, ObservationProgressSnapshot>>;
@@ -249,6 +251,8 @@ export function WorkspaceScriptSessionProvider({
   );
   const [historicObservationMetricsByIntentId, setHistoricObservationMetricsByIntentId] =
     useState<Record<string, string[]>>({});
+  const [historicObservationAwaitingSinceByIntentId, setHistoricObservationAwaitingSinceByIntentId] =
+    useState<Record<string, number>>({});
   const [observationProgressByIntentId, setObservationProgressByIntentId] = useState<
     Record<string, ObservationProgressSnapshot>
   >({});
@@ -640,6 +644,7 @@ export function WorkspaceScriptSessionProvider({
       if (!trimmed) {
         return;
       }
+      const now = Date.now();
       setHistoricObservationIntentIds((current) => {
         if (current.has(trimmed)) {
           return current;
@@ -647,6 +652,12 @@ export function WorkspaceScriptSessionProvider({
         const next = new Set(current);
         next.add(trimmed);
         return next;
+      });
+      setHistoricObservationAwaitingSinceByIntentId((current) => {
+        if (current[trimmed] !== undefined) {
+          return current;
+        }
+        return { ...current, [trimmed]: now };
       });
       if (!compoundMetrics?.length) {
         return;
@@ -688,6 +699,14 @@ export function WorkspaceScriptSessionProvider({
       return next;
     });
     setHistoricObservationMetricsByIntentId((current) => {
+      if (!(trimmed in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[trimmed];
+      return next;
+    });
+    setHistoricObservationAwaitingSinceByIntentId((current) => {
       if (!(trimmed in current)) {
         return current;
       }
@@ -1088,6 +1107,7 @@ export function WorkspaceScriptSessionProvider({
       intentIdsAwaitingObservation,
       historicObservationIntentIds,
       historicObservationMetricsByIntentId,
+      historicObservationAwaitingSinceByIntentId,
       markHistoricObservationIntent,
       clearHistoricObservationIntent,
       observationProgressByIntentId,
@@ -1145,6 +1165,7 @@ export function WorkspaceScriptSessionProvider({
       intentIdsAwaitingObservation,
       historicObservationIntentIds,
       historicObservationMetricsByIntentId,
+      historicObservationAwaitingSinceByIntentId,
       markHistoricObservationIntent,
       clearHistoricObservationIntent,
       observationProgressByIntentId,

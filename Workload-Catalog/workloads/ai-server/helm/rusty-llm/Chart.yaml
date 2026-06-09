@@ -2,7 +2,7 @@ apiVersion: v2
 name: rusty-llm
 description: A Helm chart for rusty_llm AI inference service with the Phi-3.5-mini-instruct-Q4_K_S model.
 type: application
-version: 0.1.24
+version: 0.1.26
 appVersion: "0.6.0"
 icon: icon.svg
 

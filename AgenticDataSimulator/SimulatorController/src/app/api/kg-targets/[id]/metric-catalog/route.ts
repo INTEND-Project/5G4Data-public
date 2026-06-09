@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
-import { runRepositorySparqlSelect } from "@/lib/graphdb/client";
-import { buildMetricCatalogQuery, parseIntentLocalIdForMetricCatalog } from "@/lib/kg/metric-catalog-query";
+import { parseIntentLocalIdForMetricCatalog } from "@/lib/kg/metric-catalog-query";
+import { resolveIntentMetricCatalog } from "@/lib/kg/resolve-intent-metric-catalog";
 
 const bodySchema = z.object({
   intentLocalId: z.string().min(1),
@@ -15,24 +15,6 @@ type RouteContext = {
     id: string;
   }>;
 };
-
-function metricNamesFromSparqlBindings(
-  bindings: Array<Record<string, { value: string }>>,
-): string[] {
-  const names: string[] = [];
-  for (const row of bindings) {
-    const cell = row.metric_name ?? row.metricName;
-    if (cell?.value?.length) {
-      names.push(cell.value);
-      continue;
-    }
-    const first = Object.values(row)[0];
-    if (first?.value?.length) {
-      names.push(first.value);
-    }
-  }
-  return [...new Set(names)].sort((a, b) => a.localeCompare(b));
-}
 
 export async function POST(request: Request, context: RouteContext) {
   const user = await getAuthenticatedUser(request);
@@ -72,20 +54,12 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Knowledge graph target not found" }, { status: 404 });
   }
 
-  let query: string;
   try {
-    query = buildMetricCatalogQuery(target.graphIri, body.intentLocalId);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Invalid metric-catalog query inputs";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
-
-  try {
-    const bindings = await runRepositorySparqlSelect({
+    const metricNames = await resolveIntentMetricCatalog({
       repositoryId: target.repositoryId,
-      query,
+      graphIri: target.graphIri,
+      intentId: body.intentLocalId,
     });
-    const metricNames = metricNamesFromSparqlBindings(bindings);
     return NextResponse.json({
       ok: true,
       metricNames,
@@ -98,7 +72,7 @@ export async function POST(request: Request, context: RouteContext) {
       "message" in error &&
       typeof (error as { message: unknown }).message === "string"
         ? (error as { message: string }).message
-        : "GraphDB metric-catalog query failed";
+        : "GraphDB metric-catalog resolution failed";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

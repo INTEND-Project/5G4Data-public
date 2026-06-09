@@ -2,13 +2,17 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SyntheticMode } from "./syntheticPrompt.js";
+import { buildValidatedFallbackSnippet } from "./syntheticSnippetFallback.js";
 import {
+  assertPowerEnergySemantics,
   inferSamplingKind,
   resolveCodegenModuleNames,
   type SamplingKind,
   validateSnippetSamples
 } from "./syntheticSnippetProbe.js";
 import { validateGeneratedSnippet } from "./syntheticSnippetValidate.js";
+
+const MAX_CODEGEN_ATTEMPTS = 4;
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const promptModulesDir = join(packageRoot, "prompt_modules");
@@ -95,7 +99,9 @@ function buildCtxApiAppendix(samplingKind: SamplingKind): string {
 - ctx.uniform01(): deterministic uniform (0,1] PRNG seeded by harness
 - ctx.unitHint: RDF unit label string (informational only)
 - ctx.utcOffsetMinutes: integer offset east of UTC from optional timezoneHint (0 when absent)
-- ctx.localHour: hour-of-day 0–23 after applying utcOffsetMinutes to ctx.simTime`;
+- ctx.localHour: hour-of-day 0–23 after applying utcOffsetMinutes to ctx.simTime
+- ctx.tickInDay: day index since historic start (floor(tickIndex * frequencySeconds / 86400))
+- ctx.tickInHour: tick slot within the current local hour (0 = top of hour); use for stress-window dip offsets`;
 
   if (samplingKind === "counter") {
     return `${common}
@@ -107,7 +113,7 @@ Counter sampling: ctx.tickIndex drives a running total; loop i=1..ctx.tickIndex 
   return `${common}
 - ctx.uniformForStep(stepIndex): deterministic uniform (0,1] keyed by integer stepIndex; use only as directed by appended modules (e.g. dip episode scheduling), not for summing history
 
-Gauge sampling: return the current reading only. ctx.tickIndex is NOT a loop bound. Do not sum past ticks.`;
+Gauge sampling: return the current reading only. ctx.tickIndex is NOT a loop bound. Do not sum past ticks. For stress dips, schedule episodes with ctx.tickInHour inside the stress hour, not global ctx.tickIndex.`;
 }
 
 const MODULE_HEADERS: Record<string, string> = {
@@ -169,12 +175,51 @@ export function envelopeSnippet(contentRaw: string): string | null {
 
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
+/** User message for a failed validation retry — sampling-kind aware. */
+export function buildCodegenRetryMessage(
+  reason: string,
+  slice: SyntheticCodegenContextSlice,
+): string {
+  const kind = inferSamplingKind(slice.instructionsSlice, slice.compoundMetric);
+
+  if (kind === "counter") {
+    if (/decreases between tick/iu.test(reason)) {
+      return (
+        `Validation failed: ${reason}\n` +
+        "Fix: cumulative counter only. Use let total = baseline; for (let i = 1; i <= ctx.tickIndex; i++) { total += positiveIncrement * (0.9 + 0.2 * ctx.uniformForStep(i)); } return total. " +
+        "Never use ctx.uniform01() inside the accumulation loop or baseline + ctx.tickIndex * increment * ctx.uniform01(). Return JSON only."
+      );
+    }
+    return (
+      `Validation failed: ${reason}\n` +
+      "Fix per cumulative_codegen: running total with a loop over i=1..ctx.tickIndex and ctx.uniformForStep(i) for per-step variation. Return JSON only."
+    );
+  }
+
+  if (/stress-window dip/iu.test(reason)) {
+    const threshold = reason.match(/below (\d+)/u)?.[1] ?? "350";
+    return (
+      `Validation failed: ${reason}\n` +
+      "Fix per stress_dip_codegen: schedule two dip episodes per stress hour using ctx.tickInHour (not global ctx.tickIndex). " +
+      `During dips return values below ${threshold}. Return JSON only.`
+    );
+  }
+
+  return (
+    `Validation failed: ${reason}\n` +
+    "Fix the snippet per appended gauge_codegen / stress_dip_codegen modules. Return one per-tick gauge sample for the current tick. Return JSON only."
+  );
+}
+
 function validateCodegenSnippet(
   snippet: string,
   slice: SyntheticCodegenContextSlice
 ): { ok: true } | { ok: false; reason: string } {
   const staticCheck = validateGeneratedSnippet(snippet);
   if (!staticCheck.ok) return staticCheck;
+
+  const semanticsCheck = assertPowerEnergySemantics(slice.compoundMetric, slice.instructionsSlice);
+  if (!semanticsCheck.ok) return semanticsCheck;
 
   return validateSnippetSamples({
     snippet,
@@ -253,31 +298,45 @@ export async function codegenMetricSnippet(
   ];
 
   try {
-    const first = await requestSnippetFromLlm(apiKey, base, model, messages);
-    if (!first.ok) return first;
-
-    const firstValidation = validateCodegenSnippet(first.snippet, slice);
-    if (firstValidation.ok) {
-      return { ok: true, snippet: first.snippet };
+    const samplingKind = inferSamplingKind(slice.instructionsSlice, slice.compoundMetric);
+    if (samplingKind === "counter") {
+      const fastFallback = buildValidatedFallbackSnippet(slice);
+      if (fastFallback.ok) {
+        process.stderr.write(
+          `[synthetic] Using validated fallback for cumulative metric ${slice.compoundMetric}.\n`,
+        );
+        return { ok: true, snippet: fastFallback.snippet };
+      }
     }
 
-    messages.push({ role: "assistant", content: JSON.stringify({ snippet: first.snippet }) });
-    messages.push({
-      role: "user",
-      content:
-        `Validation failed: ${firstValidation.reason}\n` +
-        "Fix the snippet. Return a per-tick gauge sample for the current tick only (not a running total over ctx.tickIndex) unless samplingKind is counter. Return JSON only."
-    });
+    let lastReason = "Codegen validation failed.";
 
-    const retry = await requestSnippetFromLlm(apiKey, base, model, messages);
-    if (!retry.ok) return retry;
+    for (let attempt = 0; attempt < MAX_CODEGEN_ATTEMPTS; attempt += 1) {
+      const completion = await requestSnippetFromLlm(apiKey, base, model, messages);
+      if (!completion.ok) return completion;
 
-    const retryValidation = validateCodegenSnippet(retry.snippet, slice);
-    if (!retryValidation.ok) {
-      return { ok: false, error: retryValidation.reason };
+      const validation = validateCodegenSnippet(completion.snippet, slice);
+      if (validation.ok) {
+        return { ok: true, snippet: completion.snippet };
+      }
+
+      lastReason = validation.reason;
+      messages.push({ role: "assistant", content: JSON.stringify({ snippet: completion.snippet }) });
+      messages.push({
+        role: "user",
+        content: buildCodegenRetryMessage(validation.reason, slice),
+      });
     }
 
-    return { ok: true, snippet: retry.snippet };
+    const fallback = buildValidatedFallbackSnippet(slice);
+    if (fallback.ok) {
+      process.stderr.write(
+        `[synthetic] LLM codegen failed for ${slice.compoundMetric}; using validated fallback snippet.\n`,
+      );
+      return { ok: true, snippet: fallback.snippet };
+    }
+
+    return { ok: false, error: lastReason };
   } catch (e) {
     return { ok: false, error: `Codegen request failed: ${String(e)}` };
   }

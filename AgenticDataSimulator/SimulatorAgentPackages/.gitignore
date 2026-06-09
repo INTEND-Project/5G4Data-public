@@ -9,5 +9,6 @@ Thumbs.db
 dist/
 build/
 tmp/
+node_modules/
 
 *.tgz

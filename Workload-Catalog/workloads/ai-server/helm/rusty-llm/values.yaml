@@ -136,17 +136,17 @@ intent:
       tmf-unit-hint: "token/s"
       measuredBy: intend/p99token
   sustainability:
-    - name: energy-consumption
+    - name: power-consumption
       value: "50"
       tmf-value-hint: "50"
       tmf-quantifier-hint: "quan:smaller"
-      tmf-unit-hint: "J"
-      measuredBy: intend/energy-consumption
-    - name: power-consumption
-      value: "3000"
-      tmf-value-hint: "3000"
-      tmf-quantifier-hint: "quan:smaller"
       tmf-unit-hint: "W"
+      measuredBy: intend/energy-consumption
+    - name: energy-consumption
+      value: "100"
+      tmf-value-hint: "100"
+      tmf-quantifier-hint: "quan:smaller"
+      tmf-unit-hint: "MJ"
       measuredBy: intend/power-consumption
   labels: {}
 

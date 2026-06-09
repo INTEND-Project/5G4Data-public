@@ -10,7 +10,9 @@ export type ObservationErrorKind =
   | "prometheus_remote_write_flush_failed"
   | "prometheus_remote_write_failed"
   | "prometheus_push_failed"
-  | "synthetic_worker_exit";
+  | "synthetic_worker_exit"
+  | "synthetic_setup_failed"
+  | "repl_hook_failed";
 
 export interface ObservationErrorLogEntry {
   schemaVersion: "observation_error_v1";

@@ -74,7 +74,10 @@ export function deleteInStorageLabel(storage: ObservationStorageType): string {
 
 export function deleteInStorageConfirmMessage(intentId: string, storage: ObservationStorageType): string {
   if (storage === "prometheus") {
-    return `Delete in Prometheus for intent ${intentId}? Pushgateway samples and TSDB series for this intent will be removed.`;
+    return (
+      `Delete in Prometheus for intent ${intentId}? Pushgateway samples and TSDB series for this intent will be removed. ` +
+      "On the local Prometheus stack, historic out-of-order samples require a brief TSDB rewrite: Prometheus stops for a short time and restarts automatically when the delete finishes."
+    );
   }
 
   return `Delete in GraphDB for intent ${intentId}? Observation triples and report metadata for this intent will be removed. The intent definition stays in the knowledge graph.`;

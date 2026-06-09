@@ -13,6 +13,10 @@ export default defineConfig({
         controllerRoot,
         "../SimulatorAgentPackages/5g4data-intent-generation",
       ),
+      "@intent-obs-package": path.resolve(
+        controllerRoot,
+        "../SimulatorAgentPackages/5g4data-intent-observations",
+      ),
     },
     extensionAlias: {
       ".js": [".ts", ".js"],

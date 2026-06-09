@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAgentLlmPreferences } from "@/components/workspace/agent-llm-preferences-context";
 import { ObservationProgressBar } from "@/components/workspace/observation-progress-bar";
+import type { ObservationSetupError } from "@/lib/observation-agent/metric-progress-display";
 import { preferenceForOpenClawMetadata } from "@/lib/agents/agent-llm-preferences";
 import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
 import type { ObservationProgressSnapshot } from "@/lib/observation-agent/progress-types";
@@ -112,6 +113,10 @@ export type IntentGenSessionDialogProps = {
   /** Live tick progress from observation agent (observation-report variant). */
   observationProgress?: ObservationProgressSnapshot | null;
   observationProgressIntentId?: string | null;
+  observationExpectedCompoundMetrics?: readonly string[];
+  observationSetupErrors?: readonly ObservationSetupError[];
+  observationAwaitingSinceMs?: number;
+  observationRawAgentProgress?: ObservationProgressSnapshot | null;
   /** Called once the user chooses to dismiss after the handshake is ready to continue outside the modal. */
   onFinished: () => void;
 };
@@ -137,6 +142,10 @@ export function IntentGenSessionDialog({
   scriptReportingIntervalSeconds,
   observationProgress = null,
   observationProgressIntentId = null,
+  observationExpectedCompoundMetrics = [],
+  observationSetupErrors = [],
+  observationAwaitingSinceMs,
+  observationRawAgentProgress = null,
   onFinished,
 }: IntentGenSessionDialogProps) {
   const { prometheusBaseUrl, graphDbBaseUrl } = useWorkspaceScriptSession();
@@ -590,8 +599,12 @@ export function IntentGenSessionDialog({
         observationProgress &&
         observationProgress.mode === "historic" ? (
           <ObservationProgressBar
+            awaitingSinceMs={observationAwaitingSinceMs}
+            expectedCompoundMetrics={observationExpectedCompoundMetrics}
             intentId={observationProgressIntentId}
             progress={observationProgress}
+            rawAgentProgress={observationRawAgentProgress}
+            setupErrors={observationSetupErrors}
           />
         ) : null}
 

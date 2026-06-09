@@ -303,8 +303,8 @@ def format_prometheus_step(seconds):
     return f'{seconds}s'
 
 
-def resolve_prometheus_step(step, time_range_seconds):
-    """Choose a Prometheus step that honors Grafana input and stays under point limits."""
+def resolve_requested_prometheus_step(step, time_range_seconds):
+    """Honor Grafana step when provided; otherwise pick a reasonable default."""
     step_seconds = parse_prometheus_step_to_seconds(step)
     if step_seconds is None or step_seconds <= 0:
         if time_range_seconds <= 3600:
@@ -315,20 +315,147 @@ def resolve_prometheus_step(step, time_range_seconds):
             step_seconds = 300
         else:
             step_seconds = 3600
-
-    estimated_points = time_range_seconds / step_seconds
-    if estimated_points > PROMETHEUS_MAX_RANGE_POINTS:
-        adjusted = max(60, int(time_range_seconds / PROMETHEUS_MAX_RANGE_POINTS) + 1)
-        logger.info(
-            'Step adjusted from %ss to %ss for Prometheus limit (range=%ss, estimated=%.0f points)',
-            step_seconds,
-            adjusted,
-            time_range_seconds,
-            estimated_points,
-        )
-        step_seconds = adjusted
-
     return format_prometheus_step(step_seconds)
+
+
+def resolve_prometheus_step(step, time_range_seconds):
+    """Backward-compatible alias; chunking handles point limits instead of coarsening."""
+    return resolve_requested_prometheus_step(step, time_range_seconds)
+
+
+def iso_to_epoch_seconds(iso_time):
+    return int(datetime.fromisoformat(iso_time.replace('Z', '+00:00')).timestamp())
+
+
+def epoch_to_iso_utc(epoch_seconds):
+    return datetime.utcfromtimestamp(int(epoch_seconds)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def estimate_prometheus_range_points(time_range_seconds, step_seconds):
+    if step_seconds <= 0:
+        return 0
+    return int(time_range_seconds / step_seconds) + 1
+
+
+def compute_prometheus_chunk_epoch_ranges(start_epoch, end_epoch, step_seconds, max_points=PROMETHEUS_MAX_RANGE_POINTS):
+    """Split [start_epoch, end_epoch] into sub-ranges each yielding at most max_points."""
+    if end_epoch <= start_epoch:
+        return []
+    chunk_span = max(step_seconds, max_points * step_seconds)
+    ranges = []
+    cursor = start_epoch
+    while cursor < end_epoch:
+        chunk_end = min(cursor + chunk_span, end_epoch)
+        ranges.append((cursor, chunk_end))
+        if chunk_end <= cursor:
+            break
+        cursor = chunk_end
+    return ranges
+
+
+def build_prometheus_range_url(base_query_url, start_iso, end_iso, step_param):
+    separator = '&' if '?' in base_query_url else '?'
+    return f"{base_query_url}{separator}start={start_iso}&end={end_iso}&step={step_param}"
+
+
+def fetch_prometheus_range_matrix(base_query_url, start_iso, end_iso, step_param, timeout=60):
+    url = build_prometheus_range_url(base_query_url, start_iso, end_iso, step_param)
+    response = requests.get(url, timeout=timeout)
+    if response.status_code != 200:
+        logger.error('Prometheus range query failed (%s): %s', response.status_code, response.text[:500])
+        return None
+    payload = response.json()
+    if payload.get('status') != 'success':
+        logger.error('Prometheus range query error: %s', payload)
+        return None
+    results = payload.get('data', {}).get('result') or []
+    if not results:
+        return {'values': [], 'metric': {}}
+    values = results[0].get('values') or []
+    metric = results[0].get('metric') or {}
+    return {'values': values, 'metric': metric}
+
+
+def merge_prometheus_matrix_values(matrix_chunks):
+    merged = {}
+    metric = {'__name__': 'unknown'}
+    for chunk in matrix_chunks:
+        if not chunk:
+            continue
+        metric = chunk.get('metric') or metric
+        for pair in chunk.get('values') or []:
+            if not pair or len(pair) < 2:
+                continue
+            merged[int(pair[0])] = pair[1]
+    ordered = [[ts, merged[ts]] for ts in sorted(merged.keys())]
+    return {'values': ordered, 'metric': metric}
+
+
+def probe_first_sample_epoch(base_query_url, end_iso, step_param='3600s', lookback_seconds=200 * 86_400):
+    end_epoch = iso_to_epoch_seconds(end_iso)
+    start_iso = epoch_to_iso_utc(max(0, end_epoch - lookback_seconds))
+    chunk = fetch_prometheus_range_matrix(base_query_url, start_iso, end_iso, step_param)
+    if not chunk or not chunk.get('values'):
+        return None
+    return int(chunk['values'][0][0])
+
+
+def execute_prometheus_observation_query(query, start_time, end_time, step=None):
+    """Execute Prometheus query_range with chunking and first-sample start clamp."""
+    modified_query = query
+    if 'api/v1/query' in query and 'api/v1/query_range' not in query:
+        modified_query = query.replace('api/v1/query', 'api/v1/query_range')
+
+    start_epoch = iso_to_epoch_seconds(start_time)
+    end_epoch = iso_to_epoch_seconds(end_time)
+    time_range = max(0, end_epoch - start_epoch)
+    step_param = resolve_requested_prometheus_step(step, time_range)
+    step_seconds = parse_prometheus_step_to_seconds(step_param) or 60
+
+    def run_chunked(range_start_epoch):
+        chunks = []
+        for chunk_start, chunk_end in compute_prometheus_chunk_epoch_ranges(
+            range_start_epoch, end_epoch, step_seconds
+        ):
+            chunk = fetch_prometheus_range_matrix(
+                modified_query,
+                epoch_to_iso_utc(chunk_start),
+                epoch_to_iso_utc(chunk_end),
+                step_param,
+            )
+            if chunk is None:
+                return None
+            if chunk.get('values'):
+                chunks.append(chunk)
+        return merge_prometheus_matrix_values(chunks)
+
+    merged = run_chunked(start_epoch)
+    if merged is None:
+        return None
+
+    if not merged.get('values'):
+        first_sample = probe_first_sample_epoch(modified_query, end_time, step_param='3600s')
+        if first_sample is not None and first_sample > start_epoch:
+            logger.info(
+                'Prometheus range empty at start=%s; clamping to first sample %s',
+                start_time,
+                epoch_to_iso_utc(first_sample),
+            )
+            merged = run_chunked(first_sample)
+            if merged is None:
+                return None
+
+    if not merged.get('values'):
+        return parse_rest_response({'data': {'result': []}})
+
+    return parse_rest_response({
+        'data': {
+            'result': [{
+                'metric': merged.get('metric') or {},
+                'values': merged.get('values') or [],
+            }],
+        },
+    })
 
 
 def query_intent_metric_bounds(intent_id, condition_metric, graph_iri, repository_id):
@@ -434,34 +561,8 @@ def execute_observation_query(query, start_time=None, end_time=None, step=None):
             logger.info(f"Query detection debug - is_prometheus_query: {is_prometheus_query}")
             
             if is_prometheus_query:
-                # For Prometheus range queries, use query_range endpoint
-                if 'api/v1/query' in query and 'api/v1/query_range' not in query:
-                    # Convert instant query to range query
-                    modified_query = query.replace('api/v1/query', 'api/v1/query_range')
-                
-                # Add time range parameters to the URL
-                separator = '&' if '?' in modified_query else '?'
-                time_range = None
-                try:
-                    start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-                    end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
-                    time_range = int((end_dt - start_dt).total_seconds())
-                    logger.info(f"Calculated time range: {time_range} seconds")
-                except Exception as e:
-                    logger.warning(f"Could not calculate time range from ISO timestamps: {e}")
-
-                if time_range is None or time_range <= 0:
-                    step_param = step.strip() if step and step.strip() else '60s'
-                else:
-                    step_param = resolve_prometheus_step(step, time_range)
-
-                logger.info(f"Step parameter debug - provided: '{step}', resolved: '{step_param}'")
-                
-                # Always add step parameter for Prometheus range queries
-                modified_query = f"{modified_query}{separator}start={start_time}&end={end_time}&step={step_param}"
-                logger.info(f"Step parameter debug - final step: {step_param}")
-                
-                logger.info(f"Modified Prometheus query with time range and step: {modified_query}")
+                logger.info(f"Step parameter debug - provided: '{step}'")
+                return execute_prometheus_observation_query(query, start_time, end_time, step)
             else:
                 # For other REST endpoints, add time range parameters
                 separator = '&' if '?' in query else '?'

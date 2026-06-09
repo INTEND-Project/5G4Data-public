@@ -1,6 +1,13 @@
 import type { SyntheticMode } from "./syntheticPrompt.js";
 import { compileSnippet, type SnippetCtx, uniformForStepRng } from "./syntheticMetricWorker.js";
-import { hashSeed, localHourFromSim, mulberry32, parseUtcOffsetMinutes } from "./syntheticPrng.js";
+import {
+  hashSeed,
+  localHourFromSim,
+  mulberry32,
+  parseUtcOffsetMinutes,
+  tickInDayFromTickIndex,
+  tickInHourFromSim
+} from "./syntheticPrng.js";
 
 export interface SnippetProbeArgs {
   snippet: string;
@@ -40,7 +47,9 @@ function buildCtx(args: SnippetProbeArgs, simTime: Date, tickIndex: number, wall
       uniformForStepRng(args.intentId, args.compoundMetric, args.mode, stepIndex),
     unitHint: args.unitHint ?? "NA",
     utcOffsetMinutes,
-    localHour: localHourFromSim(simTime, utcOffsetMinutes)
+    localHour: localHourFromSim(simTime, utcOffsetMinutes),
+    tickInDay: tickInDayFromTickIndex(tickIndex, args.frequencySeconds),
+    tickInHour: tickInHourFromSim(simTime, args.frequencySeconds, utcOffsetMinutes)
   };
 }
 
@@ -71,10 +80,30 @@ function historicSampleTimes(
   return out;
 }
 
+/** True when instructions explicitly describe per-tick gauge semantics (not a running total). */
+export function looksLikeExplicitGaugeInstructions(instructionsSlice?: string): boolean {
+  const text = instructionsSlice?.trim() ?? "";
+  if (!text) return false;
+  return (
+    /\bper[- ]tick\s+gauge\b/iu.test(text) ||
+    /\binstantaneous\s+draw\b/iu.test(text) ||
+    /\b(?:not|non[- ])\s*cumulative\b/iu.test(text) ||
+    /\bdo not accumulate(?:\s+a)?\s+running\s+total\b/iu.test(text) ||
+    /\bfinite number each tick\b/iu.test(text)
+  );
+}
+
 /** True when metric instructions (natural language) request monotonic cumulative behavior. */
 export function looksLikeCumulativeCounter(instructionsSlice?: string): boolean {
   const text = instructionsSlice?.trim() ?? "";
   if (!text) return false;
+
+  if (
+    looksLikeExplicitGaugeInstructions(text) &&
+    !/\bmonoton(?:ically)?(?:\s+increasing)?\s+cumulative\b/iu.test(text)
+  ) {
+    return false;
+  }
 
   const keywordPattern =
     /\b(cumulative|accumulated|monoton(?:ically)?(?:\s+increasing)?|counter|running total|never decrease|never drop|strictly increase)\b/iu;
@@ -251,8 +280,14 @@ function assertGaugeMagnitude(
   return { ok: true };
 }
 
-/** Tick count for cumulative monotonic probe — full historic window when bounded. */
-export function cumulativeProbeTickCount(args: SnippetProbeArgs, cap = 250_000): number {
+/** Max ticks to execute when validating cumulative snippets (monotonic failures surface early). */
+export const CUMULATIVE_VALIDATION_PROBE_CAP = 128;
+
+/** Tick count for cumulative monotonic probe during codegen validation. */
+export function cumulativeProbeTickCount(
+  args: SnippetProbeArgs,
+  cap = CUMULATIVE_VALIDATION_PROBE_CAP,
+): number {
   if (args.mode === "historic" && args.historicStartIso && args.historicEndIso) {
     const startMs = Date.parse(args.historicStartIso);
     const endMs = Date.parse(args.historicEndIso);
@@ -343,6 +378,149 @@ export function probeSequentialSnippetValues(
     undefined,
     undefined
   );
+}
+
+export type StressHourWindow = { startHour: number; endHour: number };
+
+/** Parse clock stress windows like `08:00-09:00` from natural-language instructions. */
+export function parseStressHourWindows(instructionsSlice?: string): StressHourWindow[] {
+  const text = instructionsSlice ?? "";
+  const windows: StressHourWindow[] = [];
+  const re = /\b(\d{1,2}):(\d{2})\s*[-–—to]+\s*(\d{1,2}):(\d{2})\b/giu;
+  for (const m of text.matchAll(re)) {
+    const startHour = Number(m[1]);
+    const endHour = Number(m[3]);
+    if (
+      Number.isFinite(startHour) &&
+      Number.isFinite(endHour) &&
+      startHour >= 0 &&
+      startHour < 24 &&
+      endHour > startHour &&
+      endHour <= 24
+    ) {
+      windows.push({ startHour, endHour });
+    }
+  }
+  return windows;
+}
+
+/** Upper bound for dip-band detection (e.g. 300 from "200-300" → threshold 350). */
+export function parseStressDipThreshold(instructionsSlice?: string): number | null {
+  const ranges = parseInstructionNumericRanges(instructionsSlice);
+  // Ignore short duration bands (e.g. "3-10 minutes"); keep magnitude bands like 200-300.
+  const dipRanges = ranges.filter((r) => r.max >= 100 && r.max <= 2_000);
+  if (dipRanges.length === 0) return null;
+  const dipMax = Math.min(...dipRanges.map((r) => r.max));
+  return dipMax + 50;
+}
+
+function isInStressWindow(localHour: number, window: StressHourWindow): boolean {
+  return localHour >= window.startHour && localHour < window.endHour;
+}
+
+/** Require dip samples in stress windows on at least two distinct simulated days. */
+export function assertStressDipEpisodes(
+  args: SnippetProbeArgs,
+  instructionsSlice?: string
+): { ok: true } | { ok: false; reason: string } {
+  const windows = parseStressHourWindows(instructionsSlice);
+  const dipThreshold = parseStressDipThreshold(instructionsSlice);
+  if (windows.length === 0 || dipThreshold === null) {
+    return { ok: true };
+  }
+
+  if (args.mode !== "historic" || !args.historicStartIso || !args.historicEndIso) {
+    return { ok: true };
+  }
+
+  const startMs = Date.parse(args.historicStartIso);
+  const endMs = Date.parse(args.historicEndIso);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return { ok: false, reason: "Could not derive historic window for stress-dip validation." };
+  }
+
+  const freqMs = Math.max(1, args.frequencySeconds) * 1000;
+  const totalTicks = Math.floor((endMs - startMs) / freqMs) + 1;
+  const totalDays = Math.max(1, Math.ceil((endMs - startMs) / 86_400_000));
+
+  let run: (ctx: SnippetCtx) => number;
+  try {
+    run = compileSnippet(args.snippet);
+  } catch (e) {
+    return { ok: false, reason: `Snippet failed to compile: ${String(e)}` };
+  }
+
+  const ticksPerDay = Math.max(1, Math.floor(86_400 / args.frequencySeconds));
+  const dayIndices =
+    totalDays >= 3
+      ? [0, Math.floor(totalDays / 2), totalDays - 1]
+      : Array.from({ length: totalDays }, (_, i) => i);
+
+  for (const window of windows) {
+    const dipDays = new Set<number>();
+
+    for (const dayIndex of dayIndices) {
+      const dayStartTick = dayIndex * ticksPerDay;
+      const dayEndTick = Math.min((dayIndex + 1) * ticksPerDay - 1, totalTicks - 1);
+      let sawDip = false;
+
+      for (let tickIndex = dayStartTick; tickIndex <= dayEndTick; tickIndex += 1) {
+        const simTime = new Date(startMs + tickIndex * freqMs);
+        const ctx = buildCtx(args, simTime, tickIndex);
+        if (!isInStressWindow(ctx.localHour, window)) continue;
+
+        let value: number;
+        try {
+          value = Number(run(ctx));
+        } catch (e) {
+          return { ok: false, reason: `Snippet threw during stress-dip probe: ${String(e)}` };
+        }
+        if (!Number.isFinite(value)) {
+          return { ok: false, reason: "Snippet returned non-numeric value during stress-dip probe." };
+        }
+        if (value < dipThreshold) {
+          sawDip = true;
+          break;
+        }
+      }
+
+      if (sawDip) {
+        dipDays.add(dayIndex);
+      }
+    }
+
+    if (dipDays.size < 2) {
+      return {
+        ok: false,
+        reason:
+          `Generated snippet produced fewer than 2 stress-window dip days for ${window.startHour}:00-${window.endHour}:00 ` +
+          `(found ${dipDays.size}; need samples below ${dipThreshold}). ` +
+          "Schedule dip episodes with ctx.tickInHour inside the stress hour, not global ctx.tickIndex offsets."
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
+/** Reject cumulative joules on power-consumption (W gauge) — belongs on energy-consumption. */
+export function assertPowerEnergySemantics(
+  compoundMetric: string,
+  instructionsSlice?: string
+): { ok: true } | { ok: false; reason: string } {
+  if (!looksLikeCumulativeCounter(instructionsSlice)) return { ok: true };
+
+  const stem = compoundMetric.replace(/_CO[0-9a-f]{32}$/iu, "").toLowerCase();
+  const mentionsJoules = /\bjoules?\b/iu.test(instructionsSlice ?? "");
+  if (stem === "power-consumption" || (stem.includes("power") && mentionsJoules)) {
+    return {
+      ok: false,
+      reason:
+        "Cumulative joules instructions belong on energy-consumption (unit J), not power-consumption (unit W gauge). " +
+        "Use metric=energy-consumption for a monotonic cumulative counter, or gauge watts for power-consumption."
+    };
+  }
+  return { ok: true };
 }
 
 export function probeSnippetValues(args: SnippetProbeArgs): { ok: true; values: number[] } | { ok: false; reason: string } {
@@ -437,7 +615,14 @@ export function validateSnippetSamples(
       const gaugeCheck = assertGaugeMagnitude(args, args.instructionsSlice);
       if (!gaugeCheck.ok) return gaugeCheck;
     }
+    if (looksLikeStressDipPattern(args.instructionsSlice)) {
+      const dipCheck = assertStressDipEpisodes(args, args.instructionsSlice);
+      if (!dipCheck.ok) return dipCheck;
+    }
   }
+
+  const semanticsCheck = assertPowerEnergySemantics(args.compoundMetric, args.instructionsSlice);
+  if (!semanticsCheck.ok) return semanticsCheck;
 
   return { ok: true };
 }

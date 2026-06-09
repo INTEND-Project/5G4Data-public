@@ -1,6 +1,45 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+
+function extractIntentIdFromReplLine(line: string): string | undefined {
+  const kv = line.match(/\bintent[_-]?id=([^\s`]+)/i);
+  if (kv?.[1]) {
+    return kv[1].replace(/[`'"]/g, "").trim();
+  }
+  const canonical = line.match(/\b(I[a-f0-9]{32})\b/i);
+  return canonical?.[1];
+}
+
+async function appendReplHookFailureToObservationLog(input: {
+  packageDir: string;
+  sessionId: string;
+  line: string;
+  message: string;
+}): Promise<void> {
+  const logModulePath = join(input.packageDir, "tools", "observationLog.ts");
+  if (!existsSync(logModulePath)) {
+    return;
+  }
+  try {
+    const mod = (await import(pathToFileURL(logModulePath).href)) as {
+      appendObservationError?: (entry: {
+        kind: string;
+        message: string;
+        intentId?: string;
+        sessionId?: string;
+      }) => void;
+    };
+    mod.appendObservationError?.({
+      kind: "repl_hook_failed",
+      message: input.message,
+      intentId: extractIntentIdFromReplLine(input.line),
+      sessionId: input.sessionId,
+    });
+  } catch {
+    /* observation log is best-effort when the hook module cannot load */
+  }
+}
 import type { ChatSession, GraphTargetBinding, ObservationStorageType } from "../models.js";
 import type { LoadedDomainPackage } from "./packageLoader.js";
 
@@ -58,10 +97,17 @@ export async function tryReplPackageHook(
         input.createIntentStorage ?? input.session.createIntentStorage ?? null
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error("[openclaw] replPreTurn hook failed:", error);
+    await appendReplHookFailureToObservationLog({
+      packageDir: input.domainPackage.packageDir,
+      sessionId: input.session.sessionId,
+      line: input.line,
+      message,
+    });
     return {
       handled: true,
-      assistantText: `Observation hook failed: ${error instanceof Error ? error.message : String(error)}`
+      assistantText: `Observation hook failed: ${message}`
     };
   }
 }

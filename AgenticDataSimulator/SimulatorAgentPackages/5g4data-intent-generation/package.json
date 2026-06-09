@@ -1,12 +1,10 @@
 {
-  "name": "5g4data-intent-observations",
+  "name": "5g4data-intent-generation",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "dependencies": {
-    "n3": "^1.17.4",
-    "protobufjs": "^8.4.2",
-    "snappyjs": "^0.7.0"
+    "n3": "^2.0.3"
   },
   "devDependencies": {
     "@types/n3": "^1.26.1"

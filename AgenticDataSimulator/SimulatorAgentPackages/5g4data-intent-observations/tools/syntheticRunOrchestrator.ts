@@ -9,6 +9,7 @@ import {
 } from "./graphTargetBinding.js";
 import { appendObservationError, writeObservationProgramLog } from "./observationLog.js";
 import {
+  failObservationSetup,
   historicTickCount,
   initObservationProgress,
   markCodegenComplete,
@@ -31,6 +32,36 @@ interface SpawnedSynth {
 }
 
 const sessions = new Map<string, SpawnedSynth[]>();
+
+function expectedMetricStems(parsed: ParsedSyntheticPrompt): string[] {
+  return [
+    ...new Set(
+      parsed.metricSlices.map((slice) =>
+        slice.metricCompound.trim().replace(/^data5g:/iu, "").replace(/`/g, ""),
+      ),
+    ),
+  ];
+}
+
+function reportSyntheticSetupFailure(input: {
+  intentId: string;
+  sessionId: string;
+  message: string;
+  metric?: string;
+  expectedMetrics: readonly string[];
+  isHistoric: boolean;
+}): void {
+  appendObservationError({
+    kind: "synthetic_setup_failed",
+    message: input.message,
+    intentId: input.intentId,
+    sessionId: input.sessionId,
+    metric: input.metric,
+  });
+  if (input.isHistoric && input.expectedMetrics.length > 0) {
+    failObservationSetup(input.intentId, input.expectedMetrics, input.message);
+  }
+}
 
 export function syntheticObservationStatus(sessionId: string): string {
   const list = sessions.get(sessionId);
@@ -77,8 +108,18 @@ export async function startSyntheticObservationFromParsed(args: {
   const graph = GraphDbTool.fromBinding(args.graphTargetBinding, fallback);
   const graphEnv = effectiveGraphDbEnv(args.graphTargetBinding, fallback);
   const intentTurtle = await graph.getIntentTurtle(args.parsed.intentId);
+  const isHistoric = args.parsed.mode === "historic";
+  const expectedStems = expectedMetricStems(args.parsed);
   if (!intentTurtle) {
-    return `Intent ${args.parsed.intentId} could not be resolved from GraphDB. Synthetic run aborted.`;
+    const message = `Intent ${args.parsed.intentId} could not be resolved from GraphDB. Synthetic run aborted.`;
+    reportSyntheticSetupFailure({
+      intentId: args.parsed.intentId,
+      sessionId: args.sessionId,
+      message,
+      expectedMetrics: expectedStems,
+      isHistoric,
+    });
+    return message;
   }
 
   const runRoot = join(process.cwd(), "logs", "synthetic-runs", args.sessionId.replace(/[^\w.-]+/gu, "_"));
@@ -122,7 +163,6 @@ export async function startSyntheticObservationFromParsed(args: {
     }
   }
 
-  const isHistoric = args.parsed.mode === "historic";
   if (isHistoric) {
     initObservationProgress({
       intentId: args.parsed.intentId,
@@ -140,10 +180,19 @@ export async function startSyntheticObservationFromParsed(args: {
     if (!resolvedMetric) {
       for (const s of spawned) s.child.kill("SIGTERM");
       sessions.delete(args.sessionId);
-      return [
+      const message = [
         `Metric ${slice.metricCompound} is not defined in GraphDB intent ${args.parsed.intentId}.`,
-        `Use one of: ${intentMetrics.map((m) => `data5g:${m}`).join(", ") || "(none found)"}`
+        `Use one of: ${intentMetrics.map((m) => `data5g:${m}`).join(", ") || "(none found)"}`,
       ].join(" ");
+      reportSyntheticSetupFailure({
+        intentId: args.parsed.intentId,
+        sessionId: args.sessionId,
+        message,
+        metric: slice.metricCompound,
+        expectedMetrics: expectedStems,
+        isHistoric,
+      });
+      return message;
     }
     const userMetric = slice.metricCompound.trim().replace(/^data5g:/iu, "").replace(/`/g, "");
     if (resolvedMetric !== userMetric) {
@@ -190,8 +239,15 @@ export async function startSyntheticObservationFromParsed(args: {
 
     if (!codegenSlice.ok) {
       if (isHistoric) {
-        markMetricFailed(args.parsed.intentId, resolvedMetric);
+        markMetricFailed(args.parsed.intentId, resolvedMetric, codegenSlice.error);
       }
+      appendObservationError({
+        kind: "synthetic_setup_failed",
+        message: codegenSlice.error,
+        intentId: args.parsed.intentId,
+        sessionId: args.sessionId,
+        metric: resolvedMetric,
+      });
       for (const s of spawned) s.child.kill("SIGTERM");
       sessions.delete(args.sessionId);
       return codegenSlice.error;
@@ -200,8 +256,15 @@ export async function startSyntheticObservationFromParsed(args: {
     const v = validateGeneratedSnippet(codegenSlice.snippet);
     if (!v.ok) {
       if (isHistoric) {
-        markMetricFailed(args.parsed.intentId, resolvedMetric);
+        markMetricFailed(args.parsed.intentId, resolvedMetric, v.reason);
       }
+      appendObservationError({
+        kind: "synthetic_setup_failed",
+        message: v.reason,
+        intentId: args.parsed.intentId,
+        sessionId: args.sessionId,
+        metric: resolvedMetric,
+      });
       for (const s of spawned) s.child.kill("SIGTERM");
       sessions.delete(args.sessionId);
       return v.reason;
@@ -221,8 +284,15 @@ export async function startSyntheticObservationFromParsed(args: {
     });
     if (!sampleCheck.ok) {
       if (isHistoric) {
-        markMetricFailed(args.parsed.intentId, resolvedMetric);
+        markMetricFailed(args.parsed.intentId, resolvedMetric, sampleCheck.reason);
       }
+      appendObservationError({
+        kind: "synthetic_setup_failed",
+        message: sampleCheck.reason,
+        intentId: args.parsed.intentId,
+        sessionId: args.sessionId,
+        metric: resolvedMetric,
+      });
       for (const s of spawned) s.child.kill("SIGTERM");
       sessions.delete(args.sessionId);
       return sampleCheck.reason;

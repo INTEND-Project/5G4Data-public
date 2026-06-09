@@ -1,9 +1,9 @@
 import { runRepositorySparqlSelect } from "@/lib/graphdb/client";
 import {
-  buildMetricCatalogQuery,
   graphIriForSparqlAngleBrackets,
   parseIntentLocalIdForMetricCatalog,
 } from "@/lib/kg/metric-catalog-query";
+import { resolveIntentMetricCatalog } from "@/lib/kg/resolve-intent-metric-catalog";
 import {
   compoundMetricsForBackend,
   fetchMetricQueryMetadata,
@@ -263,7 +263,7 @@ export function historicGrafanaWindow(
   const padding = Math.max(Math.floor(span * 0.05), 60_000);
 
   return {
-    fromMs: Math.max(clamped.minMs - padding, earliestObservationLookbackMs(nowMs)),
+    fromMs: Math.max(clamped.minMs, earliestObservationLookbackMs(nowMs)),
     toMs: clamped.maxMs + padding,
   };
 }
@@ -274,23 +274,8 @@ export async function fetchCompoundMetricsForIntent(input: {
   intentId: string;
   graphDbBaseUrl?: string | null;
 }): Promise<string[]> {
-  let query: string;
   try {
-    query = buildMetricCatalogQuery(input.graphIri, input.intentId);
-  } catch {
-    return [];
-  }
-
-  try {
-    const bindings = await runRepositorySparqlSelect({
-      repositoryId: input.repositoryId,
-      query,
-      graphDbBaseUrl: input.graphDbBaseUrl,
-    });
-
-    return bindings
-      .map((row) => row.metric_name?.value?.trim())
-      .filter((value): value is string => Boolean(value));
+    return await resolveIntentMetricCatalog(input);
   } catch {
     return [];
   }

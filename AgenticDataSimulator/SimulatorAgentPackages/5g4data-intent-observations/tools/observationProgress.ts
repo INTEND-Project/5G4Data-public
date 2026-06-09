@@ -31,6 +31,7 @@ export interface MetricProgressEntry {
   ticksTotal: number | null;
   samplesFlushed?: number;
   workerPid?: number;
+  errorMessage?: string;
 }
 
 export interface ObservationProgressAggregate {
@@ -270,7 +271,10 @@ export function updateMetricProgress(
   intentId: string,
   compoundMetric: string,
   update: Partial<
-    Pick<MetricProgressEntry, "phase" | "ticksDone" | "ticksTotal" | "samplesFlushed" | "workerPid">
+    Pick<
+      MetricProgressEntry,
+      "phase" | "ticksDone" | "ticksTotal" | "samplesFlushed" | "workerPid" | "errorMessage"
+    >
   >,
 ): void {
   patchObservationProgress(intentId, (current) => {
@@ -336,8 +340,47 @@ export function markCodegenComplete(
   });
 }
 
-export function markMetricFailed(intentId: string, compoundMetric: string): void {
-  updateMetricProgress(intentId, compoundMetric, { phase: "failed" });
+export function markMetricFailed(
+  intentId: string,
+  compoundMetric: string,
+  errorMessage?: string,
+): void {
+  updateMetricProgress(intentId, compoundMetric, {
+    phase: "failed",
+    ...(errorMessage ? { errorMessage } : {}),
+  });
+}
+
+export function failObservationSetup(
+  intentId: string,
+  compoundMetrics: readonly string[],
+  message: string,
+): void {
+  patchObservationProgress(intentId, (current) => {
+    const metrics: MetricProgressEntry[] = compoundMetrics.map((compoundMetric) => {
+      const prior = current?.metrics.find((entry) => entry.compoundMetric === compoundMetric);
+      return {
+        compoundMetric,
+        phase: "failed",
+        ticksDone: prior?.ticksDone ?? 0,
+        ticksTotal: prior?.ticksTotal ?? null,
+        errorMessage: message,
+      };
+    });
+
+    return {
+      schemaVersion: PROGRESS_SCHEMA,
+      updatedAt: new Date().toISOString(),
+      intentId,
+      sessionId: current?.sessionId,
+      mode: current?.mode ?? "historic",
+      phase: "failed",
+      codegenMetricsDone: current?.codegenMetricsDone ?? 0,
+      codegenMetricsTotal: Math.max(current?.codegenMetricsTotal ?? 0, compoundMetrics.length),
+      metrics,
+      aggregate: computeAggregate(metrics),
+    };
+  });
 }
 
 export function markMetricCompleted(intentId: string, compoundMetric: string): void {

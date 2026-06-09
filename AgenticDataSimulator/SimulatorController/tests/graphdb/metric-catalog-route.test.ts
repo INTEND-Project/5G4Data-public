@@ -11,7 +11,7 @@ const dbMock = {
   },
 };
 
-const runRepositorySparqlSelect = vi.fn();
+const resolveIntentMetricCatalog = vi.fn();
 
 const guardMock = {
   getAuthenticatedUser: vi.fn(),
@@ -21,8 +21,8 @@ vi.mock("../../src/lib/db", () => ({
   db: dbMock,
 }));
 
-vi.mock("../../src/lib/graphdb/client", () => ({
-  runRepositorySparqlSelect,
+vi.mock("../../src/lib/kg/resolve-intent-metric-catalog", () => ({
+  resolveIntentMetricCatalog,
 }));
 
 vi.mock("../../src/lib/auth/guards", () => guardMock);
@@ -54,7 +54,7 @@ describe("POST /api/kg-targets/[id]/metric-catalog", () => {
     );
 
     expect(response.status).toBe(401);
-    expect(runRepositorySparqlSelect).not.toHaveBeenCalled();
+    expect(resolveIntentMetricCatalog).not.toHaveBeenCalled();
   });
 
   it("returns 400 for invalid intent id", async () => {
@@ -75,20 +75,16 @@ describe("POST /api/kg-targets/[id]/metric-catalog", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(runRepositorySparqlSelect).not.toHaveBeenCalled();
+    expect(resolveIntentMetricCatalog).not.toHaveBeenCalled();
   });
 
-  it("queries GraphDB and returns sorted distinct metric names", async () => {
+  it("resolves metrics from intent Turtle and returns sorted names", async () => {
     dbMock.knowledgeGraphTarget.findFirst.mockResolvedValue({
       id: "kg-target-1",
       repositoryId: "telenor-5g4data-kg-avalanche-demo",
       graphIri: "urn:intend:kg:telenor-5g4data:kg-avalanche-demo",
     });
-    runRepositorySparqlSelect.mockResolvedValue([
-      { metric_name: { type: "literal", value: "zlatency" } },
-      { metric_name: { type: "literal", value: "avail" } },
-      { metric_name: { type: "literal", value: "zlatency" } },
-    ]);
+    resolveIntentMetricCatalog.mockResolvedValue(["avail_COabc", "zlatency_COabc"]);
 
     const routeModule = await import("../../src/app/api/kg-targets/[id]/metric-catalog/route");
     const response = await routeModule.POST(
@@ -106,26 +102,27 @@ describe("POST /api/kg-targets/[id]/metric-catalog", () => {
       },
     );
 
-    expect(runRepositorySparqlSelect).toHaveBeenCalledWith({
+    expect(resolveIntentMetricCatalog).toHaveBeenCalledWith({
       repositoryId: "telenor-5g4data-kg-avalanche-demo",
-      query: expect.stringContaining("GRAPH <urn:intend:kg:telenor-5g4data:kg-avalanche-demo>"),
+      graphIri: "urn:intend:kg:telenor-5g4data:kg-avalanche-demo",
+      intentId: "I04fb0697e3a243e7a292c6cb57e9f797",
     });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      metricNames: ["avail", "zlatency"],
+      metricNames: ["avail_COabc", "zlatency_COabc"],
       graphTargetId: "kg-target-1",
     });
   });
 
-  it("returns 502 when GraphDB select throws", async () => {
+  it("returns 502 when metric catalog resolution throws", async () => {
     dbMock.knowledgeGraphTarget.findFirst.mockResolvedValue({
       id: "kg-target-1",
       repositoryId: "telenor-5g4data-kg-avalanche-demo",
       graphIri: "urn:intend:kg:telenor-5g4data:kg-avalanche-demo",
     });
-    runRepositorySparqlSelect.mockRejectedValue(new Error("GraphDB SPARQL query failed with 418"));
+    resolveIntentMetricCatalog.mockRejectedValue(new Error("GraphDB intent fetch failed with 418"));
 
     const routeModule = await import("../../src/app/api/kg-targets/[id]/metric-catalog/route");
     const response = await routeModule.POST(
@@ -145,7 +142,7 @@ describe("POST /api/kg-targets/[id]/metric-catalog", () => {
 
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toMatchObject({
-      error: "GraphDB SPARQL query failed with 418",
+      error: "GraphDB intent fetch failed with 418",
     });
   });
 });

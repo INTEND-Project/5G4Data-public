@@ -38,3 +38,20 @@ export function localHourFromSim(simTime: Date, utcOffsetMinutes: number): numbe
   const totalMinutes = simTime.getUTCHours() * 60 + simTime.getUTCMinutes() + utcOffsetMinutes;
   return ((Math.floor(totalMinutes / 60) % 24) + 24) % 24;
 }
+
+/** Simulated day index from tick index and frequency (UTC day boundaries). */
+export function tickInDayFromTickIndex(tickIndex: number, frequencySeconds: number): number {
+  return Math.floor((tickIndex * Math.max(1, frequencySeconds)) / 86_400);
+}
+
+/** Tick slot index within the current local hour (0 = start of hour). */
+export function tickInHourFromSim(
+  simTime: Date,
+  frequencySeconds: number,
+  utcOffsetMinutes: number
+): number {
+  const offsetMs = utcOffsetMinutes * 60_000;
+  const local = new Date(simTime.getTime() + offsetMs);
+  const secInHour = local.getUTCMinutes() * 60 + local.getUTCSeconds();
+  return Math.floor(secInHour / Math.max(1, frequencySeconds));
+}

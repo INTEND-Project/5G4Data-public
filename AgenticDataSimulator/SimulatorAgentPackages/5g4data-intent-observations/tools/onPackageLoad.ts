@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 export interface PackageRuntimeContributions {
   runtimePatches?: {
@@ -139,6 +139,30 @@ export function syncCloneLockfile(
   runNpm(cloneDir);
 }
 
+const PRETTY_PRINT_VENDOR_FILES = [
+  "prettyPrintIntentTurtle.ts",
+  "postprocess/coordinationUtility.ts",
+  "postprocess/coordinationUtilityDerive.ts"
+] as const;
+
+/** Copy intent-generation pretty-print helpers into the self-contained observation clone. */
+export function vendorPrettyPrintIntentTurtle(cloneDir: string, packageDir: string): void {
+  const intentGenToolsDir = join(packageDir, "..", "5g4data-intent-generation", "tools");
+  const prettyPrintSource = join(intentGenToolsDir, "prettyPrintIntentTurtle.ts");
+  if (!existsSync(prettyPrintSource)) return;
+
+  for (const toolsRoot of ["tools", join("src", "tools")] as const) {
+    const destinationToolsDir = join(cloneDir, toolsRoot);
+    for (const relativePath of PRETTY_PRINT_VENDOR_FILES) {
+      const sourcePath = join(intentGenToolsDir, relativePath);
+      if (!existsSync(sourcePath)) continue;
+      const destinationPath = join(destinationToolsDir, relativePath);
+      mkdirSync(dirname(destinationPath), { recursive: true });
+      copyFileSync(sourcePath, destinationPath);
+    }
+  }
+}
+
 export async function applyOnPackageLoad(
   args: {
     cloneDir: string;
@@ -149,6 +173,7 @@ export async function applyOnPackageLoad(
   }
 ): Promise<PackageRuntimeContributions> {
   applyPrometheusEnvDefaults(args.cloneDir, args.packageDir);
+  vendorPrettyPrintIntentTurtle(args.cloneDir, args.packageDir);
   const dependenciesChanged = mergePackageDependencies(args.cloneDir, args.packageDir);
   if (dependenciesChanged) {
     syncCloneLockfile(args.cloneDir, options?.syncLockfile);

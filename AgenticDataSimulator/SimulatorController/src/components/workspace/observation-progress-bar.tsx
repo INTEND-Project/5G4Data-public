@@ -5,9 +5,11 @@ import type {
   ObservationProgressSnapshot,
 } from "@/lib/observation-agent/progress-types";
 import {
+  detectStuckPendingMetrics,
   formatObservationTickCount,
   metricProgressDetailLabel,
   metricProgressPercent,
+  type ObservationSetupError,
 } from "@/lib/observation-agent/metric-progress-display";
 
 export type ObservationProgressBarProps = {
@@ -16,6 +18,10 @@ export type ObservationProgressBarProps = {
   compact?: boolean;
   /** Historic run registered but agent has not returned a snapshot yet. */
   waitingForAgent?: boolean;
+  expectedCompoundMetrics?: readonly string[];
+  setupErrors?: readonly ObservationSetupError[];
+  awaitingSinceMs?: number;
+  rawAgentProgress?: ObservationProgressSnapshot | null;
 };
 
 function intentSummaryLabel(progress: ObservationProgressSnapshot): string {
@@ -51,13 +57,16 @@ function intentSummaryLabel(progress: ObservationProgressSnapshot): string {
 function MetricProgressRow({
   entry,
   compact,
+  stuckPendingHint,
 }: {
   entry: MetricProgressEntry;
   compact: boolean;
+  stuckPendingHint?: string | null;
 }) {
   const percent = metricProgressPercent(entry);
   const indeterminate =
     percent === null && entry.phase !== "completed" && entry.phase !== "failed";
+  const detailLabel = metricProgressDetailLabel(entry, stuckPendingHint);
 
   return (
     <div
@@ -72,11 +81,11 @@ function MetricProgressRow({
           {entry.compoundMetric}
         </span>
         <span className="workspace-observation-progress-metric-detail">
-          {metricProgressDetailLabel(entry)}
+          {detailLabel}
         </span>
       </div>
       <progress
-        aria-label={`${entry.compoundMetric}: ${metricProgressDetailLabel(entry)}`}
+        aria-label={`${entry.compoundMetric}: ${detailLabel}`}
         aria-valuemax={percent !== null ? 100 : undefined}
         aria-valuemin={0}
         aria-valuenow={percent ?? undefined}
@@ -98,10 +107,21 @@ export function ObservationProgressBar({
   intentId,
   compact = false,
   waitingForAgent = false,
+  expectedCompoundMetrics = [],
+  setupErrors = [],
+  awaitingSinceMs,
+  rawAgentProgress = null,
 }: ObservationProgressBarProps) {
   const rootClass = compact
     ? "workspace-observation-progress workspace-observation-progress--compact"
     : "workspace-observation-progress";
+
+  const stuckPendingHint = detectStuckPendingMetrics(
+    progress,
+    expectedCompoundMetrics,
+    setupErrors,
+    { awaitingSinceMs, rawAgentProgress },
+  );
 
   if (!progress) {
     if (!waitingForAgent) {
@@ -115,21 +135,34 @@ export function ObservationProgressBar({
             <span className="workspace-observation-progress-intent">{intentId}</span>
           ) : null}
         </div>
-        <p className="workspace-observation-progress-label">
-          Waiting for tick progress from the observation agent…
-        </p>
+        {stuckPendingHint ? (
+          <p className="workspace-save-error" role="alert">
+            {stuckPendingHint}
+          </p>
+        ) : (
+          <p className="workspace-observation-progress-label">
+            Waiting for tick progress from the observation agent…
+          </p>
+        )}
         <progress className="workspace-observation-progress-meter" />
-        <p className="workspace-hint workspace-observation-progress-indeterminate">
-          Progress appears once the agent starts historic synthetic generation. If this never
-          updates, set OBSERVATION_AGENT_CONTROL_BASE_URL on the Controller to the agent kernel API
-          (e.g. http://127.0.0.1:3012/v1) when the public agent URL does not expose
-          observation-progress.
-        </p>
+        {!stuckPendingHint ? (
+          <p className="workspace-hint workspace-observation-progress-indeterminate">
+            Progress appears once the agent starts historic synthetic generation. If this never
+            updates, set OBSERVATION_AGENT_CONTROL_BASE_URL on the Controller to the agent kernel API
+            (e.g. http://127.0.0.1:3012/v1) when the public agent URL does not expose
+            observation-progress.
+          </p>
+        ) : null}
       </div>
     );
   }
 
   const metrics = progress.metrics;
+  const alertMessage =
+    progress.phase === "failed"
+      ? metrics.find((entry) => entry.phase === "failed" && entry.errorMessage)?.errorMessage ??
+        stuckPendingHint
+      : stuckPendingHint;
 
   return (
     <div className={rootClass}>
@@ -139,12 +172,22 @@ export function ObservationProgressBar({
           <span className="workspace-observation-progress-intent">{intentId}</span>
         ) : null}
       </div>
+      {alertMessage ? (
+        <p className="workspace-save-error" role="alert">
+          {alertMessage}
+        </p>
+      ) : null}
       {metrics.length > 0 ? (
         <>
           <p className="workspace-observation-progress-label">{intentSummaryLabel(progress)}</p>
           <div className="workspace-observation-progress-metric-bars">
             {metrics.map((entry) => (
-              <MetricProgressRow compact={compact} entry={entry} key={entry.compoundMetric} />
+              <MetricProgressRow
+                compact={compact}
+                entry={entry}
+                key={entry.compoundMetric}
+                stuckPendingHint={stuckPendingHint}
+              />
             ))}
           </div>
         </>

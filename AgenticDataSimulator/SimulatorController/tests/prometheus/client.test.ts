@@ -172,6 +172,64 @@ describe("prometheus client", () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
+  it("runs TSDB rewrite fallback for the server-configured start5g-1 Prometheus URL", async () => {
+    process.env.PROMETHEUS_URL = "https://start5g-1.cs.uit.no/prometheus";
+
+    let verifyCalls = 0;
+
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      const method = init?.method ?? "GET";
+
+      if (method === "GET" && url.includes("/api/v1/series")) {
+        return new Response(JSON.stringify({ status: "success", data: [] }), { status: 200 });
+      }
+
+      if (method === "POST" && url.includes("/api/v1/admin/tsdb/delete_series")) {
+        return new Response(null, { status: 204 });
+      }
+
+      if (method === "POST" && url.endsWith("/api/v1/admin/tsdb/clean_tombstones")) {
+        return new Response(null, { status: 200 });
+      }
+
+      if (method === "GET" && url.includes("/api/v1/query")) {
+        verifyCalls += 1;
+        const remaining = verifyCalls === 1 ? "115443" : "0";
+        return new Response(
+          JSON.stringify({
+            status: "success",
+            data: {
+              resultType: "vector",
+              result: [{ metric: {}, value: [1_700_000_000, remaining] }],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+
+      return new Response(null, { status: 500 });
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const prometheusClientModule = await import("../../src/lib/prometheus/client");
+    const rewriteModule = await import("../../src/lib/prometheus/tsdb-intent-rewrite");
+    vi.mocked(rewriteModule.runIntentTsdbRewrite).mockResolvedValue(undefined);
+
+    await expect(
+      prometheusClientModule.clearIntentMetrics(canonicalIntentId, {
+        prometheusBaseUrl: "https://start5g-1.cs.uit.no/prometheus",
+      }),
+    ).resolves.toMatchObject({
+      intentId: canonicalIntentId,
+      verifiedEmpty: true,
+      samplesRemaining: 0,
+      oooRewriteFallbackUsed: true,
+    });
+    expect(rewriteModule.runIntentTsdbRewrite).toHaveBeenCalledWith(canonicalIntentId);
+  });
+
   it("runs TSDB rewrite fallback when delete_series leaves OOO samples", async () => {
     let verifyCalls = 0;
 

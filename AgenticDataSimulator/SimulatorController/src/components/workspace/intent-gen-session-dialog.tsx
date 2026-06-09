@@ -20,6 +20,61 @@ type TranscriptTurn = {
   text: string;
 };
 
+const SIZE_STORAGE_KEY = "openclaw-workspace-a2a-session-dialog-size";
+const DEFAULT_WIDTH = 1024;
+const DEFAULT_HEIGHT = 640;
+const MIN_WIDTH = 480;
+const MIN_HEIGHT = 360;
+const MAX_WIDTH = 1200;
+const MAX_HEIGHT = 960;
+
+type DialogSize = {
+  width: number;
+  height: number;
+};
+
+function clampDialogSize(size: DialogSize): DialogSize {
+  const maxWidth =
+    typeof window === "undefined"
+      ? MAX_WIDTH
+      : Math.min(MAX_WIDTH, window.innerWidth - 48);
+  const maxHeight =
+    typeof window === "undefined"
+      ? MAX_HEIGHT
+      : Math.min(MAX_HEIGHT, window.innerHeight - 48);
+
+  return {
+    width: Math.min(maxWidth, Math.max(MIN_WIDTH, size.width)),
+    height: Math.min(maxHeight, Math.max(MIN_HEIGHT, size.height)),
+  };
+}
+
+function readStoredDialogSize(): DialogSize {
+  if (typeof window === "undefined") {
+    return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
+  }
+
+  const raw = window.localStorage.getItem(SIZE_STORAGE_KEY);
+  if (!raw) {
+    return clampDialogSize({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<DialogSize>;
+    const width =
+      typeof parsed.width === "number" && Number.isFinite(parsed.width)
+        ? parsed.width
+        : DEFAULT_WIDTH;
+    const height =
+      typeof parsed.height === "number" && Number.isFinite(parsed.height)
+        ? parsed.height
+        : DEFAULT_HEIGHT;
+    return clampDialogSize({ width, height });
+  } catch {
+    return clampDialogSize({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+  }
+}
+
 export type IntentGenSessionDialogVariant = "intent-generation" | "observation-report";
 
 export type IntentGenSessionDialogProps = {
@@ -91,6 +146,10 @@ export function IntentGenSessionDialog({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const [dialogSize, setDialogSize] = useState<DialogSize>(() =>
+    clampDialogSize({ width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }),
+  );
+  const dialogSizeRef = useRef(dialogSize);
   const seedStartedRef = useRef(false);
 
   const sessionKey = useMemo(
@@ -163,6 +222,52 @@ export function IntentGenSessionDialog({
       resetSession();
     }
   }, [open, resetSession]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setDialogSize(readStoredDialogSize());
+  }, [open]);
+
+  useEffect(() => {
+    dialogSizeRef.current = dialogSize;
+  }, [dialogSize]);
+
+  const onDialogResizeMouseDown = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startSize = dialogSizeRef.current;
+
+    const onMove = (ev: MouseEvent) => {
+      const deltaX = ev.clientX - startX;
+      const deltaY = ev.clientY - startY;
+      setDialogSize(
+        clampDialogSize({
+          width: startSize.width + deltaX,
+          height: startSize.height + deltaY,
+        }),
+      );
+    };
+
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      try {
+        window.localStorage.setItem(
+          SIZE_STORAGE_KEY,
+          JSON.stringify(dialogSizeRef.current),
+        );
+      } catch {
+        /* ignore quota / private mode */
+      }
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, []);
 
   useEffect(() => {
     seedStartedRef.current = false;
@@ -449,6 +554,10 @@ export function IntentGenSessionDialog({
         className="workspace-intent-dialog"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
+        style={{
+          width: dialogSize.width,
+          height: dialogSize.height,
+        }}
       >
         <h3 id={titleId}>{title}</h3>
         {meta}
@@ -515,26 +624,35 @@ export function IntentGenSessionDialog({
           />
         </div>
 
-        <div className="workspace-intent-dialog-actions">
-          <button
-            className="workspace-button"
-            disabled={sending || !draft.trim().length}
-            onClick={() => {
-              void sendText(draft);
-              setDraft("");
-            }}
-            type="button"
-          >
-            Send
-          </button>
-          <button
-            className="workspace-button workspace-button-secondary"
-            disabled={sending}
-            onClick={onFinished}
-            type="button"
-          >
-            Close
-          </button>
+        <div className="workspace-intent-dialog-footer">
+          <div className="workspace-intent-dialog-actions">
+            <button
+              className="workspace-button"
+              disabled={sending || !draft.trim().length}
+              onClick={() => {
+                void sendText(draft);
+                setDraft("");
+              }}
+              type="button"
+            >
+              Send
+            </button>
+            <button
+              className="workspace-button workspace-button-secondary"
+              disabled={sending}
+              onClick={onFinished}
+              type="button"
+            >
+              Close
+            </button>
+          </div>
+          <div
+            aria-label="Resize dialog"
+            className="workspace-intent-dialog-resizer"
+            onMouseDown={onDialogResizeMouseDown}
+            role="separator"
+            title="Drag to resize"
+          />
         </div>
       </div>
     </div>

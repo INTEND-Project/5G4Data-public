@@ -1,4 +1,5 @@
 import { Parser } from "n3";
+import { isReviewTurnOutput } from "./confirmationState.js";
 import type { ValidatorRules } from "./packageLoader.js";
 import type { IntentFlags } from "./workflowEngine.js";
 
@@ -94,6 +95,14 @@ function looksLikeNarrationLine(line: string): boolean {
   if (/^[\[\](){}.;,\s]+$/.test(trimmed)) return false;
   if (/^\.\s*$/.test(trimmed)) return false;
   if (/^\s+[a-zA-Z]+:/.test(line)) return false;
+  if (/^-\s+/.test(trimmed)) return true;
+  if (
+    /^(?:extracted deployment objectives|extracted sustainability objectives|human review|observation reporting)/i.test(
+      trimmed
+    )
+  ) {
+    return true;
+  }
   return (
     /^(?:here['’]s|here is|below is|the following is|this is|note:|summary:)/i.test(trimmed) ||
     /^[A-Za-z"']/.test(trimmed)
@@ -136,16 +145,65 @@ function collectTurtleSyntaxIssues(text: string): string[] {
   }
 }
 
+function collectNonTurtlePolicyIssues(args: {
+  text: string;
+  validatorRules: ValidatorRules;
+}): string[] {
+  const { text, validatorRules } = args;
+  const issues: string[] = [];
+  const lowered = text.toLowerCase();
+  const hasForbiddenPhrase = validatorRules.forbiddenPhrases.some((phrase) =>
+    lowered.includes(phrase.toLowerCase())
+  );
+  if (hasForbiddenPhrase) {
+    issues.push("Contains narration/progress text or placeholder markers.");
+  }
+  if (lowered.includes("please provide the following details")) {
+    issues.push("Asked for details that should be auto-filled by defaults policy.");
+  }
+  if (lowered.includes("please provide") && lowered.includes("handler")) {
+    issues.push("Asked user for handler though handler is fixed.");
+  }
+  if (lowered.includes("please provide") && lowered.includes("owner")) {
+    issues.push("Asked user for owner though owner is fixed.");
+  }
+  return issues;
+}
+
 export function collectOutputIssues(args: {
   text: string;
   intentFlags: IntentFlags;
   runtimeContext: string;
   validatorRules: ValidatorRules;
+  confirmationAck?: boolean;
+  assistantMarkers?: string[];
 }): string[] {
-  const { text, runtimeContext, validatorRules, intentFlags } = args;
+  const {
+    text,
+    runtimeContext,
+    validatorRules,
+    intentFlags,
+    confirmationAck = false,
+    assistantMarkers
+  } = args;
   const issues: string[] = [];
   const lowered = text.toLowerCase();
   const runtimeLowered = runtimeContext.toLowerCase();
+
+  if (!confirmationAck) {
+    if (isReviewTurnOutput(text, assistantMarkers)) {
+      return collectNonTurtlePolicyIssues({ text, validatorRules });
+    }
+    const candidateTurtle = text.includes("@prefix") ? extractTurtlePayload(text) : text;
+    if (!looksLikeTurtleIntent(candidateTurtle)) {
+      return collectNonTurtlePolicyIssues({ text, validatorRules });
+    }
+    return [
+      ...collectNonTurtlePolicyIssues({ text, validatorRules }),
+      "Final Turtle emitted before user confirmation; produce human review summary ending with Type OK to confirm generation of Turtle.",
+    ];
+  }
+
   const hasForbiddenPhrase = validatorRules.forbiddenPhrases.some((phrase) =>
     lowered.includes(phrase.toLowerCase())
   );
@@ -198,14 +256,6 @@ export function collectOutputIssues(args: {
     }
   }
 
-  if (lowered.includes("please provide the following details")) {
-    issues.push("Asked for details that should be auto-filled by defaults policy.");
-  }
-  if (lowered.includes("please provide") && lowered.includes("handler")) {
-    issues.push("Asked user for handler though handler is fixed.");
-  }
-  if (lowered.includes("please provide") && lowered.includes("owner")) {
-    issues.push("Asked user for owner though owner is fixed.");
-  }
+  issues.push(...collectNonTurtlePolicyIssues({ text, validatorRules }));
   return issues;
 }

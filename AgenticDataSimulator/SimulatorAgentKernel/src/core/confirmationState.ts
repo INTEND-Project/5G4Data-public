@@ -40,3 +40,24 @@ export function lastSubstantiveUserRequest(
   }
   return null;
 }
+
+export const DEFAULT_REVIEW_ASSISTANT_MARKERS = [
+  "type ok to confirm generation of turtle",
+  "type ok to confirm",
+  "confirm to generate final turtle",
+  "please confirm",
+  "confirm or"
+];
+
+export function isReviewTurnOutput(
+  text: string,
+  assistantMarkers: string[] = DEFAULT_REVIEW_ASSISTANT_MARKERS
+): boolean {
+  const lowered = text.toLowerCase();
+  if (assistantMarkers.some((marker) => lowered.includes(marker.toLowerCase()))) {
+    return true;
+  }
+  if (/extracted deployment objectives/i.test(text)) return true;
+  if (/extracted sustainability objectives/i.test(text)) return true;
+  return false;
+}

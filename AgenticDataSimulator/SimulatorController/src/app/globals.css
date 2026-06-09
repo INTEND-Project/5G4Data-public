@@ -1021,20 +1021,29 @@ select.workspace-script-run-select:disabled {
 }
 
 .workspace-intent-dialog {
-  width: min(760px, 100%);
+  position: relative;
+  width: min(1024px, 96vw);
+  height: min(640px, 86vh);
+  min-width: 480px;
+  min-height: 360px;
+  max-width: min(96vw, 1200px);
   max-height: min(86vh, 960px);
   padding: 22px 24px;
   border-radius: 18px;
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .workspace-intent-dialog h3 {
   margin: 0;
   font-size: 1.15rem;
+  flex-shrink: 0;
 }
 
 .workspace-intent-dialog-meta {
@@ -1042,11 +1051,50 @@ select.workspace-script-run-select:disabled {
   font-size: 0.88rem;
   line-height: 1.45;
   color: var(--muted);
+  flex-shrink: 0;
+}
+
+.workspace-intent-dialog-error,
+.workspace-intent-compose,
+.workspace-intent-dialog-footer {
+  flex-shrink: 0;
+}
+
+.workspace-intent-dialog-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.workspace-intent-dialog-resizer {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-bottom: 2px;
+  cursor: nwse-resize;
+  border-radius: 4px;
+  background-color: rgba(125, 180, 255, 0.12);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' aria-hidden='true'%3E%3Cpath fill='%2386bcff' d='M14 14 8 8m6 0-4 4M14 10v4h-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px;
+  touch-action: none;
+  user-select: none;
+}
+
+.workspace-intent-dialog-resizer:hover {
+  background-color: rgba(125, 180, 255, 0.22);
+}
+
+.workspace-intent-dialog-resizer:focus-visible {
+  outline: 2px solid rgba(125, 180, 255, 0.65);
+  outline-offset: 2px;
 }
 
 .workspace-intent-transcript {
-  min-height: 200px;
-  max-height: 42vh;
+  flex: 1;
+  min-height: 120px;
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 14px;

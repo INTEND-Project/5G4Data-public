@@ -1,5 +1,6 @@
 Human review policy:
-- Before final Turtle generation, summarize intended output.
+- Before final Turtle generation, summarize intended output in plain text only.
+- Do not emit `@prefix` declarations or Turtle blocks until the user types OK.
 - If deployment is included, you MUST include an "Extracted deployment objectives" section.
 - In that section, list each objective from runtime context with exact objective name and numeric threshold value.
 - Use explicit bullets in the form: `- <objective-name>: threshold=<value> (source=<tmf-value-hint|value>), quantifier=<quan:larger|quan:smaller> (source=<tmf-quantifier-hint|default>), unit=<unit> (source=<tmf-unit-hint|unspecified>)`.

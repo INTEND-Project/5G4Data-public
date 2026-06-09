@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   assistantRequestedConfirmation,
-  isConfirmationText
+  isConfirmationText,
+  isReviewTurnOutput
 } from "../core/confirmationState.js";
 import type { ChatSession } from "../models.js";
 
@@ -26,4 +27,13 @@ test("assistantRequestedConfirmation detects explicit OK instruction", () => {
     ]
   };
   assert.equal(assistantRequestedConfirmation(session, ["type ok to confirm"]), true);
+});
+
+test("isReviewTurnOutput detects confirmation prompt and objective sections", () => {
+  assert.equal(
+    isReviewTurnOutput("Summary complete. Type OK to confirm generation of Turtle."),
+    true
+  );
+  assert.equal(isReviewTurnOutput("Extracted deployment objectives\n- metric: threshold=1"), true);
+  assert.equal(isReviewTurnOutput("@prefix data5g: <http://example/> .\ndata5g:I1 a icm:Intent ."), false);
 });

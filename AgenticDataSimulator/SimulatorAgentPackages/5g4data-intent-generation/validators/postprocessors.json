@@ -6,6 +6,11 @@
       "when": "always"
     },
     {
+      "id": "workload-expectations",
+      "module": "tools/postprocess/workloadExpectations.ts",
+      "when": "always"
+    },
+    {
       "id": "coordination-utility",
       "module": "tools/postprocess/coordinationUtility.ts",
       "when": "always"

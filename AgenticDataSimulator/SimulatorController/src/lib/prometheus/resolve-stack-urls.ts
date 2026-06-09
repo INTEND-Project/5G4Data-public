@@ -13,19 +13,17 @@ function normalizedHost(baseUrl: string): string {
   }
 }
 
-/** True when Prometheus API base is the lab stack on this host (not a partner/external URL). */
+/** True when Prometheus API base is the managed lab stack (server default or loopback), not a partner URL. */
 export function isLocalPrometheusStack(prometheusBaseUrl: string): boolean {
-  const host = normalizedHost(prometheusBaseUrl);
-  if (!LOCAL_PROMETHEUS_HOSTS.has(host)) {
-    return false;
-  }
+  const candidate = normalizePrometheusBaseUrl(prometheusBaseUrl.trim());
 
   const env = loadAppEnv(process.env);
-  const defaultHost = normalizedHost(env.prometheusUrl);
-  if (LOCAL_PROMETHEUS_HOSTS.has(defaultHost) && host === defaultHost) {
+  const serverDefault = normalizePrometheusBaseUrl(env.prometheusUrl);
+  if (candidate === serverDefault) {
     return true;
   }
 
+  const host = normalizedHost(candidate);
   return LOCAL_PROMETHEUS_HOSTS.has(host);
 }
 

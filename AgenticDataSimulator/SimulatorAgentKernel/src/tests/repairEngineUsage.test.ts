@@ -138,3 +138,40 @@ data5g:REa1b2c3d4e5f6478890abcdef12345679 a icm:ObservationReportingExpectation 
   assert.doesNotMatch(result.text, /Here's/i);
   assert.match(result.text, /@prefix data5g:/);
 });
+
+test("repairEngine returns review fallback instead of hard error before confirmation", async () => {
+  const domainPackage = loadDomainPackage(basePackageDir);
+  const engine = new RepairEngine(async () => ({
+    text: `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://example/icm/> .
+data5g:I11112222333344445555666677778888 a icm:Intent .`,
+    call: {
+      stage: "repair",
+      provider: "openai",
+      model: "gpt-5.3-chat-latest",
+      usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+      latencyMs: 10,
+      usageKnown: true
+    }
+  }));
+
+  const reviewFallback = `Extracted deployment objectives
+- p99-token-target: threshold=400
+Type OK to confirm generation of Turtle.`;
+
+  const result = await engine.repairIfNeeded(
+    reviewFallback,
+    {
+      runtimeContext: "runtime",
+      intentFlags: { deployment: true, locality: true, networkQos: false, sustainability: true },
+      validatorRules: domainPackage.validatorRules,
+      domainPackage,
+      confirmationAck: false
+    },
+    ["system block"],
+    [{ role: "user", content: "generate intent" }]
+  );
+
+  assert.doesNotMatch(result.text, /I cannot produce a valid final Turtle intent yet/);
+  assert.match(result.text, /Type OK to confirm generation of Turtle/i);
+});

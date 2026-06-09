@@ -3,6 +3,7 @@ import {
   extractTurtlePayload,
   looksLikeTurtleIntent
 } from "./outputPolicyValidator.js";
+import { isReviewTurnOutput } from "./confirmationState.js";
 import type { LlmCallRecord, ModelInvocationResult, ModelInvokeOptions } from "../models.js";
 import type { LoadedDomainPackage, ValidatorRules } from "./packageLoader.js";
 import type { IntentFlags } from "./workflowEngine.js";
@@ -17,6 +18,22 @@ export interface RepairContext {
   domainPackage: LoadedDomainPackage;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
+  confirmationAck?: boolean;
+  assistantMarkers?: string[];
+}
+
+function pickNonConfirmedFallbackText(
+  candidates: string[],
+  assistantMarkers?: string[]
+): string {
+  for (const candidate of candidates) {
+    if (candidate.trim().length === 0) continue;
+    if (isReviewTurnOutput(candidate, assistantMarkers)) return candidate;
+  }
+  for (const candidate of candidates) {
+    if (candidate.trim().length > 0) return candidate;
+  }
+  return candidates[0] ?? "";
 }
 
 export class RepairEngine {
@@ -30,6 +47,17 @@ export class RepairEngine {
   private normalizeCandidateText(text: string): string {
     if (!looksLikeTurtleIntent(text)) return text;
     return extractTurtlePayload(text);
+  }
+
+  private collectIssues(text: string, context: RepairContext): string[] {
+    return collectOutputIssues({
+      text,
+      runtimeContext: context.runtimeContext,
+      intentFlags: context.intentFlags,
+      validatorRules: context.validatorRules,
+      confirmationAck: context.confirmationAck,
+      assistantMarkers: context.assistantMarkers
+    });
   }
 
   async repairIfNeeded(
@@ -57,12 +85,7 @@ export class RepairEngine {
       when: "always",
       debug
     });
-    const issues = collectOutputIssues({
-      text: preprocessed,
-      runtimeContext: context.runtimeContext,
-      intentFlags: context.intentFlags,
-      validatorRules: context.validatorRules
-    });
+    const issues = this.collectIssues(preprocessed, context);
     if (issues.length === 0) {
       return { text: this.normalizeCandidateText(preprocessed), debug, calls };
     }
@@ -105,17 +128,20 @@ ${preprocessed}`;
       when: "always",
       debug
     });
-    const postRepairIssues = collectOutputIssues({
-      text: repostprocessed,
-      runtimeContext: context.runtimeContext,
-      intentFlags: context.intentFlags,
-      validatorRules: context.validatorRules
-    });
+    const postRepairIssues = this.collectIssues(repostprocessed, context);
     if (postRepairIssues.length === 0) {
       return { text: this.normalizeCandidateText(repostprocessed), debug, calls };
     }
     debug.push("output_repair_still_invalid=true");
     debug.push(`output_repair_failure_issues=${postRepairIssues.join(" | ")}`);
+    if (!context.confirmationAck) {
+      const fallback = pickNonConfirmedFallbackText(
+        [repostprocessed, repaired.text, preprocessed, responseText],
+        context.assistantMarkers
+      );
+      debug.push("output_repair_non_confirmed_fallback=true");
+      return { text: fallback, debug, calls };
+    }
     const issueSummary = postRepairIssues.map((issue) => `- ${issue}`).join("\n");
     return {
       text: `I cannot produce a valid final Turtle intent yet. Validation still failed after repair:\n${issueSummary}\n\nCheck runtime grounding (catalogue workload, GraphDB locality) or ask me to regenerate with strict validation.`,

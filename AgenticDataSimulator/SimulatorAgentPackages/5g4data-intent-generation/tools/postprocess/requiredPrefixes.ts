@@ -9,8 +9,23 @@ export function applyPostprocessor(args: {
   let text = args.text;
   const toInject: string[] = [];
 
+  if (/\bdct:/.test(text) && !/@prefix\s+dct\s*:/m.test(text)) {
+    toInject.push("@prefix dct: <http://purl.org/dc/terms/> .");
+  }
+  if (/\blog:/.test(text) && !/@prefix\s+log\s*:/m.test(text)) {
+    toInject.push("@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .");
+  }
   if (/\bset:/.test(text) && !/@prefix\s+set\s*:/m.test(text)) {
     toInject.push("@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .");
+  }
+  if (/\bquan:/.test(text) && !/@prefix\s+quan\s*:/m.test(text)) {
+    toInject.push("@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .");
+  }
+  if (/\brdf:/.test(text) && !/@prefix\s+rdf\s*:/m.test(text)) {
+    toInject.push("@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .");
+  }
+  if (/\brdfs:/.test(text) && !/@prefix\s+rdfs\s*:/m.test(text)) {
+    toInject.push("@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .");
   }
   if (/\bgeo:/.test(text) && !/@prefix\s+geo\s*:/m.test(text)) {
     toInject.push("@prefix geo: <http://www.opengis.net/ont/geosparql#> .");
@@ -35,6 +50,9 @@ export function applyPostprocessor(args: {
     !/@prefix\s+time\s*:/m.test(text)
   ) {
     toInject.push("@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .");
+  }
+  if (/\bxsd:/.test(text) && !/@prefix\s+xsd\s*:/m.test(text)) {
+    toInject.push("@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .");
   }
 
   if (toInject.length === 0) {

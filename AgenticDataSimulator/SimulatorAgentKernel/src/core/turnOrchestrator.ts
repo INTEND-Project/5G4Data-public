@@ -169,7 +169,9 @@ export class TurnOrchestrator {
         validatorRules: this.domainPackage.validatorRules,
         domainPackage: this.domainPackage,
         reportingIntervalMinutes: reportingInterval.reportingIntervalMinutes,
-        reportingIntervalSeconds: reportingInterval.reportingIntervalSeconds
+        reportingIntervalSeconds: reportingInterval.reportingIntervalSeconds,
+        confirmationAck,
+        assistantMarkers: confirmationConfig?.assistantMarkers
       },
       systemBlocks,
       history,

@@ -235,7 +235,7 @@ describe("workspace shell bootstrap", () => {
     expect(kgTargetPanelSource).toContain('"use client"');
     expect(kgTargetPanelSource).toContain('useState(defaultKgNameSuffix)');
     expect(kgTargetPanelSource).toContain("buildKgNamePrefix");
-    expect(kgTargetPanelSource).toContain("workspace-share-as-prefix");
+    expect(kgTargetPanelSource).toContain("workspace-kg-name-prefix");
     expect(kgTargetPanelSource).not.toContain('useState("kg-avalanche-demo")');
     expect(kgTargetPanelSource).toContain("fetch(createUrl");
     expect(kgTargetPanelSource).toContain("onTargetCreated");

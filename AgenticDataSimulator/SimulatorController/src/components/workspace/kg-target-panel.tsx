@@ -371,26 +371,26 @@ export function KgTargetPanel({
       <label className="workspace-label" htmlFor="kg-name-suffix">
         Create new KG with name
       </label>
-      <div className="workspace-inline-row">
-        <div className="workspace-share-as-name-row workspace-kg-name-row">
-          <span className="workspace-share-as-prefix">{kgNamePrefix}</span>
+      <div className="workspace-kg-name-stack">
+        <span className="workspace-kg-name-prefix">{kgNamePrefix}</span>
+        <div className="workspace-inline-row">
           <input
             aria-label="Knowledge graph name suffix"
-            className="workspace-input workspace-share-as-name-input"
+            className="workspace-input workspace-share-as-name-input workspace-kg-name-input"
             id="kg-name-suffix"
             onChange={(event) => setNameSuffix(event.target.value)}
             type="text"
             value={nameSuffix}
           />
+          <button
+            className="workspace-button workspace-button-secondary"
+            disabled={isCreating}
+            onClick={() => void handleCreate()}
+            type="button"
+          >
+            {isCreating ? "Creating..." : "Create"}
+          </button>
         </div>
-        <button
-          className="workspace-button workspace-button-secondary"
-          disabled={isCreating}
-          onClick={() => void handleCreate()}
-          type="button"
-        >
-          {isCreating ? "Creating..." : "Create"}
-        </button>
       </div>
       {createError ? (
         <p aria-live="polite" className="workspace-hint">

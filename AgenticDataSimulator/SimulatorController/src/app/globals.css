@@ -333,6 +333,12 @@ a {
   font-size: calc(0.92rem * var(--sidebar-ui-scale, 1));
 }
 
+.workspace-sidebar-column .workspace-kg-name-prefix {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: calc(0.92rem * var(--sidebar-ui-scale, 1));
+}
+
 .workspace-sidebar-column .workspace-agent {
   flex-wrap: wrap;
   min-width: 0;
@@ -439,6 +445,10 @@ a {
   .workspace-sidebar-column .workspace-share-as-prefix {
     max-width: 38%;
     padding: 6px 7px;
+    font-size: 0.72rem;
+  }
+
+  .workspace-sidebar-column .workspace-kg-name-prefix {
     font-size: 0.72rem;
   }
 
@@ -1442,6 +1452,28 @@ select.workspace-script-run-select:disabled {
 .workspace-kg-name-row {
   flex: 1;
   min-width: 0;
+}
+
+.workspace-kg-name-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.workspace-kg-name-prefix {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-kg-name-input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 8px;
 }
 
 .workspace-kg-target-actions {

@@ -4,10 +4,33 @@ export type ParsedSendMessageResult = {
   contextId: string | null;
   visibleText: string;
   needsInput: boolean;
+  turnId?: string;
+  mlflowTraceId?: string;
 } | {
   ok: false;
   errorText: string;
 };
+
+function readOpenClawAgentTrace(result: Record<string, unknown>): {
+  turnId?: string;
+  mlflowTraceId?: string;
+} {
+  const metadata = result.metadata;
+  if (!metadata || typeof metadata !== "object") {
+    return {};
+  }
+  const openclaw = (metadata as { openclaw?: unknown }).openclaw;
+  if (!openclaw || typeof openclaw !== "object") {
+    return {};
+  }
+  const trace = openclaw as { turnId?: unknown; mlflowTraceId?: unknown };
+  const turnId = typeof trace.turnId === "string" && trace.turnId.trim() ? trace.turnId.trim() : undefined;
+  const mlflowTraceId =
+    typeof trace.mlflowTraceId === "string" && trace.mlflowTraceId.trim()
+      ? trace.mlflowTraceId.trim()
+      : undefined;
+  return { turnId, mlflowTraceId };
+}
 
 function textFromParts(parts: unknown): string {
   if (!Array.isArray(parts)) {
@@ -84,6 +107,7 @@ export function interpretSendMessageResult(envelope: unknown): ParsedSendMessage
 
   const taskId = typeof r.id === "string" ? r.id : null;
   const contextId = typeof r.contextId === "string" ? r.contextId : null;
+  const agentTrace = readOpenClawAgentTrace(r);
   const status = r.status as { state?: unknown; message?: { parts?: unknown } } | undefined;
   const state = status?.state;
 
@@ -96,6 +120,7 @@ export function interpretSendMessageResult(envelope: unknown): ParsedSendMessage
       contextId,
       visibleText: hint,
       needsInput: true,
+      ...agentTrace,
     };
   }
 
@@ -109,6 +134,7 @@ export function interpretSendMessageResult(envelope: unknown): ParsedSendMessage
         contextId,
         visibleText: combined,
         needsInput: false,
+        ...agentTrace,
       };
     }
   }
@@ -119,5 +145,6 @@ export function interpretSendMessageResult(envelope: unknown): ParsedSendMessage
     contextId,
     visibleText: JSON.stringify(r, null, 2),
     needsInput: false,
+    ...agentTrace,
   };
 }

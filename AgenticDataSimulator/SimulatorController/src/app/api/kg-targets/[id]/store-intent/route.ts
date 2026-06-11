@@ -8,6 +8,7 @@ import { storePrometheusMetadataForIntent } from "@/lib/kg/store-prometheus-meta
 import { extractIntentLocalIdFromTurtle } from "@/lib/intent/extract-intent-turtle";
 import { normalizeIntentTurtleOnIngest } from "@/lib/intent/normalize-intent-turtle-on-ingest";
 import { parseStorageFromIntentTurtle } from "@/lib/intents/resolve-intent-storage";
+import { spawnOfflineIntentJudge } from "@/lib/mlflow-judges/spawn-offline-judge";
 import { registerUserIntent } from "@/lib/intents/user-intent-registry";
 import { parsePrometheusBaseUrlInput } from "@/lib/prometheus/resolve-base-url";
 import { parseGraphDbBaseUrlInput } from "@/lib/graphdb/resolve-base-url";
@@ -17,6 +18,8 @@ const bodySchema = z.object({
   storage: z.enum(["graphdb", "prometheus"]).optional(),
   prometheusBaseUrl: z.string().trim().optional(),
   graphDbBaseUrl: z.string().trim().optional(),
+  turnId: z.string().trim().optional(),
+  mlflowTraceId: z.string().trim().optional(),
 });
 
 type RouteContext = {
@@ -105,6 +108,8 @@ export async function POST(request: Request, context: RouteContext) {
       intentId,
       storage,
       graphTargetId: target.id,
+      turnId: body.turnId ?? null,
+      mlflowTraceId: body.mlflowTraceId ?? null,
     });
   }
 
@@ -125,11 +130,24 @@ export async function POST(request: Request, context: RouteContext) {
     }
   }
 
+  if (intentId) {
+    spawnOfflineIntentJudge({
+      intentId,
+      repositoryId: target.repositoryId,
+      graphIri: target.graphIri,
+      traceId: body.mlflowTraceId ?? null,
+      turnId: body.turnId ?? null,
+      graphDbBaseUrl,
+    });
+  }
+
   return NextResponse.json({
     ok: true,
     intentId: intentId ?? null,
     graphTargetId: target.id,
     storage,
+    turnId: body.turnId ?? null,
+    mlflowTraceId: body.mlflowTraceId ?? null,
     prometheusMetadata: metadataResult,
   });
 }

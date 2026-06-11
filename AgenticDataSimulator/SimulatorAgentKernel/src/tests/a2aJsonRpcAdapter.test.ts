@@ -48,6 +48,40 @@ test("A2A message/send returns completed task + artifact", async () => {
   assert.equal(body.result?.artifacts?.[0]?.parts?.[0]?.text, "done");
 });
 
+test("A2A message/send includes openclaw trace metadata when turn provides ids", async () => {
+  const adapter = new A2AJsonRpcAdapter({
+    async runTurn() {
+      return {
+        response: "done",
+        warnings: [],
+        debug: [],
+        turnId: "turn-abc",
+        mlflowTraceId: "tr-xyz"
+      };
+    }
+  });
+  const res = await adapter.handleRawBodyAsync(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: "trace-1",
+      method: "message/send",
+      params: {
+        message: {
+          role: "user",
+          parts: [{ kind: "text", text: "ping" }]
+        }
+      }
+    })
+  );
+  const body = JSON.parse(res.body) as {
+    result?: {
+      metadata?: { openclaw?: { turnId?: string; mlflowTraceId?: string } };
+    };
+  };
+  assert.equal(body.result?.metadata?.openclaw?.turnId, "turn-abc");
+  assert.equal(body.result?.metadata?.openclaw?.mlflowTraceId, "tr-xyz");
+});
+
 test("SendMessage alias and multi-turn binds same ChatSession", async () => {
   const sessionsSeen: ChatSession[] = [];
   const adapter = new A2AJsonRpcAdapter({

@@ -12,7 +12,7 @@ const baseConfig: AppConfig = {
   anthropicModel: "claude-3-5-sonnet-latest",
   anthropicBaseUrl: "https://api.anthropic.com",
   openClawModel: "gpt-5.3-chat-latest",
-  openAiTemperature: 0,
+  openAiTemperature: 1,
   workloadCatalogBaseUrl: "",
   graphDbEndpoint: "",
   graphDbNamedGraph: "",
@@ -34,8 +34,58 @@ const baseConfig: AppConfig = {
   apiServerEnabled: false,
   apiServerHost: "0.0.0.0",
   apiServerPort: 3010,
-  agentApiKeyHeader: "X-Api-Key"
+  agentApiKeyHeader: "X-Api-Key",
+  intentReportIntervalMinutes: 10,
+  mlflowTracingEnabled: false,
+  mlflowTrackingStoreExportEnabled: true
 };
+
+test("openai adapter sends configured default temperature", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody: Record<string, unknown> = {};
+  globalThis.fetch = (async (_url, init) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        id: "req_3",
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }) as typeof fetch;
+  try {
+    const invoker = createOpenClawModelInvoker(baseConfig);
+    await invoker([{ role: "user", content: "hi" }], { stage: "main_turn" });
+    assert.equal(requestBody.model, "gpt-5.3-chat-latest");
+    assert.equal(requestBody.temperature, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("openai adapter omits temperature when configured to zero", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody: Record<string, unknown> = {};
+  globalThis.fetch = (async (_url, init) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        id: "req_4",
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }) as typeof fetch;
+  try {
+    const invoker = createOpenClawModelInvoker({ ...baseConfig, openAiTemperature: 0 });
+    await invoker([{ role: "user", content: "hi" }], { stage: "main_turn" });
+    assert.equal("temperature" in requestBody, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 test("openai adapter applies session model and temperature overrides", async () => {
   const originalFetch = globalThis.fetch;

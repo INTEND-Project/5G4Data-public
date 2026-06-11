@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { agentInfoUrlFromAgentRpcUrl } from "@/lib/a2a/agent-control-url";
 import { fetchAgentRpcUrl } from "@/lib/a2a/fetch-agent-card";
 import { buildA2AAuthHeaders } from "@/lib/a2a/auth-headers";
+import { DEFAULT_AGENT_TEMPERATURE } from "@/lib/agents/agent-llm-preferences";
 import { readEnvFileLlmDefaults } from "@/lib/agents/read-kernel-env-llm-defaults";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { loadAppEnv } from "@/lib/env";
@@ -13,7 +14,7 @@ type RouteContext = {
 };
 
 function clampTemperature(value: unknown): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_AGENT_TEMPERATURE;
   return Math.min(2, Math.max(0, value));
 }
 
@@ -117,7 +118,9 @@ export async function GET(request: Request, context: RouteContext) {
 
     return NextResponse.json({
       model,
-      temperature: clampTemperature(payload.temperature ?? envFallback?.temperature ?? 0),
+      temperature: clampTemperature(
+        payload.temperature ?? envFallback?.temperature ?? DEFAULT_AGENT_TEMPERATURE,
+      ),
       source: "agent" as const,
     });
   } catch (err) {

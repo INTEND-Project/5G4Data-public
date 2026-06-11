@@ -211,9 +211,24 @@ export function collectOutputIssues(args: {
     issues.push("Contains narration/progress text or placeholder markers.");
   }
 
+  const candidateTurtle = text.includes("@prefix") ? extractTurtlePayload(text) : text;
+  if (!looksLikeTurtleIntent(candidateTurtle)) {
+    if (isReviewTurnOutput(text, assistantMarkers)) {
+      issues.push(
+        "User confirmed generation; produce final Turtle intent (icm:Intent), not another review summary."
+      );
+    } else {
+      issues.push(
+        "User confirmed generation; response must be valid Turtle with icm:Intent, not prose or partial @prefix."
+      );
+    }
+    issues.push(...collectNonTurtlePolicyIssues({ text, validatorRules }));
+    return issues;
+  }
+
   const turtleLike = text.includes("@prefix");
-  const turtleText = turtleLike ? turtlePayloadForValidation(text) : text;
-  if (turtleLike) {
+  const turtleText = turtleLike ? turtlePayloadForValidation(text) : candidateTurtle;
+  if (turtleLike || looksLikeTurtleIntent(candidateTurtle)) {
     if (
       validatorRules.clarificationTag &&
       runtimeLowered.includes(validatorRules.clarificationTag.toLowerCase())

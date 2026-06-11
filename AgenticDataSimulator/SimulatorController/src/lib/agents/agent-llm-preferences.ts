@@ -9,7 +9,7 @@ export type AgentLlmPreference = {
 
 export type AgentLlmPreferencesMap = Record<string, AgentLlmPreference>;
 
-export const DEFAULT_AGENT_TEMPERATURE = 0;
+export const DEFAULT_AGENT_TEMPERATURE = 1;
 export const DEFAULT_REPORTING_INTERVAL_MINUTES = 10;
 
 export function clampAgentTemperature(value: number): number {

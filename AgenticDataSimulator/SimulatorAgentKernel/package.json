@@ -13,6 +13,9 @@
     "a2a:chat": "node scripts/a2a-interactive.mjs"
   },
   "dependencies": {
+    "@opentelemetry/exporter-trace-otlp-http": "^0.205.0",
+    "@opentelemetry/sdk-trace-base": "^2.1.0",
+    "mlflow-tracing": "^0.1.3",
     "n3": "^1.17.4",
     "rdf-validate-shacl": "^0.6.5",
     "uuid": "^11.0.3",

@@ -1,4 +1,5 @@
 import type { AppConfig } from "../config.js";
+import { traceToolCall } from "../tracing/mlflowTracing.js";
 import { buildToolContext } from "../utils/prompting.js";
 import type { LoadedDomainPackage } from "./packageLoader.js";
 import { CapabilityRouter, type WorkloadPreviewResult } from "./capabilityRouter.js";
@@ -27,7 +28,14 @@ export class RuntimeContextBuilder {
     intentFlags: IntentFlags,
     graphTargetBinding?: GraphTargetBinding | null
   ): Promise<RuntimeContextResult> {
-    const context = await this.router.buildContext(userText, intentFlags, graphTargetBinding);
+    const context = await traceToolCall(
+      "build_runtime_context",
+      {
+        intentFlags,
+        hasGraphTarget: graphTargetBinding != null
+      },
+      () => this.router.buildContext(userText, intentFlags, graphTargetBinding)
+    );
     const runtimeContext = buildToolContext({
       ontologySummary: context.ontologySummary,
       exampleSummary: context.exampleSummary,

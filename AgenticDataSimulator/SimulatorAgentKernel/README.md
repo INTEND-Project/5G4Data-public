@@ -117,6 +117,39 @@ Default debug log file:
 - `API_SERVER_ENABLED`, `API_SERVER_HOST`, `API_SERVER_PORT` (overridden for this process by CLI `--port <n>` when given)
 - `A2A_ENABLED`, `A2A_REGISTRY_BASE_URL`, `A2A_AGENT_BASE_URL`, `A2A_AGENT_CARD_PATH`, `A2A_AUTO_REGISTER_ON_STARTUP`
 - `AGENT_API_KEY`, `AGENT_API_KEY_HEADER` (default header: `X-Api-Key`; see [Authentication](#authentication))
+- `MLFLOW_TRACKING_URI`, `MLFLOW_EXPERIMENT_NAME` or `MLFLOW_EXPERIMENT_ID`, `MLFLOW_TRACING_ENABLED`, `MLFLOW_TRACKING_STORE_EXPORT_ENABLED` (optional judge-ready tracing; see [MLflow tracing](#mlflow-tracing) and [README-MLFLOW.md](../README-MLFLOW.md))
+
+## MLflow tracing
+
+Full architecture (storage, online/offline judges, Docker networking): [README-MLFLOW.md](../README-MLFLOW.md).
+
+When `MLFLOW_TRACKING_URI` is set, each agent turn is exported to MLflow as a trace with:
+
+- Root **AGENT** span (`agent_turn`) with user input, final response, session/turn IDs, and previews for the Traces list
+- Nested **LLM** spans per model call (`main_turn`, `repair`, …) with token usage
+- **TOOL** spans for SHACL validation and GraphDB persistence
+- Tags for `agent.name`, `package.name`, `turn.path` (`llm_turn` vs `repl_package_hook`)
+
+Package defaults in `SimulatorAgentPackages/*/mappings/env.defaults.json` create **one experiment per clone** (for example `5g4data-intent-generating-agent`). Before each agent turn, the kernel re-checks the named experiment. If you soft-deleted it in the MLflow UI, the kernel restores it; if it is gone entirely, the kernel creates a new one.
+
+Provision programmatic online judges (YAML + `provision-judges.mjs`) from [`mlflow/judges/`](../mlflow/judges/README.md). Offline judges post assessments to the same traces after Controller `store-intent` or observation `completed`.
+
+Spans are dual-exported: artifacts (`traces.json`) for the UI plus OTLP to Postgres (`TRACKING_STORE`) for online judges. Disable only the Postgres path with `MLFLOW_TRACKING_STORE_EXPORT_ENABLED=false` (online judges will not run).
+
+**Trace export errors (HTTP 400):** MLflow rejects non-string `request_metadata` values. The kernel normalizes metadata via `normalizeStringRecord()` and flushes after each turn (`flushCompositeTraces()` in `traceAgentTurn`, artifact + OTLP). Verify with `MLFLOW_TRACKING_URI=http://localhost:5000/mlflow` and check both agent experiments in the MLflow UI.
+
+Disable tracing without removing env defaults:
+
+```bash
+MLFLOW_TRACING_ENABLED=false
+```
+
+Diagnostic with TRACKING_STORE export:
+
+```bash
+MLFLOW_TRACKING_URI=http://mlflow:5000/mlflow MLFLOW_EXPERIMENT_ID=4 \
+  npx tsx scripts/diagnose-mlflow-tracking-store.mjs
+```
 
 ## Authentication
 

@@ -2,10 +2,36 @@
  * Ensures common TM Forum / 5G4Data Turtle prefixes are declared when used in the body.
  * LLMs sometimes omit `set:` while still emitting `set:forAll`, which breaks SHACL/RDF parsing.
  */
+function isReviewSummaryText(text: string): boolean {
+  const lowered = text.toLowerCase();
+  if (lowered.includes("type ok to confirm generation of turtle")) return true;
+  if (lowered.includes("type ok to confirm")) return true;
+  if (/extracted deployment objectives/i.test(text)) return true;
+  if (/extracted sustainability objectives/i.test(text)) return true;
+  return false;
+}
+
+/** Match kernel `looksLikeTurtleIntent` — only inject prefixes into final Turtle output. */
+function looksLikeTurtleIntent(text: string): boolean {
+  return (
+    /@prefix\s+\S+/m.test(text) &&
+    (text.includes("icm:Intent") || text.includes("imo:Intent"))
+  );
+}
+
+function shouldInjectRequiredPrefixes(text: string): boolean {
+  if (isReviewSummaryText(text)) return false;
+  return looksLikeTurtleIntent(text);
+}
+
 export function applyPostprocessor(args: {
   text: string;
   context: Record<string, unknown>;
 }): { text: string; changes: number; note?: string } {
+  if (!shouldInjectRequiredPrefixes(args.text)) {
+    return { text: args.text, changes: 0 };
+  }
+
   let text = args.text;
   const toInject: string[] = [];
 

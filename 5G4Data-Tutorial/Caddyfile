@@ -112,6 +112,27 @@ start5g-1.cs.uit.no {
         }
     }
 
+    # MLflow UI/API (host port 5000; subpath — do NOT strip_prefix)
+    redir /mlflow /mlflow/ 308
+
+    @mlflow path /mlflow /mlflow/*
+    @mlflow_allowed {
+        path /mlflow /mlflow/*
+        remote_ip 85.165.67.213
+    }
+
+    handle @mlflow_allowed {
+        reverse_proxy http://host.docker.internal:5000 {
+            header_up Host {host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle @mlflow {
+        respond "Forbidden" 403
+    }
+
     # Main Flask app at root (must be last — catch-all)
     handle {
         reverse_proxy flask-app:5003

@@ -128,6 +128,22 @@ data5g:I11112222333344445555666677778888 a icm:Intent .`,
   assert.equal(issues.some((i) => i.includes("Deployment intent requires")), false);
 });
 
+test("collectOutputIssues rejects review summary after user confirmation", () => {
+  const issues = collectOutputIssues({
+    text: `Extracted deployment objectives
+Type OK to confirm generation of Turtle.`,
+    runtimeContext: "runtime",
+    intentFlags: { deployment: true, locality: false, networkQos: false, sustainability: false },
+    confirmationAck: true,
+    validatorRules: {
+      forbiddenPhrases: [],
+      requiredTokens: ["icm:Intent"],
+      conditionalRequirements: []
+    }
+  });
+  assert.ok(issues.some((i) => i.includes("User confirmed generation")));
+});
+
 test("collectOutputIssues accepts review summary on first turn", () => {
   const issues = collectOutputIssues({
     text: `Extracted deployment objectives

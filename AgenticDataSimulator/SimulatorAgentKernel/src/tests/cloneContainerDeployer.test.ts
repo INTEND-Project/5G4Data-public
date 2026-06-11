@@ -28,6 +28,7 @@ test("renderCloneDockerCompose includes container name and port mapping", () => 
   assert.match(content, /host\.docker\.internal:host-gateway/);
   assert.match(content, /command: \["npx", "tsx", "src\/index\.ts", "--debug"\]/);
   assert.match(content, /- \.\/logs:\/app\/logs/);
+  assert.match(content, /name: mlflow-network/);
 });
 
 test("dockerComposeFileArgs includes override file when present", () => {

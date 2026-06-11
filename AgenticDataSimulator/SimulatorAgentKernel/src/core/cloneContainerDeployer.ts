@@ -68,7 +68,15 @@ export function renderCloneDockerCompose(input: WriteCloneDockerComposeInput): s
       - "host.docker.internal:host-gateway"
     volumes:
       - ./logs:/app/logs
+    networks:
+      - default
+      - mlflow
     restart: unless-stopped
+
+networks:
+  mlflow:
+    external: true
+    name: mlflow-network
 `;
 }
 

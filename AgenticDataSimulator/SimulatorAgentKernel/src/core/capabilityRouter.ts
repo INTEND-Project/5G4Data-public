@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config.js";
 import type { GraphTargetBinding } from "../models.js";
+import { traceToolCall } from "../tracing/mlflowTracing.js";
 import type { ContextRules, LoadedDomainPackage } from "./packageLoader.js";
 import type { IntentFlags } from "./workflowEngine.js";
 import { selectChartFromCatalogue } from "./workloadSelection.js";
@@ -204,7 +205,9 @@ export class CapabilityRouter {
     }
     if (capabilities.has("catalogue_summary")) {
       try {
-        catalogueSummary = await catalogue.catalogueSummaryForLlm();
+        catalogueSummary = await traceToolCall("catalogue_lookup", {}, () =>
+          catalogue.catalogueSummaryForLlm()
+        );
       } catch (error) {
         catalogueSummary = `[catalogue lookup failed] ${String(error)}`;
         warnings.push("Workload catalogue lookup failed.");
@@ -214,11 +217,14 @@ export class CapabilityRouter {
 
     if (capabilities.has("selected_workload_objectives")) {
       try {
-        const selectedChart = await this.selectChart(userText, catalogue);
+        const selectedChart = await traceToolCall("catalogue_select_chart", {}, () =>
+          this.selectChart(userText, catalogue)
+        );
         if (selectedChart) {
           const objectivesSummary = await catalogue.objectivesSummaryForChart(selectedChart);
           knownMetricStems = await this.parseMetricStemsFromObjectivesSummary(objectivesSummary);
           catalogueSummary = `${catalogueSummary}\n\n${rules.prompts.selectedWorkloadTag}\n${objectivesSummary}\nUse these objective thresholds, quantifiers, and units as deployment-condition defaults unless the user overrides.`;
+          debug.push(`selected_workload_chart=${selectedChart}`);
           debug.push(`known_metric_stems=${knownMetricStems.join(",")}`);
           if (knownMetricStems.length === 0) {
             warnings.push(
@@ -249,7 +255,9 @@ export class CapabilityRouter {
 
     if (capabilities.has("graphdb_candidates")) {
       try {
-        graphDbSummary = await this.graphDbSummary(userText, intentFlags, rules, debug, graphdb, locality);
+        graphDbSummary = await traceToolCall("graphdb_locality", { intentFlags }, () =>
+          this.graphDbSummary(userText, intentFlags, rules, debug, graphdb, locality)
+        );
       } catch (error) {
         warnings.push("GraphDB lookup failed.");
         graphDbSummary = `GraphDB lookup failed: ${String(error)}`;
@@ -262,7 +270,9 @@ export class CapabilityRouter {
         warnings.push("No intent_id found in input. Provide intent_id=<id> to load intent details.");
       } else if (typeof graphdb.getIntentTurtle === "function") {
         try {
-          const turtle = await graphdb.getIntentTurtle(intentId);
+          const turtle = await traceToolCall("graphdb_intent_load", { intentId }, () =>
+            graphdb.getIntentTurtle!(intentId)
+          );
           if (turtle && turtle.trim().length > 0) {
             graphDbSummary = `${graphDbSummary}\n\n[Intent Turtle for ${intentId}]\n${turtle}`;
             const metricSummary = await this.extractObservationMetricSummary(turtle);

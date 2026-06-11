@@ -84,9 +84,11 @@ function buildCompletedTaskResult(options: {
   userMessageId: string;
   userText: string;
   agentText: string;
+  turnId?: string;
+  mlflowTraceId?: string;
 }): Record<string, unknown> {
   const timestamp = new Date().toISOString();
-  return {
+  const result: Record<string, unknown> = {
     kind: "task",
     id: options.taskId,
     contextId: options.contextId,
@@ -111,6 +113,18 @@ function buildCompletedTaskResult(options: {
       }
     ]
   };
+
+  if (options.turnId || options.mlflowTraceId) {
+    result.metadata = {
+      openclaw: {
+        agentTraceVersion: "1",
+        ...(options.turnId ? { turnId: options.turnId } : {}),
+        ...(options.mlflowTraceId ? { mlflowTraceId: options.mlflowTraceId } : {})
+      }
+    };
+  }
+
+  return result;
 }
 
 type PreparedSend =
@@ -329,7 +343,9 @@ export class A2AJsonRpcAdapter {
         contextId: prepared.contextId,
         userMessageId: prepared.userMessageId,
         userText: prepared.userText,
-        agentText: turn.response
+        agentText: turn.response,
+        turnId: turn.turnId,
+        mlflowTraceId: turn.mlflowTraceId
       });
       return { httpStatus: 200, body: jsonRpcResult(prepared.id, result) };
     } catch (error) {

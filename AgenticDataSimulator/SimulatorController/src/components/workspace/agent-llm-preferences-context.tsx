@@ -84,7 +84,9 @@ export function useAgentLlmPreferences(agentName: string | null | undefined) {
   if (!context) {
     throw new Error("useAgentLlmPreferences must be used within AgentLlmPreferencesProvider");
   }
-  const preference = agentName ? context.getPreference(agentName) : { model: "", temperature: 0 };
+  const preference = agentName
+    ? context.getPreference(agentName)
+    : { model: "", temperature: DEFAULT_AGENT_TEMPERATURE };
   const hasStored = agentName ? context.hasStoredPreference(agentName) : false;
   const setPreference = useCallback(
     (next: AgentLlmPreference) => {

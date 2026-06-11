@@ -8,6 +8,8 @@ export async function registerUserIntent(input: {
   intentId: string;
   storage?: string | null;
   graphTargetId?: string | null;
+  turnId?: string | null;
+  mlflowTraceId?: string | null;
 }): Promise<void> {
   const intentId = validateIntentIdForPrometheusClear(input.intentId);
   if (!intentId) {
@@ -27,11 +29,15 @@ export async function registerUserIntent(input: {
       intentId,
       storage: input.storage ?? null,
       graphTargetId: input.graphTargetId ?? null,
+      turnId: input.turnId ?? null,
+      mlflowTraceId: input.mlflowTraceId ?? null,
     },
     update: {
       domain: input.domain,
       ...(input.storage !== undefined ? { storage: input.storage } : {}),
       ...(input.graphTargetId !== undefined ? { graphTargetId: input.graphTargetId } : {}),
+      ...(input.turnId !== undefined ? { turnId: input.turnId } : {}),
+      ...(input.mlflowTraceId !== undefined ? { mlflowTraceId: input.mlflowTraceId } : {}),
     },
   });
 }

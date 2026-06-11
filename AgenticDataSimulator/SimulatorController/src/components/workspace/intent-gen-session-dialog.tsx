@@ -348,6 +348,8 @@ export function IntentGenSessionDialog({
           taskId?: string;
           contextId?: string;
           needsInput?: boolean;
+          turnId?: string;
+          mlflowTraceId?: string;
         };
 
         if (!response.ok) {
@@ -423,6 +425,8 @@ export function IntentGenSessionDialog({
                 storage: createIntentStorage ?? undefined,
                 prometheusBaseUrl: prometheusBaseUrl.trim() || undefined,
                 graphDbBaseUrl: graphDbBaseUrl.trim() || undefined,
+                turnId: body.turnId,
+                mlflowTraceId: body.mlflowTraceId,
               }),
             });
             const ingestBody = (await ingestResponse.json().catch(() => ({}))) as {

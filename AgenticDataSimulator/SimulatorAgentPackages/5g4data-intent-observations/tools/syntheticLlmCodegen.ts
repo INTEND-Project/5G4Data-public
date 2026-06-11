@@ -11,6 +11,7 @@ import {
   validateSnippetSamples
 } from "./syntheticSnippetProbe.js";
 import { validateGeneratedSnippet } from "./syntheticSnippetValidate.js";
+import { packageTraceLlmCall } from "./packageMlflowTrace.js";
 
 const MAX_CODEGEN_ATTEMPTS = 4;
 
@@ -249,14 +250,19 @@ async function requestSnippetFromLlm(
     messages
   };
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
+  const res = await packageTraceLlmCall(
+    "synthetic_codegen",
+    { model, messageCount: messages.length },
+    () =>
+      fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      })
+  );
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
     return { ok: false, error: `LLM codegen HTTP ${res.status}: ${errText.slice(0, 512)}` };

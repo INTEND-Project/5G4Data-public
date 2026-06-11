@@ -37,6 +37,12 @@ export interface AppConfig {
   agentApiKeyHeader: string;
   /** Default observation reporting interval for intent generation (minutes). */
   intentReportIntervalMinutes: number;
+  mlflowTracingEnabled: boolean;
+  /** Dual-write spans to Postgres via OTLP for online MLflow judges (default on). */
+  mlflowTrackingStoreExportEnabled: boolean;
+  mlflowTrackingUri?: string;
+  mlflowExperimentId?: string;
+  mlflowExperimentName?: string;
 }
 
 function boolFromEnv(value: string | undefined, fallback: boolean): boolean {
@@ -166,7 +172,7 @@ export function loadConfig(): AppConfig {
       "https://api.anthropic.com"
     ),
     openClawModel: process.env.OPENCLAW_MODEL ?? derivedModel,
-    openAiTemperature: clampTemperature(floatFromEnv(process.env.OPENAI_TEMPERATURE, 0)),
+    openAiTemperature: clampTemperature(floatFromEnv(process.env.OPENAI_TEMPERATURE, 1)),
     workloadCatalogBaseUrl:
       process.env.WORKLOAD_CATALOG_BASE_URL ?? "https://start5g-1.cs.uit.no/wchartmuseum",
     graphDbEndpoint:
@@ -199,7 +205,15 @@ export function loadConfig(): AppConfig {
     agentApiKeyHeader: process.env.AGENT_API_KEY_HEADER?.trim() || "X-Api-Key",
     intentReportIntervalMinutes: clampReportingIntervalMinutes(
       numberFromEnv(process.env.INTENT_REPORT_INTERVAL_MINUTES, 10)
-    )
+    ),
+    mlflowTracingEnabled: boolFromEnv(process.env.MLFLOW_TRACING_ENABLED, true),
+    mlflowTrackingStoreExportEnabled: boolFromEnv(
+      process.env.MLFLOW_TRACKING_STORE_EXPORT_ENABLED,
+      true
+    ),
+    mlflowTrackingUri: process.env.MLFLOW_TRACKING_URI?.trim() || undefined,
+    mlflowExperimentId: process.env.MLFLOW_EXPERIMENT_ID?.trim() || undefined,
+    mlflowExperimentName: process.env.MLFLOW_EXPERIMENT_NAME?.trim() || undefined
   };
 }
 

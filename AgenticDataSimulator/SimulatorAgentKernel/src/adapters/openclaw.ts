@@ -48,7 +48,7 @@ async function invokeOpenAi(
     body: JSON.stringify({
       model,
       messages,
-      temperature
+      ...(temperature !== 0 ? { temperature } : {})
     })
   });
   if (!response.ok) {

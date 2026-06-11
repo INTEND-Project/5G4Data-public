@@ -21,6 +21,7 @@ import {
   resetPrometheusBackendForSession,
   type SessionPrometheusBinding,
 } from "./sessionPrometheusEnv.js";
+import { packageTraceToolCall } from "./packageMlflowTrace.js";
 
 interface ReplObserveHookContext {
   line: string;
@@ -80,6 +81,16 @@ function syntheticPromptCandidates(line: string): string[] {
 }
 
 export async function handleReplLine(
+  ctx: ReplObserveHookContext
+): Promise<{ handled: boolean; assistantText?: string }> {
+  return packageTraceToolCall(
+    "repl_observe",
+    { sessionId: ctx.session.sessionId, linePreview: ctx.line.trim().slice(0, 200) },
+    () => handleReplLineInner(ctx)
+  );
+}
+
+async function handleReplLineInner(
   ctx: ReplObserveHookContext
 ): Promise<{ handled: boolean; assistantText?: string }> {
   applySessionPrometheusBinding(ctx.session);

@@ -209,5 +209,7 @@ export async function POST(request: Request) {
     contextId: interpreted.contextId ?? undefined,
     visibleText: interpreted.visibleText,
     needsInput: interpreted.needsInput,
+    turnId: interpreted.turnId,
+    mlflowTraceId: interpreted.mlflowTraceId,
   });
 }

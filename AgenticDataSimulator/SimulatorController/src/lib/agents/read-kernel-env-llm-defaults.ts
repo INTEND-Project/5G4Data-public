@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { DEFAULT_AGENT_TEMPERATURE } from "@/lib/agents/agent-llm-preferences";
 import {
   INTENT_GENERATING_AGENT_NAME,
   OBSERVATION_GENERATING_AGENT_NAME,
@@ -28,12 +29,12 @@ function readDotEnvKey(envFilePath: string, key: string): string | undefined {
 }
 
 function clampTemperature(value: number): number {
-  if (!Number.isFinite(value)) return 0;
+  if (!Number.isFinite(value)) return DEFAULT_AGENT_TEMPERATURE;
   return Math.min(2, Math.max(0, value));
 }
 
 function parseTemperature(raw: string | undefined): number {
-  if (!raw?.trim()) return 0;
+  if (!raw?.trim()) return DEFAULT_AGENT_TEMPERATURE;
   const parsed = Number.parseFloat(raw.trim());
   return clampTemperature(parsed);
 }

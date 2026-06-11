@@ -54,6 +54,20 @@ export interface AgentTurnResult {
   warnings: string[];
   debug: string[];
   intentUsageSummary?: IntentUsageSummary;
+  /** Per-turn UUID; also MLflow trace client_request_id when tracing is enabled. */
+  turnId?: string;
+  /** MLflow trace id for offline judge correlation (when tracing exported successfully). */
+  mlflowTraceId?: string;
+  /** Substantive user requirement used for generation (may differ from turn input on confirmation). */
+  effectiveUserText?: string;
+  /** Whether the final assistant response contains Turtle intent output. */
+  turtlePresent?: boolean;
+  /** Whether this turn acknowledged a prior confirmation prompt. */
+  confirmationAck?: boolean;
+  /** MLflow trace tags accumulated during the turn (for final merge in traceAgentTurn). */
+  traceTags?: Record<string, string>;
+  /** MLflow trace metadata accumulated during the turn. */
+  traceMetadata?: Record<string, string>;
 }
 
 export interface LlmCallUsage {

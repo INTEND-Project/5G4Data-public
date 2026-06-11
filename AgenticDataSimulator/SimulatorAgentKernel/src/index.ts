@@ -4,6 +4,11 @@ import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { loadConfig, type AppConfig } from "./config.js";
 import { createOpenClawModelInvoker } from "./adapters/openclaw.js";
+import {
+  initializeMlflowTracing,
+  shutdownMlflowTracing,
+  wrapTracedModelInvoker
+} from "./tracing/mlflowTracing.js";
 import { createSession, TurnOrchestrator } from "./core/turnOrchestrator.js";
 import { loadDomainPackage } from "./core/packageLoader.js";
 import {
@@ -34,8 +39,23 @@ export function createAgentRuntime() {
   // Keep compatibility with external SKILL_FILE by prepending it to package system prompt.
   const skillText = readFileSync(config.skillFile, "utf8").trim();
   domainPackage.systemPromptText = `${domainPackage.systemPromptText}\n\n${skillText}`.trim();
-  const invokeModel = createOpenClawModelInvoker(config);
+  const invokeModel = wrapTracedModelInvoker(createOpenClawModelInvoker(config));
   return new TurnOrchestrator(config, domainPackage, invokeModel);
+}
+
+async function bootstrapMlflowTracing(
+  orchestrator: TurnOrchestrator,
+  agentCardName?: string
+): Promise<void> {
+  const config = orchestrator.getAppConfig();
+  const domainPackage = orchestrator.getDomainPackage();
+  const card = buildAgentCard(config, domainPackage);
+  await initializeMlflowTracing(config, {
+    agentName: agentCardName ?? card.name,
+    packageName: domainPackage.manifest.name,
+    packageVersion: domainPackage.manifest.version,
+    apiPort: config.apiServerPort
+  });
 }
 
 function emitA2AResult(label: string, result: { ok: boolean; message: string; wellKnownURI?: string }): void {
@@ -577,6 +597,7 @@ if (process.argv[1]?.endsWith("index.js") || process.argv[1]?.endsWith("index.ts
       process.env.API_SERVER_PORT = String(options.apiServerPort);
     }
     const orchestrator = createAgentRuntime();
+    await bootstrapMlflowTracing(orchestrator);
     const runtimePatches = orchestrator.getDomainPackage().manifest.runtimePatches;
     if (options.noGraphDB) {
       if (runtimePatches?.cliNoGraphDbFlag) {
@@ -631,6 +652,7 @@ if (process.argv[1]?.endsWith("index.js") || process.argv[1]?.endsWith("index.ts
         }
       }
       const shutdown = async () => {
+        await shutdownMlflowTracing();
         await server.close();
         process.exit(0);
       };

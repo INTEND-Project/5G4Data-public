@@ -9,6 +9,7 @@ import {
 } from "../prometheusMetricNaming.js";
 import { PrometheusTool, type PrometheusSample } from "../prometheusTool.js";
 import type { ObservationPersistContext } from "./persistContext.js";
+import { packageTraceToolCall } from "../packageMlflowTrace.js";
 
 export type PrometheusRemoteWriteFlushContext = {
   intentId?: string;
@@ -155,7 +156,16 @@ async function remoteWriteBufferedBatch(
     return { ok: false, sampleCount: 0, error: message };
   }
 
-  const result = await tool.remoteWriteBatch(batch);
+  const result = await packageTraceToolCall(
+    "prometheus_write",
+    {
+      sampleCount: batch.length,
+      intentId: inferFlushIntentId(batch, ctx),
+      metric: ctx?.metric,
+      mode: "remote_write"
+    },
+    () => tool.remoteWriteBatch(batch)
+  );
   if (!result.ok) {
     const message =
       result.error ??
@@ -251,7 +261,16 @@ export function createPrometheusObservationBackend(
         bufferedSamples.push(sample);
         return true;
       }
-      const pushed = await tool.pushSample(sample);
+      const pushed = await packageTraceToolCall(
+        "prometheus_write",
+        {
+          sampleCount: 1,
+          intentId: ctx.intentId,
+          metric: ctx.compoundMetric,
+          mode: "pushgateway"
+        },
+        () => tool.pushSample(sample)
+      );
       if (!pushed && ctx.prometheusWriteMode !== "buffer") {
         const message = `Prometheus Pushgateway push failed for metric ${ctx.compoundMetric}`;
         appendObservationError({

@@ -29,6 +29,14 @@ import { WorkflowEngine } from "./workflowEngine.js";
 import { buildIntentUsageSummary } from "./usage.js";
 import { appendUsageLog } from "./usageLogger.js";
 import { tryReplPackageHook } from "./replPackageHook.js";
+import {
+  isMlflowTracingEnabled,
+  normalizeStringRecord,
+  previewText,
+  traceAgentTurn,
+  traceToolCall
+} from "../tracing/mlflowTracing.js";
+import { updateCurrentTrace } from "mlflow-tracing";
 
 type ModelMessage = { role: "system" | "user" | "assistant"; content: string };
 type GraphDbWriterApi = { insertTurtle: (turtle: string) => Promise<boolean> };
@@ -61,10 +69,27 @@ export class TurnOrchestrator {
       replHookDebugLogPath?: string;
     }
   ): Promise<AgentTurnResult> {
+    const turnId = randomUUID();
+    return traceAgentTurn({
+      sessionId: session.sessionId,
+      turnId,
+      userText,
+      fn: () => this.executeTurn(session, userText, turnId, hooks)
+    });
+  }
+
+  private async executeTurn(
+    session: ChatSession,
+    userText: string,
+    turnId: string,
+    hooks?: {
+      replHookDebug?: boolean;
+      replHookDebugLogPath?: string;
+    }
+  ): Promise<AgentTurnResult> {
     const debug: string[] = [];
     const warnings: string[] = [];
     const calls: LlmCallRecord[] = [];
-    const turnId = randomUUID();
     const hookDebug = hooks?.replHookDebug ?? false;
     const hookDebugLogPath = hooks?.replHookDebugLogPath ?? "logs/openclaw-agent-debug.jsonl";
 
@@ -83,6 +108,11 @@ export class TurnOrchestrator {
     });
 
     if (replHookResult.handled) {
+      if (isMlflowTracingEnabled()) {
+        updateCurrentTrace({
+          tags: { "turn.path": "repl_package_hook" }
+        });
+      }
       session.messages.push({ role: "user", text: userText, createdAt: new Date().toISOString() });
       if (replHookResult.assistantText) {
         session.messages.push({
@@ -115,6 +145,32 @@ export class TurnOrchestrator {
     );
     warnings.push(...context.warnings);
     debug.push(...context.debug, `confirmation_acknowledged=${confirmationAck}`);
+
+    let traceTags: Record<string, unknown> | undefined;
+    let traceMetadata: Record<string, unknown> | undefined;
+    if (isMlflowTracingEnabled()) {
+      const selectedChartLine = context.debug.find((line) =>
+        line.startsWith("selected_workload_chart=")
+      );
+      const selectedChart = selectedChartLine?.split("=")[1] ?? "";
+      traceTags = {
+        "turn.path": "llm_turn",
+        "turn.confirmation_ack": confirmationAck,
+        "intent.effective_user_text": effectiveUserText,
+        "intent.flags.deployment": intentFlags.deployment,
+        "intent.flags.locality": intentFlags.locality,
+        "intent.flags.networkQos": intentFlags.networkQos,
+        "intent.flags.sustainability": intentFlags.sustainability,
+        "intent.flags.coordination": intentFlags.coordination,
+        "intent.flags.observationReport": intentFlags.observationReport ?? false,
+        "context.selected_chart": selectedChart,
+        "session.observation_storage": session.observationStorage ?? "",
+        "session.create_intent_storage": session.createIntentStorage ?? ""
+      };
+      traceMetadata = {
+        "runtime_context_preview": previewText(context.runtimeContext, 500)
+      };
+    }
 
     session.messages.push({ role: "user", text: userText, createdAt: new Date().toISOString() });
 
@@ -182,13 +238,38 @@ export class TurnOrchestrator {
     debug.push(`post_repair_output=${text}`);
     calls.push(...repaired.calls);
 
-    text = this.validateAndRepairWithShacl({
-      text,
-      warnings,
-      debug,
-      runtimeContext: context.runtimeContext
-    });
-    await this.persistGeneratedIntentIfNeeded(text, warnings, debug);
+    const shaclResult = await traceToolCall(
+      "shacl_validate",
+      { hadRepairPass: repaired.calls.length > 0 },
+      async () =>
+        this.validateAndRepairWithShacl({
+          text,
+          warnings,
+          debug,
+          runtimeContext: context.runtimeContext
+        })
+    );
+    text = shaclResult.text;
+
+    const persistResult = await traceToolCall(
+      "graphdb_persist",
+      { noGraphDb: process.env.NO_GRAPHDB === "true" },
+      () => this.persistGeneratedIntentIfNeeded(text, warnings, debug)
+    );
+    const turtlePresent = looksLikeTurtleIntent(text);
+    if (isMlflowTracingEnabled() && traceTags) {
+      Object.assign(traceTags, {
+        "intent.turtle_present": turtlePresent,
+        "shacl.conforms": shaclResult.conforms,
+        "graphdb.persisted": persistResult.persisted,
+        "graphdb.intent_id": persistResult.intentId ?? ""
+      });
+      updateCurrentTrace({
+        requestPreview: previewText(effectiveUserText),
+        tags: normalizeStringRecord(traceTags),
+        metadata: normalizeStringRecord(traceMetadata ?? {})
+      });
+    }
 
     session.messages.push({ role: "assistant", text, createdAt: new Date().toISOString() });
     const intentUsageSummary = buildIntentUsageSummary(calls);
@@ -201,7 +282,17 @@ export class TurnOrchestrator {
       });
     }
     debug.push(`session_messages_after_assistant=${session.messages.length}`, `turn_id=${turnId}`);
-    return { response: text, warnings, debug, intentUsageSummary };
+    return {
+      response: text,
+      warnings,
+      debug,
+      intentUsageSummary,
+      effectiveUserText,
+      turtlePresent,
+      confirmationAck,
+      traceTags: traceTags ? normalizeStringRecord(traceTags) : undefined,
+      traceMetadata: traceMetadata ? normalizeStringRecord(traceMetadata) : undefined
+    };
   }
 
   getDomainPackage(): LoadedDomainPackage {
@@ -233,30 +324,32 @@ export class TurnOrchestrator {
     warnings: string[];
     debug: string[];
     runtimeContext: string;
-  }): string {
-    if (!looksLikeTurtleIntent(args.text)) return args.text;
-    if (!this.config.shaclShapesFile) return args.text;
+  }): { text: string; conforms: boolean } {
+    if (!looksLikeTurtleIntent(args.text)) return { text: args.text, conforms: false };
+    if (!this.config.shaclShapesFile) return { text: args.text, conforms: true };
     let current = this.normalizeTurtleText(args.text);
     for (let attempt = 0; attempt <= this.config.shaclMaxRetries; attempt += 1) {
       const result = this.shaclValidator.validateTurtle(current);
       args.debug.push(`shacl_attempt=${attempt + 1} conforms=${result.conforms}`);
       if (result.conforms) {
         args.warnings.push(attempt > 0 ? "SHACL validation passed after automatic repair." : "SHACL validation passed.");
-        return current;
+        return { text: current, conforms: true };
       }
       if (attempt >= this.config.shaclMaxRetries) {
         args.warnings.push("Final intent did not pass SHACL validation after retry attempts.");
         args.debug.push(`shacl_final_report=${result.reportText}`);
-        return `${current}
+        return {
+          text: `${current}
 
 # SHACL validation result
 # Non-conformant after repair attempts.
-# ${result.reportText}`;
+# ${result.reportText}`,
+          conforms: false
+        };
       }
-      // Keep loop deterministic; repair prompt in full OpenClaw runtime can call model here.
       args.debug.push("shacl_repair_attempt_skipped_model_rewrite=true");
     }
-    return current;
+    return { text: current, conforms: false };
   }
 
   private normalizeTurtleText(text: string): string {
@@ -290,29 +383,34 @@ export class TurnOrchestrator {
     text: string,
     warnings: string[],
     debug: string[]
-  ): Promise<void> {
-    if (!looksLikeTurtleIntent(text)) return;
+  ): Promise<{ persisted: boolean; intentId: string | null; skipped: boolean }> {
+    if (!looksLikeTurtleIntent(text)) {
+      return { persisted: false, intentId: null, skipped: true };
+    }
     if (process.env.NO_GRAPHDB === "true") {
       debug.push("graphdb_persist_skipped=no_graphdb");
-      return;
+      return { persisted: false, intentId: extractIntentIdFromTurtle(text), skipped: true };
     }
     const hadShaclFailure = warnings.some((w) => w.includes("did not pass SHACL validation"));
     if (hadShaclFailure) {
       debug.push("graphdb_persist_note=shacl_nonconformant_still_attempting_store");
     }
     const turtle = this.normalizeTurtleText(text);
+    const intentId = extractIntentIdFromTurtle(turtle);
     try {
       const graphDbWriter = await this.createGraphDbWriterApi();
       const stored = await graphDbWriter.insertTurtle(turtle);
       if (!stored) {
         warnings.push("Generated intent could not be persisted to GraphDB.");
         debug.push("graphdb_persist_ok=false");
-        return;
+        return { persisted: false, intentId, skipped: false };
       }
       debug.push("graphdb_persist_ok=true");
+      return { persisted: true, intentId, skipped: false };
     } catch (error) {
       warnings.push("Generated intent persistence to GraphDB failed.");
       debug.push(`graphdb_persist_error=${String(error)}`);
+      return { persisted: false, intentId, skipped: false };
     }
   }
 
@@ -339,6 +437,11 @@ export function resolveReportingIntervalForPostprocessor(
       ? clampReportingIntervalMinutes(session.reportingIntervalMinutesOverride)
       : clampReportingIntervalMinutes(envDefaultMinutes);
   return { reportingIntervalMinutes: minutes };
+}
+
+function extractIntentIdFromTurtle(turtle: string): string | null {
+  const match = turtle.match(/\bdata5g:(I[0-9a-fA-F]{32})\b/);
+  return match?.[1] ?? null;
 }
 
 function buildReportingIntervalHint(interval: ReportingIntervalForPostprocessor): string {

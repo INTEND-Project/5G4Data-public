@@ -8,6 +8,7 @@ import type { LlmCallRecord, ModelInvocationResult, ModelInvokeOptions } from ".
 import type { LoadedDomainPackage, ValidatorRules } from "./packageLoader.js";
 import type { IntentFlags } from "./workflowEngine.js";
 import { runConfiguredPostprocessors } from "./postprocessorRunner.js";
+import { traceToolCall } from "../tracing/mlflowTracing.js";
 
 export interface RepairContext {
   runtimeContext: string;
@@ -70,22 +71,28 @@ export class RepairEngine {
     const debug: string[] = [];
     const calls: LlmCallRecord[] = [];
     const normalizedInput = this.normalizeCandidateText(responseText);
-    const preprocessed = await runConfiguredPostprocessors({
-      text: normalizedInput,
-      context: {
-        runtimeContext: context.runtimeContext,
-        userPrompt: context.userPrompt,
-        knownMetricStems: context.knownMetricStems,
-        intentFlags: context.intentFlags,
-        validatorRules: context.validatorRules,
-        reportingIntervalMinutes: context.reportingIntervalMinutes,
-        reportingIntervalSeconds: context.reportingIntervalSeconds
-      },
-      domainPackage: context.domainPackage,
-      when: "always",
-      debug
-    });
-    const issues = this.collectIssues(preprocessed, context);
+    const preprocessed = await traceToolCall("postprocessors", { when: "always" }, () =>
+      runConfiguredPostprocessors({
+        text: normalizedInput,
+        context: {
+          runtimeContext: context.runtimeContext,
+          userPrompt: context.userPrompt,
+          knownMetricStems: context.knownMetricStems,
+          intentFlags: context.intentFlags,
+          validatorRules: context.validatorRules,
+          reportingIntervalMinutes: context.reportingIntervalMinutes,
+          reportingIntervalSeconds: context.reportingIntervalSeconds
+        },
+        domainPackage: context.domainPackage,
+        when: "always",
+        debug
+      })
+    );
+    const issues = await traceToolCall(
+      "output_policy_validate",
+      { confirmationAck: context.confirmationAck ?? false },
+      async () => this.collectIssues(preprocessed, context)
+    );
     if (issues.length === 0) {
       return { text: this.normalizeCandidateText(preprocessed), debug, calls };
     }

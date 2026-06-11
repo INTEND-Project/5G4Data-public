@@ -5,6 +5,7 @@ import {
   renameSync,
   writeFileSync,
 } from "node:fs";
+import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 
 import { observationLogsDirectory } from "./observationLog.js";
@@ -45,6 +46,9 @@ export interface ObservationProgressSnapshot {
   updatedAt: string;
   intentId: string;
   sessionId?: string;
+  /** Correlates with MLflow trace when observation was started from an agent turn. */
+  mlflowTraceId?: string;
+  turnId?: string;
   mode: "streaming" | "historic";
   phase: ObservationProgressPhase;
   codegenMetricsDone: number;
@@ -153,9 +157,59 @@ export function readObservationProgress(intentId: string): ObservationProgressSn
   }
 }
 
+function maybeSpawnOfflineObservationJudge(snapshot: ObservationProgressSnapshot): void {
+  if (snapshot.phase !== "completed") return;
+  if (process.env.MLFLOW_OFFLINE_JUDGES_ENABLED === "false") return;
+
+  const candidateScripts = [
+    resolve(process.cwd(), "../mlflow/judges/run-offline-judges.mjs"),
+    resolve(process.cwd(), "../../mlflow/judges/run-offline-judges.mjs"),
+  ];
+  const judgesScript = candidateScripts.find((path) => existsSync(path));
+  if (!judgesScript) return;
+
+  const args = [
+    judgesScript,
+    "observation",
+    "--intent-id",
+    snapshot.intentId,
+    "--progress-dir",
+    observationProgressDirectory(),
+  ];
+  if (snapshot.mlflowTraceId) {
+    args.push("--trace-id", snapshot.mlflowTraceId);
+  }
+
+  const child = spawn(process.execPath, args, {
+    detached: true,
+    stdio: "ignore",
+    env: process.env,
+  });
+  child.unref();
+}
+
+async function readActiveMlflowTraceId(): Promise<string | undefined> {
+  try {
+    const mod = (await import("./packageMlflowTrace.js")) as {
+      packageActiveTraceId?: () => Promise<string | undefined>;
+    };
+    return (await mod.packageActiveTraceId?.()) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function writeObservationProgress(snapshot: ObservationProgressSnapshot): void {
-  const path = observationProgressPathForIntent(snapshot.intentId);
-  writeSnapshotAtomic(path, snapshot);
+  void (async () => {
+    const mlflowTraceId = snapshot.mlflowTraceId ?? (await readActiveMlflowTraceId());
+    const enriched: ObservationProgressSnapshot = {
+      ...snapshot,
+      ...(mlflowTraceId ? { mlflowTraceId } : {}),
+    };
+    const path = observationProgressPathForIntent(snapshot.intentId);
+    writeSnapshotAtomic(path, enriched);
+    maybeSpawnOfflineObservationJudge(enriched);
+  })();
 }
 
 function orderMetricEntries(

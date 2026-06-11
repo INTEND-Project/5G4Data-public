@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 
+import {
+  EditorFontSizeControls,
+  MAX_EDITOR_FONT_SIZE,
+  MIN_EDITOR_FONT_SIZE,
+  persistEditorFontSize,
+  readStoredEditorFontSize,
+} from "@/components/editor/editor-font-size-controls";
 import { ScriptEditor } from "@/components/editor/script-editor";
 import { IntentGenSessionDialog } from "@/components/workspace/intent-gen-session-dialog";
 import { ObservationProgressBar } from "@/components/workspace/observation-progress-bar";
@@ -160,9 +167,11 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
   const [editorHeightPx, setEditorHeightPx] = useState(DEFAULT_EDITOR_HEIGHT);
   const editorHeightPxRef = useRef(editorHeightPx);
+  const [editorFontSizePx, setEditorFontSizePx] = useState(readStoredEditorFontSize);
 
   useEffect(() => {
     setEditorHeightPx(readStoredEditorHeight());
+    setEditorFontSizePx(readStoredEditorFontSize());
   }, []);
 
   useEffect(() => {
@@ -199,6 +208,22 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     },
     [],
   );
+
+  const decreaseEditorFontSize = useCallback(() => {
+    setEditorFontSizePx((current) => {
+      const next = Math.max(MIN_EDITOR_FONT_SIZE, current - 1);
+      persistEditorFontSize(next);
+      return next;
+    });
+  }, []);
+
+  const increaseEditorFontSize = useCallback(() => {
+    setEditorFontSizePx((current) => {
+      const next = Math.min(MAX_EDITOR_FONT_SIZE, current + 1);
+      persistEditorFontSize(next);
+      return next;
+    });
+  }, []);
 
   const scriptNameRef = useRef(activeScriptName);
   scriptNameRef.current = activeScriptName;
@@ -1627,6 +1652,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       ) : null}
       <div className="workspace-editor-resize-block">
         <ScriptEditor
+          fontSizePx={editorFontSizePx}
           heightPx={editorHeightPx}
           key={activeTabKey}
           metricNames={metricNames}
@@ -1702,6 +1728,11 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           >
             {showMetricsBusy ? "Loading…" : "Show metrics"}
           </button>
+          <EditorFontSizeControls
+            fontSizePx={editorFontSizePx}
+            onDecrease={decreaseEditorFontSize}
+            onIncrease={increaseEditorFontSize}
+          />
         </div>
       </div>
       {showMetricsError ? (

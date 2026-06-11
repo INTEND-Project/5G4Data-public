@@ -3,12 +3,14 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 import Editor from "@monaco-editor/react";
 
+import { DEFAULT_EDITOR_FONT_SIZE } from "@/components/editor/editor-font-size-controls";
 import { registerMetricCompletions } from "@/components/editor/register-completions";
 
 type ScriptEditorProps = {
   value: string;
   metricNames: string[];
   heightPx?: number;
+  fontSizePx?: number;
   readOnly?: boolean;
   onChange?: (value: string) => void;
   onSave?: () => void;
@@ -20,6 +22,7 @@ export const ScriptEditor = memo(function ScriptEditor({
   value,
   metricNames,
   heightPx = DEFAULT_EDITOR_HEIGHT_PX,
+  fontSizePx = DEFAULT_EDITOR_FONT_SIZE,
   readOnly = false,
   onChange,
   onSave,
@@ -47,6 +50,7 @@ export const ScriptEditor = memo(function ScriptEditor({
         height={`${heightPx}px`}
         options={{
           automaticLayout: true,
+          fontSize: fontSizePx,
           minimap: { enabled: false },
           readOnly,
           scrollBeyondLastLine: false,

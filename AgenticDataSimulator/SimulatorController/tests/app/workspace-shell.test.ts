@@ -190,6 +190,8 @@ describe("workspace shell bootstrap", () => {
     expect(scriptSessionContextSource).toContain("WorkspaceRunLogUiContext");
     expect(scriptRunnerSource).toContain("Save As");
     expect(scriptRunnerSource).toContain("Show metrics");
+    expect(scriptRunnerSource).toContain("EditorFontSizeControls");
+    expect(scriptRunnerSource).toContain("fontSizePx={editorFontSizePx}");
     expect(scriptRunnerSource).toContain("ShowMetricsDialog");
     expect(scriptRunnerSource).toContain("findCreateIntentStatements");
     expect(workspaceSource).toContain("previewMetricsApiUrl");
@@ -376,6 +378,7 @@ describe("workspace shell bootstrap", () => {
     expect(globalsSource).toContain(".workspace-script-name");
     expect(globalsSource).toContain(".workspace-editor-tab-active");
     expect(globalsSource).toContain(".workspace-editor-height-resizer");
+    expect(globalsSource).toContain(".workspace-editor-font-size-controls");
     expect(globalsSource).toContain("padding: 4px 24px 12px;");
     expect(globalsSource).toContain("padding: 16px 24px 24px;");
     expect(globalsSource).toContain("font-size: 2.3rem;");

@@ -2093,6 +2093,52 @@ select.workspace-script-run-select:disabled {
   flex-wrap: wrap;
   gap: 8px;
   align-self: end;
+  align-items: end;
+}
+
+.workspace-editor-font-size-controls {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  margin-left: 2px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(125, 180, 255, 0.22);
+}
+
+.workspace-editor-font-size-control {
+  border: 0;
+  margin: 0;
+  padding: 0 3px 1px;
+  background: none;
+  color: rgba(190, 214, 245, 0.82);
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.workspace-editor-font-size-control:hover:not(:disabled) {
+  color: #e8f2ff;
+}
+
+.workspace-editor-font-size-control:focus-visible {
+  outline: 2px solid rgba(125, 180, 255, 0.65);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.workspace-editor-font-size-control:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.workspace-editor-font-size-control-decrease {
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.workspace-editor-font-size-control-increase {
+  font-size: 1.22rem;
+  font-weight: 700;
 }
 
 .workspace-save-error {

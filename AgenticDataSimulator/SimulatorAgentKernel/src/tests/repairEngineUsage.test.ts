@@ -13,6 +13,8 @@ test("repairEngine returns usage calls for repair invocation", async () => {
       stage: "repair",
       provider: "openai",
       model: "gpt-5.3-chat-latest",
+      temperature: 1,
+      temperatureSent: true,
       usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
       latencyMs: 10,
       usageKnown: true
@@ -61,6 +63,8 @@ data5g:RE__ID_REPORT_COORDINATION_1__ a icm:ReportingExpectation .`;
       stage: "repair",
       provider: "openai",
       model: "gpt-5.3-chat-latest",
+      temperature: 1,
+      temperatureSent: true,
       usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
       latencyMs: 10,
       usageKnown: true
@@ -108,6 +112,8 @@ data5g:REa1b2c3d4e5f6478890abcdef12345679 a icm:ObservationReportingExpectation 
       stage: "repair",
       provider: "openai",
       model: "gpt-5.3-chat-latest",
+      temperature: 1,
+      temperatureSent: true,
       usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
       latencyMs: 10,
       usageKnown: true
@@ -149,6 +155,8 @@ data5g:I11112222333344445555666677778888 a icm:Intent .`,
       stage: "repair",
       provider: "openai",
       model: "gpt-5.3-chat-latest",
+      temperature: 1,
+      temperatureSent: true,
       usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
       latencyMs: 10,
       usageKnown: true

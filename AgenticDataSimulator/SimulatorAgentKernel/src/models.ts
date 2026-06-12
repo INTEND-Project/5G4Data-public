@@ -80,6 +80,10 @@ export interface LlmCallRecord {
   stage: string;
   provider: "openai" | "anthropic";
   model: string;
+  /** Resolved temperature from session override or config. */
+  temperature: number;
+  /** Whether temperature was included on the provider API request. */
+  temperatureSent: boolean;
   usage: LlmCallUsage;
   latencyMs: number;
   requestId?: string;

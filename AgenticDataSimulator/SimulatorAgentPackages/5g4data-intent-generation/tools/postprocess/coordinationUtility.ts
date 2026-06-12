@@ -12,6 +12,12 @@ import {
   formatDecimal,
 } from "./coordinationUtilityDerive.js";
 
+function isNewSubjectLine(line: string, currentLocal: string | null): boolean {
+  const match = line.match(/^\s*data5g:([A-Za-z0-9_]+)\s+a\b/i);
+  if (!match?.[1]) return false;
+  return currentLocal === null || match[1] !== currentLocal;
+}
+
 function extractSubjectBlock(text: string, local: string): string | null {
   const lines = text.split("\n");
   const subjectRe = new RegExp(String.raw`^\s*data5g:${local}\s+a\b`, "i");
@@ -23,7 +29,7 @@ function extractSubjectBlock(text: string, local: string): string | null {
     }
   }
   if (start < 0) return null;
-  const end = skipSubjectBlockLines(lines, start);
+  const end = skipSubjectBlockLines(lines, start, local);
   return lines.slice(start, end).join("\n");
 }
 
@@ -126,44 +132,157 @@ function collectExpectationConditions(text: string): ParsedCoordinationCondition
   return conditions;
 }
 
-function hasMetricCategory(
-  conditions: ParsedCoordinationCondition[],
-  category: ReturnType<typeof coordinationMetricCategory>,
-): boolean {
-  return conditions.some((condition) => coordinationMetricCategory(condition.metricStem) === category);
+function dedupeByLocal(conditions: ParsedCoordinationCondition[]): ParsedCoordinationCondition[] {
+  const seen = new Set<string>();
+  const out: ParsedCoordinationCondition[] = [];
+  for (const condition of conditions) {
+    if (seen.has(condition.local)) continue;
+    seen.add(condition.local);
+    out.push(condition);
+  }
+  return out;
 }
 
-function pickExpectationCondition(
-  expectationConditions: ParsedCoordinationCondition[],
-  category: ReturnType<typeof coordinationMetricCategory>,
+function isExpectationOwnedCondition(text: string, conditionLocal: string): boolean {
+  return findExpectationLocalContainingCondition(text, conditionLocal) !== null;
+}
+
+const CATEGORY_PROMPT_PATTERNS: Record<
+  ReturnType<typeof coordinationMetricCategory>,
+  RegExp
+> = {
+  throughput: /throughput|token|\btps\b|p99/i,
+  energy: /energy|joule|watt|power|consumption|sustain/i,
+  network: /bandwidth|latency|network|qos|connectivity/i,
+  other: /(?!)/,
+};
+
+function promptMentionsCondition(userText: string, condition: ParsedCoordinationCondition): boolean {
+  const lowered = userText.toLowerCase();
+  const stem = condition.metricStem.toLowerCase();
+  const stemSpaced = stem.replace(/-/g, " ");
+  if (lowered.includes(stem) || lowered.includes(stemSpaced)) return true;
+  const category = coordinationMetricCategory(condition.metricStem);
+  return CATEGORY_PROMPT_PATTERNS[category].test(lowered);
+}
+
+function scorePromptMetricMatch(userText: string, condition: ParsedCoordinationCondition): number {
+  const lowered = userText.toLowerCase();
+  const stem = condition.metricStem.toLowerCase();
+  let score = 0;
+  if (lowered.includes(stem)) score += 10;
+  const stemSpaced = stem.replace(/-/g, " ");
+  if (lowered.includes(stemSpaced)) score += 8;
+  for (const token of stem.split("-")) {
+    if (token.length > 2 && lowered.includes(token)) score += 2;
+  }
+  if (promptMentionsCondition(userText, condition)) score += 1;
+  return score;
+}
+
+function pickBestFromCandidates(
+  candidates: ParsedCoordinationCondition[],
   userText: string,
 ): ParsedCoordinationCondition | undefined {
-  const candidates = expectationConditions.filter(
-    (condition) => coordinationMetricCategory(condition.metricStem) === category,
-  );
   if (candidates.length === 0) return undefined;
-
+  if (candidates.length === 1) return candidates[0];
   const active = candidates.filter(
     (condition) => !isDeprecatedSustainabilityMetricStem(condition.metricStem),
   );
   const pool = active.length > 0 ? active : candidates;
-  const lowered = userText.toLowerCase();
+  return pool.reduce((best, candidate) =>
+    scorePromptMetricMatch(userText, candidate) > scorePromptMetricMatch(userText, best)
+      ? candidate
+      : best,
+  );
+}
 
-  if (category === "energy") {
-    if (/energy consumption|energy-consumption/.test(lowered)) {
-      return pool.find((condition) => condition.metricStem === "energy-consumption") ?? pool[0];
-    }
-    if (/power consumption|power-consumption/.test(lowered)) {
-      return pool.find((condition) => condition.metricStem === "power-consumption") ?? pool[0];
-    }
-    return pool.find((condition) => condition.metricStem === "energy-consumption") ?? pool[0];
+function hasAlignedMetricStem(
+  conditions: ParsedCoordinationCondition[],
+  metricStem: string,
+): boolean {
+  return conditions.some((condition) =>
+    metricStemsAlignForCoordination(condition.metricStem, metricStem),
+  );
+}
+
+function findMatchingExpectationCondition(
+  available: ParsedCoordinationCondition[],
+  metricStem: string,
+  userText: string,
+): ParsedCoordinationCondition | undefined {
+  const exact = available.find((condition) => condition.metricStem === metricStem);
+  if (exact) return exact;
+  const aligned = available.filter((condition) =>
+    metricStemsAlignForCoordination(metricStem, condition.metricStem),
+  );
+  return pickBestFromCandidates(aligned, userText);
+}
+
+function canonicalizeSingleCeCondition(
+  text: string,
+  ceParsed: ParsedCoordinationCondition,
+  available: ParsedCoordinationCondition[],
+  userText: string,
+): ParsedCoordinationCondition | null {
+  if (isExpectationOwnedCondition(text, ceParsed.local)) {
+    const block = extractSubjectBlock(text, ceParsed.local);
+    return block ? parseConditionBlock(block, ceParsed.local) : ceParsed;
   }
+  return findMatchingExpectationCondition(available, ceParsed.metricStem, userText) ?? null;
+}
 
-  if (category === "throughput") {
-    return pool.find((condition) => coordinationMetricCategory(condition.metricStem) === "throughput") ?? pool[0];
+function extractCoordinatesLocals(ceBlock: string): string[] {
+  const match = ceBlock.match(/data5g:coordinates\s+([^;]+)/is);
+  if (!match?.[1]) return [];
+  return [...match[1].matchAll(/data5g:([A-Za-z0-9_]+)/g)].map((m) => m[1]);
+}
+
+function collectConditionsFromExpectationLocals(
+  text: string,
+  expectationLocals: string[],
+): ParsedCoordinationCondition[] {
+  const out: ParsedCoordinationCondition[] = [];
+  for (const expLocal of expectationLocals) {
+    const block = extractSubjectBlock(text, expLocal);
+    if (!block) continue;
+    for (const coLocal of extractLocalsFromAllOf(block).filter((local) => local.startsWith("CO"))) {
+      const coBlock = extractSubjectBlock(text, coLocal);
+      if (!coBlock) continue;
+      const parsed = parseConditionBlock(coBlock, coLocal);
+      if (parsed) out.push(parsed);
+    }
   }
+  return out;
+}
 
-  return pool[0];
+function addPromptMatchedConditions(
+  merged: ParsedCoordinationCondition[],
+  available: ParsedCoordinationCondition[],
+  userText: string,
+): ParsedCoordinationCondition[] {
+  const next = [...merged];
+  for (const candidate of available) {
+    if (!promptMentionsCondition(userText, candidate)) continue;
+    const aligned = next.filter((condition) =>
+      metricStemsAlignForCoordination(condition.metricStem, candidate.metricStem),
+    );
+    if (aligned.length === 0) {
+      next.push(candidate);
+      continue;
+    }
+    const bestExisting = pickBestFromCandidates(aligned, userText)!;
+    if (scorePromptMetricMatch(userText, candidate) <= scorePromptMetricMatch(userText, bestExisting)) {
+      continue;
+    }
+    for (let index = next.length - 1; index >= 0; index -= 1) {
+      if (metricStemsAlignForCoordination(next[index].metricStem, candidate.metricStem)) {
+        next.splice(index, 1);
+      }
+    }
+    next.push(candidate);
+  }
+  return next;
 }
 
 function inferMissingCoordinationConditions(
@@ -171,27 +290,136 @@ function inferMissingCoordinationConditions(
   userText: string,
   conditions: ParsedCoordinationCondition[],
 ): ParsedCoordinationCondition[] {
-  const merged = [...conditions];
-  const lowered = userText.toLowerCase();
-  const wantsThroughput = /throughput|token|\btps\b|p99/.test(lowered);
-  const wantsEnergy = /energy|joule|watt|power|consumption|sustain/.test(lowered);
-  const expectationConditions = collectExpectationConditions(text);
+  const available = collectExpectationConditions(text);
+  let merged = dedupeByLocal([...conditions]);
 
-  const addFromExpectations = (category: ReturnType<typeof coordinationMetricCategory>) => {
-    if (hasMetricCategory(merged, category)) return;
-    const candidate = pickExpectationCondition(expectationConditions, category, userText);
-    if (candidate) merged.push(candidate);
-  };
+  merged = addPromptMatchedConditions(merged, available, userText);
 
-  if (wantsThroughput) addFromExpectations("throughput");
-  if (wantsEnergy) addFromExpectations("energy");
-
-  if (wantsThroughput && wantsEnergy) {
-    addFromExpectations("throughput");
-    addFromExpectations("energy");
+  if (merged.length < 2) {
+    const ceLocal = findCoordinationExpectationLocal(text);
+    const ceBlock = ceLocal ? extractSubjectBlock(text, ceLocal) : null;
+    if (ceBlock) {
+      const coordLocals = extractCoordinatesLocals(ceBlock);
+      if (coordLocals.length > 0) {
+        for (const condition of collectConditionsFromExpectationLocals(text, coordLocals)) {
+          if (!hasAlignedMetricStem(merged, condition.metricStem)) {
+            merged.push(condition);
+          }
+        }
+      }
+    }
   }
 
-  return merged;
+  if (merged.length < 2 && available.length >= 2) {
+    const lowered = userText.toLowerCase();
+    const genericCoord = /coordination|coordinate|incord|symmetric|weighted/.test(lowered);
+    if (genericCoord || merged.length === 0) {
+      for (const condition of available) {
+        if (!hasAlignedMetricStem(merged, condition.metricStem)) {
+          merged.push(condition);
+        }
+      }
+    }
+  }
+
+  return dedupeByLocal(merged);
+}
+
+function canonicalizeCoordinationConditions(
+  text: string,
+  parsedFromCe: ParsedCoordinationCondition[],
+  userText: string,
+): ParsedCoordinationCondition[] {
+  const available = collectExpectationConditions(text);
+  const canonical: ParsedCoordinationCondition[] = [];
+  for (const ceParsed of parsedFromCe) {
+    const resolved = canonicalizeSingleCeCondition(text, ceParsed, available, userText);
+    if (resolved) canonical.push(resolved);
+  }
+  return inferMissingCoordinationConditions(text, userText, canonical);
+}
+
+const DATA5G_IRI = "http://5g4data.eu/5g4data#";
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function removeConditionSubjectBlocks(text: string, locals: Iterable<string>): string {
+  let result = text;
+  for (const local of locals) {
+    const block = extractSubjectBlock(result, local);
+    if (!block) continue;
+    result = result.replace(block, "");
+  }
+  return result.replace(/\n{3,}/g, "\n\n");
+}
+
+function relatedOrphanArtifactLocals(text: string, orphanLocal: string): string[] {
+  const pattern = new RegExp(
+    String.raw`\bdata5g:([A-Za-z0-9_]*${escapeRegExp(orphanLocal)}[A-Za-z0-9_]*)\s+a\b`,
+    "gi",
+  );
+  const locals = new Set<string>();
+  for (const match of text.matchAll(pattern)) {
+    const local = match[1];
+    if (local === orphanLocal) continue;
+    if (
+      /duration|ReportEvent|Report/i.test(local) &&
+      (local.includes(orphanLocal) || local.endsWith(orphanLocal))
+    ) {
+      locals.add(local);
+    }
+  }
+  return [...locals];
+}
+
+function scrubListReferences(block: string, locals: string[]): string {
+  let result = block;
+  const iriBase = escapeRegExp(DATA5G_IRI);
+  for (const local of locals) {
+    const localPattern = escapeRegExp(local);
+    result = result
+      .replace(new RegExp(String.raw`,\s*data5g:${localPattern}\b`, "g"), "")
+      .replace(new RegExp(String.raw`\bdata5g:${localPattern}\s*,`, "g"), "")
+      .replace(new RegExp(String.raw`,\s*<${iriBase}${localPattern}>`, "g"), "")
+      .replace(new RegExp(String.raw`<${iriBase}${localPattern}>\s*,`, "g"), "");
+  }
+  return result
+    .replace(/,\s*,/g, ",")
+    .replace(/;\s*rdfs:member\s*\]/gi, " ]")
+    .replace(/icm:reportTriggers\s*\[\s*a\s+rdfs:Container\s*;\s*\]/gi, "");
+}
+
+function scrubOrphanReferencesFromReporting(text: string, locals: string[]): string {
+  if (locals.length === 0) return text;
+  const reHeader =
+    /data5g:(RE(?:[0-9a-fA-F]{32}|[A-Za-z0-9_]+))\s+a\s+icm:ObservationReportingExpectation/gi;
+  let result = text;
+  let match: RegExpExecArray | null;
+  while ((match = reHeader.exec(text)) !== null) {
+    const reLocal = match[1];
+    const block = extractSubjectBlock(result, reLocal);
+    if (!block) continue;
+    const scrubbed = scrubListReferences(block, locals);
+    if (scrubbed !== block) {
+      result = result.replace(block, scrubbed);
+    }
+  }
+  return result;
+}
+
+function removeOrphanCoordinationArtifacts(text: string, orphanLocals: string[]): string {
+  if (orphanLocals.length === 0) return text;
+  const localsToStrip = new Set<string>(orphanLocals);
+  for (const orphanLocal of orphanLocals) {
+    for (const related of relatedOrphanArtifactLocals(text, orphanLocal)) {
+      localsToStrip.add(related);
+    }
+  }
+  let result = removeConditionSubjectBlocks(text, [...localsToStrip]);
+  result = scrubOrphanReferencesFromReporting(result, [...localsToStrip]);
+  return result.replace(/\n{3,}/g, "\n\n");
 }
 
 function findCoordinationExpectationLocal(text: string): string | null {
@@ -332,12 +560,49 @@ function lineContainsUtilityFunctions(line: string): boolean {
 }
 
 /** Drop a Turtle subject block starting at line index i; returns next line index. */
-function skipSubjectBlockLines(lines: string[], start: number): number {
-  let i = start;
-  while (i < lines.length && !lines[i].trimEnd().endsWith(".")) {
+function lineEndsSubjectTerminator(line: string): boolean {
+  const trimmed = line.trimEnd();
+  if (!trimmed.endsWith(".")) return false;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const char = trimmed[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+    }
+  }
+  return !inString;
+}
+
+function skipSubjectBlockLines(
+  lines: string[],
+  start: number,
+  currentLocal: string | null = subjectLocalFromLine(lines[start] ?? ""),
+): number {
+  let i = start + 1;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim() === "") {
+      i += 1;
+      continue;
+    }
+    if (isNewSubjectLine(line, currentLocal)) {
+      return i;
+    }
+    if (lineEndsSubjectTerminator(line)) {
+      return i + 1;
+    }
     i += 1;
   }
-  return i < lines.length ? i + 1 : i;
+  return i;
 }
 
 function subjectLocalFromLine(line: string): string | null {
@@ -579,19 +844,16 @@ function isUtilitySubjectLocal(local: string): boolean {
 }
 
 function removeUtilityBlocks(text: string): string {
-  const lines = text.split("\n");
-  const out: string[] = [];
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const local = subjectLocalFromLine(lines[i]);
-    if (local && isUtilitySubjectLocal(local)) {
-      i = skipSubjectBlockLines(lines, i) - 1;
-      continue;
-    }
-    out.push(lines[i]);
+  let result = text;
+  const locals = [
+    ...result.matchAll(/\bdata5g:((?:U_coord|UP_coord|utilityFn_[A-Za-z0-9_]+|U_arg_[A-Za-z0-9_-]+))\s+a\b/g),
+  ].map((match) => match[1]);
+  for (const local of locals) {
+    const block = extractSubjectBlock(result, local);
+    if (!block) continue;
+    result = result.replace(block, "");
   }
-
-  return out.join("\n").replace(/\n{3,}/g, "\n\n");
+  return result.replace(/\n{3,}/g, "\n\n");
 }
 
 function insertCePredicates(ceBlock: string, predicates: string[]): string {
@@ -604,11 +866,73 @@ function insertCePredicates(ceBlock: string, predicates: string[]): string {
 function sanitizeCeUtilityLink(ceBlock: string): string {
   return ceBlock
     .replace(
-      /\s*<http:\/\/tio\.models\.tmforum\.org\/tio\/v3\.6\.0\/UtilityFunctions\/utility>\s+data5g:U_coord\s*[;.]/gi,
+      /\s*<http:\/\/tio\.models\.tmforum\.org\/tio\/v3\.6\.0\/UtilityFunctions\/utility>\s+data5g:U_coord\s*[;.]?/gi,
       "",
     )
-    .replace(/\s*ut:utility\s*\[[\s\S]*?\]\s*/gi, "")
-    .replace(/\s*ut:utility\s+data5g:U_coord\s*;/gi, "");
+    .replace(/\s*ut:utility\s*\[[\s\S]*?\]\s*[;.]?/gi, "")
+    .replace(/\s*ut:utility\s+data5g:U_coord\s*[;.]?/gi, "")
+    .replace(/\s*ut:utility\s*;/gi, "")
+    .replace(/;\s*;/g, ";");
+}
+
+function extractCeDescription(ceBlock: string): string | null {
+  const match = ceBlock.match(/dct:description\s+"((?:\\.|[^"\\])*)"\s*[;.]?/i);
+  return match?.[1]?.replace(/\\"/g, '"') ?? null;
+}
+
+function isCeContinuationLine(line: string, ceLocal: string): boolean {
+  if (line.trim() === "") return true;
+  if (isNewSubjectLine(line, ceLocal)) return false;
+  return (
+    /^\s+(?:data5g:coordinates|ut:utility|icm:|log:|dct:)/i.test(line) ||
+    /^\s+<http:/i.test(line)
+  );
+}
+
+function extractCoordinationExpectationRegion(text: string, ceLocal: string): string | null {
+  const lines = text.split("\n");
+  const subjectRe = new RegExp(String.raw`^\s*data5g:${ceLocal}\s+a\b`, "i");
+  let start = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (subjectRe.test(lines[i])) {
+      start = i;
+      break;
+    }
+  }
+  if (start < 0) return null;
+
+  let end = skipSubjectBlockLines(lines, start, ceLocal);
+  while (end < lines.length && isCeContinuationLine(lines[end] ?? "", ceLocal)) {
+    if ((lines[end] ?? "").trim() === "") {
+      end += 1;
+      continue;
+    }
+    if (lineEndsSubjectTerminator(lines[end] ?? "")) {
+      end += 1;
+      break;
+    }
+    end += 1;
+  }
+  return lines.slice(start, end).join("\n").trimEnd();
+}
+
+function rebuildCoordinationExpectationBlock(
+  ceLocal: string,
+  ceBlock: string,
+  conditions: ParsedCoordinationCondition[],
+  coordinateLocals: string[],
+): string {
+  const refs = conditions.map((condition) => `data5g:${condition.local}`).join(", ");
+  const coords = coordinateLocals.map((local) => `data5g:${local}`).join(",\n                       ");
+  const description = extractCeDescription(ceBlock);
+  const descriptionLine = description
+    ? `    dct:description "${description.replace(/"/g, '\\"')}" ;\n`
+    : "";
+  return `data5g:${ceLocal} a data5g:CoordinationExpectation ;
+${descriptionLine}    icm:target data5g:coordination-service ;
+    log:allOf ${refs} ;
+    ut:utility data5g:U_coord ;
+    data5g:coordinates ${coords} .`;
 }
 
 function sanitizeCeTarget(ceBlock: string): string {
@@ -668,17 +992,19 @@ function upsertCeLogAllOf(ceBlock: string, conditionLocals: string[]): string {
   if (conditionLocals.length === 0) return ceBlock;
   const refs = conditionLocals.map((local) => `data5g:${local}`).join(", ");
   if (/log:allOf/i.test(ceBlock)) {
-    return ceBlock.replace(/log:allOf\s+([^;]+);/is, `log:allOf ${refs} ;`);
+    const replaced = ceBlock.replace(/log:allOf\s+([^.;]+)[.;]/is, `log:allOf ${refs} ;`);
+    if (replaced !== ceBlock) return replaced;
   }
   return insertCePredicates(ceBlock, [`log:allOf ${refs} ;`]);
 }
 
 function upsertUtilityLink(ceBlock: string): string {
-  if (/ut:utility\s+data5g:U_coord/i.test(ceBlock)) return ceBlock;
-  if (/log:allOf[^;]*;/is.test(ceBlock)) {
-    return ceBlock.replace(/(log:allOf[^;]*;)/is, `$1\n    ut:utility data5g:U_coord ;`);
+  const block = sanitizeCeUtilityLink(ceBlock);
+  if (/ut:utility\s+data5g:U_coord\s*;/i.test(block)) return block;
+  if (/log:allOf[^;]*;/is.test(block)) {
+    return block.replace(/(log:allOf[^;]*;)/is, `$1\n    ut:utility data5g:U_coord ;`);
   }
-  return insertCePredicates(ceBlock, ["ut:utility data5g:U_coord ;"]);
+  return insertCePredicates(block, ["ut:utility data5g:U_coord ;"]);
 }
 
 export function normalizeCoordinationUtility(args: {
@@ -703,13 +1029,29 @@ export function normalizeCoordinationUtility(args: {
     return { text, changes };
   }
 
-  const conditionLocals = extractLocalsFromAllOf(ceBlock).filter((l) => l.startsWith("CO"));
-  let conditions: ParsedCoordinationCondition[] = [];
-  for (const local of conditionLocals) {
+  const oldCeConditionLocals = extractLocalsFromAllOf(ceBlock).filter((local) =>
+    local.startsWith("CO"),
+  );
+  const parsedFromCe: ParsedCoordinationCondition[] = [];
+  for (const local of oldCeConditionLocals) {
     const parsed = resolveConditionForCoordination(text, local);
-    if (parsed) conditions.push(parsed);
+    if (parsed) parsedFromCe.push(parsed);
   }
-  conditions = inferMissingCoordinationConditions(text, args.userText ?? "", conditions);
+  const conditions = canonicalizeCoordinationConditions(
+    text,
+    parsedFromCe,
+    args.userText ?? "",
+  );
+  const keptConditionLocals = new Set(conditions.map((condition) => condition.local));
+  const orphanCeLocals = oldCeConditionLocals.filter(
+    (local) =>
+      !keptConditionLocals.has(local) && !isExpectationOwnedCondition(text, local),
+  );
+  if (orphanCeLocals.length > 0) {
+    text = removeOrphanCoordinationArtifacts(text, orphanCeLocals);
+    changes = Math.max(changes, 1);
+    ceBlock = extractSubjectBlock(text, ceLocal) ?? ceBlock;
+  }
   if (conditions.length === 0) {
     text = removeUtilityBlocks(text);
     if (ceLocal) {
@@ -739,16 +1081,18 @@ export function normalizeCoordinationUtility(args: {
 
   const coordinateLocals = resolveCoordinateLocals(args.text, conditions);
 
-  ceBlock = sanitizeCeUtilityLink(ceBlock);
-  ceBlock = sanitizeCeTarget(ceBlock);
-  ceBlock = upsertCeLogAllOf(
+  ceBlock = rebuildCoordinationExpectationBlock(
+    ceLocal,
     ceBlock,
-    conditions.map((condition) => condition.local),
+    conditions,
+    coordinateLocals,
   );
-  ceBlock = upsertUtilityLink(ceBlock);
-  ceBlock = upsertCoordinates(ceBlock, coordinateLocals);
 
-  text = text.replace(extractSubjectBlock(text, ceLocal) ?? "", ceBlock);
+  const currentCeRegion = extractCoordinationExpectationRegion(text, ceLocal);
+  if (currentCeRegion) {
+    text = text.replace(currentCeRegion, ceBlock);
+    changes = Math.max(changes, 1);
+  }
 
   const utilityInfo = buildUtilityInformationBlock(specs, conditions, utilityFnLocal);
   const utilityFn = buildUtilityFunctionBlock(utilityFnLocal, specs, conditions);

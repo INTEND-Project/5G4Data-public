@@ -218,9 +218,39 @@ export function buildLlmSpanAttributes(call: LlmCallRecord): Record<string, stri
     "llm.model": call.model,
     "llm.provider": call.provider,
     "llm.stage": call.stage,
+    "llm.temperature": call.temperature,
+    "llm.temperature_sent": call.temperatureSent,
     "llm.request_id": call.requestId ?? "",
     "llm.latency_ms": call.latencyMs,
     "llm.usage_known": call.usageKnown
+  };
+}
+
+/** Trace tags for filtering turns by resolved LLM settings (primary/main call). */
+export function buildLlmTraceTags(call: LlmCallRecord): Record<string, string> {
+  return {
+    "llm.model": call.model,
+    "llm.provider": call.provider,
+    "llm.temperature": String(call.temperature),
+    "llm.temperature_sent": String(call.temperatureSent)
+  };
+}
+
+export function buildLlmSpanInputs(
+  call: LlmCallRecord,
+  options: ModelInvokeOptions,
+  messages: ModelMessage[]
+): Record<string, unknown> {
+  return {
+    stage: call.stage,
+    model: call.model,
+    temperature: call.temperature,
+    temperatureSent: call.temperatureSent,
+    ...(options.llmModel ? { modelOverride: options.llmModel } : {}),
+    ...(options.temperature !== undefined && options.temperature !== null
+      ? { temperatureOverride: options.temperature }
+      : {}),
+    messages: summarizeMessagesForTrace(messages)
   };
 }
 
@@ -346,16 +376,10 @@ export function wrapTracedModelInvoker(invokeModel: ModelInvoker): ModelInvoker 
     return withSpan(
       async (span) => {
         span.setSpanType(SpanType.LLM);
-        span.setInputs({
-          stage,
-          provider: options.llmModel ? "override" : "configured",
-          model: options.llmModel ?? undefined,
-          temperature: options.temperature ?? undefined,
-          messages: summarizeMessagesForTrace(messages)
-        });
         const result = await invokeModel(messages, options);
         setLlmTokenUsage(span, result.call.usage);
         span.setAttributes(buildLlmSpanAttributes(result.call));
+        span.setInputs(buildLlmSpanInputs(result.call, options, messages));
         span.end({
           outputs: {
             text: result.text,

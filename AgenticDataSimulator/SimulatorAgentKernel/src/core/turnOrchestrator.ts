@@ -37,6 +37,7 @@ import {
   traceToolCall
 } from "../tracing/mlflowTracing.js";
 import { updateCurrentTrace } from "mlflow-tracing";
+import { buildLlmTraceTags } from "../tracing/mlflowTracing.js";
 
 type ModelMessage = { role: "system" | "user" | "assistant"; content: string };
 type GraphDbWriterApi = { insertTurtle: (turtle: string) => Promise<boolean> };
@@ -212,6 +213,9 @@ export class TurnOrchestrator {
       this.modelInvokeOptions(session, "main_turn")
     );
     calls.push(mainResult.call);
+    if (traceTags) {
+      Object.assign(traceTags, buildLlmTraceTags(mainResult.call));
+    }
     let text = mainResult.text;
     debug.push(`main_turn_output=${mainResult.text}`);
 

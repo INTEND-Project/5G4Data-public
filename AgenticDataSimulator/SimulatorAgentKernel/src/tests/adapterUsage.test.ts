@@ -56,9 +56,11 @@ test("openai adapter sends configured default temperature", async () => {
   }) as typeof fetch;
   try {
     const invoker = createOpenClawModelInvoker(baseConfig);
-    await invoker([{ role: "user", content: "hi" }], { stage: "main_turn" });
+    const result = await invoker([{ role: "user", content: "hi" }], { stage: "main_turn" });
     assert.equal(requestBody.model, "gpt-5.3-chat-latest");
     assert.equal(requestBody.temperature, 1);
+    assert.equal(result.call.temperature, 1);
+    assert.equal(result.call.temperatureSent, true);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -80,8 +82,10 @@ test("openai adapter omits temperature when configured to zero", async () => {
   }) as typeof fetch;
   try {
     const invoker = createOpenClawModelInvoker({ ...baseConfig, openAiTemperature: 0 });
-    await invoker([{ role: "user", content: "hi" }], { stage: "main_turn" });
+    const result = await invoker([{ role: "user", content: "hi" }], { stage: "main_turn" });
     assert.equal("temperature" in requestBody, false);
+    assert.equal(result.call.temperature, 0);
+    assert.equal(result.call.temperatureSent, false);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -103,13 +107,15 @@ test("openai adapter applies session model and temperature overrides", async () 
   }) as typeof fetch;
   try {
     const invoker = createOpenClawModelInvoker(baseConfig);
-    await invoker([{ role: "user", content: "hi" }], {
+    const result = await invoker([{ role: "user", content: "hi" }], {
       stage: "main_turn",
       llmModel: "gpt-4o-mini",
       temperature: 0.7
     });
     assert.equal(requestBody.model, "gpt-4o-mini");
     assert.equal(requestBody.temperature, 0.7);
+    assert.equal(result.call.temperature, 0.7);
+    assert.equal(result.call.temperatureSent, true);
   } finally {
     globalThis.fetch = originalFetch;
   }

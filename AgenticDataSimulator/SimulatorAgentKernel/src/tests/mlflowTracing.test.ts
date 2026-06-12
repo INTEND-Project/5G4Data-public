@@ -5,6 +5,8 @@ import {
   buildJudgeTraceInputs,
   buildJudgeTraceOutputs,
   buildLlmSpanAttributes,
+  buildLlmSpanInputs,
+  buildLlmTraceTags,
   mergeTraceTagRecords,
   MLFLOW_LLM_MODEL_ATTR,
   MLFLOW_LLM_PROVIDER_ATTR,
@@ -19,19 +21,47 @@ import {
   resolveMlflowExperimentId
 } from "../tracing/experimentResolver.js";
 
+const sampleLlmCall = {
+  stage: "main_turn",
+  provider: "openai" as const,
+  model: "gpt-5.3-chat-latest",
+  temperature: 1,
+  temperatureSent: true,
+  usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+  latencyMs: 120,
+  requestId: "req-1",
+  usageKnown: true
+};
+
 test("buildLlmSpanAttributes includes MLflow cost-tracking keys", () => {
-  const attrs = buildLlmSpanAttributes({
-    stage: "main_turn",
-    provider: "openai",
-    model: "gpt-5.3-chat-latest",
-    usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-    latencyMs: 120,
-    requestId: "req-1",
-    usageKnown: true
-  });
+  const attrs = buildLlmSpanAttributes(sampleLlmCall);
   assert.equal(attrs[MLFLOW_LLM_MODEL_ATTR], "gpt-5.3-chat-latest");
   assert.equal(attrs[MLFLOW_LLM_PROVIDER_ATTR], "openai");
   assert.equal(attrs["llm.model"], "gpt-5.3-chat-latest");
+  assert.equal(attrs["llm.temperature"], 1);
+  assert.equal(attrs["llm.temperature_sent"], true);
+});
+
+test("buildLlmTraceTags exposes resolved model and temperature for trace filters", () => {
+  assert.deepEqual(buildLlmTraceTags(sampleLlmCall), {
+    "llm.model": "gpt-5.3-chat-latest",
+    "llm.provider": "openai",
+    "llm.temperature": "1",
+    "llm.temperature_sent": "true"
+  });
+});
+
+test("buildLlmSpanInputs records resolved call settings and overrides", () => {
+  const inputs = buildLlmSpanInputs(
+    { ...sampleLlmCall, model: "gpt-4o-mini", temperature: 0, temperatureSent: false },
+    { stage: "main_turn", llmModel: "gpt-4o-mini", temperature: 0 },
+    [{ role: "user", content: "hello" }]
+  );
+  assert.equal(inputs.model, "gpt-4o-mini");
+  assert.equal(inputs.temperature, 0);
+  assert.equal(inputs.temperatureSent, false);
+  assert.equal(inputs.modelOverride, "gpt-4o-mini");
+  assert.equal(inputs.temperatureOverride, 0);
 });
 
 test("buildOtlpTracesUrl uses server root v1 traces path", () => {

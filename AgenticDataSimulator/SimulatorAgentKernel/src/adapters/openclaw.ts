@@ -38,6 +38,7 @@ async function invokeOpenAi(
   }
   const model = resolveModel(config, "openai", options.llmModel);
   const temperature = resolveTemperature(config, options.temperature);
+  const temperatureSent = temperature !== 0;
   const started = Date.now();
   const response = await fetch(`${config.openAiBaseUrl.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
@@ -48,7 +49,7 @@ async function invokeOpenAi(
     body: JSON.stringify({
       model,
       messages,
-      ...(temperature !== 0 ? { temperature } : {})
+      ...(temperatureSent ? { temperature } : {})
     })
   });
   if (!response.ok) {
@@ -69,6 +70,8 @@ async function invokeOpenAi(
       stage: options.stage,
       provider: "openai",
       model,
+      temperature,
+      temperatureSent,
       usage: {
         inputTokens,
         outputTokens,
@@ -91,6 +94,7 @@ async function invokeAnthropic(
   }
   const model = resolveModel(config, "anthropic", options.llmModel);
   const temperature = resolveTemperature(config, options.temperature);
+  const temperatureSent = true;
   const started = Date.now();
   const system = messages
     .filter((m) => m.role === "system")
@@ -138,6 +142,8 @@ async function invokeAnthropic(
       stage: options.stage,
       provider: "anthropic",
       model,
+      temperature,
+      temperatureSent,
       usage: {
         inputTokens,
         outputTokens,

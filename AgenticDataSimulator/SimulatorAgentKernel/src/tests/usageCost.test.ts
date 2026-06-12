@@ -10,6 +10,8 @@ test("estimateIntentCost computes openai cost", () => {
       stage: "main_turn",
       provider: "openai",
       model: "gpt-5.3-chat-latest",
+      temperature: 1,
+      temperatureSent: true,
       usage: { inputTokens: 1000, outputTokens: 500, totalTokens: 1500 },
       latencyMs: 100,
       usageKnown: true
@@ -26,6 +28,8 @@ test("buildIntentUsageSummary aggregates multiple calls", () => {
       stage: "main_turn",
       provider: "openai",
       model: "gpt-5.3-chat-latest",
+      temperature: 1,
+      temperatureSent: true,
       usage: { inputTokens: 1000, outputTokens: 500, totalTokens: 1500 },
       latencyMs: 100,
       usageKnown: true
@@ -34,6 +38,8 @@ test("buildIntentUsageSummary aggregates multiple calls", () => {
       stage: "repair",
       provider: "openai",
       model: "gpt-5.3-chat-latest",
+      temperature: 1,
+      temperatureSent: true,
       usage: { inputTokens: 500, outputTokens: 250, totalTokens: 750 },
       latencyMs: 80,
       usageKnown: true

@@ -63,6 +63,11 @@ export interface JudgeTraceOutputs {
   turtlePresent: boolean;
   confirmationAck: boolean;
   warnings: string[];
+  shaclConforms?: string;
+  shaclViolationCount?: string;
+  shaclReport?: string;
+  graphdbPersisted?: string;
+  graphdbIntentId?: string;
 }
 
 export function buildJudgeTraceInputs(args: {
@@ -78,14 +83,22 @@ export function buildJudgeTraceOutputs(args: {
   turtlePresent: boolean;
   confirmationAck: boolean;
   warnings: string[];
+  traceTags?: Record<string, string>;
 }): JudgeTraceOutputs {
-  return {
+  const tags = args.traceTags ?? {};
+  const outputs: JudgeTraceOutputs = {
     requirementText: args.requirementText,
     generatedResponse: args.generatedResponse,
     turtlePresent: args.turtlePresent,
     confirmationAck: args.confirmationAck,
     warnings: args.warnings
   };
+  if (tags["shacl.conforms"]) outputs.shaclConforms = tags["shacl.conforms"];
+  if (tags["shacl.violation_count"]) outputs.shaclViolationCount = tags["shacl.violation_count"];
+  if (tags["shacl.report"]) outputs.shaclReport = tags["shacl.report"];
+  if (tags["graphdb.persisted"]) outputs.graphdbPersisted = tags["graphdb.persisted"];
+  if (tags["graphdb.intent_id"]) outputs.graphdbIntentId = tags["graphdb.intent_id"];
+  return outputs;
 }
 
 /** Merge trace tag records and normalize for MLflow varchar limits. */
@@ -356,6 +369,40 @@ export function wrapTracedModelInvoker(invokeModel: ModelInvoker): ModelInvoker 
   };
 }
 
+function buildToolSpanOutputs(result: unknown): Record<string, unknown> {
+  if (!result || typeof result !== "object") {
+    return { result };
+  }
+
+  const record = result as Record<string, unknown>;
+  if (looksLikeShaclValidationResult(record)) {
+    const violations = Array.isArray(record.violations) ? record.violations : [];
+    const violationMessages = violations
+      .map((violation) =>
+        violation && typeof violation === "object" && "message" in violation
+          ? String((violation as { message: unknown }).message)
+          : ""
+      )
+      .filter(Boolean);
+    return {
+      conforms: record.conforms,
+      attempts: record.attempts,
+      violationCount: violations.length,
+      violations,
+      violationSummary: violationMessages.join("; "),
+      reportText: record.reportText,
+      textChanged: typeof record.text === "string",
+      result
+    };
+  }
+
+  return { result };
+}
+
+function looksLikeShaclValidationResult(record: Record<string, unknown>): boolean {
+  return "conforms" in record && ("reportText" in record || "violations" in record);
+}
+
 export async function traceToolCall<T>(
   toolName: string,
   inputs: Record<string, unknown>,
@@ -371,7 +418,19 @@ export async function traceToolCall<T>(
       span.setInputs(inputs);
       try {
         const result = await fn();
-        span.end({ outputs: { result } });
+        const outputs = buildToolSpanOutputs(result);
+        if (typeof outputs.conforms === "boolean") {
+          span.setAttributes({
+            "shacl.conforms": String(outputs.conforms),
+            "shacl.violation_count": String(outputs.violationCount ?? 0)
+          });
+          if (typeof outputs.reportText === "string" && outputs.reportText) {
+            span.setAttributes({
+              "shacl.report": previewText(outputs.reportText)
+            });
+          }
+        }
+        span.end({ outputs });
         return result;
       } catch (error) {
         span.recordException(error instanceof Error ? error : new Error(String(error)));
@@ -437,7 +496,11 @@ export async function traceAgentTurn<T>(args: {
           generatedResponse: response,
           turtlePresent: judgeFields.turtlePresent ?? false,
           confirmationAck: judgeFields.confirmationAck ?? false,
-          warnings
+          warnings,
+          traceTags: mergeTraceTagRecords(traceTags, {
+            "turn.path": args.turnPath ?? "agent_turn",
+            "turn.warning_count": warnings.length
+          })
         });
 
         updateCurrentTrace({

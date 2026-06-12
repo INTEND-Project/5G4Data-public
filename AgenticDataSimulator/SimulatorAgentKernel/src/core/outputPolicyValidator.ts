@@ -103,9 +103,13 @@ function looksLikeNarrationLine(line: string): boolean {
   ) {
     return true;
   }
+  // Indented typed literals inside blank nodes / mf:logistic(...) must not be stripped as prose.
+  if (/^"[^"]*"\^\^/.test(trimmed)) {
+    return false;
+  }
   return (
     /^(?:here['’]s|here is|below is|the following is|this is|note:|summary:)/i.test(trimmed) ||
-    /^[A-Za-z"']/.test(trimmed)
+    /^[A-Za-z]/.test(trimmed)
   );
 }
 

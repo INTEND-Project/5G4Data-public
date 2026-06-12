@@ -185,6 +185,41 @@ data5g:I11112222333344445555666677778888 a icm:Intent ;
   assert.equal(issues.some((i) => i.includes("Turtle syntax is invalid")), false);
 });
 
+test("extractTurtlePayload preserves mf:logistic typed literal argument lines", () => {
+  const text = `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix fun: <http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/> .
+@prefix mf: <http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+data5g:I11112222333344445555666677778888 a icm:Intent .
+data5g:utilityFn_symmetric a fun:function ;
+    rdf:value [ quan:sum (
+        [ mf:logistic ( data5g:U_arg_p99-token-target
+                        "0.03"^^xsd:decimal
+                        "0.5"^^xsd:decimal
+                        "340"^^xsd:decimal );
+          data5g:standardK "12"^^xsd:decimal ;
+          data5g:x0Fraction "0.85"^^xsd:decimal ]
+    ) ] .`;
+  const extracted = extractTurtlePayload(text);
+  assert.match(extracted, /"0\.03"\^\^xsd:decimal/);
+  assert.match(extracted, /"340"\^\^xsd:decimal \);/);
+  const issues = collectOutputIssues({
+    text,
+    runtimeContext: "runtime",
+    intentFlags: { deployment: true, locality: false, networkQos: false, sustainability: true },
+    confirmationAck: true,
+    validatorRules: {
+      forbiddenPhrases: [],
+      requiredTokens: ["icm:Intent"],
+      conditionalRequirements: []
+    }
+  });
+  assert.equal(issues.some((i) => i.includes("Turtle syntax is invalid")), false);
+});
+
 test("collectOutputIssues flags non-uuid4 local names", () => {
   const issues = collectOutputIssues({
     text: `@prefix data5g: <http://5g4data.eu/5g4data#> .

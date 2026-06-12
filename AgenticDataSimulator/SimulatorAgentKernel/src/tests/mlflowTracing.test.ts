@@ -126,6 +126,37 @@ test("buildJudgeTraceOutputs exports canonical judge contract fields", () => {
   );
 });
 
+test("buildJudgeTraceOutputs includes SHACL and GraphDB fields from trace tags", () => {
+  assert.deepEqual(
+    buildJudgeTraceOutputs({
+      requirementText: "deploy llm near Tromso",
+      generatedResponse: "@prefix icm: ...",
+      turtlePresent: true,
+      confirmationAck: false,
+      warnings: ["SHACL validation failed on attempt 1/3 (2 violation(s)): example"],
+      traceTags: {
+        "shacl.conforms": "false",
+        "shacl.violation_count": "2",
+        "shacl.report": "1. example violation",
+        "graphdb.persisted": "true",
+        "graphdb.intent_id": "Iabc"
+      }
+    }),
+    {
+      requirementText: "deploy llm near Tromso",
+      generatedResponse: "@prefix icm: ...",
+      turtlePresent: true,
+      confirmationAck: false,
+      warnings: ["SHACL validation failed on attempt 1/3 (2 violation(s)): example"],
+      shaclConforms: "false",
+      shaclViolationCount: "2",
+      shaclReport: "1. example violation",
+      graphdbPersisted: "true",
+      graphdbIntentId: "Iabc"
+    }
+  );
+});
+
 test("mergeTraceTagRecords preserves later tags without dropping earlier keys", () => {
   const merged = mergeTraceTagRecords(
     { "agent.name": "intent-agent", "intent.flags.deployment": true },

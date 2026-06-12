@@ -240,7 +240,11 @@ export class TurnOrchestrator {
 
     const shaclResult = await traceToolCall(
       "shacl_validate",
-      { hadRepairPass: repaired.calls.length > 0 },
+      {
+        hadRepairPass: repaired.calls.length > 0,
+        shapesFile: this.config.shaclShapesFile,
+        maxRetries: this.config.shaclMaxRetries
+      },
       async () =>
         this.validateAndRepairWithShacl({
           text,
@@ -261,6 +265,9 @@ export class TurnOrchestrator {
       Object.assign(traceTags, {
         "intent.turtle_present": turtlePresent,
         "shacl.conforms": shaclResult.conforms,
+        "shacl.attempts": String(shaclResult.attempts),
+        "shacl.violation_count": String(shaclResult.violations.length),
+        "shacl.report": previewText(shaclResult.reportText),
         "graphdb.persisted": persistResult.persisted,
         "graphdb.intent_id": persistResult.intentId ?? ""
       });
@@ -319,37 +326,102 @@ export class TurnOrchestrator {
     return this.contextBuilder.resolveWorkloadPreview(userText, intentFlags, graphTargetBinding);
   }
 
-  private validateAndRepairWithShacl(args: {
+  private async validateAndRepairWithShacl(args: {
     text: string;
     warnings: string[];
     debug: string[];
     runtimeContext: string;
-  }): { text: string; conforms: boolean } {
-    if (!looksLikeTurtleIntent(args.text)) return { text: args.text, conforms: false };
-    if (!this.config.shaclShapesFile) return { text: args.text, conforms: true };
+  }): Promise<{
+    text: string;
+    conforms: boolean;
+    attempts: number;
+    violations: Array<{ focusNode?: string; path?: string; message: string }>;
+    reportText: string;
+  }> {
+    const emptyViolationResult = {
+      violations: [] as Array<{ focusNode?: string; path?: string; message: string }>,
+      reportText: ""
+    };
+    if (!looksLikeTurtleIntent(args.text)) {
+      return {
+        text: args.text,
+        conforms: false,
+        attempts: 0,
+        ...emptyViolationResult,
+        reportText: "SHACL validation skipped: output does not look like Turtle intent."
+      };
+    }
+    if (!this.config.shaclShapesFile) {
+      return {
+        text: args.text,
+        conforms: true,
+        attempts: 0,
+        ...emptyViolationResult,
+        reportText: "SHACL validation skipped (no shapes file configured)."
+      };
+    }
+
     let current = this.normalizeTurtleText(args.text);
+    let lastResult = {
+      conforms: false,
+      violations: [] as Array<{ focusNode?: string; path?: string; message: string }>,
+      reportText: ""
+    };
     for (let attempt = 0; attempt <= this.config.shaclMaxRetries; attempt += 1) {
-      const result = this.shaclValidator.validateTurtle(current);
-      args.debug.push(`shacl_attempt=${attempt + 1} conforms=${result.conforms}`);
-      if (result.conforms) {
-        args.warnings.push(attempt > 0 ? "SHACL validation passed after automatic repair." : "SHACL validation passed.");
-        return { text: current, conforms: true };
+      lastResult = await this.shaclValidator.validateTurtle(current);
+      args.debug.push(
+        `shacl_attempt=${attempt + 1} conforms=${lastResult.conforms} violations=${lastResult.violations.length}`
+      );
+      if (lastResult.violations.length > 0) {
+        args.debug.push(`shacl_violations=${JSON.stringify(lastResult.violations)}`);
+        args.debug.push(`shacl_report=${lastResult.reportText}`);
       }
+
+      if (lastResult.conforms) {
+        args.warnings.push(
+          attempt > 0 ? "SHACL validation passed after automatic repair." : "SHACL validation passed."
+        );
+        return {
+          text: current,
+          conforms: true,
+          attempts: attempt + 1,
+          violations: lastResult.violations,
+          reportText: lastResult.reportText
+        };
+      }
+
+      const violationSummary = lastResult.violations
+        .map((violation) => violation.message)
+        .join("; ");
+      args.warnings.push(
+        `SHACL validation failed on attempt ${attempt + 1}/${this.config.shaclMaxRetries + 1} (${lastResult.violations.length} violation(s)): ${violationSummary}`
+      );
+
       if (attempt >= this.config.shaclMaxRetries) {
         args.warnings.push("Final intent did not pass SHACL validation after retry attempts.");
-        args.debug.push(`shacl_final_report=${result.reportText}`);
+        args.debug.push(`shacl_final_report=${lastResult.reportText}`);
         return {
           text: `${current}
 
 # SHACL validation result
 # Non-conformant after repair attempts.
-# ${result.reportText}`,
-          conforms: false
+# ${lastResult.reportText}`,
+          conforms: false,
+          attempts: attempt + 1,
+          violations: lastResult.violations,
+          reportText: lastResult.reportText
         };
       }
       args.debug.push("shacl_repair_attempt_skipped_model_rewrite=true");
     }
-    return { text: current, conforms: false };
+
+    return {
+      text: current,
+      conforms: false,
+      attempts: this.config.shaclMaxRetries + 1,
+      violations: lastResult.violations,
+      reportText: lastResult.reportText
+    };
   }
 
   private normalizeTurtleText(text: string): string {

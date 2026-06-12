@@ -33,6 +33,7 @@ export function spawnOfflineIntentJudge(input: {
   const child = spawn(process.execPath, args, {
     detached: true,
     stdio: "ignore",
+    cwd: judgesRoot,
     env: process.env,
   });
   child.unref();
@@ -59,6 +60,7 @@ export function spawnOfflineObservationJudge(input: {
   const child = spawn(process.execPath, args, {
     detached: true,
     stdio: "ignore",
+    cwd: judgesRoot,
     env: process.env,
   });
   child.unref();

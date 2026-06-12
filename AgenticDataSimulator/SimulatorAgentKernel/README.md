@@ -15,7 +15,7 @@ Related guide:
 - Package-driven orchestration (`src/core/turnOrchestrator.ts`)
 - Package-provided domain tools loaded at runtime from the active package
 - Output policy validation + repair loop (`src/core/outputPolicyValidator.ts`, `src/core/repairEngine.ts`)
-- SHACL validation loop scaffolding (`src/core/shaclValidatorTool.ts`)
+- SHACL validation via `rdf-validate-shacl` plus SPARQL coverage checks (`src/core/shaclValidatorTool.ts`)
 - OpenAI/Anthropic integration adapter (`src/adapters/openclaw.ts`)
 - A2A v0.3 API key authentication on the HTTP control API (agent card, OpenAPI, JSON-RPC, REST sessions); `GET /health` stays public
 

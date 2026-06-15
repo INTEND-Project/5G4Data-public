@@ -309,7 +309,6 @@ create intent using intentGen storage prometheus prompt "Deploy a small llm in a
 The generated intent is:
 
 ```turtle
-
 @prefix data5g: <http://5g4data.eu/5g4data#> .
 @prefix dct: <http://purl.org/dc/terms/> .
 @prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
@@ -325,174 +324,151 @@ The generated intent is:
 @prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-data5g:I78316cafbf4e4195b1e668a6ebe6ab55 a icm:Intent ;
-    dct:description "Deploy a small LLM near Tromsø with symmetric coordination between throughput and energy consumption." ;
-    imo:handler "inSustain" ;
+data5g:I37aa3663a5fe43ae824657843cb0caa2 a icm:Intent ;
+    dct:description "Deploy a small llm in a datacenter near Tromsø/Norway with symmetric coordination on token throughput and energy consumption" ;
+    imo:handler "inCoord" ;
     imo:owner "inChat" ;
-    log:allOf data5g:CEa2e3686c731f447391197c85b4b8d1b8, 
-              data5g:DE21b3425e96b64195a1258d273db8df74, 
-              data5g:RE2fcc86687ca14cbc8e6a090052bc3a50, 
-              data5g:RE98eaffd6dbc1494389cc3b9a1834dbf4, 
-              data5g:REa657d3238c244b8a9fca66ae1877b10b, 
-              data5g:SE58b52d5c36ff421d8cc260f660f6a826 .
+    log:allOf data5g:CE5ff6e3e5e55d424689cd03d27a6356ce, 
+              data5g:DEda4fa1b78c1744afa2914b8a6c9c8eba, 
+              data5g:RE24a1ed9a19e84106847da2ec601bb3f1, 
+              data5g:RE542c7e4fb2a44789a27f6142219a9ac6, 
+              data5g:RE5b82c40ebf3f4905b940b50d1c1b8fb8, 
+              data5g:SE3a062d7f9c0c4b02a635a8f5b5985b5d .
 
-data5g:DE21b3425e96b64195a1258d273db8df74 a data5g:DeploymentExpectation,
+data5g:DEda4fa1b78c1744afa2914b8a6c9c8eba a data5g:DeploymentExpectation,
     icm:Expectation,
     icm:IntentElement  ;
-    dct:description "Deploy rusty-llm with required token throughput performance." ;
     icm:target data5g:deployment ;
-    log:allOf data5g:COf85cf17329f54877a92e666e31290cd0, 
-              data5g:CX1853574e1d5243a0989a0fde2c7b8f85 .
+    imo:eventFor data5g:DEda4fa1b78c1744afa2914b8a6c9c8eba ;
+    log:allOf data5g:CO63add1afcccd4daa81dc378a872a49fb, 
+              data5g:CX95568df61c5549c896f045f3c5b3cf25 ;
+    time:delay ( data5g:lastReportInstant data5g:durationDeployment_CO63add1afcccd4daa81dc378a872a49fb ) ;
+    rdfs:subClassOf imo:Event .
 
-data5g:COf85cf17329f54877a92e666e31290cd0 a icm:Condition ;
+data5g:CO63add1afcccd4daa81dc378a872a49fb a icm:Condition ;
     dct:description "p99-token-target condition quan:larger: 400 token/s" ;
     set:forAll [
-        icm:valuesOfTargetProperty data5g:p99-token-target_COf85cf17329f54877a92e666e31290cd0 ;
+        icm:valuesOfTargetProperty data5g:p99-token-target_CO63add1afcccd4daa81dc378a872a49fb ;
         quan:larger [
             quan:unit "token/s" ;
             rdf:value 400
             ]
         ] .
 
-data5g:CX1853574e1d5243a0989a0fde2c7b8f85 a icm:Context ;
+data5g:CX95568df61c5549c896f045f3c5b3cf25 a icm:Context ;
     data5g:Application "rusty-llm" ;
     data5g:DataCenter "EC_31" ;
-    data5g:DeploymentDescriptor "https://start5g-1.cs.uit.no/wchartmuseum/api/charts/rusty-llm/0.1.24" .
+    data5g:DeploymentDescriptor "https://start5g-1.cs.uit.no/wchartmuseum/api/charts/rusty-llm/0.1.26" .
 
-data5g:FiveMinuteReportEventDeployment_COf85cf17329f54877a92e666e31290cd0 a rdfs:Class ;
-    imo:eventFor data5g:DE21b3425e96b64195a1258d273db8df74 ;
-    time:delay ( data5g:lastReportInstant data5g:durationDeployment_COf85cf17329f54877a92e666e31290cd0 ) ;
-    rdfs:subClassOf imo:Event .
-
-data5g:durationDeployment_COf85cf17329f54877a92e666e31290cd0 a time:DurationDescription ;
-    time:numericDuration 5.0 ;
+data5g:durationDeployment_CO63add1afcccd4daa81dc378a872a49fb a time:DurationDescription ;
+    time:numericDuration 10.0 ;
     time:unitType time:unitMinute .
 
-data5g:SE58b52d5c36ff421d8cc260f660f6a826 a data5g:SustainabilityExpectation,
+data5g:TenMinuteReportEventDeployment_CO63add1afcccd4daa81dc378a872a49fb a rdfs:Class ;
+    imo:eventFor data5g:DEda4fa1b78c1744afa2914b8a6c9c8eba ;
+    time:delay ( data5g:lastReportInstant data5g:durationDeployment_CO63add1afcccd4daa81dc378a872a49fb ) ;
+    rdfs:subClassOf imo:Event .
+
+data5g:SE3a062d7f9c0c4b02a635a8f5b5985b5d a data5g:SustainabilityExpectation,
     icm:Expectation,
     icm:IntentElement  ;
-    dct:description "Ensure energy and power efficiency for deployed LLM." ;
     icm:target data5g:sustainability ;
-    log:allOf data5g:COaabf568681044634b753bb67c88c5458, 
-              data5g:COdc3520b3b28c4b169b54cf49cf66051b, 
-              data5g:CX1853574e1d5243a0989a0fde2c7b8f85 .
+    log:allOf data5g:CO0786dca5c71e4a60b6f8c214486a3fea, 
+              data5g:CO5e6252851cc94e82b2a6c53a145dd028, 
+              data5g:CX95568df61c5549c896f045f3c5b3cf25 .
 
-data5g:COdc3520b3b28c4b169b54cf49cf66051b a icm:Condition ;
-    dct:description "energy-consumption condition quan:smaller: 50 J" ;
+data5g:CO5e6252851cc94e82b2a6c53a145dd028 a icm:Condition ;
+    dct:description "power-consumption condition quan:smaller: 50 W" ;
     set:forAll [
-        icm:valuesOfTargetProperty data5g:energy-consumption_COdc3520b3b28c4b169b54cf49cf66051b ;
-        quan:smaller [
-            quan:unit "J" ;
-            rdf:value 50
-            ]
-        ] .
-
-data5g:COaabf568681044634b753bb67c88c5458 a icm:Condition ;
-    dct:description "power-consumption condition quan:smaller: 3000 W" ;
-    set:forAll [
-        icm:valuesOfTargetProperty data5g:power-consumption_COaabf568681044634b753bb67c88c5458 ;
+        icm:valuesOfTargetProperty data5g:power-consumption_CO5e6252851cc94e82b2a6c53a145dd028 ;
         quan:smaller [
             quan:unit "W" ;
-            rdf:value 3000
-            ]
-        ] .
-
-data5g:FiveMinuteReportEventSustainability_COdc3520b3b28c4b169b54cf49cf66051b a rdfs:Class ;
-    imo:eventFor data5g:SE58b52d5c36ff421d8cc260f660f6a826 ;
-    time:delay ( data5g:lastReportInstant data5g:durationSustainability_COdc3520b3b28c4b169b54cf49cf66051b ) ;
-    rdfs:subClassOf imo:Event .
-
-data5g:durationSustainability_COdc3520b3b28c4b169b54cf49cf66051b a time:DurationDescription ;
-    time:numericDuration 5.0 ;
-    time:unitType time:unitMinute .
-
-data5g:CEa2e3686c731f447391197c85b4b8d1b8 a data5g:CoordinationExpectation,
-    icm:Expectation,
-    icm:IntentElement  ;
-    data5g:coordinates data5g:DE21b3425e96b64195a1258d273db8df74, 
-                       data5g:SE58b52d5c36ff421d8cc260f660f6a826 ;
-    dct:description "Symmetric coordination between throughput and energy consumption." ;
-    icm:target data5g:coordination-service ;
-    log:allOf data5g:CO8d68cd7c047a4a42a985b9f669542769, 
-              data5g:CObc66582503484375a0f5b1d95f7f2328 ;
-    ut:utility data5g:U_coord .
-
-data5g:CO8d68cd7c047a4a42a985b9f669542769 a icm:Condition ;
-    dct:description "Coordination condition on p99-token-target" ;
-    set:forAll [
-        icm:valuesOfTargetProperty data5g:p99-token-target_CO8d68cd7c047a4a42a985b9f669542769 ;
-        quan:larger [
-            quan:unit "token/s" ;
-            rdf:value 400
-            ]
-        ] .
-
-data5g:CObc66582503484375a0f5b1d95f7f2328 a icm:Condition ;
-    dct:description "Coordination condition on energy-consumption" ;
-    set:forAll [
-        icm:valuesOfTargetProperty data5g:energy-consumption_CObc66582503484375a0f5b1d95f7f2328 ;
-        quan:smaller [
-            quan:unit "J" ;
             rdf:value 50
             ]
         ] .
 
-data5g:FiveMinuteReportEventCoordination_CO8d68cd7c047a4a42a985b9f669542769 a rdfs:Class ;
-    imo:eventFor data5g:CEa2e3686c731f447391197c85b4b8d1b8 ;
-    time:delay ( data5g:lastReportInstant data5g:durationCoordination_CO8d68cd7c047a4a42a985b9f669542769 ) ;
+data5g:CO0786dca5c71e4a60b6f8c214486a3fea a icm:Condition ;
+    dct:description "energy-consumption condition quan:smaller: 100 MJ" ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:energy-consumption_CO0786dca5c71e4a60b6f8c214486a3fea ;
+        quan:smaller [
+            quan:unit "MJ" ;
+            rdf:value 100
+            ]
+        ] .
+
+data5g:TenMinuteReportEventSustainability_CO5e6252851cc94e82b2a6c53a145dd028 a rdfs:Class ;
+    imo:eventFor data5g:SE3a062d7f9c0c4b02a635a8f5b5985b5d ;
+    time:delay ( data5g:lastReportInstant data5g:durationSustainability_CO5e6252851cc94e82b2a6c53a145dd028 ) ;
     rdfs:subClassOf imo:Event .
 
-data5g:durationCoordination_CO8d68cd7c047a4a42a985b9f669542769 a time:DurationDescription ;
-    time:numericDuration 5.0 ;
+data5g:durationSustainability_CO5e6252851cc94e82b2a6c53a145dd028 a time:DurationDescription ;
+    time:numericDuration 10.0 ;
     time:unitType time:unitMinute .
 
-data5g:RE2fcc86687ca14cbc8e6a090052bc3a50 a icm:ObservationReportingExpectation ;
-    dct:description "Deployment observation reports every 5 minutes to Prometheus." ;
+data5g:CE5ff6e3e5e55d424689cd03d27a6356ce a data5g:CoordinationExpectation ;
+    data5g:coordinates data5g:DEda4fa1b78c1744afa2914b8a6c9c8eba, 
+                       data5g:SE3a062d7f9c0c4b02a635a8f5b5985b5d ;
+    icm:target data5g:coordination-service ;
+    log:allOf data5g:CO0786dca5c71e4a60b6f8c214486a3fea, 
+              data5g:CO63add1afcccd4daa81dc378a872a49fb ;
+    ut:utility data5g:U_coord_3cb0caa2 .
+
+data5g:TenMinuteReportEventCoordination_CE5ff6e3e5e55d424689cd03d27a6356ce a rdfs:Class ;
+    imo:eventFor data5g:CE5ff6e3e5e55d424689cd03d27a6356ce ;
+    time:delay ( data5g:lastReportInstant data5g:durationCoordination_CE5ff6e3e5e55d424689cd03d27a6356ce ) ;
+    rdfs:subClassOf imo:Event .
+
+data5g:durationCoordination_CE5ff6e3e5e55d424689cd03d27a6356ce a time:DurationDescription ;
+    time:numericDuration 10.0 ;
+    time:unitType time:unitMinute .
+
+data5g:RE24a1ed9a19e84106847da2ec601bb3f1 a icm:ObservationReportingExpectation ;
+    dct:description "Deployment observation reports on the configured interval." ;
     icm:reportDestinations [
         a rdfs:Container ;
         rdfs:member data5g:prometheus
         ]  ;
     icm:reportTriggers [
         a rdfs:Container ;
-        rdfs:member data5g:FiveMinuteReportEventDeployment_COf85cf17329f54877a92e666e31290cd0
+        rdfs:member data5g:TenMinuteReportEventDeployment_CO63add1afcccd4daa81dc378a872a49fb
         ]  ;
     icm:target data5g:deployment .
 
-data5g:RE98eaffd6dbc1494389cc3b9a1834dbf4 a icm:ObservationReportingExpectation ;
-    dct:description "Sustainability observation reports every 5 minutes to Prometheus." ;
+data5g:RE542c7e4fb2a44789a27f6142219a9ac6 a icm:ObservationReportingExpectation ;
+    dct:description "Sustainability observation reports on the configured interval." ;
     icm:reportDestinations [
         a rdfs:Container ;
         rdfs:member data5g:prometheus
         ]  ;
     icm:reportTriggers [
         a rdfs:Container ;
-        rdfs:member data5g:FiveMinuteReportEventSustainability_COdc3520b3b28c4b169b54cf49cf66051b
+        rdfs:member data5g:TenMinuteReportEventSustainability_CO5e6252851cc94e82b2a6c53a145dd028
         ]  ;
     icm:target data5g:sustainability .
 
-data5g:REa657d3238c244b8a9fca66ae1877b10b a icm:ObservationReportingExpectation ;
-    dct:description "Coordination observation reports every 5 minutes to Prometheus." ;
+data5g:RE5b82c40ebf3f4905b940b50d1c1b8fb8 a icm:ObservationReportingExpectation ;
     icm:reportDestinations [
         a rdfs:Container ;
         rdfs:member data5g:prometheus
         ]  ;
     icm:reportTriggers [
         a rdfs:Container ;
-        rdfs:member data5g:FiveMinuteReportEventCoordination_CO8d68cd7c047a4a42a985b9f669542769
+        rdfs:member data5g:TenMinuteReportEventCoordination_CE5ff6e3e5e55d424689cd03d27a6356ce
         ]  ;
     icm:target data5g:coordination-service .
 
-data5g:U_coord a ut:UtilityInformation ;
-    ut:forMetric ( data5g:U_arg_p99-token-target data5g:p99-token-target_CO8d68cd7c047a4a42a985b9f669542769 ), ( data5g:U_arg_energy-consumption data5g:energy-consumption_CObc66582503484375a0f5b1d95f7f2328 ) ;
-    ut:function data5g:utilityFn_symmetric ;
-    ut:utilityProfile data5g:UP_coord ;
+data5g:U_coord_3cb0caa2 a ut:UtilityInformation ;
+    ut:forMetric ( data5g:U_arg_p99-token-target data5g:p99-token-target_CO63add1afcccd4daa81dc378a872a49fb ), ( data5g:U_arg_energy-consumption data5g:energy-consumption_CO0786dca5c71e4a60b6f8c214486a3fea ) ;
+    ut:function data5g:utilityFn_symmetric_3cb0caa2 ;
+    ut:utilityProfile data5g:UP_coord_3cb0caa2 ;
     ut:withArguments ( data5g:U_arg_p99-token-target data5g:U_arg_energy-consumption ) .
 
-data5g:UP_coord a ut:UtilityProfile ;
+data5g:UP_coord_3cb0caa2 a ut:UtilityProfile ;
     ut:maxUtility "1.0"^^xsd:decimal ;
     ut:minUtility "0.0"^^xsd:decimal .
 
-data5g:utilityFn_symmetric a fun:function ;
+data5g:utilityFn_symmetric_3cb0caa2 a fun:function ;
     fun:argumentNames ( data5g:U_arg_p99-token-target data5g:U_arg_energy-consumption ) ;
     fun:argumentTypes ( quan:Quantity ) ;
     fun:arityMax 2 ;
@@ -506,7 +482,7 @@ data5g:utilityFn_symmetric a fun:function ;
             ] [
             data5g:standardK "12.0"^^xsd:decimal ;
             data5g:x0Fraction "0.85"^^xsd:decimal ;
-            mf:logistic ( data5g:U_arg_energy-consumption "-0.24"^^xsd:decimal "0.5"^^xsd:decimal "58J"^^quan:quantity )
+            mf:logistic ( data5g:U_arg_energy-consumption "-0.12"^^xsd:decimal "0.5"^^xsd:decimal "115MJ"^^quan:quantity )
             ] )
         ] .
 ```

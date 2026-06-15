@@ -12,11 +12,11 @@ create intent using intentGen storage prometheus prompt "Deploy a small llm in a
 
 When coordination is requested, the intent-generating agent adds:
 
-- a `**data5g:CoordinationExpectation`** (`icm:target data5g:coordination-service`)
+- a **data5g:CoordinationExpectation** (`icm:target data5g:coordination-service`)
 - coordination **conditions** (one per coordinated metric)
 - a **utility function** (`ut:UtilityInformation` + `fun:function` summing sub-utilities)
-- `**data5g:coordinates`** linking the coordination expectation to the expectation(s) that own the coordinated metrics (deployment, sustainability, and/or network)
-- an `**icm:ObservationReportingExpectation`** for target `data5g:coordination-service`
+- **data5g:coordinates** linking the coordination expectation to the expectation(s) that own the coordinated metrics (deployment, sustainability, and/or network)
+- an **icm:ObservationReportingExpectation** for target `data5g:coordination-service`
 
 This format is required for [inCoord](https://github.com/INTEND-Project/inCoord-Private) integration testing.
 
@@ -75,24 +75,24 @@ Example metric stems (retrieved from Workload catalogue helm charts/values.yaml)
 When coordination is enabled, the intent-generation agent emits a draft utility block (using a gen-AI model). A **postprocessor** then replaces that draft with canonical Turtle if it is malformed:
 
 
-| Resource                     | Role                                                                                            |
-| ---------------------------- | ----------------------------------------------------------------------------------------------- |
-| `data5g:U_coord`             | `ut:UtilityInformation` — wires utility arguments to coordination conditions via `ut:forMetric` |
-| `data5g:UP_coord`            | `ut:UtilityProfile` — min/max utility bounds (typically 0.0–1.0)                                |
-| `data5g:utilityFn_<profile>` | `fun:function` — sums one sub-utility per coordinated metric                                    |
+| Resource           | Role                                                                                            |
+| ------------------ | ----------------------------------------------------------------------------------------------- |
+| `data5g:UI<uuid4>` | `ut:UtilityInformation` — wires utility arguments to coordination conditions via `ut:forMetric` |
+| `data5g:UP<uuid4>` | `ut:UtilityProfile` — min/max utility bounds (typically 0.0–1.0)                                |
+| `data5g:UN<uuid4>` | `fun:function` — sums one sub-utility per coordinated metric                                    |
 
 
 Each sub-utility is typically an `mf:logistic` call (or `mf:poly` for secondary energy metrics in weighted profiles).
 
-### Reference examples
+### Reference examples (from TUW)
 
 These Turtle files show **postprocessor-canonical** coordination output (complete four-argument `mf:logistic` calls, `icm:target data5g:coordination-service` on both CE and coordination RE). They are metric-specific patterns, not copy-paste templates.
 
 
-| Example                                                                    | Profile   | Coordinated metrics (in that file)     | Notes                                                               |
-| -------------------------------------------------------------------------- | --------- | -------------------------------------- | ------------------------------------------------------------------- |
-| `[intent_utility_symmetric.ttl](../examples/intent_utility_symmetric.ttl)` | symmetric | throughput (`p99-tps-target`) + energy | equal `limit` (0.5 each); both metrics use `mf:logistic`            |
-| `[intent_utility_weighted.ttl](../examples/intent_utility_weighted.ttl)`   | weighted  | throughput + energy                    | higher throughput `limit` (0.7); energy uses `mf:poly` as secondary |
+| Example                                                                  | Profile   | Coordinated metrics (in that file)     | Notes                                                               |
+| ------------------------------------------------------------------------ | --------- | -------------------------------------- | ------------------------------------------------------------------- |
+| [intent_utility_symmetric.ttl](../examples/intent_utility_symmetric.ttl) | symmetric | throughput (`p99-tps-target`) + energy | equal `limit` (0.5 each); both metrics use `mf:logistic`            |
+| [intent_utility_weighted.ttl](../examples/intent_utility_weighted.ttl)   | weighted  | throughput + energy                    | higher throughput `limit` (0.7); energy uses `mf:poly` as secondary |
 
 
 In both files:
@@ -105,37 +105,7 @@ The LLM may emit incomplete drafts; the coordination utility postprocessor repla
 
 ## Generation flow
 
-The LLM may emit incomplete utility drafts (for example `mf:logistic` with only two arguments, or `ut:utility data5g:U_coord` with no `U_coord` subject). The coordination utility postprocessor in `[tools/postprocess/coordinationUtility.ts](../tools/postprocess/coordinationUtility.ts)` runs whenever a `CoordinationExpectation` is present, utility wiring is incomplete, or coordination was flagged in the prompt. It always regenerates canonical utility Turtle from parsed CE conditions (draft blocks are not kept). The same normalization runs again at Controller ingest (`normalizeIntentTurtleOnIngest` on `store-intent`) as a safety net before GraphDB write.
-
-```mermaid
-flowchart TD
-  Prompt["create intent prompt text"]
-  Classify["Keyword classification + coordination flags"]
-  LLM["LLM emits intent Turtle + draft utility blocks"]
-  Gate{"CoordinationExpectation,<br/>incomplete utility,<br/>or coordination flag?"}
-  Strip["stripMisalignedUtilityTurtle +<br/>stripDraftUtilityBlocks"]
-  SanitizeTargets["Rewrite legacy targets:<br/>CE + coordination RE<br/>llm-service → coordination-service"]
-  ParseCE["extractSubjectBlock on CE<br/>(includes data5g:coordinates)"]
-  ParseCond["Parse CE log:allOf conditions"]
-  Infer["inferMissingCoordinationConditions<br/>(prompt + DE/SE/NE conditions)"]
-  HasConditions{"Parseable<br/>CE conditions?"}
-  Cleanup["removeUtilityBlocks +<br/>drop ut:utility on CE"]
-  Derive["buildSubUtilitySpecs<br/>(k, limit, x0 from severity + thresholds)"]
-  UpsertCE["sanitizeCeTarget, upsertUtilityLink,<br/>upsertCoordinates on CE"]
-  Regen["removeUtilityBlocks + append<br/>U_coord, UP_coord, utilityFn_*"]
-  OtherPP["Other postprocessors<br/>(reportingTriggers, prefixes, …)"]
-  Ingest["Controller store-intent ingest<br/>normalizeIntentTurtleOnIngest"]
-  Out["Final Turtle in GraphDB"]
-
-  Prompt --> Classify --> LLM --> Gate
-  Gate -->|no| OtherPP
-  Gate -->|yes| Strip --> SanitizeTargets --> ParseCE --> ParseCond --> Infer --> HasConditions
-  HasConditions -->|no| Cleanup --> OtherPP
-  HasConditions -->|yes| Derive --> UpsertCE --> Regen --> OtherPP
-  OtherPP --> Ingest --> Out
-```
-
-
+The LLM may emit incomplete utility drafts but will be fixed by postprocessors before GraphDB write.
 
 Numeric parameters (`k`, `limit`, `x0`) are **not** invented by the LLM. They are derived deterministically in `[tools/postprocess/coordinationUtilityDerive.ts](../tools/postprocess/coordinationUtilityDerive.ts)` from:
 

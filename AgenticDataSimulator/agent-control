@@ -9,9 +9,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KERNEL="$ROOT/SimulatorAgentKernel"
-KERNEL_E1="$ROOT/SimulatorAgentKernel-e1"
+KERNEL_MISTRAL_SMALL4="$ROOT/SimulatorAgentKernel-mistral.small4"
 PACKAGES="$ROOT/SimulatorAgentPackages"
-E1_AGENT_SUFFIX="5g4data-intent-generating-agent-e1"
+MISTRAL_SMALL4_AGENT_SUFFIX="5g4data-intent-generating-agent-mistral-small4"
 
 # Format: package_dir|clone_suffix|port|agent_card_name
 CORE_AGENTS=(
@@ -20,7 +20,7 @@ CORE_AGENTS=(
 )
 
 EXTRA_AGENTS=(
-  "5g4data-intent-generation-e1|5g4data-intent-generating-agent-e1|3013|5g4data-intent-generating-agent-e1"
+  "5g4data-intent-generation-mistral-small4|5g4data-intent-generating-agent-mistral-small4|3013|5g4data-intent-generating-agent-mistral-small4"
 )
 
 ALL_AGENTS=("${CORE_AGENTS[@]}" "${EXTRA_AGENTS[@]}")
@@ -73,7 +73,7 @@ or add AgenticDataSimulator/bin to PATH (see README.md).
            and wait for health. Preserves AGENT_API_KEYS from SimulatorController/.env when present.
 
   package-name  Optional. Limit the command to one package directory, e.g.
-                5g4data-intent-generation-e1. When omitted, only the core
+                5g4data-intent-generation-mistral-small4. When omitted, only the core
                 agents (intent generation + observations) are affected.
 
 Core agents (default):
@@ -81,7 +81,7 @@ Core agents (default):
   - 5g4data-intent-observation-generating-agent (port 3012)
 
 Extra agents (package-name required):
-  - 5g4data-intent-generating-agent-e1 (port 3013) from package 5g4data-intent-generation-e1
+  - 5g4data-intent-generating-agent-mistral-small4 (port 3013) from package 5g4data-intent-generation-mistral-small4
 EOF
 }
 
@@ -123,7 +123,7 @@ print_selected_health_urls() {
 wire_extra_agent_lab() {
   local package="$1"
   case "$package" in
-    5g4data-intent-generation-e1)
+    5g4data-intent-generation-mistral-small4)
       if [[ -x "${ROOT}/scripts/wire-intent-agent-e1-lab.sh" ]]; then
         "${ROOT}/scripts/wire-intent-agent-e1-lab.sh"
       fi
@@ -143,13 +143,13 @@ require_docker() {
 }
 
 is_e1_clone_suffix() {
-  [[ "${1:-}" == "$E1_AGENT_SUFFIX" ]]
+  [[ "${1:-}" == "$MISTRAL_SMALL4_AGENT_SUFFIX" ]]
 }
 
 kernel_dir_for_package() {
   local package="$1"
-  if [[ "$package" == "5g4data-intent-generation-e1" ]]; then
-    printf '%s\n' "$KERNEL_E1"
+  if [[ "$package" == "5g4data-intent-generation-mistral-small4" ]]; then
+    printf '%s\n' "$KERNEL_MISTRAL_SMALL4"
   else
     printf '%s\n' "$KERNEL"
   fi
@@ -158,7 +158,7 @@ kernel_dir_for_package() {
 clone_base_dir() {
   local suffix="$1"
   if is_e1_clone_suffix "$suffix"; then
-    printf '%s/SimulatorAgentKernel-e1-%s\n' "$ROOT" "$suffix"
+    printf '%s/SimulatorAgentKernel-mistral.small4-%s\n' "$ROOT" "$suffix"
   else
     printf '%s/SimulatorAgentKernel-%s\n' "$ROOT" "$suffix"
   fi
@@ -252,8 +252,8 @@ needs_kernel_reload() {
   local clone_dir="${1:-}"
 
   local kernel_root="$KERNEL"
-  if [[ "$clone_dir" == *"/SimulatorAgentKernel-e1-"* ]]; then
-    kernel_root="$KERNEL_E1"
+  if [[ "$clone_dir" == *"/SimulatorAgentKernel-mistral.small4-"* ]]; then
+    kernel_root="$KERNEL_MISTRAL_SMALL4"
   fi
 
   [[ -d "$kernel_root" ]] || return 1

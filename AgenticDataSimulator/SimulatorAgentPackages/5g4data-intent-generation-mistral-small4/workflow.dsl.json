@@ -1,0 +1,76 @@
+{
+  "confirmation": {
+    "acceptedUserInputs": ["ok"],
+    "assistantMarkers": [
+      "type ok to confirm generation of turtle",
+      "type ok to confirm",
+      "confirm to generate final turtle",
+      "please confirm",
+      "confirm or"
+    ]
+  },
+  "generation": {
+    "mode": "fragmented",
+    "canonicalPrefixesFile": "templates/canonical-prefixes.ttl",
+    "assemblerModule": "tools/assembleIntent.ts",
+    "fragments": [
+      {
+        "id": "deployment",
+        "whenIntentFlags": ["deployment"],
+        "promptModule": "fragment-deployment"
+      },
+      {
+        "id": "sustainability",
+        "whenIntentFlags": ["sustainability"],
+        "promptModule": "fragment-sustainability"
+      },
+      {
+        "id": "network",
+        "whenIntentFlags": ["networkQos"],
+        "promptModule": "fragment-network"
+      },
+      {
+        "id": "coordination",
+        "whenIntentFlags": ["coordination"],
+        "promptModule": "fragment-coordination"
+      }
+    ]
+  },
+  "stages": [
+    {
+      "id": "base",
+      "includeModules": ["base", "defaults", "intent-structure", "reporting-storage", "review"],
+      "confirmationRequired": false
+    },
+    {
+      "id": "deployment",
+      "includeModules": ["deployment"],
+      "whenIntentFlags": ["deployment"]
+    },
+    {
+      "id": "locality",
+      "includeModules": ["locality"],
+      "whenIntentFlags": ["locality"]
+    },
+    {
+      "id": "network",
+      "includeModules": ["network"],
+      "whenIntentFlags": ["networkQos"]
+    },
+    {
+      "id": "sustainability",
+      "includeModules": ["sustainability"],
+      "whenIntentFlags": ["sustainability"]
+    },
+    {
+      "id": "coordination",
+      "includeModules": ["coordination"],
+      "whenIntentFlags": ["coordination"]
+    },
+    {
+      "id": "repair",
+      "includeModules": ["repair"],
+      "confirmationRequired": false
+    }
+  ]
+}

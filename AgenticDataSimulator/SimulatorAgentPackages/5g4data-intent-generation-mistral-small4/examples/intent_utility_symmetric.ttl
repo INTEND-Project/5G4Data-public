@@ -1,0 +1,215 @@
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix dct:    <http://purl.org/dc/terms/> .
+@prefix fun:    <http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/> .
+@prefix geo:    <http://www.opengis.net/ont/geosparql#> .
+@prefix icm:    <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo:    <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log:    <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix mf:     <http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/> .
+@prefix quan:   <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix set:    <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix time:   <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix ut:     <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+
+
+data5g:I973c6c1174844e0d9f2d41bb96b454b1
+    a icm:Intent, icm:IntentElement ;
+    dct:description "Deploy a small LLM inference service near Tromsø, maintaining fairly good performance and fairly sustainable operation." ;
+    imo:handler "inServ" ; # Is it correct?
+    imo:owner   "inChat" ;
+    log:allOf data5g:DE5ab0079f584c4a128e7356b2e8fbad89,
+              data5g:NE51ab59a3140b48029fc709d9e213565e,
+              data5g:SE5420c491e4fb435ab4f189c920811fbe,
+              data5g:CE_coord,
+              data5g:RE97978a1a7e50424ebebfbed023838ba1,
+              data5g:RE1a3fc1b300a847509e2b5cfead555c9e,
+              data5g:REe334ce282b49454bb9bd0d9c67264d13,
+              data5g:RE_coordination .
+
+# Compute part
+
+data5g:DE5ab0079f584c4a128e7356b2e8fbad89 a data5g:DeploymentExpectation ;
+    dct:description "Deploy rusty-llm at EC_31 with compute latency bound" ;
+    icm:target data5g:deployment ;
+    log:allOf  data5g:CO6ede86a60dd54e08bc4fa1aa584b49e9,
+               #data5g:CO72a1524ea1904d429ecd23cc1c536d1c, #removed energy expectation
+               data5g:CX8c9a8c0dee4b41d8a02a6f64f2f37594 .
+
+data5g:CO6ede86a60dd54e08bc4fa1aa584b49e9 a log:Condition ;
+    dct:description "p99 computing latency condition quan:smaller: 15 ms" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99_computelatency_CO6ede86a60dd54e08bc4fa1aa584b49e9;
+                 quan:smaller [ quan:unit "ms" ; rdf:value 15.0 ] ] .
+
+data5g:CX8c9a8c0dee4b41d8a02a6f64f2f37594 a icm:Context ;
+    data5g:Application          "LLM inference" ;
+    data5g:DataCenter           "EC_31" ;
+    data5g:DeploymentDescriptor "https://start5g-1.cs.uit.no/wchartmuseum/api/charts/rusty-llm/0.1.19" .
+
+# Network part
+
+data5g:NE51ab59a3140b48029fc709d9e213565e a data5g:NetworkExpectation;
+    dct:description "Fast and reliable network slice for small LLM service" ;
+    icm:target data5g:network-slice ;
+    log:allOf  data5g:COad5028ec9e754c06b5c9b7a40b3b4ec6,
+               data5g:CXb4e4a720c1c645289dd7745940156712 .
+
+data5g:COad5028ec9e754c06b5c9b7a40b3b4ec6 a log:Condition ;
+    dct:description "p99 network latency condition quan:smaller: 5 ms" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:networklatency_COad5028ec9e754c06b5c9b7a40b3b4ec6 ;
+                 quan:smaller [ quan:unit "ms" ; rdf:value 5.0 ] ] .
+
+data5g:CXb4e4a720c1c645289dd7745940156712 a icm:Context,
+        icm:IntentElement ;
+    data5g:appliesToCustomer "+47 56789012" ;
+    data5g:appliesToRegion data5g:RG1a6924f3e91d4e7aacb416c3d4ef587a ;
+    dct:description "Context for region: Tromsø, Norway, customer: +47 56789012" .
+
+
+# Here there's the polygon, but not in the sustainability intent example (taken from other intent)
+data5g:RG1a6924f3e91d4e7aacb416c3d4ef587a a geo:Feature ;
+    geo:hasGeometry [ a geo:Polygon ;
+            geo:asWKT "POLYGON((69.661030 18.961490, 69.661030 18.964490, 69.658030 18.964490, 69.658030 18.961490))"^^geo:wktLiteral ] .
+
+
+## Here I defined the inCoord expectations/conditions - I added the unit for the token condition -> hope is good
+# Should inCoord coordinate expectations or only conditions
+data5g:CE_coord a data5g:CoordinationExpectation;
+    dct:description "Coordinate compute and network to guarantee system TPS and energy budget" ;
+    icm:target data5g:coordination-service ;
+    log:allOf  data5g:COc5f7b82460cf4207a5a93ca4183ccbdf,
+               data5g:CO72a1524ea1904d429ecd23cc1c536d1c ;
+    ut:utility data5g:U_coord ;
+    data5g:coordinates data5g:DE5ab0079f584c4a128e7356b2e8fbad89,
+                       data5g:NE51ab59a3140b48029fc709d9e213565e .
+
+# --- Utility: two logistic sub-utilities, equal weighting -------------------
+# TPS sub-utility: rising logistic (atLeast semantics), midpoint x0 = 300
+# below the 400 target → saturates near supremum 0.5 for TPS >> 400, drops
+# steeply for TPS << 300. Moderate steepness k = 0.025.
+#
+# Energy sub-utility: descending logistic (smaller semantics), midpoint
+# x0 = 12000 above the 10000J bound → saturates near supremum 0.5 for
+# E << 10000, drops as E grows. Gentle steepness k = -0.0008.
+
+data5g:U_coord
+    a ut:UtilityInformation ;
+    ut:function       data5g:utilityFn_symmetric ;
+    ut:withArguments  ( data5g:U_arg_tps data5g:U_arg_energy-consumption ) ;
+    ut:forMetric      ( data5g:U_arg_tps    data5g:p99-tps-target_COc5f7b82460cf4207a5a93ca4183ccbdf ) ;
+    ut:forMetric      ( data5g:U_arg_energy-consumption data5g:energy-consumption_CO72a1524ea1904d429ecd23cc1c536d1c ) ;
+    ut:utilityProfile data5g:UP_coord .
+
+data5g:UP_coord a ut:UtilityProfile ; 
+    ut:minUtility "0.0"^^xsd:decimal ;
+    ut:maxUtility "1.0"^^xsd:decimal .
+
+
+# [ mf:logistic ( data5g:U_example
+#                         k = logistic growth rate or stepness of the curve.
+#                         limit = supremum or upper bound (0,1]               
+#                         x0 = function midpoint ]
+
+data5g:utilityFn_symmetric a fun:function ;
+    fun:argumentNames ( data5g:U_arg_tps data5g:U_arg_energy-consumption ) ;
+    fun:argumentTypes ( quan:Quantity ) ;
+    fun:resultType    quan:Quantity ;
+    fun:arityMin 2 ; fun:arityMax 2 ;
+    rdf:value [ quan:sum (
+        [ mf:logistic ( data5g:U_arg_tps
+                        "0.03"^^xsd:decimal
+                        "0.5"^^xsd:decimal
+                        "340tokens/s"^^quan:quantity );
+          data5g:standardK "12"^^xsd:decimal ;
+          data5g:x0Fraction "0.85"^^xsd:decimal ]
+        [ mf:logistic ( data5g:U_arg_energy-consumption
+                        "-0.001"^^xsd:decimal
+                        "0.5"^^xsd:decimal
+                        "11500J"^^quan:quantity );
+          data5g:standardK "12"^^xsd:decimal ;
+          data5g:x0Fraction "0.85"^^xsd:decimal ]
+    ) ] .
+
+data5g:COc5f7b82460cf4207a5a93ca4183ccbdf
+    a log:Condition ;
+    dct:description "p99 system-wide output token throughput (TPS) [see Nvidia documentation], at least 400 tokens/s" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99-tps-target_COc5f7b82460cf4207a5a93ca4183ccbdf ;
+                 quan:atLeast [ quan:unit "tokens/s" ; rdf:value 400.0 ] ] .
+
+data5g:CO72a1524ea1904d429ecd23cc1c536d1c a icm:Condition ;
+    dct:description "energy-consumption condition quan:smaller: 10000" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:energy-consumption_CO72a1524ea1904d429ecd23cc1c536d1c ;
+            quan:smaller [ rdf:value 10000 ] ] .
+
+# For sustainability, energy-consumption metric only (not watts)
+
+data5g:SE5420c491e4fb435ab4f189c920811fbe a data5g:SustainabilityExpectation;
+    dct:description "Ensure sustainable operation of LLM workload." ;
+    imo:handler "inOrch" ; # <--- should we add this?
+    icm:target data5g:sustainability ;
+    log:allOf  data5g:CO72a1524ea1904d429ecd23cc1c536d1c,
+               data5g:CX8c9a8c0dee4b41d8a02a6f64f2f37594 . # <- not sure this is correct
+
+# Here I thought there could be a unique tenMinutes DurationDescription -> if we want different time scales we can have tenMinutesDE, oneMinutesNE, twentyMinutesSE, tenMinutes CE...
+
+data5g:tenMinutes a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventDeployment
+    a rdfs:Class ;
+    rdfs:subClassOf imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:tenMinutes ) ;
+    imo:eventFor data5g:DE5ab0079f584c4a128e7356b2e8fbad89 .
+
+data5g:TenMinReportEventNetwork
+    a rdfs:Class ;
+    rdfs:subClassOf imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:tenMinutes ) ;
+    imo:eventFor data5g:NE51ab59a3140b48029fc709d9e213565e .
+
+data5g:TenMinReportEventCoordination
+    a rdfs:Class ;
+    rdfs:subClassOf imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:tenMinutes ) ;
+    imo:eventFor data5g:CE_coord .
+
+data5g:TenMinuteReportEventSustainability
+    a rdfs:Class ;
+    rdfs:subClassOf imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:tenMinutes ) ;
+    imo:eventFor data5g:SE5420c491e4fb435ab4f189c920811fbe .
+
+data5g:RE97978a1a7e50424ebebfbed023838ba1 a icm:ObservationReportingExpectation ;
+    dct:description "Deployment observation reports every 10 minutes." ;
+    icm:target data5g:deployment ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventDeployment ] .
+
+data5g:RE1a3fc1b300a847509e2b5cfead555c9e a icm:ObservationReportingExpectation ;
+    dct:description "Network observation reports every 10 minutes" ;
+    icm:target data5g:network-slice ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers     [ a rdfs:Container ;
+            rdfs:member data5g:TenMinReportEventNetwork ] .
+
+data5g:RE_coordination a icm:ObservationReportingExpectation ;
+    dct:description "Coordination observation reports every 10 minutes" ;
+    icm:target data5g:coordination-service ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers     [ a rdfs:Container ;
+            rdfs:member data5g:TenMinReportEventCoordination ] .
+
+data5g:REe334ce282b49454bb9bd0d9c67264d13 a icm:ObservationReportingExpectation ;
+    dct:description "Sustainability observation reports every 10 minutes." ;
+    icm:target data5g:sustainability ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventSustainability ] .

@@ -1,0 +1,55 @@
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix fun: <http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix mf: <http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+data5g:I_bad a icm:Intent ;
+    dct:description "CE arity mismatch" ;
+    imo:handler "inServ" ;
+    imo:owner "inChat" ;
+    log:allOf data5g:CE1, data5g:RE_coord .
+
+data5g:CE1 a data5g:CoordinationExpectation ;
+    icm:target data5g:coordination-service ;
+    log:allOf data5g:CO1, data5g:CO2, data5g:CO3 ;
+    ut:utility data5g:U_coord .
+
+data5g:CO1 a icm:Condition ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_CO1 ;
+            quan:larger [ rdf:value 400 ] ] .
+
+data5g:CO2 a icm:Condition ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:power-consumption_CO2 ;
+            quan:smaller [ rdf:value 50 ] ] .
+
+data5g:CO3 a icm:Condition ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:energy-consumption_CO3 ;
+            quan:smaller [ rdf:value 100 ] ] .
+
+data5g:U_coord a ut:UtilityInformation ;
+    ut:function data5g:utilityFn_symmetric ;
+    ut:withArguments ( data5g:U_arg_a data5g:U_arg_b ) ;
+    ut:forMetric ( data5g:U_arg_a data5g:p99-token-target_CO1 ) ;
+    ut:forMetric ( data5g:U_arg_b data5g:power-consumption_CO2 ) ;
+    ut:utilityProfile data5g:UP_coord .
+
+data5g:UP_coord a ut:UtilityProfile ;
+    ut:minUtility "0.0"^^xsd:decimal ;
+    ut:maxUtility "1.0"^^xsd:decimal .
+
+data5g:utilityFn_symmetric a fun:Function ;
+    fun:argumentNames ( data5g:U_arg_a data5g:U_arg_b ) ;
+    fun:arityMin 2 ;
+    fun:arityMax 2 ;
+    rdf:value [ quan:sum () ] .
+
+data5g:RE_coord a icm:ObservationReportingExpectation ;
+    icm:target data5g:coordination-service .

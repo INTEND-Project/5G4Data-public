@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { cloneAgentForPackage } from "../core/agentCloneManager.js";
+import { cloneAgentForPackage, MISTRAL_SMALL4_CLONE_PREFIX } from "../core/agentCloneManager.js";
 
 test("cloneAgentForPackage creates versioned clone and excludes transient folders", () => {
   const root = mkdtempSync(join(tmpdir(), "clone-manager-"));
@@ -60,5 +60,5 @@ test("cloneAgentForPackage prefers provided folderName", () => {
     packageName: "pkg-a",
     folderName: "5g4data-intent-generating-agent"
   });
-  assert.match(clone.cloneDir, /SimulatorAgentKernel-5g4data-intent-generating-agent$/);
+  assert.match(clone.cloneDir, new RegExp(`${MISTRAL_SMALL4_CLONE_PREFIX}-5g4data-intent-generating-agent$`));
 });

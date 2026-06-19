@@ -1,0 +1,46 @@
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix fun: <http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+data5g:I_bad_dual_value a icm:Intent ;
+    log:allOf data5g:CE1, data5g:RE_coord .
+
+data5g:CE1 a data5g:CoordinationExpectation ;
+    icm:target data5g:coordination-service ;
+    log:allOf data5g:CO1, data5g:CO2 ;
+    ut:utility data5g:U_coord_bad .
+
+data5g:CO1 a icm:Condition ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_CO1 ;
+            quan:larger [ rdf:value 400 ] ] .
+
+data5g:CO2 a icm:Condition ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:energy-consumption_CO2 ;
+            quan:smaller [ rdf:value 100 ] ] .
+
+data5g:U_coord_bad a ut:UtilityInformation ;
+    ut:function data5g:utilityFn_symmetric_bad ;
+    ut:withArguments ( data5g:U_arg_a data5g:U_arg_b ) ;
+    ut:forMetric ( data5g:U_arg_a data5g:p99-token-target_CO1 ) ;
+    ut:forMetric ( data5g:U_arg_b data5g:energy-consumption_CO2 ) ;
+    ut:utilityProfile data5g:UP_coord_bad .
+
+data5g:UP_coord_bad a ut:UtilityProfile ;
+    ut:minUtility "0.0"^^xsd:decimal ;
+    ut:maxUtility "1.0"^^xsd:decimal .
+
+data5g:utilityFn_symmetric_bad a fun:function ;
+    fun:argumentNames ( data5g:U_arg_a data5g:U_arg_b ) ;
+    fun:arityMin 2 ;
+    fun:arityMax 2 ;
+    rdf:value [ quan:sum () ] ;
+    rdf:value [ quan:sum () ] .
+
+data5g:RE_coord a icm:ObservationReportingExpectation ;
+    icm:target data5g:coordination-service .

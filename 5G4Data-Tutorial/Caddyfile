@@ -44,7 +44,7 @@ start5g-1.cs.uit.no {
         reverse_proxy http://host.docker.internal:3012
     }
 
-    handle_path /5g4data-intent-generating-agent-e1/* {
+    handle_path /5g4data-intent-generating-agent-mistral-small4/* {
         reverse_proxy http://host.docker.internal:3013
     }
 

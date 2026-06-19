@@ -32,12 +32,18 @@ import {
   updateEnvFile
 } from "./core/envConfigWriter.js";
 import type { AgentTurnResult, ChatSession } from "./models.js";
+import {
+  stripFrontmatter,
+  stripMarkdownCodeFenceDelimiters
+} from "./utils/prompting.js";
 
 export function createAgentRuntime() {
   const config = loadConfig();
   const domainPackage = loadDomainPackage(config.domainPackageDir);
   // Keep compatibility with external SKILL_FILE by prepending it to package system prompt.
-  const skillText = readFileSync(config.skillFile, "utf8").trim();
+  const skillText = stripMarkdownCodeFenceDelimiters(
+    stripFrontmatter(readFileSync(config.skillFile, "utf8"))
+  ).trim();
   domainPackage.systemPromptText = `${domainPackage.systemPromptText}\n\n${skillText}`.trim();
   const invokeModel = wrapTracedModelInvoker(createOpenClawModelInvoker(config));
   return new TurnOrchestrator(config, domainPackage, invokeModel);
@@ -346,10 +352,12 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   });
   const installedPackage = loadDomainPackage(installed.packageDir);
   const cloneFolderName = installedPackage.agentCardPartial?.name ?? installed.packageName;
+  const iterationLabel = process.env.PACKAGE_LOAD_ITERATION?.trim() || undefined;
   const cloned = cloneAgentForPackage({
     baselineAgentDir,
     packageName: installed.packageName,
-    folderName: cloneFolderName
+    folderName: cloneFolderName,
+    iterationLabel
   });
   const deployedPackage = await deployPackageToClone({
     packageDir: installed.packageDir,

@@ -142,7 +142,7 @@ export class GraphDbTool {
   }
 
   async nearestEdgeCandidates(): Promise<Array<Record<string, { value: string }>>> {
-    const response = await fetch(this.endpoint, {
+    const response = await fetch(this.repositoryQueryUrl(), {
       method: "POST",
       headers: graphDbAuthHeaders({
         Accept: "application/sparql-results+json",

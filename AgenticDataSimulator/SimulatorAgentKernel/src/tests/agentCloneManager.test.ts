@@ -25,6 +25,30 @@ test("cloneAgentForPackage creates versioned clone and excludes transient folder
   assert.match(second.cloneDir, /-v2$/);
 });
 
+test("cloneAgentForPackage uses exact path when iterationLabel is set", () => {
+  const root = mkdtempSync(join(tmpdir(), "clone-manager-iter-"));
+  const baseline = join(root, "SimulatorAgentKernel");
+  mkdirSync(baseline, { recursive: true });
+  writeFileSync(join(baseline, "README.md"), "baseline\n", "utf8");
+
+  const clone = cloneAgentForPackage({
+    baselineAgentDir: baseline,
+    packageName: "pkg-a",
+    folderName: "5g4data-intent-generating-agent-e1",
+    iterationLabel: "i1"
+  });
+  assert.match(clone.cloneDir, /5g4data-intent-generating-agent-e1-i1$/);
+
+  assert.throws(() =>
+    cloneAgentForPackage({
+      baselineAgentDir: baseline,
+      packageName: "pkg-a",
+      folderName: "5g4data-intent-generating-agent-e1",
+      iterationLabel: "i1"
+    })
+  );
+});
+
 test("cloneAgentForPackage prefers provided folderName", () => {
   const root = mkdtempSync(join(tmpdir(), "clone-manager-folder-name-"));
   const baseline = join(root, "SimulatorAgentKernel");

@@ -48,3 +48,4 @@ AgenticDataSimulator/SimulatorController/logs/restart-controller-3001.log
 AgenticDataSimulator/.cache-infra-reload/telenorKG.jsonld
 AgenticDataSimulator/Prometheus/configure-docker-user-firewall.sh
 AgenticDataSimulator/scripts/systemd/prometheus-docker-user-firewall.service.example
+AgenticDataSimulator/MistralAPI-key.txt

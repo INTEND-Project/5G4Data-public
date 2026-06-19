@@ -126,7 +126,7 @@ test("syncAgentApiKeyToConsumers updates .env.dev when present", () => {
   assert.equal(readAgentApiKeysMap(controllerDevEnv)["demo-agent"], "secret-key");
 });
 
-test("syncGraphDbCredentialsToClone copies username and password from controller env", () => {
+test("syncGraphDbCredentialsToClone copies username, password, and internal GraphDB URLs", () => {
   const root = mkdtempSync(join(tmpdir(), "env-graphdb-sync-"));
   const controllerEnv = join(root, "SimulatorController", ".env");
   const cloneEnv = join(root, "clone", ".env");
@@ -134,13 +134,22 @@ test("syncGraphDbCredentialsToClone copies username and password from controller
   mkdirSync(join(root, "clone"), { recursive: true });
   writeFileSync(
     controllerEnv,
-    "GRAPHDB_BASE_URL=https://start5g-1.cs.uit.no/graphdb/\nGRAPHDB_USERNAME=telenor\nGRAPHDB_PASSWORD=partner-secret\n",
+    "GRAPHDB_BASE_URL=http://127.0.0.1:7200/\nGRAPHDB_USERNAME=telenor\nGRAPHDB_PASSWORD=partner-secret\n",
     "utf8"
   );
-  writeFileSync(cloneEnv, "GRAPHDB_ENDPOINT=https://example/graphdb/repositories/demo\n", "utf8");
+  writeFileSync(
+    cloneEnv,
+    "GRAPHDB_ENDPOINT=https://example/graphdb/repositories/demo/sparql\n",
+    "utf8"
+  );
 
   const result = syncGraphDbCredentialsToClone(controllerEnv, cloneEnv);
   assert.equal(result.updated, true);
   assert.equal(readDotEnvKey(cloneEnv, "GRAPHDB_USERNAME"), "telenor");
   assert.equal(readDotEnvKey(cloneEnv, "GRAPHDB_PASSWORD"), "partner-secret");
+  assert.equal(readDotEnvKey(cloneEnv, "GRAPHDB_BASE_URL"), "http://host.docker.internal:7200/");
+  assert.equal(
+    readDotEnvKey(cloneEnv, "GRAPHDB_ENDPOINT"),
+    "http://host.docker.internal:7200/repositories/demo",
+  );
 });

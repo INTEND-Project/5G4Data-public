@@ -17,6 +17,11 @@ WHERE {
 }
 `.trim();
 
+/** GraphDB SPARQL POST target (repository base URL, not …/sparql). */
+function normalizeGraphDbPostEndpoint(endpoint: string): string {
+  return endpoint.trim().replace(/\/sparql\/?$/i, "").replace(/\/$/, "");
+}
+
 export class GraphDbTool {
   constructor(
     private readonly endpoint: string,
@@ -31,7 +36,7 @@ export class GraphDbTool {
   }
 
   async nearestEdgeCandidates(): Promise<Array<Record<string, { value: string }>>> {
-    const response = await fetch(this.endpoint, {
+    const response = await fetch(normalizeGraphDbPostEndpoint(this.endpoint), {
       method: "POST",
       headers: graphDbAuthHeaders({
         Accept: "application/sparql-results+json",
@@ -47,7 +52,7 @@ export class GraphDbTool {
   }
 
   async insertTurtle(turtle: string): Promise<boolean> {
-    const statementsUrl = this.endpoint.replace(/\/sparql$/, "").replace(/\/$/, "").concat("/statements");
+    const statementsUrl = `${normalizeGraphDbPostEndpoint(this.endpoint)}/statements`;
     const response = await fetch(statementsUrl, {
       method: "POST",
       headers: graphDbAuthHeaders({ "Content-Type": "application/x-turtle" }),

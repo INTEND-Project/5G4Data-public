@@ -96,7 +96,7 @@ sudo ufw allow from 172.21.0.0/16 to any port 9091 proto tcp comment 'Pushgatewa
 sudo ufw reload
 ```
 
-Docker publishes 9090/9091 on all interfaces, so UFW alone does not block internet scanners. Restrict the `DOCKER-USER` chain (private ranges only). Use the idempotent script and enable it on boot via systemd:
+Docker publishes lab service ports on all interfaces, so UFW alone does not block internet scanners. Restrict the `DOCKER-USER` chain (private ranges only). Use the idempotent script and enable it on boot via systemd:
 
 ```bash
 sudo cp scripts/systemd/prometheus-docker-user-firewall.service.example /etc/systemd/system/prometheus-docker-user-firewall.service

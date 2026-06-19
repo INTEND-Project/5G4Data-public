@@ -44,6 +44,10 @@ start5g-1.cs.uit.no {
         reverse_proxy http://host.docker.internal:3012
     }
 
+    handle_path /5g4data-intent-generating-agent-e1/* {
+        reverse_proxy http://host.docker.internal:3013
+    }
+
     # A2A Registry API (host port 17001; strip /a2a-registry prefix)
     handle /a2a-registry/api* {
         uri strip_prefix /a2a-registry
@@ -74,7 +78,13 @@ start5g-1.cs.uit.no {
     }
 
     # GraphDB on host port 7200 (OpenClaw agents use https://…/graphdb/…)
-    handle /graphdb* {
+    @graphdb path /graphdb /graphdb/*
+    @graphdb_allowed {
+        path /graphdb /graphdb/*
+        remote_ip 85.165.67.213
+    }
+
+    handle @graphdb_allowed {
         uri strip_prefix /graphdb
         reverse_proxy http://host.docker.internal:7200 {
             header_up Host {host}
@@ -83,8 +93,18 @@ start5g-1.cs.uit.no {
         }
     }
 
+    handle @graphdb {
+        respond "Forbidden" 403
+    }
+
     # Prometheus UI/API (host port 9090)
-    handle /prometheus* {
+    @prometheus path /prometheus /prometheus/*
+    @prometheus_allowed {
+        path /prometheus /prometheus/*
+        remote_ip 85.165.67.213
+    }
+
+    handle @prometheus_allowed {
         uri strip_prefix /prometheus
         reverse_proxy http://host.docker.internal:9090 {
             header_up Host {host}
@@ -93,14 +113,28 @@ start5g-1.cs.uit.no {
         }
     }
 
+    handle @prometheus {
+        respond "Forbidden" 403
+    }
+
     # Prometheus Pushgateway (host port 9091)
-    handle /prometheus-pushgateway* {
+    @prometheus_pushgateway path /prometheus-pushgateway /prometheus-pushgateway/*
+    @prometheus_pushgateway_allowed {
+        path /prometheus-pushgateway /prometheus-pushgateway/*
+        remote_ip 85.165.67.213
+    }
+
+    handle @prometheus_pushgateway_allowed {
         uri strip_prefix /prometheus-pushgateway
         reverse_proxy http://host.docker.internal:9091 {
             header_up Host {host}
             header_up X-Forwarded-Host {host}
             header_up X-Forwarded-Proto {scheme}
         }
+    }
+
+    handle @prometheus_pushgateway {
+        respond "Forbidden" 403
     }
 
     # Grafana UI/API (host port 3002; subpath — do NOT strip_prefix)

@@ -3,6 +3,7 @@ import {
   clampReportingIntervalSeconds,
   clampTemperature,
 } from "../config.js";
+import { rewriteGraphDbUrlForContainerAccess } from "../graphdb-url.js";
 
 /** openclaw.controller.v1 — parsed from A2A message.metadata.openclaw */
 
@@ -111,12 +112,15 @@ export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawCont
     const graphIri = readNonEmptyString(raw.graphIri);
     const sparqlEndpoint = readNonEmptyString(raw.sparqlEndpoint);
     if (repositoryId && graphIri && sparqlEndpoint) {
+      const repositoryBaseUrl = readNonEmptyString(raw.repositoryBaseUrl);
       graphTarget = {
         graphTargetId: readNonEmptyString(raw.graphTargetId) ?? undefined,
         repositoryId,
         graphIri,
-        sparqlEndpoint,
-        repositoryBaseUrl: readNonEmptyString(raw.repositoryBaseUrl) ?? undefined,
+        sparqlEndpoint: rewriteGraphDbUrlForContainerAccess(sparqlEndpoint),
+        repositoryBaseUrl: repositoryBaseUrl
+          ? rewriteGraphDbUrlForContainerAccess(repositoryBaseUrl)
+          : undefined,
       };
     }
   }

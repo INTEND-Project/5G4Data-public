@@ -7,7 +7,7 @@ services:
       - PYTHONUNBUFFERED=1
       - FLASK_HOST=0.0.0.0
       - FLASK_PORT=3010
-      - GRAPHDB_URL=https://start5g-1.cs.uit.no/graphdb
+      - GRAPHDB_URL=http://127.0.0.1:7200
       # Fallback when Grafana does not pass repository_id
       - GRAPHDB_REPOSITORY=telenor-5g4data-simulator-demo
       # Prometheus API base on this host (direct :9090; public URL uses /prometheus prefix via Caddy)

@@ -226,6 +226,11 @@ describe("workspace shell bootstrap", () => {
     expect(collapsibleSectionSource).toContain("aria-expanded");
     expect(collapsibleSectionSource).toContain("localStorage");
     expect(collapsibleSectionSource).toContain("openclaw-workspace-section-");
+    expect(domainSelectorSource).toContain('"use client"');
+    expect(domainSelectorSource).toContain("useRouter");
+    expect(domainSelectorSource).toContain('router.push(`${withAppBasePath("/workspace")}?');
+    expect(domainSelectorSource).toContain("value={selectedDomain}");
+    expect(domainSelectorSource).not.toContain("defaultValue={selectedDomain}");
     expect(domainSelectorSource).not.toContain("WorkspaceCollapsibleSection");
     expect(domainSelectorSource).toContain("workspace-section-title");
     expect(globalsSource).toContain(".workspace-collapsible-trigger");

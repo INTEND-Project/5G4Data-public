@@ -37,7 +37,9 @@ export function projectNameForClone(cloneName: string): string {
 }
 
 export function ensureContainerEnvDefaults(cloneEnvPath: string): void {
-  const updates: Array<{ key: string; value: string }> = [];
+  const updates: Array<{ key: string; value: string }> = [
+    { key: "SIMULATOR_AGENT_CONTAINER", value: "true" },
+  ];
   if (!readDotEnvKey(cloneEnvPath, "API_SERVER_ENABLED")) {
     updates.push({ key: "API_SERVER_ENABLED", value: "true" });
   }
@@ -63,6 +65,7 @@ export function renderCloneDockerCompose(input: WriteCloneDockerComposeInput): s
       API_SERVER_ENABLED: "true"
       API_SERVER_HOST: "0.0.0.0"
       API_SERVER_PORT: "${port}"
+      SIMULATOR_AGENT_CONTAINER: "true"
     command: ["npx", "tsx", "src/index.ts", "--debug"]
     extra_hosts:
       - "host.docker.internal:host-gateway"

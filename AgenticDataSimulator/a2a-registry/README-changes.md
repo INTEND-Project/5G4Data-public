@@ -138,16 +138,7 @@ A utility script was added to permanently wipe all agent cards from the DB:
 
 It performs a hard delete (`DELETE FROM agents`) and requires explicit confirmation via `--yes`.
 
-### Run from host (Docker Compose dev DB on port 17432)
-
-```bash
-cd backend
-uv run python ../scripts/purge_all_agent_cards.py \
-  --database-url postgresql://a2a_user:a2a_password@localhost:17432/a2a_registry \
-  --yes
-```
-
-### Run inside API container (DB service name `postgres`)
+### Run via Docker (Postgres is internal to the compose network only)
 
 ```bash
 docker exec -it a2a-registry-api python ../scripts/purge_all_agent_cards.py \

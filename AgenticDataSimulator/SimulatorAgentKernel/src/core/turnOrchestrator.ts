@@ -22,10 +22,11 @@ import {
 } from "./confirmationState.js";
 import { extractTurtlePayload, looksLikeTurtleIntent } from "./outputPolicyValidator.js";
 import { RepairEngine } from "./repairEngine.js";
+import { runConfiguredPostprocessors } from "./postprocessorRunner.js";
 import { RuntimeContextBuilder } from "./runtimeContextBuilder.js";
 import { ShaclValidatorTool } from "./shaclValidatorTool.js";
 import type { LoadedDomainPackage } from "./packageLoader.js";
-import { WorkflowEngine } from "./workflowEngine.js";
+import { adjustModulesForConfirmationAck, WorkflowEngine } from "./workflowEngine.js";
 import { buildIntentUsageSummary } from "./usage.js";
 import { appendUsageLog } from "./usageLogger.js";
 import { tryReplPackageHook } from "./replPackageHook.js";
@@ -178,7 +179,10 @@ export class TurnOrchestrator {
     // Confirmation ack should keep normal generation-stage modules; repair stage is only for
     // policy/shacl rewrite flows and not for user confirmation handling.
     const stageHint = "default";
-    const modules = this.workflowEngine.modulesForTurn(intentFlags, stageHint);
+    const modules = adjustModulesForConfirmationAck(
+      this.workflowEngine.modulesForTurn(intentFlags, stageHint),
+      confirmationAck
+    );
     const moduleBlocks = modules
       .map((name) => this.domainPackage.promptModules[name])
       .filter((text): text is string => Boolean(text))
@@ -241,6 +245,27 @@ export class TurnOrchestrator {
     debug.push(...repaired.debug);
     debug.push(`post_repair_output=${text}`);
     calls.push(...repaired.calls);
+
+    if (looksLikeTurtleIntent(text)) {
+      text = await traceToolCall("postprocessors_final", { when: "always" }, () =>
+        runConfiguredPostprocessors({
+          text: extractTurtlePayload(text),
+          context: {
+            runtimeContext: context.runtimeContext,
+            userPrompt: effectiveUserText,
+            knownMetricStems: context.knownMetricStems,
+            intentFlags,
+            validatorRules: this.domainPackage.validatorRules,
+            reportingIntervalMinutes: reportingInterval.reportingIntervalMinutes,
+            reportingIntervalSeconds: reportingInterval.reportingIntervalSeconds
+          },
+          domainPackage: this.domainPackage,
+          when: "always",
+          debug
+        })
+      );
+      debug.push(`post_final_normalize_output=${text}`);
+    }
 
     const shaclResult = await traceToolCall(
       "shacl_validate",

@@ -68,6 +68,13 @@ function stripMarkdownFence(text: string): string {
   return fenced?.[1]?.trim() ?? trimmed;
 }
 
+function stripOrphanMarkdownFenceLines(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => !/^```(?:turtle|ttl)?\s*$/i.test(line.trim()))
+    .join("\n");
+}
+
 function stripShaclValidationComments(text: string): string {
   const marker = "\n# SHACL validation result";
   const idx = text.indexOf(marker);
@@ -128,7 +135,8 @@ function stripInterleavedNarration(text: string): string {
 
 export function extractTurtlePayload(text: string): string {
   const withoutFence = stripShaclValidationComments(stripMarkdownFence(text)).trim();
-  const fromPrefix = stripLeadingNarration(withoutFence);
+  const withoutOrphanFences = stripOrphanMarkdownFenceLines(withoutFence);
+  const fromPrefix = stripLeadingNarration(withoutOrphanFences);
   return stripInterleavedNarration(fromPrefix).trimEnd();
 }
 

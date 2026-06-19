@@ -32,6 +32,8 @@ export interface CloneAgentInput {
   baselineAgentDir: string;
   packageName: string;
   folderName?: string;
+  /** When set (e.g. `i1`), creates exact clone dir `...-{folderName}-{iterationLabel}` without auto `-v2` bump. */
+  iterationLabel?: string;
 }
 
 export interface CloneAgentResult {
@@ -40,12 +42,29 @@ export interface CloneAgentResult {
   version: number;
 }
 
+function resolveCloneTarget(
+  preferred: string,
+  iterationLabel?: string
+): { path: string; version: number } {
+  if (iterationLabel) {
+    const label = sanitizeForFolderName(iterationLabel);
+    const path = `${preferred}-${label}`;
+    if (existsSync(path)) {
+      throw new Error(
+        `Clone directory already exists: ${path}. Remove it or use another PACKAGE_LOAD_ITERATION value.`
+      );
+    }
+    return { path, version: 1 };
+  }
+  return nextCloneDir(preferred);
+}
+
 export function cloneAgentForPackage(input: CloneAgentInput): CloneAgentResult {
   const baseName = sanitizeForFolderName(input.folderName ?? input.packageName);
   const baselineName = basename(input.baselineAgentDir);
   const siblingRoot = dirname(input.baselineAgentDir);
   const preferred = join(siblingRoot, `${baselineName}-${baseName}`);
-  const selected = nextCloneDir(preferred);
+  const selected = resolveCloneTarget(preferred, input.iterationLabel);
 
   cpSync(input.baselineAgentDir, selected.path, {
     recursive: true,

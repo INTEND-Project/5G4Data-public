@@ -1,6 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import {
+  repositoryIdFromGraphDbEndpoint,
+  resolveGraphDbEndpoint,
+} from "./graphdb-url.js";
+
 export interface AppConfig {
   llmProvider: "openai" | "anthropic";
   openAiApiKey: string;
@@ -175,9 +180,15 @@ export function loadConfig(): AppConfig {
     openAiTemperature: clampTemperature(floatFromEnv(process.env.OPENAI_TEMPERATURE, 1)),
     workloadCatalogBaseUrl:
       process.env.WORKLOAD_CATALOG_BASE_URL ?? "https://start5g-1.cs.uit.no/wchartmuseum",
-    graphDbEndpoint:
-      process.env.GRAPHDB_ENDPOINT ??
-      "https://start5g-1.cs.uit.no/graphdb/repositories/intents_and_intent_reports",
+    graphDbEndpoint: resolveGraphDbEndpoint({
+      endpoint: process.env.GRAPHDB_ENDPOINT,
+      baseUrl: process.env.GRAPHDB_BASE_URL,
+      repositoryId:
+        process.env.GRAPHDB_REPOSITORY_ID?.trim() ||
+        (process.env.GRAPHDB_ENDPOINT
+          ? repositoryIdFromGraphDbEndpoint(process.env.GRAPHDB_ENDPOINT)
+          : undefined),
+    }),
     graphDbNamedGraph: process.env.GRAPHDB_NAMED_GRAPH ?? "http://intendproject.eu/telenor/infra",
     graphDbQueryLimit: Math.max(0, numberFromEnv(process.env.GRAPHDB_QUERY_LIMIT, 0)),
     graphDbContextLimit: Math.max(1, numberFromEnv(process.env.GRAPHDB_CONTEXT_LIMIT, 10)),

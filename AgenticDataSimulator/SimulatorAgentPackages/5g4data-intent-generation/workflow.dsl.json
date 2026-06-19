@@ -8,7 +8,7 @@
       "please confirm",
       "confirm or"
     ],
-    "forceGenerateInstruction": "The user has explicitly confirmed. Do not ask for confirmation again. Generate the final Turtle intent now."
+    "forceGenerateInstruction": "The user has explicitly confirmed. Do not ask for confirmation again. Generate the final Turtle intent now. Return raw @prefix blocks only — no markdown fences, no narration before or after."
   },
   "stages": [
     {

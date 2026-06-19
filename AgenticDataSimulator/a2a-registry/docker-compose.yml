@@ -8,8 +8,6 @@ services:
       POSTGRES_DB: a2a_registry
       POSTGRES_USER: a2a_user
       POSTGRES_PASSWORD: a2a_password
-    ports:
-      - "17432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Only runs on empty volume; later migrations run at API/worker startup (see app/db_migrations.py).

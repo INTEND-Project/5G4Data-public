@@ -9,12 +9,21 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KERNEL="$ROOT/SimulatorAgentKernel"
+KERNEL_E1="$ROOT/SimulatorAgentKernel-e1"
 PACKAGES="$ROOT/SimulatorAgentPackages"
+E1_AGENT_SUFFIX="5g4data-intent-generating-agent-e1"
 
-AGENTS=(
+# Format: package_dir|clone_suffix|port|agent_card_name
+CORE_AGENTS=(
   "5g4data-intent-generation|5g4data-intent-generating-agent|3011|5g4data-intent-generating-agent"
   "5g4data-intent-observations|5g4data-intent-observation-generating-agent|3012|5g4data-intent-observation-generating-agent"
 )
+
+EXTRA_AGENTS=(
+  "5g4data-intent-generation-e1|5g4data-intent-generating-agent-e1|3013|5g4data-intent-generating-agent-e1"
+)
+
+ALL_AGENTS=("${CORE_AGENTS[@]}" "${EXTRA_AGENTS[@]}")
 
 # Paths copied from SimulatorAgentPackages into each clone (see packageCloneDeployer.ts).
 DEPLOY_REL_PATHS=(
@@ -35,6 +44,7 @@ DEPLOY_REL_PATHS=(
   tests
   mappings
   metadata
+  templates
 )
 
 # Baseline kernel paths copied into each clone (see agentCloneManager.ts).
@@ -50,7 +60,7 @@ KERNEL_REL_PATHS=(
 
 usage() {
   cat <<EOF
-Usage: agent-control {start|stop|restart|reload}
+Usage: agent-control {start|stop|restart|reload} [package-name]
 
 Run from the AgenticDataSimulator directory as ./agent-control,
 or add AgenticDataSimulator/bin to PATH (see README.md).
@@ -59,14 +69,66 @@ or add AgenticDataSimulator/bin to PATH (see README.md).
            remove existing clone(s), package load, and start containers.
   stop     Stop and remove running agent containers.
   restart  Like start for missing or package/kernel-changed agents; otherwise rebuild when clone sources changed.
-  reload   Stop agents, remove all clone directories, package load both agents from current sources,
+  reload   Stop agents, remove clone directories, package load from current sources,
            and wait for health. Preserves AGENT_API_KEYS from SimulatorController/.env when present.
-           Restart Controller and a2a-registry api/worker after reload (see scripts/restart-lab-from-source.sh).
 
-Agents:
+  package-name  Optional. Limit the command to one package directory, e.g.
+                5g4data-intent-generation-e1. When omitted, only the core
+                agents (intent generation + observations) are affected.
+
+Core agents (default):
   - 5g4data-intent-generating-agent (port 3011)
   - 5g4data-intent-observation-generating-agent (port 3012)
+
+Extra agents (package-name required):
+  - 5g4data-intent-generating-agent-e1 (port 3013) from package 5g4data-intent-generation-e1
 EOF
+}
+
+resolve_agents() {
+  local filter="${1:-}"
+  SELECTED_AGENTS=()
+
+  if [[ -z "$filter" ]]; then
+    SELECTED_AGENTS=("${CORE_AGENTS[@]}")
+    return 0
+  fi
+
+  local entry package
+  for entry in "${ALL_AGENTS[@]}"; do
+    IFS='|' read -r package _ _ _ <<<"$entry"
+    if [[ "$package" == "$filter" ]]; then
+      SELECTED_AGENTS+=("$entry")
+      return 0
+    fi
+  done
+
+  echo "ERROR: unknown package-name '${filter}'." >&2
+  echo "Known packages:" >&2
+  for entry in "${ALL_AGENTS[@]}"; do
+    IFS='|' read -r package _ _ label <<<"$entry"
+    echo "  - ${package} (${label})" >&2
+  done
+  return 1
+}
+
+print_selected_health_urls() {
+  local entry _ clone_suffix port label
+  for entry in "${SELECTED_AGENTS[@]}"; do
+    IFS='|' read -r _ _ port label <<<"$entry"
+    echo "  ${label}: http://127.0.0.1:${port}/health"
+  done
+}
+
+wire_extra_agent_lab() {
+  local package="$1"
+  case "$package" in
+    5g4data-intent-generation-e1)
+      if [[ -x "${ROOT}/scripts/wire-intent-agent-e1-lab.sh" ]]; then
+        "${ROOT}/scripts/wire-intent-agent-e1-lab.sh"
+      fi
+      ;;
+  esac
 }
 
 require_docker() {
@@ -80,9 +142,26 @@ require_docker() {
   fi
 }
 
+is_e1_clone_suffix() {
+  [[ "${1:-}" == "$E1_AGENT_SUFFIX" ]]
+}
+
+kernel_dir_for_package() {
+  local package="$1"
+  if [[ "$package" == "5g4data-intent-generation-e1" ]]; then
+    printf '%s\n' "$KERNEL_E1"
+  else
+    printf '%s\n' "$KERNEL"
+  fi
+}
+
 clone_base_dir() {
   local suffix="$1"
-  printf '%s/SimulatorAgentKernel-%s\n' "$ROOT" "$suffix"
+  if is_e1_clone_suffix "$suffix"; then
+    printf '%s/SimulatorAgentKernel-e1-%s\n' "$ROOT" "$suffix"
+  else
+    printf '%s/SimulatorAgentKernel-%s\n' "$ROOT" "$suffix"
+  fi
 }
 
 find_clone_dir() {
@@ -164,14 +243,24 @@ needs_package_reload() {
   (( package_epoch > clone_epoch ))
 }
 
+kernel_newest_epoch_for_dir() {
+  local kernel_root="$1"
+  newest_epoch_under_rel_paths "$kernel_root" "${KERNEL_REL_PATHS[@]}"
+}
+
 needs_kernel_reload() {
   local clone_dir="${1:-}"
 
-  [[ -d "$KERNEL" ]] || return 1
+  local kernel_root="$KERNEL"
+  if [[ "$clone_dir" == *"/SimulatorAgentKernel-e1-"* ]]; then
+    kernel_root="$KERNEL_E1"
+  fi
+
+  [[ -d "$kernel_root" ]] || return 1
   [[ -n "$clone_dir" && -d "$clone_dir" ]] || return 1
 
   local kernel_epoch clone_epoch
-  kernel_epoch="$(kernel_newest_epoch || true)"
+  kernel_epoch="$(kernel_newest_epoch_for_dir "$kernel_root" || true)"
   clone_epoch="$(clone_kernel_newest_epoch "$clone_dir" || true)"
 
   [[ -n "$kernel_epoch" ]] || return 1
@@ -270,10 +359,13 @@ load_agent_package() {
   local label="$2"
   local agent_name="${3:-}"
 
-  echo "==> Loading ${label} from package ${package}"
-  if [[ ! -d "$KERNEL/node_modules" ]]; then
+  local kernel_dir
+  kernel_dir="$(kernel_dir_for_package "$package")"
+
+  echo "==> Loading ${label} from package ${package} (kernel: $(basename "$kernel_dir"))"
+  if [[ ! -d "$kernel_dir/node_modules" ]]; then
     echo "    Installing kernel dependencies ..."
-    (cd "$KERNEL" && npm install)
+    (cd "$kernel_dir" && npm install)
   fi
   local preserve=""
   if [[ -n "$agent_name" ]]; then
@@ -281,9 +373,9 @@ load_agent_package() {
   fi
   if [[ -n "$preserve" ]]; then
     echo "    Preserving AGENT_API_KEY for ${agent_name} from SimulatorController/.env"
-    (cd "$KERNEL" && PRESERVE_AGENT_API_KEY="$preserve" npx tsx src/index.ts package load "$PACKAGES/$package")
+    (cd "$kernel_dir" && PRESERVE_AGENT_API_KEY="$preserve" npx tsx src/index.ts package load "$PACKAGES/$package")
   else
-    (cd "$KERNEL" && npx tsx src/index.ts package load "$PACKAGES/$package")
+    (cd "$kernel_dir" && npx tsx src/index.ts package load "$PACKAGES/$package")
   fi
 }
 
@@ -385,6 +477,7 @@ start_agent() {
   fi
 
   wait_for_health "$port" "$label"
+  wire_extra_agent_lab "$package"
   echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
   echo "Agent log files: ${clone_dir}/logs/"
   echo
@@ -420,6 +513,7 @@ restart_agent() {
       exit 1
     fi
     wait_for_health "$port" "$label"
+    wire_extra_agent_lab "$package"
     echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
     echo "Agent log files: ${clone_dir}/logs/"
     echo
@@ -435,6 +529,7 @@ restart_agent() {
   (cd "$clone_dir" && docker compose build)
   (cd "$clone_dir" && docker compose up -d --force-recreate)
   wait_for_health "$port" "$label"
+  wire_extra_agent_lab "$package"
   echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
   echo "Agent log files: ${clone_dir}/logs/"
   echo
@@ -463,27 +558,28 @@ stop_agent() {
 
 cmd_start() {
   require_docker
+  resolve_agents "${PACKAGE_FILTER:-}" || exit 1
   echo "Starting OpenClaw simulator agents from ${ROOT}"
   echo
 
   local entry package clone_suffix port label
-  for entry in "${AGENTS[@]}"; do
+  for entry in "${SELECTED_AGENTS[@]}"; do
     IFS='|' read -r package clone_suffix port label <<<"$entry"
     start_agent "$package" "$clone_suffix" "$port" "$label"
   done
 
-  echo "Both agents are up."
-  echo "  Generation:    http://127.0.0.1:3011/health"
-  echo "  Observations:  http://127.0.0.1:3012/health"
+  echo "Selected agent(s) are up."
+  print_selected_health_urls
 }
 
 cmd_stop() {
   require_docker
+  resolve_agents "${PACKAGE_FILTER:-}" || exit 1
   echo "Stopping OpenClaw simulator agents from ${ROOT}"
   echo
 
   local entry clone_suffix label
-  for entry in "${AGENTS[@]}"; do
+  for entry in "${SELECTED_AGENTS[@]}"; do
     IFS='|' read -r _ clone_suffix _ label <<<"$entry"
     stop_agent "$clone_suffix" "$label"
   done
@@ -493,11 +589,12 @@ cmd_stop() {
 
 cmd_restart() {
   require_docker
+  resolve_agents "${PACKAGE_FILTER:-}" || exit 1
   echo "Checking OpenClaw simulator agents for package, kernel, or clone changes from ${ROOT}"
   echo
 
   local entry package clone_suffix port label updated=0
-  for entry in "${AGENTS[@]}"; do
+  for entry in "${SELECTED_AGENTS[@]}"; do
     IFS='|' read -r package clone_suffix port label <<<"$entry"
     if restart_agent "$package" "$clone_suffix" "$port" "$label"; then
       updated=$((updated + 1))
@@ -508,21 +605,24 @@ cmd_restart() {
     echo "No agents required creation or rebuild."
   else
     echo "Created or restarted ${updated} agent(s)."
-    echo "  Generation:    http://127.0.0.1:3011/health"
-    echo "  Observations:  http://127.0.0.1:3012/health"
+    print_selected_health_urls
   fi
 }
 
 cmd_reload() {
   require_docker
+  resolve_agents "${PACKAGE_FILTER:-}" || exit 1
   echo "Force-reloading OpenClaw simulator agents from ${ROOT}"
   echo "    AGENT_API_KEYS preserved from SimulatorController/.env when present."
 
-  cmd_stop
+  local entry package clone_suffix port label
+  for entry in "${SELECTED_AGENTS[@]}"; do
+    IFS='|' read -r _ clone_suffix _ label <<<"$entry"
+    stop_agent "$clone_suffix" "$label"
+  done
   echo
 
-  local entry package clone_suffix port label
-  for entry in "${AGENTS[@]}"; do
+  for entry in "${SELECTED_AGENTS[@]}"; do
     IFS='|' read -r package clone_suffix port label <<<"$entry"
     echo "==> Force reload: ${label}"
     remove_all_clones_for_suffix "$clone_suffix"
@@ -534,15 +634,18 @@ cmd_reload() {
       echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
       echo "Agent log files: ${clone_dir}/logs/"
     fi
+    wire_extra_agent_lab "$package"
     echo
   done
 
-  echo "Both agents reloaded from current package and kernel sources."
-  echo "  Generation:    http://127.0.0.1:3011/health"
-  echo "  Observations:  http://127.0.0.1:3012/health"
+  echo "Selected agent(s) reloaded from current package and kernel sources."
+  print_selected_health_urls
 }
 
-case "${1:-}" in
+COMMAND="${1:-}"
+PACKAGE_FILTER="${2:-}"
+
+case "$COMMAND" in
   start) cmd_start ;;
   stop) cmd_stop ;;
   restart) cmd_restart ;;

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WorkflowEngine } from "../core/workflowEngine.js";
+import { adjustModulesForConfirmationAck, WorkflowEngine } from "../core/workflowEngine.js";
 import type { LoadedDomainPackage } from "../core/packageLoader.js";
 
 const classificationRules = {
@@ -46,4 +46,17 @@ test("classifyIntent leaves networkQos false without network qos signals", () =>
   const engine = new WorkflowEngine(stubPackage);
   const flags = engine.classifyIntent("Deploy small llm to edge datacenter");
   assert.equal(flags.networkQos, false);
+});
+
+test("adjustModulesForConfirmationAck drops review and adds generation", () => {
+  const modules = ["base", "defaults", "reporting-storage", "review", "coordination"];
+  const adjusted = adjustModulesForConfirmationAck(modules, true);
+  assert.ok(!adjusted.includes("review"));
+  assert.ok(adjusted.includes("generation"));
+  assert.ok(adjusted.includes("coordination"));
+});
+
+test("adjustModulesForConfirmationAck leaves modules unchanged before confirmation", () => {
+  const modules = ["base", "review", "deployment"];
+  assert.deepEqual(adjustModulesForConfirmationAck(modules, false), modules);
 });

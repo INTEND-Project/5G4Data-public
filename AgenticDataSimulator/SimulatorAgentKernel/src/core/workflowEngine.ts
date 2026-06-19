@@ -7,6 +7,14 @@ export interface IntentFlags {
   [key: string]: boolean;
 }
 
+export function adjustModulesForConfirmationAck(
+  modules: string[],
+  confirmationAck: boolean
+): string[] {
+  if (!confirmationAck) return modules;
+  return [...modules.filter((name) => name !== "review"), "generation"];
+}
+
 export class WorkflowEngine {
   constructor(private readonly domainPackage: LoadedDomainPackage) {}
 

@@ -6,6 +6,11 @@ const DATA5G = "http://5g4data.eu/5g4data#";
 const GEO = "http://www.opengis.net/ont/geosparql#";
 const SET = "http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/";
 const LOG = "http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/";
+const UT = "http://tio.models.tmforum.org/tio/v3.6.0/Utility/";
+const FUN = "http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/";
+const TIME = "http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/";
+const RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+const QUAN = "http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/";
 
 export interface ShaclViolation {
   focusNode?: string;
@@ -67,12 +72,63 @@ function networkMetricExists(store: Store, networkExpectation: string, prefix: s
   for (const member of allOfMembers(store, networkExpectation)) {
     if (!hasType(store, member, `${ICM}Condition`)) continue;
     for (const forAll of store.getObjects(member, `${SET}forAll`, null)) {
-      for (const metric of store.getObjects(forAll.value, `${ICM}valuesOfTargetProperty`, null)) {
+      for (const metric of store.getObjects(forAll, `${ICM}valuesOfTargetProperty`, null)) {
         if (metric.value.startsWith(`${DATA5G}${prefix}`)) return true;
       }
     }
   }
   return false;
+}
+
+function metricConditionCount(store: Store, expectationIri: string): number {
+  let count = 0;
+  for (const member of allOfMembers(store, expectationIri)) {
+    if (!hasType(store, member, `${ICM}Condition`)) continue;
+    if (store.getObjects(member, `${SET}forAll`, null).length === 0) continue;
+    count++;
+  }
+  return count;
+}
+
+function coordinationForMetricCount(store: Store, coordinationIri: string): number | null {
+  for (const utility of store.getObjects(coordinationIri, `${UT}utility`, null)) {
+    return store.getObjects(utility, `${UT}forMetric`, null).length;
+  }
+  return null;
+}
+
+function expectationHasForbiddenDuration(
+  store: Store,
+  expectationIri: string,
+  expectationLabel: string
+): ShaclViolation | null {
+  if (store.getQuads(expectationIri, `${TIME}numericDuration`, null, null).length > 0) {
+    return {
+      focusNode: localName(expectationIri),
+      path: "time:numericDuration",
+      message: `${expectationLabel} must not declare time:numericDuration; use scoped reporting duration nodes instead.`
+    };
+  }
+  if (store.getQuads(expectationIri, `${TIME}unitType`, null, null).length > 0) {
+    return {
+      focusNode: localName(expectationIri),
+      path: "time:unitType",
+      message: `${expectationLabel} must not declare time:unitType; use scoped reporting duration nodes instead.`
+    };
+  }
+  return null;
+}
+
+function coordinationUtilityArityMax(store: Store, coordinationIri: string): number | null {
+  for (const utility of store.getObjects(coordinationIri, `${UT}utility`, null)) {
+    for (const fn of store.getObjects(utility, `${UT}function`, null)) {
+      for (const arity of store.getObjects(fn, `${FUN}arityMax`, null)) {
+        const parsed = Number(arity.value);
+        if (!Number.isNaN(parsed)) return parsed;
+      }
+    }
+  }
+  return null;
 }
 
 export function validateShaclSparqlConstraints(store: Store): ShaclViolation[] {
@@ -117,6 +173,85 @@ export function validateShaclSparqlConstraints(store: Store): ShaclViolation[] {
         message: check.message
       });
       if (violation) violations.push(violation);
+    }
+  }
+
+  for (const ceQuad of store.getQuads(null, RDF_TYPE, `${DATA5G}CoordinationExpectation`, null)) {
+    const ceIri = ceQuad.subject.value;
+    const coCount = metricConditionCount(store, ceIri);
+    if (coCount === 0) {
+      violations.push({
+        focusNode: localName(ceIri),
+        path: "log:allOf",
+        message:
+          "CoordinationExpectation must reference at least one metric condition (icm:Condition with set:forAll) in log:allOf."
+      });
+      continue;
+    }
+    const arity = coordinationUtilityArityMax(store, ceIri);
+    if (arity !== null && coCount !== arity) {
+      violations.push({
+        focusNode: localName(ceIri),
+        path: "log:allOf",
+        message:
+          "CoordinationExpectation metric condition count must match linked utility function arityMax."
+      });
+    }
+    const forMetricCount = coordinationForMetricCount(store, ceIri);
+    if (forMetricCount !== null && forMetricCount !== coCount) {
+      violations.push({
+        focusNode: localName(ceIri),
+        path: "ut:forMetric",
+        message: "ut:forMetric count must match CoordinationExpectation metric condition count."
+      });
+    }
+    const durationViolation = expectationHasForbiddenDuration(
+      store,
+      ceIri,
+      "CoordinationExpectation"
+    );
+    if (durationViolation) violations.push(durationViolation);
+  }
+
+  for (const deQuad of store.getQuads(null, RDF_TYPE, `${DATA5G}DeploymentExpectation`, null)) {
+    const violation = expectationHasForbiddenDuration(
+      store,
+      deQuad.subject.value,
+      "DeploymentExpectation"
+    );
+    if (violation) violations.push(violation);
+  }
+
+  for (const seQuad of store.getQuads(null, RDF_TYPE, `${DATA5G}SustainabilityExpectation`, null)) {
+    const violation = expectationHasForbiddenDuration(
+      store,
+      seQuad.subject.value,
+      "SustainabilityExpectation"
+    );
+    if (violation) violations.push(violation);
+  }
+
+  for (const fnQuad of store.getQuads(null, RDF_TYPE, `${FUN}function`, null)) {
+    const fnIri = fnQuad.subject.value;
+    if (!localName(fnIri).includes("utilityFn_") && !/^UN[0-9a-f]{32}$/i.test(localName(fnIri))) continue;
+    const valueNodes = store.getObjects(fnIri, `${RDF}value`, null);
+    if (valueNodes.length > 1) {
+      violations.push({
+        focusNode: localName(fnIri),
+        path: "rdf:value",
+        message: "Coordination utility function must have exactly one rdf:value."
+      });
+      continue;
+    }
+    for (const valueNode of valueNodes) {
+      const sums = store.getObjects(valueNode, `${QUAN}sum`, null);
+      if (sums.length > 1) {
+        violations.push({
+          focusNode: localName(fnIri),
+          path: "quan:sum",
+          message: "Coordination utility function rdf:value must contain exactly one quan:sum."
+        });
+      }
     }
   }
 

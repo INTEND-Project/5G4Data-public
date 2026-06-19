@@ -1,6 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { generateAgentApiKey } from "./a2a/auth.js";
+import {
+  graphDbBaseUrlForCloneFromController,
+  graphDbRepositoryEndpointFromBase,
+  repositoryIdFromGraphDbEndpoint,
+} from "../graphdb-url.js";
 
 export interface EnvUpdate {
   key: string;
@@ -18,6 +23,10 @@ const CLONE_SAFE_DEFAULT_ENV_KEYS = new Set([
   "A2A_AGENT_BASE_URL",
   "A2A_REGISTRY_BASE_URL",
   "API_SERVER_PORT",
+  "GRAPHDB_BASE_URL",
+  "GRAPHDB_REPOSITORY_ID",
+  "GRAPHDB_NAMED_GRAPH",
+  "GRAPHDB_QUERY_LIMIT",
   "INTENT_REPORT_INTERVAL_MINUTES",
   "MLFLOW_TRACKING_URI",
   "MLFLOW_EXPERIMENT_ID",
@@ -116,6 +125,7 @@ export function ensureAgentApiKeyForClone(cloneEnvPath: string): string {
 const AGENT_API_KEYS_ENV_KEY = "AGENT_API_KEYS";
 
 const GRAPHDB_CREDENTIAL_KEYS = ["GRAPHDB_USERNAME", "GRAPHDB_PASSWORD"] as const;
+const GRAPHDB_CONFIG_KEYS = ["GRAPHDB_BASE_URL", "GRAPHDB_ENDPOINT", "GRAPHDB_REPOSITORY_ID"] as const;
 
 function stripEnvQuotes(value: string): string {
   const trimmed = value.trim();
@@ -236,7 +246,32 @@ function readGraphDbCredentialUpdates(controllerEnvPath: string): EnvUpdate[] {
   return updates;
 }
 
-/** Copy GraphDB auth settings from Controller `.env` into a clone `.env`. */
+function readGraphDbConfigUpdates(
+  controllerEnvPath: string,
+  cloneEnvPath: string,
+): EnvUpdate[] {
+  const controllerBaseUrl = readDotEnvKey(controllerEnvPath, "GRAPHDB_BASE_URL")?.trim();
+  if (!controllerBaseUrl) return [];
+
+  const cloneBaseUrl = graphDbBaseUrlForCloneFromController(controllerBaseUrl);
+  const cloneRepositoryId =
+    readDotEnvKey(cloneEnvPath, "GRAPHDB_REPOSITORY_ID")?.trim() ||
+    (readDotEnvKey(cloneEnvPath, "GRAPHDB_ENDPOINT")
+      ? repositoryIdFromGraphDbEndpoint(readDotEnvKey(cloneEnvPath, "GRAPHDB_ENDPOINT") ?? "")
+      : undefined);
+
+  const updates: EnvUpdate[] = [{ key: "GRAPHDB_BASE_URL", value: cloneBaseUrl }];
+  if (cloneRepositoryId) {
+    updates.push({ key: "GRAPHDB_REPOSITORY_ID", value: cloneRepositoryId });
+  }
+  updates.push({
+    key: "GRAPHDB_ENDPOINT",
+    value: graphDbRepositoryEndpointFromBase(cloneBaseUrl, cloneRepositoryId),
+  });
+  return updates;
+}
+
+/** Copy GraphDB auth + internal URLs from Controller `.env` into a clone `.env`. */
 export function syncGraphDbCredentialsToClone(
   controllerEnvPath: string,
   cloneEnvPath: string
@@ -249,13 +284,16 @@ export function syncGraphDbCredentialsToClone(
       reason: `missing controller env: ${controllerEnvPath}`
     };
   }
-  const updates = readGraphDbCredentialUpdates(controllerEnvPath);
+  const updates = [
+    ...readGraphDbCredentialUpdates(controllerEnvPath),
+    ...readGraphDbConfigUpdates(controllerEnvPath, cloneEnvPath),
+  ];
   if (updates.length === 0) {
     return {
       path: cloneEnvPath,
       updated: false,
       skipped: true,
-      reason: "no GraphDB credentials in controller env"
+      reason: "no GraphDB settings in controller env"
     };
   }
   if (!existsSync(cloneEnvPath)) {
@@ -266,9 +304,13 @@ export function syncGraphDbCredentialsToClone(
       reason: `missing clone env: ${cloneEnvPath}`
     };
   }
-  const before = GRAPHDB_CREDENTIAL_KEYS.map((key) => readDotEnvKey(cloneEnvPath, key) ?? "");
+  const before = [...GRAPHDB_CREDENTIAL_KEYS, ...GRAPHDB_CONFIG_KEYS].map(
+    (key) => readDotEnvKey(cloneEnvPath, key) ?? "",
+  );
   updateEnvFile(cloneEnvPath, updates);
-  const after = GRAPHDB_CREDENTIAL_KEYS.map((key) => readDotEnvKey(cloneEnvPath, key) ?? "");
+  const after = [...GRAPHDB_CREDENTIAL_KEYS, ...GRAPHDB_CONFIG_KEYS].map(
+    (key) => readDotEnvKey(cloneEnvPath, key) ?? "",
+  );
   const updated = before.some((value, index) => value !== after[index]);
   return { path: cloneEnvPath, updated, skipped: false };
 }

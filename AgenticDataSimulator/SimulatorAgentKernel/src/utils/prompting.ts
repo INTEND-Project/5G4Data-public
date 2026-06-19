@@ -2,8 +2,17 @@ export function stripFrontmatter(markdown: string): string {
   return markdown.replace(/^---\s*\n[\s\S]*?\n---\s*\n/m, "").trim();
 }
 
+export function stripMarkdownCodeFenceDelimiters(markdown: string): string {
+  return markdown
+    .split("\n")
+    .filter((line) => !/^```(?:turtle|ttl|yaml|text|json)?\s*$/i.test(line.trim()))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function buildSystemPrompt(systemPromptText: string, skillText: string): string {
-  const trimmedSkill = stripFrontmatter(skillText);
+  const trimmedSkill = stripMarkdownCodeFenceDelimiters(stripFrontmatter(skillText));
   return `${systemPromptText.trim()}
 
 Use the following workflow specification as binding domain guidance.

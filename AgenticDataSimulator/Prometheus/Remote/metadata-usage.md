@@ -574,7 +574,7 @@ INSERT DATA {
 EOF
 ```
 
-For production GraphDB-backed metrics, copy the exact embedded SPARQL from `storeGraphdbMetadata` in `SimulatorAgentPackages/5g4data-intent-observations/tools/graphdbTool.ts` and URL-encode it into `GRAPHDB_QUERY_URL`.
+For production GraphDB-backed metrics, copy the exact embedded SPARQL from `storeGraphdbMetadata` in `SimulatorAgentPackages/5g4data-intent-observations-generating-agent/tools/graphdbTool.ts` and URL-encode it into `GRAPHDB_QUERY_URL`.
 
 ---
 
@@ -738,7 +738,7 @@ Returns JSON objects with `id`, `title`, `readable`, `writable`, and `state`. Pi
 | Component                                                                 | Role                                                                                                                        |
 | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `SimulatorController`                                                     | **Option A** — intent scripts, KG target, Prometheus host, GraphDB inserts via agents                                       |
-| `SimulatorAgentPackages/5g4data-intent-observations/tools/graphdbTool.ts` | Reference for metadata triple shape (`storePrometheusMetadata` / `storeGraphdbMetadata`); useful when implementing Option B |
+| `SimulatorAgentPackages/5g4data-intent-observations-generating-agent/tools/graphdbTool.ts` | Reference for metadata triple shape (`storePrometheusMetadata` / `storeGraphdbMetadata`); useful when implementing Option B |
 | `SimulatorController/src/lib/kg/metric-query-metadata.ts`                 | Batch metadata lookup (Controller UI; same graph layout as Option B)                                                        |
 | `IntentReportQueryProxy/app.py`                                           | Resolves `hasQuery` for Grafana; uses `GRAPHDB_URL`, `GRAPHDB_USERNAME` / `GRAPHDB_PASSWORD`, and `repository_id`           |
 | GraphDB partner user (e.g. `ericsson`)                                    | **Option B** — credentials for direct HTTP API calls described in this document                                             |

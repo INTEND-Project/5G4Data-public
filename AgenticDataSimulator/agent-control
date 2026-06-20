@@ -11,19 +11,18 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KERNEL="$ROOT/SimulatorAgentKernel"
 KERNEL_MISTRAL_SMALL4="$ROOT/SimulatorAgentKernel-mistral.small4"
 PACKAGES="$ROOT/SimulatorAgentPackages"
-MISTRAL_SMALL4_AGENT_SUFFIX="5g4data-intent-generating-agent-mistral-small4"
+MISTRAL_SMALL4_PACKAGE="5g4data-intent-mistral-small4-generating-agent"
 
-# Format: package_dir|clone_suffix|port|agent_card_name
+# Format: package_dir|port|agent_card_name
+# Clone directory: agents/<package_dir>/ for all kernel clones.
+# agent_card_name: A2A registry / AGENT_API_KEYS key (from package metadata).
 CORE_AGENTS=(
-  "5g4data-intent-generation|5g4data-intent-generating-agent|3011|5g4data-intent-generating-agent"
-  "5g4data-intent-observations|5g4data-intent-observation-generating-agent|3012|5g4data-intent-observation-generating-agent"
+  "5g4data-intent-generating-agent|3011|5g4data-intent-generating-agent"
+  "5g4data-intent-observations-generating-agent|3012|5g4data-intent-observation-generating-agent"
+  "${MISTRAL_SMALL4_PACKAGE}|3013|5g4data-intent-mistral-small4-generating-agent"
 )
 
-EXTRA_AGENTS=(
-  "5g4data-intent-generation-mistral-small4|5g4data-intent-generating-agent-mistral-small4|3013|5g4data-intent-generating-agent-mistral-small4"
-)
-
-ALL_AGENTS=("${CORE_AGENTS[@]}" "${EXTRA_AGENTS[@]}")
+ALL_AGENTS=("${CORE_AGENTS[@]}")
 
 # Paths copied from SimulatorAgentPackages into each clone (see packageCloneDeployer.ts).
 DEPLOY_REL_PATHS=(
@@ -72,16 +71,21 @@ or add AgenticDataSimulator/bin to PATH (see README.md).
   reload   Stop agents, remove clone directories, package load from current sources,
            and wait for health. Preserves AGENT_API_KEYS from SimulatorController/.env when present.
 
-  package-name  Optional. Limit the command to one package directory, e.g.
-                5g4data-intent-generation-mistral-small4. When omitted, only the core
-                agents (intent generation + observations) are affected.
+  package-name  Optional. Limit the command to one SimulatorAgentPackages directory name
+                (e.g. 5g4data-intent-mistral-small4-generating-agent). When omitted, all
+                agents listed below are affected.
 
-Core agents (default):
-  - 5g4data-intent-generating-agent (port 3011)
-  - 5g4data-intent-observation-generating-agent (port 3012)
+Agents (package directory → port):
+  - 5g4data-intent-generating-agent (3011)
+  - 5g4data-intent-observations-generating-agent (3012)
+  - 5g4data-intent-mistral-small4-generating-agent (3013)
 
-Extra agents (package-name required):
-  - 5g4data-intent-generating-agent-mistral-small4 (port 3013) from package 5g4data-intent-generation-mistral-small4
+Examples:
+  ./agent-control reload
+  ./agent-control reload 5g4data-intent-generating-agent
+  ./agent-control stop 5g4data-intent-mistral-small4-generating-agent
+
+Agents start with --debug (file logs under each clone's logs/ directory).
 EOF
 }
 
@@ -90,13 +94,13 @@ resolve_agents() {
   SELECTED_AGENTS=()
 
   if [[ -z "$filter" ]]; then
-    SELECTED_AGENTS=("${CORE_AGENTS[@]}")
+    SELECTED_AGENTS=("${ALL_AGENTS[@]}")
     return 0
   fi
 
   local entry package
   for entry in "${ALL_AGENTS[@]}"; do
-    IFS='|' read -r package _ _ _ <<<"$entry"
+    IFS='|' read -r package _ agent_card <<<"$entry"
     if [[ "$package" == "$filter" ]]; then
       SELECTED_AGENTS+=("$entry")
       return 0
@@ -104,26 +108,26 @@ resolve_agents() {
   done
 
   echo "ERROR: unknown package-name '${filter}'." >&2
-  echo "Known packages:" >&2
+  echo "Known package directories:" >&2
   for entry in "${ALL_AGENTS[@]}"; do
-    IFS='|' read -r package _ _ label <<<"$entry"
-    echo "  - ${package} (${label})" >&2
+    IFS='|' read -r package port agent_card <<<"$entry"
+    echo "  - ${package} (port ${port}, agent card: ${agent_card})" >&2
   done
   return 1
 }
 
 print_selected_health_urls() {
-  local entry _ clone_suffix port label
+  local entry package port agent_card
   for entry in "${SELECTED_AGENTS[@]}"; do
-    IFS='|' read -r _ _ port label <<<"$entry"
-    echo "  ${label}: http://127.0.0.1:${port}/health"
+    IFS='|' read -r package port agent_card <<<"$entry"
+    echo "  ${package} (${agent_card}): http://127.0.0.1:${port}/health"
   done
 }
 
 wire_extra_agent_lab() {
   local package="$1"
   case "$package" in
-    5g4data-intent-generation-mistral-small4)
+    "$MISTRAL_SMALL4_PACKAGE")
       if [[ -x "${ROOT}/scripts/wire-intent-agent-e1-lab.sh" ]]; then
         "${ROOT}/scripts/wire-intent-agent-e1-lab.sh"
       fi
@@ -142,13 +146,9 @@ require_docker() {
   fi
 }
 
-is_e1_clone_suffix() {
-  [[ "${1:-}" == "$MISTRAL_SMALL4_AGENT_SUFFIX" ]]
-}
-
 kernel_dir_for_package() {
   local package="$1"
-  if [[ "$package" == "5g4data-intent-generation-mistral-small4" ]]; then
+  if [[ "$package" == "$MISTRAL_SMALL4_PACKAGE" ]]; then
     printf '%s\n' "$KERNEL_MISTRAL_SMALL4"
   else
     printf '%s\n' "$KERNEL"
@@ -156,22 +156,23 @@ kernel_dir_for_package() {
 }
 
 clone_base_dir() {
-  local suffix="$1"
-  if is_e1_clone_suffix "$suffix"; then
-    printf '%s/SimulatorAgentKernel-mistral.small4-%s\n' "$ROOT" "$suffix"
-  else
-    printf '%s/SimulatorAgentKernel-%s\n' "$ROOT" "$suffix"
-  fi
+  local package="$1"
+  printf '%s/agents/%s\n' "$ROOT" "$package"
 }
 
-find_clone_dir() {
-  local suffix="$1"
-  local base
-  base="$(clone_base_dir "$suffix")"
+clone_base_candidates() {
+  local package="$1"
+  clone_base_dir "$package"
+}
+
+find_versioned_clone_dir() {
+  local base="$1"
+
   if [[ -d "$base" ]]; then
     printf '%s\n' "$base"
     return 0
   fi
+
   local latest=""
   local version=2
   while [[ -d "${base}-v${version}" ]]; do
@@ -181,6 +182,21 @@ find_clone_dir() {
   if [[ -n "$latest" ]]; then
     printf '%s\n' "$latest"
   fi
+}
+
+find_clone_dir() {
+  local package="$1"
+  local agent_card="${2:-}"
+  local base found
+
+  while IFS= read -r base; do
+    [[ -n "$base" ]] || continue
+    found="$(find_versioned_clone_dir "$base" || true)"
+    if [[ -n "$found" ]]; then
+      printf '%s\n' "$found"
+      return 0
+    fi
+  done < <(clone_base_candidates "$package" "$agent_card")
 }
 
 find_newest_file_epoch() {
@@ -250,11 +266,10 @@ kernel_newest_epoch_for_dir() {
 
 needs_kernel_reload() {
   local clone_dir="${1:-}"
+  local package="${2:-}"
 
-  local kernel_root="$KERNEL"
-  if [[ "$clone_dir" == *"/SimulatorAgentKernel-mistral.small4-"* ]]; then
-    kernel_root="$KERNEL_MISTRAL_SMALL4"
-  fi
+  local kernel_root
+  kernel_root="$(kernel_dir_for_package "$package")"
 
   [[ -d "$kernel_root" ]] || return 1
   [[ -n "$clone_dir" && -d "$clone_dir" ]] || return 1
@@ -270,11 +285,12 @@ needs_kernel_reload() {
 }
 
 needs_clone_reload() {
-  local package_dir="$1"
+  local package="$1"
   local clone_dir="${2:-}"
+  local package_dir="$PACKAGES/$package"
 
   needs_package_reload "$package_dir" "$clone_dir" && return 0
-  needs_kernel_reload "$clone_dir" && return 0
+  needs_kernel_reload "$clone_dir" "$package" && return 0
   return 1
 }
 
@@ -306,17 +322,21 @@ remove_clone_dir() {
   return 1
 }
 
-remove_all_clones_for_suffix() {
-  local suffix="$1"
-  local base dir version=2
+remove_all_clones_for_package() {
+  local package="$1"
+  local agent_card="${2:-}"
   local -a dirs=()
+  local base dir version=2
 
-  base="$(clone_base_dir "$suffix")"
-  [[ -d "$base" ]] && dirs+=("$base")
-  while [[ -d "${base}-v${version}" ]]; do
-    dirs+=("${base}-v${version}")
-    version=$((version + 1))
-  done
+  while IFS= read -r base; do
+    [[ -n "$base" ]] || continue
+    [[ -d "$base" ]] && dirs+=("$base")
+    version=2
+    while [[ -d "${base}-v${version}" ]]; do
+      dirs+=("${base}-v${version}")
+      version=$((version + 1))
+    done
+  done < <(clone_base_candidates "$package" "$agent_card")
 
   for dir in "${dirs[@]}"; do
     remove_clone_dir "$dir" || return 1
@@ -357,7 +377,7 @@ PY
 load_agent_package() {
   local package="$1"
   local label="$2"
-  local agent_name="${3:-}"
+  local agent_card_name="${3:-}"
 
   local kernel_dir
   kernel_dir="$(kernel_dir_for_package "$package")"
@@ -368,11 +388,11 @@ load_agent_package() {
     (cd "$kernel_dir" && npm install)
   fi
   local preserve=""
-  if [[ -n "$agent_name" ]]; then
-    preserve="$(read_preserved_agent_api_key "$agent_name" || true)"
+  if [[ -n "$agent_card_name" ]]; then
+    preserve="$(read_preserved_agent_api_key "$agent_card_name" || true)"
   fi
   if [[ -n "$preserve" ]]; then
-    echo "    Preserving AGENT_API_KEY for ${agent_name} from SimulatorController/.env"
+    echo "    Preserving AGENT_API_KEY for ${agent_card_name} from SimulatorController/.env"
     (cd "$kernel_dir" && PRESERVE_AGENT_API_KEY="$preserve" npx tsx src/index.ts package load "$PACKAGES/$package")
   else
     (cd "$kernel_dir" && npx tsx src/index.ts package load "$PACKAGES/$package")
@@ -440,33 +460,32 @@ wait_for_health() {
 
 start_agent() {
   local package="$1"
-  local clone_suffix="$2"
-  local port="$3"
-  local label="$4"
+  local port="$2"
+  local agent_card="$3"
 
   local package_dir="$PACKAGES/$package"
   local clone_dir
-  clone_dir="$(find_clone_dir "$clone_suffix" || true)"
+  clone_dir="$(find_clone_dir "$package" "$agent_card" || true)"
 
-  if [[ -n "$clone_dir" ]] && needs_clone_reload "$package_dir" "$clone_dir"; then
-    if needs_kernel_reload "$clone_dir"; then
-      echo "==> SimulatorAgentKernel changed; reloading ${label}"
+  if [[ -n "$clone_dir" ]] && needs_clone_reload "$package" "$clone_dir"; then
+    if needs_kernel_reload "$clone_dir" "$package"; then
+      echo "==> SimulatorAgentKernel changed; reloading ${package}"
     else
-      echo "==> Package ${package} changed; reloading ${label}"
+      echo "==> Package ${package} changed; reloading ${package}"
     fi
-    remove_all_clones_for_suffix "$clone_suffix"
+    remove_all_clones_for_package "$package" "$agent_card"
     clone_dir=""
   fi
 
   if [[ -z "$clone_dir" || ! -f "$clone_dir/docker-compose.yml" ]]; then
-    load_agent_package "$package" "$label" "$clone_suffix"
-    clone_dir="$(find_clone_dir "$clone_suffix" || true)"
+    load_agent_package "$package" "$package" "$agent_card"
+    clone_dir="$(find_clone_dir "$package" "$agent_card" || true)"
     if [[ -z "$clone_dir" ]]; then
-      echo "ERROR: clone directory not found after package load for ${label}" >&2
+      echo "ERROR: clone directory not found after package load for ${package}" >&2
       exit 1
     fi
   else
-    echo "==> Starting ${label} in ${clone_dir}"
+    echo "==> Starting ${package} in ${clone_dir}"
     if needs_image_build "$clone_dir"; then
       echo "    Build required (sources newer than image or image missing)"
       (cd "$clone_dir" && docker compose build)
@@ -476,7 +495,7 @@ start_agent() {
     (cd "$clone_dir" && docker compose up -d)
   fi
 
-  wait_for_health "$port" "$label"
+  wait_for_health "$port" "$package"
   wire_extra_agent_lab "$package"
   echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
   echo "Agent log files: ${clone_dir}/logs/"
@@ -485,34 +504,32 @@ start_agent() {
 
 restart_agent() {
   local package="$1"
-  local clone_suffix="$2"
-  local port="$3"
-  local label="$4"
+  local port="$2"
+  local agent_card="$3"
 
-  local package_dir="$PACKAGES/$package"
   local clone_dir
-  clone_dir="$(find_clone_dir "$clone_suffix" || true)"
+  clone_dir="$(find_clone_dir "$package" "$agent_card" || true)"
 
   if [[ -z "$clone_dir" || ! -f "$clone_dir/docker-compose.yml" ]]; then
-    echo "==> ${label}: not created yet; loading from package ${package}"
-    start_agent "$package" "$clone_suffix" "$port" "$label"
+    echo "==> ${package}: not created yet; loading from package ${package}"
+    start_agent "$package" "$port" "$agent_card"
     return 0
   fi
 
-  if needs_clone_reload "$package_dir" "$clone_dir"; then
-    if needs_kernel_reload "$clone_dir"; then
-      echo "==> ${label}: SimulatorAgentKernel changed; reloading clone"
+  if needs_clone_reload "$package" "$clone_dir"; then
+    if needs_kernel_reload "$clone_dir" "$package"; then
+      echo "==> ${package}: SimulatorAgentKernel changed; reloading clone"
     else
-      echo "==> ${label}: package ${package} changed; reloading clone"
+      echo "==> ${package}: package ${package} changed; reloading clone"
     fi
-    remove_all_clones_for_suffix "$clone_suffix"
-    load_agent_package "$package" "$label" "$clone_suffix"
-    clone_dir="$(find_clone_dir "$clone_suffix" || true)"
+    remove_all_clones_for_package "$package" "$agent_card"
+    load_agent_package "$package" "$package" "$agent_card"
+    clone_dir="$(find_clone_dir "$package" "$agent_card" || true)"
     if [[ -z "$clone_dir" ]]; then
-      echo "ERROR: clone directory not found after package load for ${label}" >&2
+      echo "ERROR: clone directory not found after package load for ${package}" >&2
       exit 1
     fi
-    wait_for_health "$port" "$label"
+    wait_for_health "$port" "$package"
     wire_extra_agent_lab "$package"
     echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
     echo "Agent log files: ${clone_dir}/logs/"
@@ -521,14 +538,14 @@ restart_agent() {
   fi
 
   if ! needs_image_build "$clone_dir"; then
-    echo "==> ${label}: image up to date; skipping restart"
+    echo "==> ${package}: image up to date; skipping restart"
     return 1
   fi
 
-  echo "==> Rebuilding and restarting ${label} in ${clone_dir}"
+  echo "==> Rebuilding and restarting ${package} in ${clone_dir}"
   (cd "$clone_dir" && docker compose build)
   (cd "$clone_dir" && docker compose up -d --force-recreate)
-  wait_for_health "$port" "$label"
+  wait_for_health "$port" "$package"
   wire_extra_agent_lab "$package"
   echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
   echo "Agent log files: ${clone_dir}/logs/"
@@ -537,22 +554,22 @@ restart_agent() {
 }
 
 stop_agent() {
-  local clone_suffix="$1"
-  local label="$2"
+  local package="$1"
+  local agent_card="${2:-}"
 
   local clone_dir
-  clone_dir="$(find_clone_dir "$clone_suffix" || true)"
+  clone_dir="$(find_clone_dir "$package" "$agent_card" || true)"
 
   if [[ -z "$clone_dir" ]]; then
-    echo "==> ${label}: no clone directory found; nothing to stop"
+    echo "==> ${package}: no clone directory found; nothing to stop"
     return 0
   fi
   if [[ ! -f "$clone_dir/docker-compose.yml" ]]; then
-    echo "==> ${label}: no docker-compose.yml in ${clone_dir}; nothing to stop"
+    echo "==> ${package}: no docker-compose.yml in ${clone_dir}; nothing to stop"
     return 0
   fi
 
-  echo "==> Stopping ${label} in ${clone_dir}"
+  echo "==> Stopping ${package} in ${clone_dir}"
   (cd "$clone_dir" && docker compose down)
 }
 
@@ -562,10 +579,10 @@ cmd_start() {
   echo "Starting OpenClaw simulator agents from ${ROOT}"
   echo
 
-  local entry package clone_suffix port label
+  local entry package port agent_card
   for entry in "${SELECTED_AGENTS[@]}"; do
-    IFS='|' read -r package clone_suffix port label <<<"$entry"
-    start_agent "$package" "$clone_suffix" "$port" "$label"
+    IFS='|' read -r package port agent_card <<<"$entry"
+    start_agent "$package" "$port" "$agent_card"
   done
 
   echo "Selected agent(s) are up."
@@ -578,10 +595,10 @@ cmd_stop() {
   echo "Stopping OpenClaw simulator agents from ${ROOT}"
   echo
 
-  local entry clone_suffix label
+  local entry package agent_card
   for entry in "${SELECTED_AGENTS[@]}"; do
-    IFS='|' read -r _ clone_suffix _ label <<<"$entry"
-    stop_agent "$clone_suffix" "$label"
+    IFS='|' read -r package _ agent_card <<<"$entry"
+    stop_agent "$package" "$agent_card"
   done
 
   echo "Done."
@@ -593,10 +610,10 @@ cmd_restart() {
   echo "Checking OpenClaw simulator agents for package, kernel, or clone changes from ${ROOT}"
   echo
 
-  local entry package clone_suffix port label updated=0
+  local entry package port agent_card updated=0
   for entry in "${SELECTED_AGENTS[@]}"; do
-    IFS='|' read -r package clone_suffix port label <<<"$entry"
-    if restart_agent "$package" "$clone_suffix" "$port" "$label"; then
+    IFS='|' read -r package port agent_card <<<"$entry"
+    if restart_agent "$package" "$port" "$agent_card"; then
       updated=$((updated + 1))
     fi
   done
@@ -615,21 +632,21 @@ cmd_reload() {
   echo "Force-reloading OpenClaw simulator agents from ${ROOT}"
   echo "    AGENT_API_KEYS preserved from SimulatorController/.env when present."
 
-  local entry package clone_suffix port label
+  local entry package
   for entry in "${SELECTED_AGENTS[@]}"; do
-    IFS='|' read -r _ clone_suffix _ label <<<"$entry"
-    stop_agent "$clone_suffix" "$label"
+    IFS='|' read -r package _ agent_card <<<"$entry"
+    stop_agent "$package" "$agent_card"
   done
   echo
 
   for entry in "${SELECTED_AGENTS[@]}"; do
-    IFS='|' read -r package clone_suffix port label <<<"$entry"
-    echo "==> Force reload: ${label}"
-    remove_all_clones_for_suffix "$clone_suffix"
-    load_agent_package "$package" "$label" "$clone_suffix"
-    wait_for_health "$port" "$label"
+    IFS='|' read -r package port agent_card <<<"$entry"
+    echo "==> Force reload: ${package}"
+    remove_all_clones_for_package "$package" "$agent_card"
+    load_agent_package "$package" "$package" "$agent_card"
+    wait_for_health "$port" "$package"
     local clone_dir
-    clone_dir="$(find_clone_dir "$clone_suffix" || true)"
+    clone_dir="$(find_clone_dir "$package" "$agent_card" || true)"
     if [[ -n "$clone_dir" ]]; then
       echo "Container logs: cd \"${clone_dir}\" && docker compose logs -f"
       echo "Agent log files: ${clone_dir}/logs/"

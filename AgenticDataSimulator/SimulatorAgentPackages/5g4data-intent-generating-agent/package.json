@@ -1,0 +1,13 @@
+{
+  "name": "5g4data-intent-generation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "n3": "^2.0.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/n3": "^1.26.1"
+  }
+}

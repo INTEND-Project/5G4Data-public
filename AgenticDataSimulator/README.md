@@ -60,7 +60,7 @@ After pulling or editing code across agents, Controller, and registry consumers,
 
 ```bash
 cd ~/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator
-./scripts/restart-lab-from-source.sh
+./scripts/complete-restart-lab-from-source.sh
 ```
 
 Options: `--dev-mode=fast|hot|systemd`, `--with-prometheus`, `--skip-prod`, `--skip-dev`, `--skip-agents`, `--dry-run`. Systemd steps need `sudo` on start5g-1.
@@ -287,13 +287,13 @@ request observation-report using observationControl for myIntent storage prometh
 
 **Resolution order** for observation datapoints: `request observation-report … storage` override → `icm:reportDestinations` in intent Turtle → `create intent … storage` alias map → default `graphdb`.
 
-**Coordination (inCoord):** add phrases like `symmetric coordination` or `weighted coordination` inside the `prompt "…"` string. See [`SimulatorAgentPackages/5g4data-intent-generation/docs/coordination-using-utility-function.md`](SimulatorAgentPackages/5g4data-intent-generation/docs/coordination-using-utility-function.md).
+**Coordination (inCoord):** add phrases like `symmetric coordination` or `weighted coordination` inside the `prompt "…"` string. See [`SimulatorAgentPackages/5g4data-intent-generating-agent/docs/coordination-using-utility-function.md`](SimulatorAgentPackages/5g4data-intent-generating-agent/docs/coordination-using-utility-function.md).
 
 **Metadata** (how to query stored metrics) is always registered in the GraphDB metadata graph `http://intent-reports-metadata` (GraphDB SPARQL URL for graphdb storage, Prometheus `/api/v1/query` URL for prometheus storage).
 
 ### Environment (observation agent clone)
 
-Set in the observation clone `.env` (see `SimulatorAgentPackages/5g4data-intent-observations/mappings/env.defaults.json`):
+Set in the observation clone `.env` (see `SimulatorAgentPackages/5g4data-intent-observations-generating-agent/mappings/env.defaults.json`):
 
 
 | Variable                                | Purpose                                                                                                                                          |
@@ -360,7 +360,7 @@ Ensure the [Caddy routes](#infrastructure-on-start5g-1-caddy) are active so agen
 
 When agents run **inside Docker** on start5g-1, use the table above (metadata on `127.0.0.1`, writes via `host.docker.internal`). The kernel-generated clone `docker-compose.yml` adds `extra_hosts` for `host.docker.internal` automatically on `package load`.
 
-Defaults are in `SimulatorAgentPackages/5g4data-intent-observations/mappings/env.defaults.json`.
+Defaults are in `SimulatorAgentPackages/5g4data-intent-observations-generating-agent/mappings/env.defaults.json`.
 
 **Quick checks:**
 
@@ -399,7 +399,7 @@ After code changes, reload observation package tools into the clone: `package lo
 
 This is an alternative way to start agents manually.
 
-1. From `SimulatorAgentKernel`, run `npx tsx src/index.ts package load ../SimulatorAgentPackages/package-name` (package-name is the name of the package folder, e.g. 5g4data-intent-generation).
+1. From `SimulatorAgentKernel`, run `npx tsx src/index.ts package load ../SimulatorAgentPackages/package-name` (package-name is the name of the package folder, e.g. 5g4data-intent-generating-agent).
 2. Install node packages: (e.g. *cd ../clone-name* and *npm install* where clone-name is the resulting clone folder, e.g. SimulatorAgentKernel-5g4data-intent-generating-agent)
 3. Run the resulting clone form the clone-folder (e.g.  *npx tsx src/index.ts --debug*).
 

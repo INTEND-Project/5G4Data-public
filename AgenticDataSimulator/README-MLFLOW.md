@@ -9,12 +9,12 @@ Each agent turn produces one **MLflow trace** in a per-agent experiment:
 | Experiment | Agent | Online judges |
 |------------|-------|---------------|
 | `5g4data-intent-generating-agent` | Intent generation | Auto-run on new traces |
-| `5g4data-intent-generating-agent-mistral-small4` | Intent generation (e1 package) | Registered for manual runs only |
+| `5g4data-intent-mistral-small4-generating-agent` | Intent generation (e1 package) | Registered for manual runs only |
 | `5g4data-intent-observation-generating-agent` | Observation generation | Auto-run on new traces |
 
 Quality checks run in two ways:
 
-- **Online judges** — LLM scorers registered on the experiment; MLflow runs them automatically on ingested traces (except `5g4data-intent-generating-agent-mistral-small4`, where judges are registered but not started — run them manually from the trace UI).
+- **Online judges** — LLM scorers registered on the experiment; MLflow runs them automatically on ingested traces (except `5g4data-intent-mistral-small4-generating-agent`, where judges are registered but not started — run them manually from the trace UI).
 - **Offline judges** — Node/Python scripts that verify persisted artifacts (GraphDB Turtle, Prometheus series) and attach assessments to the same trace.
 
 ```mermaid
@@ -167,7 +167,7 @@ docker run --rm \
 - **Internal export:** `MLFLOW_TRACKING_URI=http://mlflow:5000/mlflow` (container-to-container)
 - **Browser UI:** public hostname with `/mlflow` prefix (Caddy → host port 5000)
 
-Package defaults set the internal URI in [`SimulatorAgentPackages/*/mappings/env.defaults.json`](SimulatorAgentPackages/5g4data-intent-generation/mappings/env.defaults.json).
+Package defaults set the internal URI in [`SimulatorAgentPackages/*/mappings/env.defaults.json`](SimulatorAgentPackages/5g4data-intent-generating-agent/mappings/env.defaults.json).
 
 ### E1 iteration experiments
 
@@ -175,7 +175,7 @@ E1 clones (`load-e1-iteration.sh iN`) map iteration labels to dedicated MLflow e
 
 ```bash
 node scripts/ensure-mlflow-experiment.mjs --iteration i17
-node scripts/test-intent-e1-iteration.mjs --iteration i17 --mlflow-experiment 5g4data-intent-generating-agent-mistral-small4-i7
+node scripts/test-intent-e1-iteration.mjs --iteration i17 --mlflow-experiment 5g4data-intent-mistral-small4-generating-agent-i7
 ```
 
 Override with env: `MLFLOW_EXPERIMENT_NAME`, `MLFLOW_EXPERIMENT_DESCRIPTION`, `MLFLOW_TRACKING_URI` (host provisioning uses `trackingUriHost` in the JSON when unset).

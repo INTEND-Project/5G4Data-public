@@ -61,6 +61,31 @@ test("envelopeSnippet parses JSON fenced output", () => {
   assert.equal(envelopeSnippet(raw)?.trim(), "return 42;");
 });
 
+test("buildCodegenSystemPrompt always includes JavaScript syntax checklist", () => {
+  const prompt = buildCodegenSystemPrompt("baseline 50-80");
+  assert.match(prompt, /### JavaScript syntax checklist/u);
+  assert.match(prompt, /function \(ctx\) \{ \.\.\. \}/u);
+  assert.match(prompt, /Do not respond until the body compiles/u);
+});
+
+test("buildCodegenRetryMessage guides syntax fixes for compile failures", () => {
+  const message = buildCodegenRetryMessage(
+    "Snippet failed to compile: SyntaxError: Unexpected token ')'",
+    {
+      fullUserPrompt: "latency",
+      intentId: "I1",
+      compoundMetric: "latency_COabc",
+      kgUnitResolved: "ms",
+      instructionsSlice: "latency 15-40ms",
+      mode: "historic",
+      frequencySeconds: 60,
+    },
+  );
+  assert.match(message, /syntax/i);
+  assert.match(message, /stray `\)`/u);
+  assert.doesNotMatch(message, /per-tick gauge sample for the current tick only/i);
+});
+
 test("buildCodegenSystemPrompt appends cumulative module when instructions request running total", () => {
   const gaugeInstructions =
     "default range is between 700-1500, between 06:00 and 18:00 keep values in the 500-1000 range with daily variation and low noise. " +

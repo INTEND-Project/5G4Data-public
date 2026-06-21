@@ -1,5 +1,5 @@
 {
-  "name": "5g4data-intent-observations",
+  "name": "5g4data-intent-observations-generating-agent",
   "version": "1.0.0",
   "workflow": "workflow.dsl.json",
   "promptModulesDir": "prompt_modules",

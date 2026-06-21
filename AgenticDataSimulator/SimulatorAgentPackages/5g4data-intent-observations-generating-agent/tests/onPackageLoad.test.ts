@@ -32,7 +32,7 @@ test("applyOnPackageLoad upserts prometheus env and merges deps", async () => {
     join(packageDir, "package.json"),
     JSON.stringify(
       {
-        name: "5g4data-intent-observations",
+        name: "5g4data-intent-observations-generating-agent",
         dependencies: { protobufjs: "^8.4.2", snappyjs: "^0.7.0" }
       },
       null,

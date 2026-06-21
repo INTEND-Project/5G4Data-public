@@ -119,7 +119,7 @@ function normalizedMetricCompound(raw: string): string {
   let s = stripWrappingQuotes(raw.trim());
   s = s.replace(/^`+|`+$/g, "");
   s = s.replace(/^metric\s*=\s*/iu, "").trim();
-  return s.replace(/`/g, "");
+  return s.replace(/`/g, "").replace(/[,;.:]+$/u, "");
 }
 
 interface MetricAnchor {

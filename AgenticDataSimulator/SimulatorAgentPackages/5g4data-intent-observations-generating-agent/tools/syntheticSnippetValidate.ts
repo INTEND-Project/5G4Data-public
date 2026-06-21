@@ -1,3 +1,5 @@
+import { compileSnippet } from "./syntheticMetricWorker.js";
+
 const FORBIDDEN = [
   /\brequire\s*\(/u,
   /\bimport\b/u,
@@ -19,6 +21,11 @@ export function validateGeneratedSnippet(snippet: string): { ok: true } | { ok: 
   if (!t) return { ok: false, reason: "Empty snippet from model." };
   for (const re of FORBIDDEN) {
     if (re.test(t)) return { ok: false, reason: `Snippet rejected (forbidden construct matching ${String(re)})` };
+  }
+  try {
+    compileSnippet(t);
+  } catch (e) {
+    return { ok: false, reason: `Snippet failed to compile: ${String(e)}` };
   }
   return { ok: true };
 }

@@ -87,7 +87,8 @@ RULES:
 - Appended ### … codegen sections are authoritative for sampling semantics. When gauge_codegen is present, do NOT use cumulative loops over ctx.tickIndex even if tickIndex is large or mode is historic.
 - No async, no awaits, no external libraries, no filesystem or network references.
 - No comments outside // single-line sparingly OK.
-- Produce stable behavior for the same inputs (prefer ctx.uniform01 branching).`;
+- Produce stable behavior for the same inputs (prefer ctx.uniform01 branching).
+- Before responding, verify the snippet body compiles as JavaScript inside \`function (ctx) { ... }\` (balanced parens/braces, valid statements, final \`return\` number). See ### JavaScript syntax checklist.`;
 
 function buildCtxApiAppendix(samplingKind: SamplingKind): string {
   const common = `ctx fields:
@@ -118,6 +119,7 @@ Gauge sampling: return the current reading only. ctx.tickIndex is NOT a loop bou
 }
 
 const MODULE_HEADERS: Record<string, string> = {
+  codegen_syntax: "### JavaScript syntax checklist",
   gauge_codegen: "### Gauge per-tick sampling codegen",
   stress_dip_codegen: "### Stress-period dip episodes codegen",
   cumulative_codegen: "### Cumulative counter codegen"
@@ -131,14 +133,18 @@ export function buildCodegenSystemPrompt(
   const samplingKind = inferSamplingKind(instructionsSlice, compoundMetric);
   const moduleNames = resolveCodegenModuleNames(instructionsSlice, compoundMetric);
 
-  const parts = [CODEGEN_CORE_PROMPT, buildCtxApiAppendix(samplingKind)];
+  const parts = [CODEGEN_CORE_PROMPT, buildCtxApiAppendix(samplingKind), loadPromptModuleSection("codegen_syntax")];
 
   for (const name of moduleNames) {
-    const header = MODULE_HEADERS[name] ?? `### ${name}`;
-    parts.push(`${header}\n${loadPromptModule(name)}`);
+    parts.push(loadPromptModuleSection(name));
   }
 
   return parts.join("\n\n");
+}
+
+function loadPromptModuleSection(stem: string): string {
+  const header = MODULE_HEADERS[stem] ?? `### ${stem}`;
+  return `${header}\n${loadPromptModule(stem)}`;
 }
 
 /** Build enriched context payload for the LLM user message. */
@@ -182,6 +188,15 @@ export function buildCodegenRetryMessage(
   slice: SyntheticCodegenContextSlice,
 ): string {
   const kind = inferSamplingKind(slice.instructionsSlice, slice.compoundMetric);
+
+  if (/failed to compile|SyntaxError|Unexpected token/i.test(reason)) {
+    return (
+      `Validation failed: ${reason}\n` +
+      "Fix JavaScript syntax in the snippet body (not a full function). Balance all `()`, `{}`, and `[]`; " +
+      "remove stray `)` before `{`; use `;` between statements on one line; end with `return <number>;`. " +
+      "Re-check the snippet mentally inside `function (ctx) { ... }` before responding. Return JSON only."
+    );
+  }
 
   if (kind === "counter") {
     if (/decreases between tick/iu.test(reason)) {
@@ -299,7 +314,8 @@ export async function codegenMetricSnippet(
     {
       role: "user",
       content:
-        `Synthesize deterministic observation sample logic.\n### Context JSON\n${userPayload}\n### Output\nReturn JSON only.`
+        `Synthesize deterministic observation sample logic.\n### Context JSON\n${userPayload}\n### Output\n` +
+        "Return JSON only. Confirm the snippet body compiles as JavaScript inside `function (ctx) { ... }` before responding."
     }
   ];
 

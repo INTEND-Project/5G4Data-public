@@ -40,6 +40,8 @@ When the package is loaded in an interactive clone, it supports package-owned `o
 
 Structured prompts (`intent_id=`, `mode=streaming|historic`, `frequency=…`, repeated `metric=…`) call an OpenAI-compatible API so each metric gets its own spawned `syntheticMetricWorker` process (`observe synthetic …` aliases the same DSL). `observe synthetic stop`, combined `observe status`, and unified `observe stop` are documented in `prompt_modules/observe_stream.md`.
 
+Codegen prompts (`tools/syntheticLlmCodegen.ts` + `prompt_modules/codegen_syntax.md`, `gauge_codegen.md`, etc.) require the model to self-check JavaScript syntax before returning each metric snippet; invalid bodies are retried up to four times, then a validated fallback snippet is used when possible.
+
 Debug logging behavior (`--debug`):
 
 - observation log (always, last N lines per metric): `logs/observations-<metric>.ndjson` (default N=100 via `--obsLogN` / `OBS_LOG_N`; `OBSERVATION_LOG_PATH` to override log directory)

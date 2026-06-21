@@ -5,11 +5,11 @@ import { loadDomainPackage } from "../core/packageLoader.js";
 import { WorkflowEngine } from "../core/workflowEngine.js";
 
 const basePackageDir =
-  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages/5g4data-intent-generation";
+  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages/5g4data-intent-generating-agent";
 
-test("loads 5g4data-intent-generation package", () => {
+test("loads 5g4data-intent-generating-agent package", () => {
   const domainPackage = loadDomainPackage(basePackageDir);
-  assert.equal(domainPackage.manifest.name, "5g4data-intent-generation");
+  assert.equal(domainPackage.manifest.name, "5g4data-intent-generating-agent");
   assert.ok(domainPackage.workflow.stages.length > 0);
   assert.ok((domainPackage.promptModules.base ?? "").length > 0);
   assert.ok(domainPackage.postprocessors.length > 0);

@@ -1,12 +1,12 @@
 # SimulatorAgentKernel-mistral.small4
 
-**E1 experimental kernel** — fragmented multiturn intent generation. Use only with `5g4data-intent-generation-mistral-small4`. Do **not** use for core agents (`5g4data-intent-generation`, observations).
+**E1 experimental kernel** — fragmented multiturn intent generation. Use only with `5g4data-intent-mistral-small4-generating-agent`. Do **not** use for core agents (`5g4data-intent-generation`, observations).
 
 Stock kernel: `../SimulatorAgentKernel` (unchanged).
 
 TypeScript-first OpenClaw kernel for package-based intent agents.
 
-Runtime clones: `../SimulatorAgentKernel-mistral.small4-<agent-card-name>` (or `-iN` iteration suffix via `PACKAGE_LOAD_ITERATION`).
+Runtime clones: `../agents/<package-directory-name>` (or `-iN` iteration suffix via `PACKAGE_LOAD_ITERATION`).
 
 Related guide:
 
@@ -45,7 +45,7 @@ cd SimulatorAgentKernel
 npm install
 
 # 2) create/update an agent instance from a package (builds and starts a Docker container)
-npx tsx src/index.ts package load ../SimulatorAgentPackages/5g4data-intent-generation
+npx tsx src/index.ts package load ../SimulatorAgentPackages/5g4data-intent-generating-agent
 
 # 3) the clone runs in Docker; check health and logs
 curl http://127.0.0.1:3011/health
@@ -110,7 +110,7 @@ Default debug log file:
 - `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`
 - `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_BASE_URL`
 - `OPENCLAW_MODEL`
-- `DOMAIN_PACKAGE_DIR` (defaults to `../SimulatorAgentPackages/5g4data-intent-generation`)
+- `DOMAIN_PACKAGE_DIR` (defaults to `../SimulatorAgentPackages/5g4data-intent-generating-agent`)
 - `LLM_USAGE_LOG_PATH` (optional JSONL file for per-intent token/cost summaries)
 - `WORKLOAD_CATALOG_BASE_URL`
 - `GRAPHDB_ENDPOINT`, `GRAPHDB_NAMED_GRAPH`, `GRAPHDB_QUERY_LIMIT`, `GRAPHDB_CONTEXT_LIMIT`
@@ -253,7 +253,7 @@ Create an archive from a package folder:
 ```bash
 npm run package:tgz -- ../SimulatorAgentPackages/5g4data-intent-generation
 # optional output path
-npm run package:tgz -- ../SimulatorAgentPackages/5g4data-intent-generation dist/packages/5g4data.tgz
+npm run package:tgz -- ../SimulatorAgentPackages/5g4data-intent-generating-agent dist/packages/5g4data.tgz
 ```
 
 ## Package contract (extended)

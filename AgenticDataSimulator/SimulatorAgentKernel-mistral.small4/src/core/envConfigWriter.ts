@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join, resolve } from "node:path";
 import { generateAgentApiKey } from "./a2a/auth.js";
 import {
+  DEFAULT_GRAPHDB_INFRA_NAMED_GRAPH,
+  DEFAULT_GRAPHDB_INFRA_REPOSITORY_ID,
   graphDbBaseUrlForCloneFromController,
   graphDbRepositoryEndpointFromBase,
   repositoryIdFromGraphDbEndpoint,
@@ -26,7 +28,15 @@ const CLONE_SAFE_DEFAULT_ENV_KEYS = new Set([
   "GRAPHDB_BASE_URL",
   "GRAPHDB_REPOSITORY_ID",
   "GRAPHDB_NAMED_GRAPH",
+  "GRAPHDB_INFRA_REPOSITORY_ID",
+  "GRAPHDB_INFRA_NAMED_GRAPH",
+  "GRAPHDB_INFRA_ENDPOINT",
   "GRAPHDB_QUERY_LIMIT",
+  "LLM_PROVIDER",
+  "OPENAI_MODEL",
+  "OPENCLAW_MODEL",
+  "OPENAI_BASE_URL",
+  "OPENAI_TEMPERATURE",
   "MISTRAL_SMALL4_GRAPH_TARGET_REPOSITORY_ID",
   "MISTRAL_SMALL4_GRAPH_TARGET_GRAPH_IRI",
   "INTENT_REPORT_INTERVAL_MINUTES",
@@ -127,7 +137,14 @@ export function ensureAgentApiKeyForClone(cloneEnvPath: string): string {
 const AGENT_API_KEYS_ENV_KEY = "AGENT_API_KEYS";
 
 const GRAPHDB_CREDENTIAL_KEYS = ["GRAPHDB_USERNAME", "GRAPHDB_PASSWORD"] as const;
-const GRAPHDB_CONFIG_KEYS = ["GRAPHDB_BASE_URL", "GRAPHDB_ENDPOINT", "GRAPHDB_REPOSITORY_ID"] as const;
+const GRAPHDB_CONFIG_KEYS = [
+  "GRAPHDB_BASE_URL",
+  "GRAPHDB_ENDPOINT",
+  "GRAPHDB_REPOSITORY_ID",
+  "GRAPHDB_INFRA_REPOSITORY_ID",
+  "GRAPHDB_INFRA_NAMED_GRAPH",
+  "GRAPHDB_INFRA_ENDPOINT",
+] as const;
 
 function stripEnvQuotes(value: string): string {
   const trimmed = value.trim();
@@ -236,14 +253,14 @@ function readGraphDbCredentialUpdates(controllerEnvPath: string): EnvUpdate[] {
   for (const key of GRAPHDB_CREDENTIAL_KEYS) {
     const value = readDotEnvKey(controllerEnvPath, key);
     if (value === undefined) continue;
+    const normalized = stripEnvQuotes(value);
     if (key === "GRAPHDB_PASSWORD") {
-      if (value.length === 0) continue;
-      updates.push({ key, value });
+      if (normalized.length === 0) continue;
+      updates.push({ key, value: normalized });
       continue;
     }
-    const trimmed = value.trim();
-    if (!trimmed) continue;
-    updates.push({ key, value: trimmed });
+    if (!normalized) continue;
+    updates.push({ key, value: normalized });
   }
   return updates;
 }
@@ -252,15 +269,27 @@ function readGraphDbConfigUpdates(
   controllerEnvPath: string,
   cloneEnvPath: string,
 ): EnvUpdate[] {
-  const controllerBaseUrl = readDotEnvKey(controllerEnvPath, "GRAPHDB_BASE_URL")?.trim();
-  if (!controllerBaseUrl) return [];
+  const controllerBaseUrl = stripEnvQuotes(
+    readDotEnvKey(controllerEnvPath, "GRAPHDB_BASE_URL") ?? "",
+  );
+  if (!controllerBaseUrl.trim()) return [];
 
   const cloneBaseUrl = graphDbBaseUrlForCloneFromController(controllerBaseUrl);
   const cloneRepositoryId =
-    readDotEnvKey(cloneEnvPath, "GRAPHDB_REPOSITORY_ID")?.trim() ||
+    stripEnvQuotes(readDotEnvKey(cloneEnvPath, "GRAPHDB_REPOSITORY_ID") ?? "") ||
     (readDotEnvKey(cloneEnvPath, "GRAPHDB_ENDPOINT")
-      ? repositoryIdFromGraphDbEndpoint(readDotEnvKey(cloneEnvPath, "GRAPHDB_ENDPOINT") ?? "")
+      ? repositoryIdFromGraphDbEndpoint(
+          stripEnvQuotes(readDotEnvKey(cloneEnvPath, "GRAPHDB_ENDPOINT") ?? ""),
+        )
       : undefined);
+  const infraRepositoryId =
+    stripEnvQuotes(readDotEnvKey(controllerEnvPath, "GRAPHDB_INFRA_REPOSITORY_ID") ?? "") ||
+    stripEnvQuotes(readDotEnvKey(cloneEnvPath, "GRAPHDB_INFRA_REPOSITORY_ID") ?? "") ||
+    DEFAULT_GRAPHDB_INFRA_REPOSITORY_ID;
+  const infraNamedGraph =
+    stripEnvQuotes(readDotEnvKey(controllerEnvPath, "GRAPHDB_INFRA_NAMED_GRAPH") ?? "") ||
+    stripEnvQuotes(readDotEnvKey(cloneEnvPath, "GRAPHDB_INFRA_NAMED_GRAPH") ?? "") ||
+    DEFAULT_GRAPHDB_INFRA_NAMED_GRAPH;
 
   const updates: EnvUpdate[] = [{ key: "GRAPHDB_BASE_URL", value: cloneBaseUrl }];
   if (cloneRepositoryId) {
@@ -269,6 +298,12 @@ function readGraphDbConfigUpdates(
   updates.push({
     key: "GRAPHDB_ENDPOINT",
     value: graphDbRepositoryEndpointFromBase(cloneBaseUrl, cloneRepositoryId),
+  });
+  updates.push({ key: "GRAPHDB_INFRA_REPOSITORY_ID", value: infraRepositoryId });
+  updates.push({ key: "GRAPHDB_INFRA_NAMED_GRAPH", value: infraNamedGraph });
+  updates.push({
+    key: "GRAPHDB_INFRA_ENDPOINT",
+    value: graphDbRepositoryEndpointFromBase(cloneBaseUrl, infraRepositoryId),
   });
   return updates;
 }

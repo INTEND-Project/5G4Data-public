@@ -7,13 +7,13 @@ import type { LoadedDomainPackage } from "../core/packageLoader.js";
 
 const packageDir = join(
   process.cwd(),
-  "../SimulatorAgentPackages/5g4data-intent-generation-mistral-small4"
+  "../SimulatorAgentPackages/5g4data-intent-mistral-small4-generating-agent"
 );
 
 function minimalPackage(): LoadedDomainPackage {
   return {
     packageDir,
-    manifest: { name: "5g4data-intent-generation-mistral-small4", version: "1.0.0" },
+    manifest: { name: "5g4data-intent-mistral-small4-generating-agent", version: "1.0.0" },
     workflow: {
       fragments: [],
       stages: [],

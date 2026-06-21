@@ -4,7 +4,7 @@ import { RepairEngine } from "../core/repairEngine.js";
 import { loadDomainPackage } from "../core/packageLoader.js";
 
 const basePackageDir =
-  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages/5g4data-intent-generation";
+  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages/5g4data-intent-generating-agent";
 
 test("repairEngine returns usage calls for repair invocation", async () => {
   const engine = new RepairEngine(async () => ({

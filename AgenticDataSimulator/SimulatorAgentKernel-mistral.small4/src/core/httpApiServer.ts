@@ -13,10 +13,18 @@ import {
   resolveObservationProgress,
 } from "./observationControlHttp.js";
 import type { AgentCard } from "./a2a/service.js";
+import { recordApiTurnDebug, type ApiDebugConfig } from "./debugSessionLogger.js";
 import type { AgentTurnResult, ChatSession } from "../models.js";
 
 interface RuntimeApi {
-  runTurn(session: ChatSession, userText: string): Promise<AgentTurnResult>;
+  runTurn(
+    session: ChatSession,
+    userText: string,
+    hooks?: {
+      replHookDebug?: boolean;
+      replHookDebugLogPath?: string;
+    }
+  ): Promise<AgentTurnResult>;
   resolveWorkloadPreview?(
     prompt: string,
     graphTargetBinding?: import("../models.js").GraphTargetBinding | null
@@ -38,6 +46,24 @@ interface OpenApiServerOptions {
   agentCard: AgentCard;
   agentApiKey?: string;
   agentApiKeyHeader?: string;
+  apiDebug?: ApiDebugConfig;
+}
+
+async function runHttpTurn(
+  runtime: RuntimeApi,
+  session: ChatSession,
+  userText: string,
+  apiDebug?: ApiDebugConfig
+): Promise<AgentTurnResult> {
+  const hooks = apiDebug?.enabled
+    ? {
+        replHookDebug: true,
+        replHookDebugLogPath: apiDebug.debugLogPath
+      }
+    : undefined;
+  const result = await runtime.runTurn(session, userText, hooks);
+  recordApiTurnDebug(apiDebug, session, userText, result);
+  return result;
 }
 
 interface TurnBody {
@@ -275,7 +301,7 @@ export function startOpenApiServer(options: OpenApiServerOptions) {
   const normalizedA2ARpcPath = normalizeHttpPath(normalizePath(a2aRpcPath));
   const a2aAdapter = new A2AJsonRpcAdapter({
     runTurn(session, userText) {
-      return options.runtime.runTurn(session, userText);
+      return runHttpTurn(options.runtime, session, userText, options.apiDebug);
     }
   });
 
@@ -353,7 +379,7 @@ export function startOpenApiServer(options: OpenApiServerOptions) {
           response.end(JSON.stringify({ error: "userText is required." }));
           return;
         }
-        const result = await options.runtime.runTurn(session, body.userText);
+        const result = await runHttpTurn(options.runtime, session, body.userText, options.apiDebug);
         response.writeHead(200, jsonHeaders());
         response.end(JSON.stringify(result));
         return;

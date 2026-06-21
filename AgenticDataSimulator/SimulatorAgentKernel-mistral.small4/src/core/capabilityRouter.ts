@@ -113,6 +113,8 @@ export class CapabilityRouter {
     return {
       graphDbEndpoint: this.config.graphDbEndpoint,
       graphDbNamedGraph: this.config.graphDbNamedGraph,
+      graphDbInfraEndpoint: this.config.graphDbInfraEndpoint,
+      graphDbInfraNamedGraph: this.config.graphDbInfraNamedGraph,
       graphDbQueryLimit: this.config.graphDbQueryLimit
     };
   }
@@ -146,7 +148,7 @@ export class CapabilityRouter {
     );
   }
 
-  /** Infra KG (`intents_and_intent_reports` / `http://intendproject.eu/telenor/infra`), not persist target. */
+  /** Infra KG (`telenor-infrastructure-5g4data` / `http://intendproject.eu/telenor/infra`), not persist target. */
   private async createInfrastructureGraphDbApi(): Promise<GraphDbApi> {
     const mod = await this.importToolModule("graphdbTool.ts");
     const forInfra = mod.GraphDbTool as {

@@ -5,7 +5,7 @@ import { collectOutputIssues } from "../core/outputPolicyValidator.js";
 import { runConfiguredPostprocessors } from "../core/postprocessorRunner.js";
 
 const basePackageDir =
-  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages/5g4data-intent-generation";
+  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages/5g4data-intent-generating-agent";
 
 const runtimeContext = `[selected workload objectives]
 Selected chart: rusty-llm (version 0.1.19)

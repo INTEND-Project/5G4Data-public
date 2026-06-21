@@ -31,9 +31,13 @@ function nextCloneDir(baseDir: string): { path: string; version: number } {
 export interface CloneAgentInput {
   baselineAgentDir: string;
   packageName: string;
-  folderName?: string;
-  /** When set (e.g. `i1`), creates exact clone dir `...-{folderName}-{iterationLabel}` without auto `-v2` bump. */
+  /** When set (e.g. `i1`), creates exact clone dir `agents/<packageName>-<iterationLabel>` without auto `-v2` bump. */
   iterationLabel?: string;
+}
+
+/** Parent directory for runnable agent clones (`<repo>/agents/<package-name>`). */
+export function cloneAgentsRoot(baselineAgentDir: string): string {
+  return join(dirname(baselineAgentDir), "agents");
 }
 
 export interface CloneAgentResult {
@@ -59,13 +63,9 @@ function resolveCloneTarget(
   return nextCloneDir(preferred);
 }
 
-/** Fixed clone root prefix for mistral.small4 kernel isolation (not basename of baseline dir). */
-export const MISTRAL_SMALL4_CLONE_PREFIX = "SimulatorAgentKernel-mistral.small4";
-
 export function cloneAgentForPackage(input: CloneAgentInput): CloneAgentResult {
-  const baseName = sanitizeForFolderName(input.folderName ?? input.packageName);
-  const siblingRoot = dirname(input.baselineAgentDir);
-  const preferred = join(siblingRoot, `${MISTRAL_SMALL4_CLONE_PREFIX}-${baseName}`);
+  const baseName = sanitizeForFolderName(input.packageName);
+  const preferred = join(cloneAgentsRoot(input.baselineAgentDir), baseName);
   const selected = resolveCloneTarget(preferred, input.iterationLabel);
 
   cpSync(input.baselineAgentDir, selected.path, {

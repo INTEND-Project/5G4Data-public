@@ -17,15 +17,15 @@ import {
 test("renderCloneDockerCompose includes container name and port mapping", () => {
   const content = renderCloneDockerCompose({
     cloneDir: "/tmp/clone",
-    cloneName: "SimulatorAgentKernel-package-template",
+    cloneName: "package-template",
     port: "3013"
   });
-  assert.match(content, /container_name: simulator-agent-simulatoragentkernel-package-template/);
+  assert.match(content, /container_name: package-template/);
   assert.match(content, /"3013:3013"/);
   assert.match(content, /API_SERVER_PORT: "3013"/);
   assert.match(content, /API_SERVER_HOST: "0.0.0.0"/);
   assert.match(content, /restart: unless-stopped/);
-  assert.match(content, /host\.docker\.internal:host-gateway/);
+  assert.match(content, /host\.docker\.internal:172\.30\.0\.1/);
   assert.match(content, /command: \["npx", "tsx", "src\/index\.ts", "--debug"\]/);
   assert.match(content, /- \.\/logs:\/app\/logs/);
   assert.match(content, /name: mlflow-network/);
@@ -50,22 +50,22 @@ test("writeCloneDockerCompose writes docker-compose.yml to clone directory", () 
   const cloneDir = mkdtempSync(join(tmpdir(), "clone-compose-"));
   const composePath = writeCloneDockerCompose({
     cloneDir,
-    cloneName: "SimulatorAgentKernel-demo",
+    cloneName: "5g4data-intent-mistral-small4-generating-agent",
     port: "3011"
   });
   assert.match(composePath, /docker-compose\.yml$/);
   const content = readFileSync(composePath, "utf8");
-  assert.match(content, /container_name: simulator-agent-simulatoragentkernel-demo/);
+  assert.match(content, /container_name: 5g4data-intent-mistral-small4-generating-agent/);
 });
 
 test("containerNameForClone and projectNameForClone sanitize names", () => {
   assert.equal(
-    containerNameForClone("SimulatorAgentKernel-5g4data-intent-generation"),
-    "simulator-agent-simulatoragentkernel-5g4data-intent-generation"
+    containerNameForClone("5g4data-intent-mistral-small4-generating-agent"),
+    "5g4data-intent-mistral-small4-generating-agent"
   );
   assert.equal(
-    projectNameForClone("SimulatorAgentKernel-5g4data-intent-generation"),
-    "simulatoragentkernel-5g4data-intent-generation"
+    projectNameForClone("5g4data-intent-mistral-small4-generating-agent"),
+    "5g4data-intent-mistral-small4-generating-agent"
   );
 });
 

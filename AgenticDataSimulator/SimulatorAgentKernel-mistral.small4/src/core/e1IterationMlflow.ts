@@ -26,7 +26,7 @@ export function resolveE1IterationMlflowExperimentName(iterationLabel?: string):
   const override = config.overrides?.[label]?.trim();
   if (override) return override;
   const template =
-    config.experimentNameTemplate?.trim() || "5g4data-intent-generating-agent-mistral-small4-{iteration}";
+    config.experimentNameTemplate?.trim() || "5g4data-intent-mistral-small4-generating-agent-{iteration}";
   return template.replaceAll("{iteration}", label);
 }
 

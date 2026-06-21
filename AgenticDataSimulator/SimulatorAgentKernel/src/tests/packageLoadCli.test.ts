@@ -37,10 +37,10 @@ test("CLI package load installs package and creates agent clone", () => {
   );
   assert.match(output, /Package installed: package-template/);
 
-  const siblings = readdirSync(root);
-  const clone = siblings.find((name) => name.startsWith("SimulatorAgentKernel-package-template"));
-  assert.ok(clone, "expected clone folder");
-  const cloneDir = join(root, clone as string);
+  const siblings = readdirSync(join(root, "agents"));
+  const clone = siblings.find((name) => name === "package-template" || name.startsWith("package-template"));
+  assert.ok(clone, "expected clone folder under agents/");
+  const cloneDir = join(root, "agents", clone as string);
   assert.ok(existsSync(join(cloneDir, ".env")));
   const clonedEnv = readFileSync(join(cloneDir, ".env"), "utf8");
   assert.match(clonedEnv, /DOMAIN_PACKAGE_DIR=\.\/\n/);

@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { loadConfig, type AppConfig } from "./config.js";
@@ -23,6 +23,10 @@ import {
 } from "./core/a2a/service.js";
 import { startOpenApiServer } from "./core/httpApiServer.js";
 import {
+  appendDebugLog,
+  writeIntentTurtleDebugFile
+} from "./core/debugSessionLogger.js";
+import {
   applyPackageMappingEnvDefaults,
   applyPreservedAgentApiKeyFromEnv,
   ensureAgentApiKeyForClone,
@@ -31,7 +35,6 @@ import {
   syncGraphDbCredentialsToClone,
   updateEnvFile
 } from "./core/envConfigWriter.js";
-import type { AgentTurnResult, ChatSession } from "./models.js";
 import {
   stripFrontmatter,
   stripMarkdownCodeFenceDelimiters
@@ -351,12 +354,10 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
     packagesRoot
   });
   const installedPackage = loadDomainPackage(installed.packageDir);
-  const cloneFolderName = installedPackage.agentCardPartial?.name ?? installed.packageName;
   const iterationLabel = process.env.PACKAGE_LOAD_ITERATION?.trim() || undefined;
   const cloned = cloneAgentForPackage({
     baselineAgentDir,
-    packageName: installed.packageName,
-    folderName: cloneFolderName,
+    packageName: installed.packageFolderName,
     iterationLabel
   });
   const deployedPackage = await deployPackageToClone({
@@ -469,52 +470,6 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
     );
   }
   return true;
-}
-
-function appendDebugLog(
-  enabled: boolean,
-  debugLogPath: string,
-  session: ChatSession,
-  userText: string,
-  result: AgentTurnResult
-): void {
-  if (!enabled) return;
-  const absolutePath = resolve(process.cwd(), debugLogPath);
-  const parent = dirname(absolutePath);
-  if (!existsSync(parent)) {
-    mkdirSync(parent, { recursive: true });
-  }
-  const entry = {
-    timestampUtc: new Date().toISOString(),
-    sessionId: session.sessionId,
-    userText,
-    assistantResponse: result.response,
-    warnings: result.warnings,
-    debugEntries: result.debug,
-    usage: result.intentUsageSummary
-  };
-  appendFileSync(absolutePath, `${JSON.stringify(entry)}\n`, "utf8");
-}
-
-function extractIntentTurtle(responseText: string): { intentId: string; turtle: string } | null {
-  const trimmed = responseText.trim();
-  const fenced = trimmed.match(/^```(?:turtle|ttl)?\s*([\s\S]*?)\s*```$/i);
-  const turtle = (fenced?.[1] ?? trimmed).trim();
-  if (!turtle.includes("icm:Intent")) return null;
-  const idMatch = turtle.match(/\bdata5g:(I[a-f0-9]{32}|I[a-f0-9-]{36})\b/i);
-  if (!idMatch?.[1]) return null;
-  return { intentId: idMatch[1], turtle };
-}
-
-function writeIntentTurtleDebugFile(debugLogPath: string, responseText: string): void {
-  const extracted = extractIntentTurtle(responseText);
-  if (!extracted) return;
-  const logsDir = dirname(debugLogPath);
-  if (!existsSync(logsDir)) {
-    mkdirSync(logsDir, { recursive: true });
-  }
-  const filePath = join(logsDir, `${extracted.intentId}.ttl`);
-  writeFileSync(filePath, `${extracted.turtle}\n`, "utf8");
 }
 
 async function runOneShot(
@@ -646,7 +601,14 @@ if (process.argv[1]?.endsWith("index.js") || process.argv[1]?.endsWith("index.ts
         agentCardPath: config.a2aAgentCardPath,
         agentCard: card,
         agentApiKey: config.agentApiKey,
-        agentApiKeyHeader: config.agentApiKeyHeader
+        agentApiKeyHeader: config.agentApiKeyHeader,
+        apiDebug: options.debug
+          ? {
+              enabled: true,
+              debugLogPath: options.debugLogPath,
+              writeIntentTurtleDebugFile: runtimePatches?.writeIntentTurtleDebugFile === true
+            }
+          : undefined
       });
       const listening = await server.listen();
       process.stdout.write(

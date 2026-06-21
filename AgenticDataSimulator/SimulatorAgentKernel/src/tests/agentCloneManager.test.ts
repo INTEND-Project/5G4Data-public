@@ -33,23 +33,21 @@ test("cloneAgentForPackage uses exact path when iterationLabel is set", () => {
 
   const clone = cloneAgentForPackage({
     baselineAgentDir: baseline,
-    packageName: "pkg-a",
-    folderName: "5g4data-intent-generating-agent-mistral-small4",
+    packageName: "5g4data-intent-generating-agent-mistral-small4",
     iterationLabel: "i1"
   });
-  assert.match(clone.cloneDir, /5g4data-intent-generating-agent-mistral-small4-i1$/);
+  assert.match(clone.cloneDir, /agents\/5g4data-intent-generating-agent-mistral-small4-i1$/);
 
   assert.throws(() =>
     cloneAgentForPackage({
       baselineAgentDir: baseline,
-      packageName: "pkg-a",
-      folderName: "5g4data-intent-generating-agent-mistral-small4",
+      packageName: "5g4data-intent-generating-agent-mistral-small4",
       iterationLabel: "i1"
     })
   );
 });
 
-test("cloneAgentForPackage prefers provided folderName", () => {
+test("cloneAgentForPackage uses package folder name under agents/", () => {
   const root = mkdtempSync(join(tmpdir(), "clone-manager-folder-name-"));
   const baseline = join(root, "SimulatorAgentKernel");
   mkdirSync(baseline, { recursive: true });
@@ -57,8 +55,7 @@ test("cloneAgentForPackage prefers provided folderName", () => {
 
   const clone = cloneAgentForPackage({
     baselineAgentDir: baseline,
-    packageName: "pkg-a",
-    folderName: "5g4data-intent-generating-agent"
+    packageName: "5g4data-intent-generating-agent"
   });
-  assert.match(clone.cloneDir, /SimulatorAgentKernel-5g4data-intent-generating-agent$/);
+  assert.match(clone.cloneDir, /agents\/5g4data-intent-generating-agent$/);
 });

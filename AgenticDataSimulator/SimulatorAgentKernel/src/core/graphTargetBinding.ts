@@ -18,7 +18,10 @@ export type GraphTargetBinding = {
 export type GraphDbEnvFallback = {
   graphDbEndpoint: string;
   graphDbNamedGraph: string;
+  graphDbInfraEndpoint: string;
+  graphDbInfraNamedGraph: string;
   graphDbQueryLimit: number;
+  repositoryBaseUrl?: string;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

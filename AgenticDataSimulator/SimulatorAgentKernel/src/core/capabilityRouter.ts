@@ -109,6 +109,16 @@ export class CapabilityRouter {
     return new ToolCtor(this.config.workloadCatalogBaseUrl);
   }
 
+  private graphDbEnvFallback() {
+    return {
+      graphDbEndpoint: this.config.graphDbEndpoint,
+      graphDbNamedGraph: this.config.graphDbNamedGraph,
+      graphDbInfraEndpoint: this.config.graphDbInfraEndpoint,
+      graphDbInfraNamedGraph: this.config.graphDbInfraNamedGraph,
+      graphDbQueryLimit: this.config.graphDbQueryLimit
+    };
+  }
+
   private async createGraphDbApi(
     graphTargetBinding?: GraphTargetBinding | null
   ): Promise<GraphDbApi> {
@@ -121,11 +131,7 @@ export class CapabilityRouter {
       ) => GraphDbApi;
     };
     if (typeof fromBinding.fromBinding === "function") {
-      return fromBinding.fromBinding(graphTargetBinding, {
-        graphDbEndpoint: this.config.graphDbEndpoint,
-        graphDbNamedGraph: this.config.graphDbNamedGraph,
-        graphDbQueryLimit: this.config.graphDbQueryLimit
-      });
+      return fromBinding.fromBinding(graphTargetBinding, this.graphDbEnvFallback());
     }
     const ToolCtor = mod.GraphDbTool as new (
       endpoint: string,
@@ -138,6 +144,36 @@ export class CapabilityRouter {
     return new ToolCtor(
       this.config.graphDbEndpoint,
       this.config.graphDbNamedGraph,
+      this.config.graphDbQueryLimit
+    );
+  }
+
+  /** Infra KG (`telenor-infrastructure-5g4data` / `http://intendproject.eu/telenor/infra`), not persist target. */
+  private async createInfrastructureGraphDbApi(): Promise<GraphDbApi> {
+    const mod = await this.importToolModule("graphdbTool.ts");
+    const forInfra = mod.GraphDbTool as {
+      forInfrastructureLookup?: (
+        fallback: {
+          graphDbEndpoint: string;
+          graphDbNamedGraph: string;
+          graphDbInfraEndpoint: string;
+          graphDbInfraNamedGraph: string;
+          graphDbQueryLimit: number;
+        },
+        queryLimit?: number
+      ) => GraphDbApi;
+    };
+    if (typeof forInfra.forInfrastructureLookup === "function") {
+      return forInfra.forInfrastructureLookup(this.graphDbEnvFallback());
+    }
+    const ToolCtor = mod.GraphDbTool as new (
+      endpoint: string,
+      namedGraph: string,
+      queryLimit: number
+    ) => GraphDbApi;
+    return new ToolCtor(
+      this.config.graphDbInfraEndpoint,
+      this.config.graphDbInfraNamedGraph,
       this.config.graphDbQueryLimit
     );
   }
@@ -191,6 +227,7 @@ export class CapabilityRouter {
     const ontology = await this.createOntologyApi();
     const catalogue = await this.createCatalogueApi();
     const graphdb = await this.createGraphDbApi(graphTargetBinding);
+    const infraGraphdb = await this.createInfrastructureGraphDbApi();
     const locality = await this.createLocalityApi();
 
     if (graphTargetBinding) {
@@ -256,7 +293,7 @@ export class CapabilityRouter {
     if (capabilities.has("graphdb_candidates")) {
       try {
         graphDbSummary = await traceToolCall("graphdb_locality", { intentFlags }, () =>
-          this.graphDbSummary(userText, intentFlags, rules, debug, graphdb, locality)
+          this.graphDbSummary(userText, intentFlags, rules, debug, infraGraphdb, locality)
         );
       } catch (error) {
         warnings.push("GraphDB lookup failed.");
@@ -295,6 +332,8 @@ export class CapabilityRouter {
       workflowOverride =
         "Deployment request detected without explicit locality cue. Clarify default datacenter vs user geolocation hint before final Turtle.";
     }
+
+    knownMetricStems = this.mergeMetricStemsWithNetwork(knownMetricStems, intentFlags);
 
     return {
       ontologySummary,

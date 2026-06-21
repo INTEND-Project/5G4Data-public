@@ -9,6 +9,7 @@ import {
   graphDbSparqlEndpointFromBase,
   repositoryIdFromGraphDbEndpoint,
   resolveGraphDbEndpoint,
+  resolveGraphDbInfraEndpoint,
   rewriteGraphDbUrlForContainerAccess,
 } from "../graphdb-url.js";
 
@@ -77,5 +78,14 @@ test("repositoryIdFromGraphDbEndpoint extracts repository segment", () => {
   assert.equal(
     graphDbSparqlEndpointFromBase("http://host.docker.internal:7200/", "demo"),
     "http://host.docker.internal:7200/repositories/demo",
+  );
+});
+
+test("resolveGraphDbInfraEndpoint defaults to telenor-infrastructure-5g4data", () => {
+  assert.equal(
+    resolveGraphDbInfraEndpoint({
+      baseUrl: "http://127.0.0.1:7200/",
+    }),
+    "http://127.0.0.1:7200/repositories/telenor-infrastructure-5g4data",
   );
 });

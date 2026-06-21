@@ -1,5 +1,5 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { loadDomainPackage } from "./packageLoader.js";
 
@@ -71,11 +71,17 @@ export interface InstallPackageInput {
 
 export interface InstallPackageResult {
   packageName: string;
+  /** Basename of the package source path (folder or `.tgz`); used for clone directory naming. */
+  packageFolderName: string;
   packageDir: string;
   skillPath: string;
 }
 
-function installFromDirectory(sourceDir: string, packagesRoot: string): InstallPackageResult {
+function installFromDirectory(
+  sourceDir: string,
+  packagesRoot: string,
+  sourceFolderName: string,
+): InstallPackageResult {
   const extractedRoot = findManifestRootFromFs(sourceDir);
   const manifestText = readFileSync(join(extractedRoot, "manifest.json"), "utf8");
   const manifest = JSON.parse(manifestText) as { name?: string };
@@ -87,7 +93,7 @@ function installFromDirectory(sourceDir: string, packagesRoot: string): InstallP
   if (resolve(extractedRoot) === resolve(packageDir)) {
     loadDomainPackage(packageDir);
     const skillPath = requireSkillFile(packageDir);
-    return { packageName, packageDir, skillPath };
+    return { packageName, packageFolderName: sourceFolderName, packageDir, skillPath };
   }
   if (existsSync(packageDir)) {
     rmSync(packageDir, { recursive: true, force: true });
@@ -95,7 +101,7 @@ function installFromDirectory(sourceDir: string, packagesRoot: string): InstallP
   cpSync(extractedRoot, packageDir, { recursive: true });
   loadDomainPackage(packageDir);
   const skillPath = requireSkillFile(packageDir);
-  return { packageName, packageDir, skillPath };
+  return { packageName, packageFolderName: sourceFolderName, packageDir, skillPath };
 }
 
 export function installPackageFromPath(input: InstallPackageInput): InstallPackageResult {
@@ -108,7 +114,7 @@ export function installPackageFromPath(input: InstallPackageInput): InstallPacka
   mkdirSync(packagesRoot, { recursive: true });
 
   if (statSync(sourcePath).isDirectory()) {
-    return installFromDirectory(sourcePath, packagesRoot);
+    return installFromDirectory(sourcePath, packagesRoot, basename(sourcePath));
   }
 
   if (!sourcePath.endsWith(".tgz")) {
@@ -121,7 +127,8 @@ export function installPackageFromPath(input: InstallPackageInput): InstallPacka
   mkdirSync(stagingDir, { recursive: true });
   try {
     execFileSync("tar", ["-xzf", sourcePath, "-C", stagingDir], { stdio: "pipe" });
-    return installFromDirectory(stagingDir, packagesRoot);
+    const archiveFolderName = basename(sourcePath).replace(/\.tgz$/i, "");
+    return installFromDirectory(stagingDir, packagesRoot, archiveFolderName);
   } finally {
     rmSync(stagingDir, { recursive: true, force: true });
   }

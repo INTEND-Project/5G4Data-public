@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 
 export const DEFAULT_GRAPHDB_REPOSITORY_ID = "intents_and_intent_reports";
+export const DEFAULT_GRAPHDB_INFRA_REPOSITORY_ID = "telenor-infrastructure-5g4data";
+export const DEFAULT_GRAPHDB_INFRA_NAMED_GRAPH = "http://intendproject.eu/telenor/infra";
 
 const HOST_GRAPHDB_BASE_URL = "http://127.0.0.1:7200/";
 const CONTAINER_GRAPHDB_HOST = "host.docker.internal";
@@ -102,4 +104,24 @@ export function resolveGraphDbEndpoint(options?: {
     options?.repositoryId?.trim() ||
     DEFAULT_GRAPHDB_REPOSITORY_ID;
   return graphDbRepositoryEndpointFromBase(baseUrl, repositoryId);
+}
+
+export function resolveGraphDbInfraEndpoint(options?: {
+  endpoint?: string;
+  baseUrl?: string;
+  repositoryId?: string;
+}): string {
+  const endpoint = options?.endpoint?.trim();
+  if (endpoint) {
+    return rewriteGraphDbUrlForContainerAccess(normalizeGraphDbRepositoryEndpoint(endpoint));
+  }
+
+  const baseUrl = normalizeGraphDbBaseUrl(
+    options?.baseUrl?.trim() || defaultGraphDbBaseUrl(),
+  );
+  const repositoryId =
+    options?.repositoryId?.trim() || DEFAULT_GRAPHDB_INFRA_REPOSITORY_ID;
+  return rewriteGraphDbUrlForContainerAccess(
+    graphDbRepositoryEndpointFromBase(baseUrl, repositoryId),
+  );
 }

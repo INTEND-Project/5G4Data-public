@@ -42,7 +42,7 @@ cd SimulatorAgentKernel
 npm install
 
 # 2) create/update an agent instance from a package (builds and starts a Docker container)
-npx tsx src/index.ts package load ../SimulatorAgentPackages/5g4data-intent-generation
+npx tsx src/index.ts package load ../SimulatorAgentPackages/5g4data-intent-generating-agent
 
 # 3) the clone runs in Docker; check health and logs
 curl http://127.0.0.1:3011/health
@@ -107,10 +107,12 @@ Default debug log file:
 - `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`
 - `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_BASE_URL`
 - `OPENCLAW_MODEL`
-- `DOMAIN_PACKAGE_DIR` (defaults to `../SimulatorAgentPackages/5g4data-intent-generation`)
+- `DOMAIN_PACKAGE_DIR` (defaults to `../SimulatorAgentPackages/5g4data-intent-generating-agent`)
 - `LLM_USAGE_LOG_PATH` (optional JSONL file for per-intent token/cost summaries)
 - `WORKLOAD_CATALOG_BASE_URL`
-- `GRAPHDB_ENDPOINT`, `GRAPHDB_NAMED_GRAPH`, `GRAPHDB_QUERY_LIMIT`, `GRAPHDB_CONTEXT_LIMIT`
+- `GRAPHDB_ENDPOINT`, `GRAPHDB_REPOSITORY_ID` — observation/legacy repos (e.g. `intents_and_intent_reports`)
+- `GRAPHDB_INFRA_REPOSITORY_ID`, `GRAPHDB_INFRA_NAMED_GRAPH`, `GRAPHDB_INFRA_ENDPOINT` — infrastructure edge-cluster locality (`telenor-infrastructure-5g4data` / `http://intendproject.eu/telenor/infra`)
+- `GRAPHDB_QUERY_LIMIT`, `GRAPHDB_CONTEXT_LIMIT`
 - `DEFAULT_INTENT_HANDLER`, `DEFAULT_INTENT_OWNER`, `AUTO_GENERATE_DESCRIPTION`
 - `SKILL_FILE`, `SYSTEM_PROMPT_FILE` (defaults to `./SYSTEM_PROMPT.md` in the kernel; optional compatibility layer — package prompts are primary)
 - `SHACL_SHAPES_FILE`, `SHACL_MAX_RETRIES`
@@ -250,7 +252,7 @@ Create an archive from a package folder:
 ```bash
 npm run package:tgz -- ../SimulatorAgentPackages/5g4data-intent-generation
 # optional output path
-npm run package:tgz -- ../SimulatorAgentPackages/5g4data-intent-generation dist/packages/5g4data.tgz
+npm run package:tgz -- ../SimulatorAgentPackages/5g4data-intent-generating-agent dist/packages/5g4data.tgz
 ```
 
 ## Package contract (extended)

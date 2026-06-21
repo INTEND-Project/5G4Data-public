@@ -29,7 +29,7 @@ function sanitizeDockerName(value: string): string {
 }
 
 export function containerNameForClone(cloneName: string): string {
-  return `simulator-agent-${sanitizeDockerName(cloneName)}`;
+  return sanitizeDockerName(cloneName);
 }
 
 export function projectNameForClone(cloneName: string): string {
@@ -67,8 +67,9 @@ export function renderCloneDockerCompose(input: WriteCloneDockerComposeInput): s
       API_SERVER_PORT: "${port}"
       SIMULATOR_AGENT_CONTAINER: "true"
     command: ["npx", "tsx", "src/index.ts", "--debug"]
+    # mlflow-network gateway — host-gateway resolves to 172.17.0.1 and cannot reach host GraphDB
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:172.30.0.1"
     volumes:
       - ./logs:/app/logs
     networks:

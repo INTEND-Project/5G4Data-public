@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { ShaclValidatorTool } from "../core/shaclValidatorTool.js";
 
 const SHAPES_FILE = resolve(
-  "../SimulatorAgentPackages/5g4data-intent-generation/validation/skill_subset_intent_shapes.ttl"
+  "../SimulatorAgentPackages/5g4data-intent-generating-agent/validation/skill_subset_intent_shapes.ttl"
 );
 
 const CONFORMING_INTENT = `@prefix data5g: <http://5g4data.eu/5g4data#> .

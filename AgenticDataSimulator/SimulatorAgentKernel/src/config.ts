@@ -2,8 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  DEFAULT_GRAPHDB_INFRA_NAMED_GRAPH,
   repositoryIdFromGraphDbEndpoint,
   resolveGraphDbEndpoint,
+  resolveGraphDbInfraEndpoint,
 } from "./graphdb-url.js";
 
 export interface AppConfig {
@@ -19,6 +21,8 @@ export interface AppConfig {
   workloadCatalogBaseUrl: string;
   graphDbEndpoint: string;
   graphDbNamedGraph: string;
+  graphDbInfraEndpoint: string;
+  graphDbInfraNamedGraph: string;
   graphDbQueryLimit: number;
   graphDbContextLimit: number;
   defaultIntentHandler: string;
@@ -137,11 +141,11 @@ export function loadConfig(): AppConfig {
 
   const skillFile = resolve(
     process.cwd(),
-    process.env.SKILL_FILE ?? "../SimulatorAgentPackages/5g4data-intent-generation/skills/SKILL.md"
+    process.env.SKILL_FILE ?? "../SimulatorAgentPackages/5g4data-intent-generating-agent/skills/SKILL.md"
   );
   const domainPackageDir = resolve(
     process.cwd(),
-    process.env.DOMAIN_PACKAGE_DIR ?? "../SimulatorAgentPackages/5g4data-intent-generation"
+    process.env.DOMAIN_PACKAGE_DIR ?? "../SimulatorAgentPackages/5g4data-intent-generating-agent"
   );
   const systemPromptFile = resolve(
     process.cwd(),
@@ -150,7 +154,7 @@ export function loadConfig(): AppConfig {
   const shaclShapesFile = resolve(
     process.cwd(),
     process.env.SHACL_SHAPES_FILE ??
-      "../SimulatorAgentPackages/5g4data-intent-generation/validation/skill_subset_intent_shapes.ttl"
+      "../SimulatorAgentPackages/5g4data-intent-generating-agent/validation/skill_subset_intent_shapes.ttl"
   );
   const llmUsageLogPath = process.env.LLM_USAGE_LOG_PATH
     ? resolve(process.cwd(), process.env.LLM_USAGE_LOG_PATH)
@@ -189,7 +193,16 @@ export function loadConfig(): AppConfig {
           ? repositoryIdFromGraphDbEndpoint(process.env.GRAPHDB_ENDPOINT)
           : undefined),
     }),
-    graphDbNamedGraph: process.env.GRAPHDB_NAMED_GRAPH ?? "http://intendproject.eu/telenor/infra",
+    graphDbNamedGraph: process.env.GRAPHDB_NAMED_GRAPH ?? DEFAULT_GRAPHDB_INFRA_NAMED_GRAPH,
+    graphDbInfraEndpoint: resolveGraphDbInfraEndpoint({
+      endpoint: process.env.GRAPHDB_INFRA_ENDPOINT,
+      baseUrl: process.env.GRAPHDB_BASE_URL,
+      repositoryId: process.env.GRAPHDB_INFRA_REPOSITORY_ID?.trim() || undefined,
+    }),
+    graphDbInfraNamedGraph:
+      process.env.GRAPHDB_INFRA_NAMED_GRAPH?.trim() ||
+      process.env.GRAPHDB_NAMED_GRAPH?.trim() ||
+      DEFAULT_GRAPHDB_INFRA_NAMED_GRAPH,
     graphDbQueryLimit: Math.max(0, numberFromEnv(process.env.GRAPHDB_QUERY_LIMIT, 0)),
     graphDbContextLimit: Math.max(1, numberFromEnv(process.env.GRAPHDB_CONTEXT_LIMIT, 10)),
     defaultIntentHandler: process.env.DEFAULT_INTENT_HANDLER ?? "inServ",

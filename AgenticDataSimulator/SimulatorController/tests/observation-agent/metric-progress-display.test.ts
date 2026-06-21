@@ -189,4 +189,66 @@ describe("metric progress display", () => {
     );
     expect(hint).toBeNull();
   });
+
+  it("merges prometheus remote write failures into pending metric rows", () => {
+    const intentId = "Iabc1234567890123456789012345678";
+    const compoundMetric = `detection-latency_CO${intentId.slice(1)}`;
+    const setupErrors = [
+      {
+        kind: "prometheus_remote_write_flush_failed",
+        message:
+          "Prometheus was unreachable at flush time for detection-latency after generating 2,881 samples (http://host.docker.internal:9090/api/v1/write). Start or restart Prometheus (cd Prometheus && ./start.sh), confirm the Controller Prometheus URL is http://127.0.0.1:9090, then re-run the observation-report step.",
+        metric: "detection-latency",
+        intentId,
+      },
+    ];
+    const merged = mergeObservationProgressWithExpectedMetrics(
+      {
+        schemaVersion: "observation_progress_v1",
+        updatedAt: new Date().toISOString(),
+        intentId,
+        mode: "historic",
+        phase: "generating",
+        codegenMetricsDone: 1,
+        codegenMetricsTotal: 1,
+        metrics: [
+          {
+            compoundMetric,
+            phase: "failed",
+            ticksDone: 2881,
+            ticksTotal: 2881,
+          },
+        ],
+        aggregate: { ticksDone: 2881, ticksTotal: 2881, percent: 100 },
+      },
+      [compoundMetric, "bandwidth_COabc1234567890123456789012345678"],
+      intentId,
+      setupErrors,
+    );
+
+    const pendingRow = merged?.metrics.find(
+      (entry) => entry.compoundMetric === "bandwidth_COabc1234567890123456789012345678",
+    );
+    expect(pendingRow?.phase).toBe("failed");
+    expect(pendingRow?.errorMessage).toContain("Prometheus");
+    expect(merged?.phase).toBe("failed");
+  });
+
+  it("surfaces prometheus flush errors immediately without stuck timeout", () => {
+    const intentId = "Iabc1234567890123456789012345678";
+    const hint = detectStuckPendingMetrics(
+      null,
+      ["detection-latency"],
+      [
+        {
+          kind: "prometheus_remote_write_flush_failed",
+          message:
+            "Prometheus was unreachable at flush time. Start or restart Prometheus (cd Prometheus && ./start.sh).",
+          intentId,
+        },
+      ],
+      { awaitingSinceMs: Date.now() },
+    );
+    expect(hint).toContain("Prometheus");
+  });
 });

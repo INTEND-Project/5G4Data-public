@@ -1,11 +1,19 @@
 import { normalizeRegistryAgents } from "@/lib/registry/normalize";
 import { suggestsIntentGeneration } from "@/lib/registry/intent-agent-discovery";
+import {
+  agentNameMatchesPreferred,
+  discoveryRoleFromSkillTags,
+} from "@/lib/registry/discovery-task-tags";
 import type { RegistryAgent, RegistryAgentRecord, RegistryAgentSkillRecord } from "@/lib/registry/types";
 
 export type ObservationAgentDiscoveryResult = {
   wellKnownURI: string;
   name: string;
   domain: string;
+};
+
+export type ObservationAgentDiscoveryOptions = {
+  preferredAgentName?: string;
 };
 
 function normalizeToken(value: string | undefined): string {
@@ -21,6 +29,14 @@ export function suggestsObservationControl(
   record: RegistryAgentRecord,
   normalizedAgentName?: string,
 ): boolean {
+  const taggedRole = discoveryRoleFromSkillTags(record);
+  if (taggedRole === "observation-agent") {
+    return true;
+  }
+  if (taggedRole === "intent-agent") {
+    return false;
+  }
+
   if (suggestsIntentGeneration(record, normalizedAgentName)) {
     return false;
   }
@@ -73,6 +89,7 @@ function preferenceScore(record: RegistryAgentRecord): number {
 export function pickObservationControlAgent(
   records: RegistryAgentRecord[],
   domain: string,
+  options?: ObservationAgentDiscoveryOptions,
 ): ObservationAgentDiscoveryResult | null {
   const normalized = normalizeRegistryAgents(records);
   const byWellKnown = new Map<string, RegistryAgent>();
@@ -112,6 +129,16 @@ export function pickObservationControlAgent(
 
   if (candidates.length === 0) {
     return null;
+  }
+
+  const preferredName = options?.preferredAgentName?.trim();
+  if (preferredName) {
+    const preferred = candidates.find((candidate) =>
+      agentNameMatchesPreferred(candidate.result.name, preferredName),
+    );
+    if (preferred) {
+      return preferred.result;
+    }
   }
 
   candidates.sort((a, b) => preferenceScore(b.record) - preferenceScore(a.record));

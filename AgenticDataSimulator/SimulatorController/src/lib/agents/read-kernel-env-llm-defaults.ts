@@ -4,7 +4,9 @@ import { resolve } from "node:path";
 import { DEFAULT_AGENT_TEMPERATURE } from "@/lib/agents/agent-llm-preferences";
 import {
   INTENT_GENERATING_AGENT_NAME,
+  INTENT_GENERATING_AGENT_PACKAGE,
   OBSERVATION_GENERATING_AGENT_NAME,
+  OBSERVATION_GENERATING_AGENT_PACKAGE,
 } from "@/lib/agents/known-agent-names";
 
 export type AgentRuntimeLlmDefaults = {
@@ -41,16 +43,15 @@ function parseTemperature(raw: string | undefined): number {
 
 function cloneEnvPathForAgent(agentName: string): string | undefined {
   const root = resolve(process.cwd(), "..");
-  if (agentName === INTENT_GENERATING_AGENT_NAME) {
-    return resolve(root, "SimulatorAgentKernel-5g4data-intent-generating-agent/.env");
+  const packageDirByAgent: Record<string, string> = {
+    [INTENT_GENERATING_AGENT_NAME]: INTENT_GENERATING_AGENT_PACKAGE,
+    [OBSERVATION_GENERATING_AGENT_NAME]: OBSERVATION_GENERATING_AGENT_PACKAGE,
+  };
+  const packageDir = packageDirByAgent[agentName];
+  if (!packageDir) {
+    return undefined;
   }
-  if (agentName === OBSERVATION_GENERATING_AGENT_NAME) {
-    return resolve(
-      root,
-      "SimulatorAgentKernel-5g4data-intent-observation-generating-agent/.env",
-    );
-  }
-  return undefined;
+  return resolve(root, "agents", packageDir, ".env");
 }
 
 /** Read model/temperature from a known agent clone `.env` or baseline kernel `.env`. */

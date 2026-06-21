@@ -11,11 +11,11 @@ export default defineConfig({
       "@": path.join(controllerRoot, "src"),
       "@intent-gen-package": path.resolve(
         controllerRoot,
-        "../SimulatorAgentPackages/5g4data-intent-generation",
+        "../SimulatorAgentPackages/5g4data-intent-generating-agent",
       ),
       "@intent-obs-package": path.resolve(
         controllerRoot,
-        "../SimulatorAgentPackages/5g4data-intent-observations",
+        "../SimulatorAgentPackages/5g4data-intent-observations-generating-agent",
       ),
     },
     extensionAlias: {

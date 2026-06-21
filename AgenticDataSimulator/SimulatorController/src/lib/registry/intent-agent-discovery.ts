@@ -1,10 +1,15 @@
 import { normalizeRegistryAgents } from "@/lib/registry/normalize";
+import { discoveryRoleFromSkillTags, agentNameMatchesPreferred } from "@/lib/registry/discovery-task-tags";
 import type { RegistryAgent, RegistryAgentRecord, RegistryAgentSkillRecord } from "@/lib/registry/types";
 
 export type IntentAgentDiscoveryResult = {
   wellKnownURI: string;
   name: string;
   domain: string;
+};
+
+export type IntentAgentDiscoveryOptions = {
+  preferredAgentName?: string;
 };
 
 function normalizeToken(value: string | undefined): string {
@@ -20,6 +25,14 @@ export function suggestsIntentGeneration(
   record: RegistryAgentRecord,
   normalizedAgentName?: string,
 ): boolean {
+  const taggedRole = discoveryRoleFromSkillTags(record);
+  if (taggedRole === "intent-agent") {
+    return true;
+  }
+  if (taggedRole === "observation-agent") {
+    return false;
+  }
+
   const name = normalizeToken(
     record.name ?? normalizedAgentName ?? record.agent_card?.name ?? "",
   );
@@ -68,6 +81,7 @@ function preferenceScore(record: RegistryAgentRecord): number {
 export function pickIntentGeneratingAgent(
   records: RegistryAgentRecord[],
   domain: string,
+  options?: IntentAgentDiscoveryOptions,
 ): IntentAgentDiscoveryResult | null {
   const normalized = normalizeRegistryAgents(records);
   const byWellKnown = new Map<string, RegistryAgent>();
@@ -106,6 +120,16 @@ export function pickIntentGeneratingAgent(
 
   if (candidates.length === 0) {
     return null;
+  }
+
+  const preferredName = options?.preferredAgentName?.trim();
+  if (preferredName) {
+    const preferred = candidates.find((candidate) =>
+      agentNameMatchesPreferred(candidate.result.name, preferredName),
+    );
+    if (preferred) {
+      return preferred.result;
+    }
   }
 
   candidates.sort((a, b) => preferenceScore(b.record) - preferenceScore(a.record));

@@ -7,6 +7,7 @@ import { pickObservationControlAgent } from "@/lib/registry/observation-agent-di
 
 const bodySchema = z.object({
   domain: z.string().min(1),
+  preferredAgentName: z.string().min(1).optional(),
 });
 
 export async function POST(request: Request) {
@@ -22,7 +23,9 @@ export async function POST(request: Request) {
   }
 
   const records = await listRegistryRecords({ forceRefresh: false });
-  const match = pickObservationControlAgent(records, parsed.data.domain);
+  const match = pickObservationControlAgent(records, parsed.data.domain, {
+    preferredAgentName: parsed.data.preferredAgentName,
+  });
 
   if (!match) {
     return NextResponse.json(

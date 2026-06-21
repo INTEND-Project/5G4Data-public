@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const clientMock = {
   listNormalizedAgents: vi.fn(),
+  listRegistryRecords: vi.fn(),
 };
 
 vi.mock("../../src/lib/registry/client", () => clientMock);
@@ -9,6 +10,7 @@ vi.mock("../../src/lib/registry/client", () => clientMock);
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
+  clientMock.listRegistryRecords.mockResolvedValue([]);
 });
 
 describe("registry routes", () => {
@@ -100,6 +102,7 @@ describe("registry routes", () => {
     );
 
     expect(clientMock.listNormalizedAgents).toHaveBeenCalledWith({ forceRefresh: true });
+    expect(clientMock.listRegistryRecords).toHaveBeenCalledWith({ forceRefresh: true });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       agents: [

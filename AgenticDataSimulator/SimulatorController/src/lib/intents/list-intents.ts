@@ -30,6 +30,7 @@ export type IntentListEntry = {
   dataStatus: IntentDataStatus;
   metricsReady: number;
   metricsTotal: number;
+  readyCompoundMetrics: string[];
 };
 
 export type ListIntentsMode = "lite" | "full";
@@ -38,8 +39,6 @@ export type ListIntentsOptions = {
   mode?: ListIntentsMode;
   cacheKey?: string;
   ownedIntentIds?: string[];
-  /** Controller username — used for Grafana JWT auto-login on dashboard links. */
-  grafanaLoginUsername?: string | null;
   /** User-selected Prometheus base URL from the workspace UI (overrides PROMETHEUS_URL). */
   prometheusBaseUrl?: string | null;
   /** User-selected GraphDB base URL from the workspace UI (overrides GRAPHDB_BASE_URL). */
@@ -93,11 +92,10 @@ async function enrichIntentEntry(input: {
   owner: IntentTargetRef | undefined;
   prometheusSet: Set<string>;
   mode: ListIntentsMode;
-  grafanaLoginUsername?: string | null;
   prometheusBaseUrl?: string | null;
   graphDbBaseUrl?: string | null;
 }): Promise<IntentListEntry> {
-  const { intentId, owner, prometheusSet, grafanaLoginUsername, prometheusBaseUrl, graphDbBaseUrl } =
+  const { intentId, owner, prometheusSet, prometheusBaseUrl, graphDbBaseUrl } =
     input;
   const hasGraphTarget = Boolean(owner?.repositoryId && owner.graphIri);
 
@@ -142,14 +140,13 @@ async function enrichIntentEntry(input: {
     intentId,
     storage,
     grafanaUrl:
-      readiness.status === "ready"
+      readiness.metricsReady > 0
         ? buildIntentGrafanaUrl({
             intentId,
             conditionMetrics: compoundMetrics,
             bounds: readiness.bounds,
             repositoryId,
             graphIri,
-            loginUsername: grafanaLoginUsername,
           })
         : null,
     repositoryId,
@@ -157,6 +154,7 @@ async function enrichIntentEntry(input: {
     dataStatus: readiness.status,
     metricsReady: readiness.metricsReady,
     metricsTotal: readiness.metricsTotal,
+    readyCompoundMetrics: readiness.readyCompoundMetrics,
   };
 }
 
@@ -239,7 +237,6 @@ export async function listIntentsForDomain(
       owner: intentOwners.get(intentId),
       prometheusSet,
       mode,
-      grafanaLoginUsername: options.grafanaLoginUsername,
       prometheusBaseUrl: options.prometheusBaseUrl,
       graphDbBaseUrl: options.graphDbBaseUrl,
     }),

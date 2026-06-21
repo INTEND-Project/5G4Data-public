@@ -1,15 +1,20 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { AgentSettingsDialog } from "@/components/workspace/agent-settings-dialog";
+import { useAgentDiscoveryPreferences } from "@/components/workspace/agent-discovery-preferences-context";
 import { registryPollIntervalMs } from "@/components/workspace/infra-connection-status";
 import { WorkspaceCollapsibleSection } from "@/components/workspace/workspace-collapsible-section";
+import { discoveryRoleLabel } from "@/lib/registry/agent-discovery-roles";
+import type { DiscoveryRole } from "@/lib/registry/discovery-task-tags";
 
 type AgentListItem = {
   name: string;
+  domain: string;
   isHealthy: boolean | null;
+  discoveryRole?: DiscoveryRole | null;
 };
 
 type AgentListProps = {
@@ -29,7 +34,10 @@ function agentsEqual(left: AgentListItem[], right: AgentListItem[]): boolean {
 
   return left.every(
     (agent, index) =>
-      agent.name === right[index]?.name && agent.isHealthy === right[index]?.isHealthy,
+      agent.name === right[index]?.name &&
+      agent.domain === right[index]?.domain &&
+      agent.isHealthy === right[index]?.isHealthy &&
+      agent.discoveryRole === right[index]?.discoveryRole,
   );
 }
 
@@ -83,6 +91,19 @@ function AgentHealthIcon({ isHealthy }: { isHealthy: boolean | null }) {
   );
 }
 
+function AgentPreferredIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg aria-hidden="true" fill={filled ? "currentColor" : "none"} height="18" viewBox="0 0 24 24" width="18">
+      <path
+        d="M12 2.5l2.55 5.18 5.7.83-4.12 4.02.97 5.67L12 15.9l-5.1 2.68.97-5.67-4.12-4.02 5.7-.83L12 2.5Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.75"
+      />
+    </svg>
+  );
+}
+
 function AgentConfigureIcon() {
   return (
     <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
@@ -109,6 +130,7 @@ export function AgentList({
   agentRuntimeLlmApiUrlBase,
   toolsSlot,
 }: AgentListProps) {
+  const { isPreferred, togglePreferred } = useAgentDiscoveryPreferences();
   const [displayedAgents, setDisplayedAgents] = useState(agents);
   const [settingsAgentName, setSettingsAgentName] = useState<string | null>(null);
   const registryConnectedRef = useRef(registryConnected);
@@ -193,14 +215,60 @@ export function AgentList({
     };
   }, [refreshAgents, registryConnected]);
 
+  const sortedAgents = useMemo(() => {
+    return [...displayedAgents].sort((left, right) => {
+      const leftPreferred =
+        left.discoveryRole &&
+        isPreferred(left.domain, left.discoveryRole, left.name);
+      const rightPreferred =
+        right.discoveryRole &&
+        isPreferred(right.domain, right.discoveryRole, right.name);
+      if (leftPreferred !== rightPreferred) {
+        return leftPreferred ? -1 : 1;
+      }
+      return left.name.localeCompare(right.name);
+    });
+  }, [displayedAgents, isPreferred]);
+
   return (
     <>
       <WorkspaceCollapsibleSection sectionId="agents" title="Available agents">
         <div className="workspace-stack">
-          {displayedAgents.map((agent) => (
+          {sortedAgents.map((agent) => {
+            const role = agent.discoveryRole ?? null;
+            const preferred =
+              role !== null && isPreferred(agent.domain, role, agent.name);
+            const preferTitle = role
+              ? preferred
+                ? `Remove preferred ${discoveryRoleLabel(role).toLowerCase()} agent`
+                : `Prefer for ${discoveryRoleLabel(role).toLowerCase()} discovery`
+              : "";
+
+            return (
             <article className="workspace-agent" key={agent.name}>
-              <strong>{agent.name}</strong>
+              <div className="workspace-agent-main">
+                <strong>{agent.name}</strong>
+                {role ? (
+                  <span className="workspace-chip workspace-agent-role-chip">
+                    {discoveryRoleLabel(role)}
+                  </span>
+                ) : null}
+              </div>
               <div className="workspace-agent-indicators">
+                {role ? (
+                  <button
+                    aria-label={preferTitle}
+                    aria-pressed={preferred}
+                    className={`workspace-button workspace-button-secondary workspace-kg-target-action workspace-agent-preferred-button${
+                      preferred ? " workspace-agent-preferred-button-active" : ""
+                    }`}
+                    onClick={() => togglePreferred(agent.domain, role, agent.name)}
+                    title={preferTitle}
+                    type="button"
+                  >
+                    <AgentPreferredIcon filled={preferred} />
+                  </button>
+                ) : null}
                 <button
                   aria-label={`Configure LLM settings for ${agent.name}`}
                   className="workspace-button workspace-button-secondary workspace-kg-target-action workspace-agent-configure-button"
@@ -216,7 +284,8 @@ export function AgentList({
                 <AgentHealthIcon isHealthy={agent.isHealthy} />
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
       </WorkspaceCollapsibleSection>
       <AgentSettingsDialog

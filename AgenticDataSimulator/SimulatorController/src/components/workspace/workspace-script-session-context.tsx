@@ -1,6 +1,11 @@
 "use client";
 
 import { invalidateLiteListCache } from "@/lib/intents/list-intents-cache";
+import {
+  clearScriptObservationMetrics,
+  readScriptObservationMetrics,
+  writeScriptObservationMetrics,
+} from "@/lib/intents/script-observation-scope-storage";
 import type { ObservationProgressSnapshot } from "@/lib/observation-agent/progress-types";
 import type { ReactNode } from "react";
 import {
@@ -250,7 +255,7 @@ export function WorkspaceScriptSessionProvider({
     () => new Set(),
   );
   const [historicObservationMetricsByIntentId, setHistoricObservationMetricsByIntentId] =
-    useState<Record<string, string[]>>({});
+    useState<Record<string, string[]>>(() => readScriptObservationMetrics(selectedDomain));
   const [historicObservationAwaitingSinceByIntentId, setHistoricObservationAwaitingSinceByIntentId] =
     useState<Record<string, number>>({});
   const [observationProgressByIntentId, setObservationProgressByIntentId] = useState<
@@ -399,8 +404,18 @@ export function WorkspaceScriptSessionProvider({
     );
   }, []);
 
+  const resetScriptObservationScope = useCallback(() => {
+    setHistoricObservationMetricsByIntentId({});
+    setHistoricObservationIntentIds(new Set());
+    setHistoricObservationAwaitingSinceByIntentId({});
+    setObservationProgressByIntentId({});
+    setIntentIdsAwaitingObservation(new Set());
+    clearScriptObservationMetrics(selectedDomain);
+  }, [selectedDomain]);
+
   const beginScriptRun = useCallback(
     (scriptName: string, input?: { mode?: "dry-run" | "execute"; scriptId?: string | null }) => {
+      resetScriptObservationScope();
       const id =
         typeof globalThis.crypto !== "undefined" &&
         typeof globalThis.crypto.randomUUID === "function"
@@ -420,7 +435,7 @@ export function WorkspaceScriptSessionProvider({
       );
       setSelectedScriptRunId(id);
     },
-    [],
+    [resetScriptObservationScope],
   );
 
   const appendRunnerLog = useCallback(
@@ -671,10 +686,12 @@ export function WorkspaceScriptSessionProvider({
         ) {
           return current;
         }
-        return { ...current, [trimmed]: merged };
+        const next = { ...current, [trimmed]: merged };
+        writeScriptObservationMetrics(selectedDomain, next);
+        return next;
       });
     },
-    [],
+    [selectedDomain],
   );
 
   const clearHistoricObservationIntent = useCallback((intentId: string) => {
@@ -691,14 +708,6 @@ export function WorkspaceScriptSessionProvider({
       return next;
     });
     setObservationProgressByIntentId((current) => {
-      if (!(trimmed in current)) {
-        return current;
-      }
-      const next = { ...current };
-      delete next[trimmed];
-      return next;
-    });
-    setHistoricObservationMetricsByIntentId((current) => {
       if (!(trimmed in current)) {
         return current;
       }
@@ -838,6 +847,7 @@ export function WorkspaceScriptSessionProvider({
       setBundle(buildInitialTabs(draftContent, selectedDomain));
       setScriptExtractedMetricNames([]);
       setWorkloadPreviewMetricStems([]);
+      setHistoricObservationMetricsByIntentId(readScriptObservationMetrics(selectedDomain));
     }
   }, [selectedDomain, draftContent, scripts, applyScriptsFromProps]);
 

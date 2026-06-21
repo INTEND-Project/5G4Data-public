@@ -8,11 +8,11 @@ import { getConfiguredAppBasePath } from "./src/lib/app-paths";
 const controllerRoot = path.dirname(fileURLToPath(import.meta.url));
 const intentGenPackageRoot = path.resolve(
   controllerRoot,
-  "../SimulatorAgentPackages/5g4data-intent-generation",
+  "../SimulatorAgentPackages/5g4data-intent-generating-agent",
 );
 const intentObsPackageRoot = path.resolve(
   controllerRoot,
-  "../SimulatorAgentPackages/5g4data-intent-observations",
+  "../SimulatorAgentPackages/5g4data-intent-observations-generating-agent",
 );
 
 const configuredBasePath = getConfiguredAppBasePath(process.env);

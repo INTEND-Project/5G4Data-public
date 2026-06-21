@@ -27,10 +27,10 @@
         "./src/*"
       ],
       "@intent-gen-package/*": [
-        "../SimulatorAgentPackages/5g4data-intent-generation/*"
+        "../SimulatorAgentPackages/5g4data-intent-generating-agent/*"
       ],
       "@intent-obs-package/*": [
-        "../SimulatorAgentPackages/5g4data-intent-observations/*"
+        "../SimulatorAgentPackages/5g4data-intent-observations-generating-agent/*"
       ]
     }
   },

@@ -1690,9 +1690,33 @@ select.workspace-script-run-select:disabled {
 
 .workspace-agent {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+}
+
+.workspace-agent-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.workspace-agent-role-chip {
+  align-self: flex-start;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workspace-agent-preferred-button {
+  padding: 6px 8px;
+  min-width: 0;
+  color: var(--workspace-muted, #8b949e);
+}
+
+.workspace-agent-preferred-button-active {
+  color: #e3b341;
 }
 
 .workspace-agent-indicators {

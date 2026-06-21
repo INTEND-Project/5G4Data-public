@@ -11,6 +11,7 @@ import {
 } from "@/components/editor/editor-font-size-controls";
 import { ScriptEditor } from "@/components/editor/script-editor";
 import { IntentGenSessionDialog } from "@/components/workspace/intent-gen-session-dialog";
+import { useAgentDiscoveryPreferencesReader } from "@/components/workspace/agent-discovery-preferences-context";
 import { ObservationProgressBar } from "@/components/workspace/observation-progress-bar";
 import type { ObservationProgressSnapshot } from "@/lib/observation-agent/progress-types";
 import { ShowMetricsDialog } from "@/components/workspace/show-metrics-dialog";
@@ -37,6 +38,7 @@ import {
   resolveMetricStemsInObservationInstructions,
 } from "@/lib/dsl/analysis/extract-metric-catalog";
 import { mergeObservationProgressWithExpectedMetrics } from "@/lib/observation-agent/metric-progress-display";
+import { toObservationSetupError } from "@/lib/observation-agent/observation-agent-error-display";
 import { parseObservationAgentFailure } from "@/lib/observation-agent/parse-observation-agent-reply";
 import { buildObservationReportSeed } from "@/lib/dsl/observation-report-seed";
 import {
@@ -67,9 +69,10 @@ import {
   type GraphTargetBinding,
 } from "@/lib/kg/graph-target-binding";
 import {
-  INTENT_GENERATING_AGENT_NAME,
-  OBSERVATION_GENERATING_AGENT_NAME,
-} from "@/lib/agents/known-agent-names";
+  type DiscoveredAgentBinding,
+  discoveredAgentBinding,
+} from "@/lib/agents/discovered-agent-binding";
+import { OBSERVATION_GENERATING_AGENT_NAME } from "@/lib/agents/known-agent-names";
 import {
   fetchWorkloadPreviewMetrics,
   type WorkloadPreviewMetrics,
@@ -126,6 +129,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   a2aMessageSendUrl,
   previewMetricsApiUrl,
 }: WorkspaceScriptRunnerProps) {
+  const getPreferredAgentName = useAgentDiscoveryPreferencesReader();
   const {
     selectedDomain,
     scriptsFromServer,
@@ -696,6 +700,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
   const [storageDeletionDialogOpen, setStorageDeletionDialogOpen] = useState(false);
   const [backgroundGenerationDialogOpen, setBackgroundGenerationDialogOpen] = useState(false);
   const [intentSession, setIntentSession] = useState<{
+    agentName: string;
     wellKnownURI: string;
     prompt: string;
     intentArtifactLabel: string;
@@ -766,10 +771,61 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       return;
     }
     setObservationAgentError(null);
+    setObservationAgentErrors([]);
     seenObservationErrorKeysRef.current.clear();
     observationErrorSinceRef.current = new Date().toISOString();
     observationErrorPollUntilRef.current = Date.now() + 15 * 60 * 1000;
   }, [observationSession]);
+
+  useEffect(() => {
+    if (!observationSession?.isHistoric) {
+      return;
+    }
+
+    const storage =
+      observationSession.observationStorage ??
+      observationSession.createIntentStorage ??
+      "graphdb";
+    if (storage !== "prometheus") {
+      return;
+    }
+
+    const checkPrometheus = async (): Promise<void> => {
+      const params = new URLSearchParams();
+      const trimmedPrometheusBase = prometheusBaseUrl.trim();
+      if (trimmedPrometheusBase) {
+        params.set("prometheusBaseUrl", trimmedPrometheusBase);
+      }
+
+      try {
+        const response = await fetch(
+          `${withAppBasePath("/api/prometheus/status")}?${params.toString()}`,
+          { credentials: "same-origin" },
+        );
+        if (!response.ok) {
+          return;
+        }
+
+        const body = (await response.json()) as { connected?: boolean };
+        if (body.connected) {
+          return;
+        }
+
+        registerObservationAgentError({
+          schemaVersion: "observation_error_v1",
+          kind: "prometheus_unreachable",
+          message:
+            "Prometheus is not reachable from the Controller. Historic observation runs store samples via Prometheus remote write — start Prometheus (cd Prometheus && ./start.sh) and set the Controller URL to http://127.0.0.1:9090.",
+          intentId: observationSession.intentId,
+          timestampUtc: new Date().toISOString(),
+        });
+      } catch {
+        /* best-effort preflight */
+      }
+    };
+
+    void checkPrometheus();
+  }, [observationSession, prometheusBaseUrl, registerObservationAgentError]);
 
   useEffect(() => {
     if (historicObservationIntentIds.size > 0 && !observationErrorSinceRef.current) {
@@ -937,12 +993,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       [...historicObservationIntentIds].map((intentId) => {
         const setupErrors = observationAgentErrors
           .filter((entry) => !entry.intentId || entry.intentId === intentId)
-          .map((entry) => ({
-            kind: entry.kind,
-            message: entry.message,
-            metric: entry.metric,
-            intentId: entry.intentId,
-          }));
+          .map(toObservationSetupError);
         const rawAgentProgress = observationProgressByIntentId[intentId] ?? null;
         return {
           intentId,
@@ -1061,22 +1112,33 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       const catalogBindings = new Map<string, string[]>();
       const catalogByIntentId = new Map<string, string[]>();
 
-      const bindings = new Map<string, string>();
-      let lastWorkspaceIntentWellKnownUri: string | null = null;
-      const discoverCache = new Map<string, string>();
+      const bindings = new Map<string, DiscoveredAgentBinding>();
+      let lastWorkspaceIntentBinding: DiscoveredAgentBinding | null = null;
+      const discoverCache = new Map<string, DiscoveredAgentBinding>();
       let startedBackgroundObservation = false;
 
-      const fetchAgentWellKnownUri = async (
+      const fetchDiscoveredAgentBinding = async (
         apiUrl: string,
         domain: string,
-      ): Promise<string | null> => {
+        preferredAgentName?: string,
+        discoveryLabel?: string,
+      ): Promise<DiscoveredAgentBinding | null> => {
+        if (preferredAgentName) {
+          appendRunnerLog(
+            `Using preferred agent "${preferredAgentName}" for ${discoveryLabel ?? "discovery"}.`,
+          );
+        }
+
         let response: Response;
         try {
           response = await fetch(apiUrl, {
             method: "POST",
             credentials: "same-origin",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ domain }),
+            body: JSON.stringify({
+              domain,
+              ...(preferredAgentName ? { preferredAgentName } : {}),
+            }),
             signal: AbortSignal.timeout(120_000),
           });
         } catch (err) {
@@ -1090,17 +1152,15 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
         const body = (await response.json().catch(() => ({}))) as {
           error?: string;
-          agent?: { wellKnownURI?: string };
+          agent?: { wellKnownURI?: string; name?: string };
         };
 
-        const uriCandidate =
-          response.ok &&
-          typeof body.agent?.wellKnownURI === "string" &&
-          body.agent.wellKnownURI.length > 0
-            ? body.agent.wellKnownURI
+        const binding =
+          response.ok && typeof body.agent?.wellKnownURI === "string"
+            ? discoveredAgentBinding(body.agent.wellKnownURI, body.agent.name)
             : null;
 
-        if (!uriCandidate) {
+        if (!binding) {
           appendRunnerLog(
             typeof body.error === "string" && body.error.length > 0
               ? body.error
@@ -1109,33 +1169,47 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           return null;
         }
 
-        return uriCandidate;
+        return binding;
       };
 
-      const resolveDiscoverUri = async (
+      const resolveDiscoveredAgentBinding = async (
         cacheKey: string,
         apiUrl: string,
         domain: string,
-      ): Promise<string | null> => {
-        const cached = discoverCache.get(cacheKey);
+        preferredAgentName?: string,
+        discoveryLabel?: string,
+      ): Promise<DiscoveredAgentBinding | null> => {
+        const fullCacheKey = preferredAgentName
+          ? `${cacheKey}:${preferredAgentName}`
+          : cacheKey;
+        const cached = discoverCache.get(fullCacheKey);
         if (cached) {
           return cached;
         }
 
-        const uri = await fetchAgentWellKnownUri(apiUrl, domain);
-        if (uri) {
-          discoverCache.set(cacheKey, uri);
+        const binding = await fetchDiscoveredAgentBinding(
+          apiUrl,
+          domain,
+          preferredAgentName,
+          discoveryLabel,
+        );
+        if (binding) {
+          discoverCache.set(fullCacheKey, binding);
         }
-        return uri;
+        return binding;
       };
 
-      const lookupIntentGeneratingAgentUri = async (): Promise<string | null> => {
-        return resolveDiscoverUri(
-          `intent-agent:${selectedDomain}`,
-          discoverIntentAgentApiUrl,
-          selectedDomain,
-        );
-      };
+      const lookupIntentGeneratingAgentBinding =
+        async (): Promise<DiscoveredAgentBinding | null> => {
+          const preferredAgentName = getPreferredAgentName(selectedDomain, "intent-agent");
+          return resolveDiscoveredAgentBinding(
+            `intent-agent:${selectedDomain}`,
+            discoverIntentAgentApiUrl,
+            selectedDomain,
+            preferredAgentName,
+            "intent-agent discovery",
+          );
+        };
 
       const formatMetricCatalogPreview = (metricNames: string[]): string => {
         if (metricNames.length === 0) {
@@ -1209,19 +1283,19 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
       for (const statement of orderedStatements) {
         if (statement.kind === "discover-intent-workspace-domain") {
           appendRunnerLog(`Line ${statement.line}: Searching registry…`);
-          const uri = await lookupIntentGeneratingAgentUri();
-          if (!uri) {
+          const binding = await lookupIntentGeneratingAgentBinding();
+          if (!binding) {
             appendRunnerLog(
               "Could not locate an intent-generating agent card for this domain.",
             );
             return;
           }
 
-          bindings.set(statement.alias, uri);
-          lastWorkspaceIntentWellKnownUri = uri;
+          bindings.set(statement.alias, binding);
+          lastWorkspaceIntentBinding = binding;
 
           appendRunnerLog(
-            `Line ${statement.line}: ${statement.alias} → ${uri}`,
+            `Line ${statement.line}: ${statement.alias} → ${binding.wellKnownURI} (${binding.agentName})`,
           );
           continue;
         }
@@ -1245,10 +1319,20 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
             statement.agentKind === "intent-agent"
               ? discoverIntentAgentApiUrl
               : discoverObservationAgentApiUrl;
+          const preferredAgentName = getPreferredAgentName(
+            statement.domain,
+            statement.agentKind,
+          );
 
           appendRunnerLog(`Line ${statement.line}: Searching registry…`);
-          const uri = await resolveDiscoverUri(cacheKey, apiUrl, statement.domain);
-          if (!uri) {
+          const binding = await resolveDiscoveredAgentBinding(
+            cacheKey,
+            apiUrl,
+            statement.domain,
+            preferredAgentName,
+            `${statement.agentKind} discovery`,
+          );
+          if (!binding) {
             appendRunnerLog(
               statement.agentKind === "intent-agent"
                 ? "Could not locate an intent-generating agent card for this domain."
@@ -1257,9 +1341,11 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
             return;
           }
 
-          bindings.set(statement.alias, uri);
+          bindings.set(statement.alias, binding);
 
-          appendRunnerLog(`Line ${statement.line}: ${statement.alias} → ${uri}`);
+          appendRunnerLog(
+            `Line ${statement.line}: ${statement.alias} → ${binding.wellKnownURI} (${binding.agentName})`,
+          );
           continue;
         }
 
@@ -1268,12 +1354,10 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
           let resolved =
             bindings.get(stmt.agentAlias) ??
-            (stmt.agentAlias === "intentGen"
-              ? lastWorkspaceIntentWellKnownUri
-              : null);
+            (stmt.agentAlias === "intentGen" ? lastWorkspaceIntentBinding : null);
 
           if (!resolved && stmt.agentAlias === "intentGen") {
-            resolved = await lookupIntentGeneratingAgentUri();
+            resolved = await lookupIntentGeneratingAgentBinding();
             if (!resolved) {
               appendRunnerLog(
                 `Line ${statement.line}: intentGen shortcut needs a reachable intent-generating agent for ${selectedDomain}.`,
@@ -1323,9 +1407,10 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
           await new Promise<void>((finish) => {
             intentFinishRef.current = finish;
             setIntentSession({
+              agentName: resolved.agentName,
               intentArtifactLabel: stmt.intentAlias,
               prompt: promptParts.join("\n"),
-              wellKnownURI: resolved,
+              wellKnownURI: resolved.wellKnownURI,
               storage: stmt.storage,
               reportingIntervalSeconds: scriptReportingSeconds,
             });
@@ -1344,13 +1429,14 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
             return;
           }
 
-          const resolved = bindings.get(stmt.agentAlias);
-          if (!resolved) {
+          const resolvedBinding = bindings.get(stmt.agentAlias);
+          if (!resolvedBinding) {
             appendRunnerLog(
               `Line ${statement.line}: Unable to bind agent card URI for "${stmt.agentAlias}".`,
             );
             return;
           }
+          const resolved = resolvedBinding.wellKnownURI;
 
           const loadedCatalog = await loadMetricCatalogForIntent(
             stmt.intentAlias,
@@ -1534,6 +1620,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     setScriptExtractedMetricNames,
     notifyStorageChanged,
     markIntentAwaitingObservation,
+    getPreferredAgentName,
   ]);
 
   const handleIntentDialogFinish = useCallback(() => {
@@ -2008,7 +2095,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
 
       <IntentGenSessionDialog
         a2aMessageSendUrl={a2aMessageSendUrl}
-        agentName={INTENT_GENERATING_AGENT_NAME}
+        agentName={intentSession?.agentName ?? ""}
         agentCardWellKnownURI={intentSession?.wellKnownURI ?? ""}
         createIntentStorage={intentSession?.storage ?? null}
         scriptReportingIntervalSeconds={intentSession?.reportingIntervalSeconds}
@@ -2058,12 +2145,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
                   (entry) =>
                     !entry.intentId || entry.intentId === observationSession.intentId,
                 )
-                .map((entry) => ({
-                  kind: entry.kind,
-                  message: entry.message,
-                  metric: entry.metric,
-                  intentId: entry.intentId,
-                }))
+                .map(toObservationSetupError)
             : []
         }
         observationProgress={
@@ -2077,12 +2159,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
                     (entry) =>
                       !entry.intentId || entry.intentId === observationSession.intentId,
                   )
-                  .map((entry) => ({
-                    kind: entry.kind,
-                    message: entry.message,
-                    metric: entry.metric,
-                    intentId: entry.intentId,
-                  })),
+                  .map(toObservationSetupError),
               )
             : null
         }

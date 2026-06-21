@@ -80,4 +80,52 @@ describe("intent agent discovery helpers", () => {
 
     expect(choice?.wellKnownURI).toBe(intentUri);
   });
+
+  it("prefers the configured preferred agent even when another is healthier", () => {
+    const healthyAltUri =
+      "https://start5g.example/5g4data-intent-generating-agent-alt/.well-known/agent-card.json";
+    const records: RegistryAgentRecord[] = [
+      {
+        name: "5g4data-intent-generating-agent-alt",
+        domain: "telenor.5g4data",
+        description: "Generates 5G4Data intent definitions and deployment-ready payload guidance.",
+        skills: [{ id: "generate-intent", name: "Generate intent", tags: [], description: "" }],
+        wellKnownURI: healthyAltUri,
+        is_healthy: true,
+      },
+      {
+        name: "5g4data-intent-generating-agent",
+        domain: "telenor.5g4data",
+        description: "Generates 5G4Data intent definitions and deployment-ready payload guidance.",
+        skills: [{ id: "generate-intent", name: "Generate intent", tags: [], description: "" }],
+        wellKnownURI: intentUri,
+        is_healthy: false,
+      },
+    ];
+
+    const choice = pickIntentGeneratingAgent(records, "telenor.5g4data", {
+      preferredAgentName: "5g4data-intent-generating-agent",
+    });
+
+    expect(choice?.wellKnownURI).toBe(intentUri);
+  });
+
+  it("detects discovery-task tags before heuristics", () => {
+    const tagged: RegistryAgentRecord = {
+      name: "custom-intent-agent",
+      domain: "telenor.5g4data",
+      description: "",
+      skills: [
+        {
+          id: "custom",
+          name: "Custom",
+          tags: ["discovery-task:intent-agent"],
+          description: "",
+        },
+      ],
+      wellKnownURI: intentUri,
+    };
+
+    expect(suggestsIntentGeneration(tagged, tagged.name)).toBe(true);
+  });
 });

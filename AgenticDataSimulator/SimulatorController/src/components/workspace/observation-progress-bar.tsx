@@ -32,6 +32,14 @@ function intentSummaryLabel(progress: ObservationProgressSnapshot): string {
   }
 
   if (phase === "failed") {
+    const failedWithMessage = metrics.find(
+      (entry) => entry.phase === "failed" && entry.errorMessage?.trim(),
+    );
+    if (failedWithMessage?.errorMessage) {
+      return failedWithMessage.errorMessage.length > 120
+        ? `${failedWithMessage.errorMessage.slice(0, 119)}…`
+        : failedWithMessage.errorMessage;
+    }
     return "One or more metrics failed.";
   }
 

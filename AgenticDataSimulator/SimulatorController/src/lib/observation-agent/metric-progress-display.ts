@@ -1,3 +1,7 @@
+import {
+  isObservationRuntimeError,
+  OBSERVATION_RUNTIME_ERROR_KINDS,
+} from "@/lib/observation-agent/observation-agent-error-display";
 import type {
   MetricProgressEntry,
   ObservationProgressSnapshot,
@@ -14,7 +18,7 @@ export const STUCK_PENDING_MS = 60_000;
 export const SYNTHETIC_OBSERVATION_PROGRESS_EPOCH_MS = 0;
 const ERROR_LABEL_MAX = 80;
 
-const SETUP_FAILURE_KINDS = new Set(["synthetic_setup_failed", "repl_hook_failed"]);
+const SETUP_FAILURE_KINDS = OBSERVATION_RUNTIME_ERROR_KINDS;
 
 function computeProgressAggregate(
   metrics: MetricProgressEntry[],
@@ -82,7 +86,7 @@ function findSetupErrorForMetric(
 ): ObservationSetupError | undefined {
   const perMetric = setupErrors.find(
     (error) =>
-      SETUP_FAILURE_KINDS.has(error.kind) &&
+      isObservationRuntimeError(error) &&
       error.metric &&
       (errorMatchesExpectedMetric(error, entry.compoundMetric) ||
         expectedCompoundMetrics.some(
@@ -94,12 +98,28 @@ function findSetupErrorForMetric(
     return perMetric;
   }
 
-  return setupErrors.find(
+  const intentScoped = setupErrors.find(
     (error) =>
-      SETUP_FAILURE_KINDS.has(error.kind) &&
+      isObservationRuntimeError(error) &&
       !error.metric?.trim() &&
       (!error.intentId?.trim() || error.intentId === intentId),
   );
+  if (intentScoped) {
+    return intentScoped;
+  }
+
+  if (entry.phase === "pending" || entry.phase === "generating") {
+    return setupErrors.find(
+      (error) =>
+        isObservationRuntimeError(error) &&
+        error.intentId === intentId &&
+        (error.kind === "prometheus_unreachable" ||
+          error.kind === "prometheus_remote_write_flush_failed" ||
+          error.kind === "prometheus_remote_write_failed"),
+    );
+  }
+
+  return undefined;
 }
 
 function applySetupErrorsToMetrics(
@@ -126,6 +146,8 @@ function applySetupErrorsToMetrics(
       ...entry,
       phase: "failed",
       errorMessage: matchingError.message,
+      ticksDone: entry.ticksDone,
+      ticksTotal: entry.ticksTotal,
     };
   });
 }
@@ -230,7 +252,7 @@ export function detectStuckPendingMetrics(
   }
 
   const setupFailure = setupErrors.find(
-    (error) => SETUP_FAILURE_KINDS.has(error.kind) && error.message.trim(),
+    (error) => isObservationRuntimeError(error) && error.message.trim(),
   );
   if (setupFailure?.message) {
     return truncateErrorMessage(setupFailure.message);
@@ -315,8 +337,11 @@ export function metricProgressDetailLabel(
       }
       return "Complete";
     case "failed":
-      return entry.errorMessage
-        ? truncateErrorMessage(entry.errorMessage)
+      if (entry.errorMessage) {
+        return truncateErrorMessage(entry.errorMessage, 200);
+      }
+      return stuckPendingHint
+        ? truncateErrorMessage(stuckPendingHint, 200)
         : "Failed";
     default:
       return entry.phase;

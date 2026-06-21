@@ -7,7 +7,7 @@ describe("parseObservationAgentFailure", () => {
 
   it("parses repl hook failures", () => {
     const entry = parseObservationAgentFailure(
-      "Observation hook failed: Cannot find module '/5g4data-intent-generation/tools/prettyPrintIntentTurtle.js'",
+      "Observation hook failed: Cannot find module '/5g4data-intent-generating-agent/tools/prettyPrintIntentTurtle.js'",
       intentId,
     );
     expect(entry?.kind).toBe("repl_hook_failed");

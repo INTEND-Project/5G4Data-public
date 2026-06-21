@@ -4,6 +4,7 @@ export type RegistryAgent = {
   isHealthy: boolean | null;
   wellKnownURI: string | null;
   status: string;
+  discoveryRole?: "intent-agent" | "observation-agent" | null;
 };
 
 export type RegistryAgentCard = {

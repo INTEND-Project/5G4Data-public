@@ -33,6 +33,23 @@ describe("buildStemToCompoundMap", () => {
 });
 
 describe("resolveMetricStemsInObservationInstructions", () => {
+  it("resolves metric=stem without backticks before punctuation", () => {
+    const instructions =
+      "`mode=historic`, `frequency=60s`. For metric=detection-latency, between 06:00 and 18:00.";
+    const result = resolveMetricStemsInObservationInstructions(instructions, catalog);
+
+    expect(result.instructions).toContain(
+      "metric=detection-latency_CO276f7a8c089b4962a3236fe58f21953a",
+    );
+    expect(result.instructions).not.toContain("metric=detection-latency,");
+    expect(result.resolved).toEqual([
+      {
+        stem: "detection-latency",
+        compound: "detection-latency_CO276f7a8c089b4962a3236fe58f21953a",
+      },
+    ]);
+  });
+
   it("resolves a unique stem inside backticks", () => {
     const instructions =
       "`mode=historic`, `frequency=60s`. For `metric=p99-token-target`, between 06:00 and 18:00.";

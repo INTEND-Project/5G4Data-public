@@ -1,4 +1,6 @@
+import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { loadAppEnv } from "@/lib/env";
+import { withFreshGrafanaAuthToken } from "@/lib/grafana/grafana-auth-url";
 import {
   buildGrafanaDockedMenuBootstrapHtml,
   validateGrafanaOpenTarget,
@@ -21,7 +23,10 @@ export async function GET(request: Request) {
     return new Response("Invalid Grafana URL", { status: 400 });
   }
 
-  return new Response(buildGrafanaDockedMenuBootstrapHtml(target), {
+  const user = await getAuthenticatedUser(request);
+  const redirectTarget = withFreshGrafanaAuthToken(target, user?.username);
+
+  return new Response(buildGrafanaDockedMenuBootstrapHtml(redirectTarget), {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",

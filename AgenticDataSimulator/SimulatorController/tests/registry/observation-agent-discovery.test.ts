@@ -103,4 +103,33 @@ describe("observation agent discovery helpers", () => {
 
     expect(choice?.wellKnownURI).toBe(observationUri);
   });
+
+  it("prefers the configured preferred agent even when another is healthier", () => {
+    const healthyAltUri =
+      "https://start5g.example/5g4data-intent-observation-generating-agent-alt/.well-known/agent-card.json";
+    const records: RegistryAgentRecord[] = [
+      {
+        name: "5g4data-intent-observation-generating-agent-alt",
+        domain: "telenor.5g4data",
+        description: "Controls and reports observation behavior for created 5G4Data intents.",
+        skills: [{ id: "observe-intent", name: "Observe intent", tags: [], description: "" }],
+        wellKnownURI: healthyAltUri,
+        is_healthy: true,
+      },
+      {
+        name: "5g4data-intent-observation-generating-agent",
+        domain: "telenor.5g4data",
+        description: "Controls and reports observation behavior for created 5G4Data intents.",
+        skills: [{ id: "observe-intent", name: "Observe intent", tags: [], description: "" }],
+        wellKnownURI: observationUri,
+        is_healthy: false,
+      },
+    ];
+
+    const choice = pickObservationControlAgent(records, "telenor.5g4data", {
+      preferredAgentName: "5g4data-intent-observation-generating-agent",
+    });
+
+    expect(choice?.wellKnownURI).toBe(observationUri);
+  });
 });

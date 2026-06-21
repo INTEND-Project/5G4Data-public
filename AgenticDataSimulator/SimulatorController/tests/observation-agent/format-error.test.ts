@@ -40,7 +40,7 @@ describe("formatObservationAgentErrorMessage", () => {
       sampleCount: 1441,
     });
     expect(message).toContain("p99-token-target_COee91f");
-    expect(message).toContain("1441 samples");
+    expect(message).toContain("1,441 samples");
     expect(message).toContain("HTTP 502");
   });
 });

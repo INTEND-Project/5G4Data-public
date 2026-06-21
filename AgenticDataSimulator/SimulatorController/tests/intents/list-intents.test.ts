@@ -21,6 +21,7 @@ vi.mock("../../src/lib/intents/intent-data-readiness", () => ({
     status: "pending",
     metricsReady: 0,
     metricsTotal: 0,
+    readyCompoundMetrics: [],
     bounds: null,
   }),
 }));

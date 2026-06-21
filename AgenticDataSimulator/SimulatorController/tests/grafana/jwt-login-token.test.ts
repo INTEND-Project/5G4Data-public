@@ -5,7 +5,6 @@ import {
   parseGrafanaJwtEditorUsers,
   resolveGrafanaJwtOrgRole,
 } from "../../src/lib/grafana/jwt-login-token";
-import { buildIntentGrafanaUrl } from "../../src/lib/grafana/intent-dashboard-url";
 
 describe("createGrafanaLoginToken", () => {
   it("embeds sub and email claims", () => {
@@ -44,29 +43,5 @@ describe("createGrafanaLoginToken", () => {
       role?: string;
     };
     expect(decoded.role).toBe("Editor");
-  });
-});
-
-describe("buildIntentGrafanaUrl JWT", () => {
-  it("appends auth_token when login username and jwt secret are configured", () => {
-    const url = buildIntentGrafanaUrl({
-      intentId: "Iintent123456789012345678901234567890",
-      conditionMetrics: [],
-      bounds: null,
-      env: {
-        baseUrl: "http://grafana.example:3002",
-        dashboardUid: "uid",
-        dashboardSlug: "slug",
-      },
-      loginUsername: "arne",
-      envSource: {
-        DATABASE_URL: "file:./dev.db",
-        GRAFANA_JWT_SECRET: "jwt-test-secret",
-        GRAFANA_JWT_TTL_SECONDS: "120",
-      },
-    });
-
-    expect(url).toContain("auth_token=");
-    expect(url).toContain("var-intent_id=Iintent123456789012345678901234567890");
   });
 });

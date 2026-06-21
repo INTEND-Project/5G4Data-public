@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AboutHelpDialog } from "@/components/workspace/about-help-dialog";
 import { AgentList } from "@/components/workspace/agent-list";
+import { AgentDiscoveryPreferencesProvider } from "@/components/workspace/agent-discovery-preferences-context";
 import { AgentLlmPreferencesProvider } from "@/components/workspace/agent-llm-preferences-context";
 import { AssistantPanel } from "@/components/workspace/assistant-panel";
 import { DomainSelector } from "@/components/workspace/domain-selector";
@@ -29,7 +30,9 @@ type WorkspaceShellProps = {
   domainsApiUrl: string;
   agents: Array<{
     name: string;
+    domain: string;
     isHealthy: boolean | null;
+    discoveryRole?: "intent-agent" | "observation-agent" | null;
   }>;
   agentsRefreshUrl: string;
   openAiModelsApiUrl: string;
@@ -230,6 +233,7 @@ export function WorkspaceShell({
 
   return (
     <AgentLlmPreferencesProvider>
+    <AgentDiscoveryPreferencesProvider>
     <main className="workspace-shell">
       <WorkspaceScriptSessionProvider
         currentUserId={currentUserId}
@@ -275,6 +279,7 @@ export function WorkspaceShell({
         />
       </WorkspaceScriptSessionProvider>
     </main>
+    </AgentDiscoveryPreferencesProvider>
     </AgentLlmPreferencesProvider>
   );
 }

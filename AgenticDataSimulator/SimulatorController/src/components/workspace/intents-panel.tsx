@@ -15,13 +15,41 @@ import {
   GrafanaIcon,
 } from "@/components/workspace/workspace-storage-icons";
 import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
+import { resolveScriptScopedReadiness } from "@/lib/intents/script-scoped-readiness";
 import { intentsEqual, type IntentListEntryLike } from "@/lib/intents/intent-list-equality";
+import type { ObservationProgressSnapshot } from "@/lib/observation-agent/progress-types";
 
 type IntentListEntry = IntentListEntryLike & {
   dataStatus?: "pending" | "ready";
   metricsReady?: number;
   metricsTotal?: number;
+  readyCompoundMetrics?: string[];
 };
+
+function intentReadinessCounts(intent: IntentListEntry): {
+  metricsReady: number;
+  metricsTotal: number;
+  dataStatus: "pending" | "ready";
+} {
+  return {
+    metricsReady: intent.metricsReady ?? 0,
+    metricsTotal: intent.metricsTotal ?? 0,
+    dataStatus: intent.dataStatus ?? "pending",
+  };
+}
+
+function resolveEffectiveReadiness(
+  intent: IntentListEntry,
+  scriptRequestedMetrics?: readonly string[],
+  observationProgress?: ObservationProgressSnapshot | null,
+) {
+  return resolveScriptScopedReadiness(
+    intentReadinessCounts(intent),
+    scriptRequestedMetrics,
+    intent.readyCompoundMetrics,
+    observationProgress?.mode === "historic" ? observationProgress : null,
+  );
+}
 
 type IntentsPanelProps = {
   selectedDomain: string;
@@ -37,27 +65,41 @@ const GRAFANA_CLICK_FEEDBACK_MS = 2000;
 function resolveIntentCardStatus(
   intent: IntentListEntry,
   intentIdsAwaitingObservation: ReadonlySet<string>,
+  scriptRequestedMetrics?: readonly string[],
+  observationProgress?: ObservationProgressSnapshot | null,
 ): "pending" | "ready" {
-  if (intent.dataStatus === "ready") {
+  const effective = resolveEffectiveReadiness(
+    intent,
+    scriptRequestedMetrics,
+    observationProgress,
+  );
+  if (effective.dataStatus === "ready") {
     return "ready";
   }
   if (intentIdsAwaitingObservation.has(intent.intentId)) {
     return "pending";
   }
-  return intent.dataStatus ?? "pending";
+  return effective.dataStatus;
 }
 
 function intentDataStatusHint(
   intent: IntentListEntry,
   cardStatus: "pending" | "ready",
   tickProgress?: { ticksDone: number; ticksTotal: number | null; percent: number | null } | null,
+  scriptRequestedMetrics?: readonly string[],
+  observationProgress?: ObservationProgressSnapshot | null,
 ): string {
+  const effective = resolveEffectiveReadiness(
+    intent,
+    scriptRequestedMetrics,
+    observationProgress,
+  );
   if (cardStatus === "ready") {
     const promNote =
       intent.storage === "prometheus"
         ? " PromQL names strip hyphens from compound metrics (e.g. p99tokentarget_CO…)."
         : "";
-    return `Observation data ready (${intent.metricsReady ?? 0}/${intent.metricsTotal ?? 0} metrics in ${intent.storage}).${promNote}`;
+    return `Observation data ready (${effective.metricsReady}/${effective.metricsTotal} metrics in ${intent.storage}).${promNote}`;
   }
   if (
     tickProgress &&
@@ -68,8 +110,8 @@ function intentDataStatusHint(
       tickProgress.percent !== null ? ` (${tickProgress.percent}%)` : "";
     return `Generating observations: ${tickProgress.ticksDone.toLocaleString("en-US")} / ${tickProgress.ticksTotal.toLocaleString("en-US")} ticks${percentNote}…`;
   }
-  const ready = intent.metricsReady ?? 0;
-  const total = intent.metricsTotal ?? 0;
+  const ready = effective.metricsReady;
+  const total = effective.metricsTotal;
   if (total > 0) {
     return `Generating or storing observations (${ready}/${total} metrics in ${intent.storage})…`;
   }
@@ -95,6 +137,7 @@ export function IntentsPanel({
     historicObservationIntentIds,
     clearIntentAwaitingObservation,
     observationProgressByIntentId,
+    historicObservationMetricsByIntentId,
     prometheusBaseUrl,
     graphDbBaseUrl,
   } = useWorkspaceScriptSession();
@@ -232,15 +275,26 @@ export function IntentsPanel({
 
   useEffect(() => {
     for (const intent of intents) {
-      if (
-        intent.dataStatus !== "ready" ||
-        !historicObservationIntentIds.has(intent.intentId)
-      ) {
+      const scriptRequestedMetrics = historicObservationMetricsByIntentId[intent.intentId];
+      const historicProgress = observationProgressByIntentId[intent.intentId];
+      const cardStatus = resolveIntentCardStatus(
+        intent,
+        intentIdsAwaitingObservation,
+        scriptRequestedMetrics,
+        historicProgress,
+      );
+      if (cardStatus !== "ready") {
         continue;
       }
       clearIntentAwaitingObservation(intent.intentId);
     }
-  }, [clearIntentAwaitingObservation, historicObservationIntentIds, intents]);
+  }, [
+    clearIntentAwaitingObservation,
+    historicObservationMetricsByIntentId,
+    intentIdsAwaitingObservation,
+    intents,
+    observationProgressByIntentId,
+  ]);
 
   const shouldPollIntents = shouldPollIntentList({
     intents,
@@ -371,7 +425,16 @@ export function IntentsPanel({
     intent: IntentListEntry,
   ) {
     const intentId = intent.intentId;
-    if (resolveIntentCardStatus(intent, intentIdsAwaitingObservation) !== "ready") {
+    const scriptRequestedMetrics = historicObservationMetricsByIntentId[intentId];
+    const historicProgress = observationProgressByIntentId[intentId];
+    if (
+      resolveIntentCardStatus(
+        intent,
+        intentIdsAwaitingObservation,
+        scriptRequestedMetrics,
+        historicProgress,
+      ) !== "ready"
+    ) {
       event.preventDefault();
       return;
     }
@@ -489,12 +552,24 @@ export function IntentsPanel({
           </article>
         ) : null}
         {intents.map((intent) => {
-          const cardStatus = resolveIntentCardStatus(intent, intentIdsAwaitingObservation);
-          const grafanaReady = cardStatus === "ready" && Boolean(intent.grafanaUrl);
+          const scriptRequestedMetrics = historicObservationMetricsByIntentId[intent.intentId];
           const historicProgress = observationProgressByIntentId[intent.intentId];
+          const cardStatus = resolveIntentCardStatus(
+            intent,
+            intentIdsAwaitingObservation,
+            scriptRequestedMetrics,
+            historicProgress,
+          );
+          const grafanaReady = cardStatus === "ready" && Boolean(intent.grafanaUrl);
           const tickProgress =
             historicProgress?.mode === "historic" ? historicProgress.aggregate : null;
-          const dataStatusHint = intentDataStatusHint(intent, cardStatus, tickProgress);
+          const dataStatusHint = intentDataStatusHint(
+            intent,
+            cardStatus,
+            tickProgress,
+            scriptRequestedMetrics,
+            historicProgress,
+          );
 
           return (
           <article

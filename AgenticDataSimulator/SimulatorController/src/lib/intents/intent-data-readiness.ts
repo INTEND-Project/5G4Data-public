@@ -22,6 +22,8 @@ export type IntentDataReadiness = {
   status: IntentDataStatus;
   metricsReady: number;
   metricsTotal: number;
+  /** Compound metric names that currently have stored observations. */
+  readyCompoundMetrics: string[];
   bounds: ObservationTimeBounds | null;
 };
 
@@ -153,30 +155,30 @@ async function countReadyMetrics(input: {
   expectedMetrics: string[];
   prometheusBaseUrl?: string | null;
   graphDbBaseUrl?: string | null;
-}): Promise<number> {
+}): Promise<{ readyCount: number; readyCompoundMetrics: string[] }> {
   if (input.expectedMetrics.length === 0) {
-    return 0;
+    return { readyCount: 0, readyCompoundMetrics: [] };
   }
 
   if (input.storage === "prometheus") {
     if (!(await getPrometheusConnectionStatus(input.prometheusBaseUrl))) {
-      return 0;
+      return { readyCount: 0, readyCompoundMetrics: [] };
     }
 
-    let ready = 0;
+    const readyCompoundMetrics: string[] = [];
     for (const metric of input.expectedMetrics) {
       if (await prometheusMetricHasSamples(input.intentId, metric, input.prometheusBaseUrl)) {
-        ready += 1;
+        readyCompoundMetrics.push(metric);
       }
     }
-    return ready;
+    return { readyCount: readyCompoundMetrics.length, readyCompoundMetrics };
   }
 
   if (!input.repositoryId?.trim() || !input.graphIri?.trim()) {
-    return 0;
+    return { readyCount: 0, readyCompoundMetrics: [] };
   }
 
-  let ready = 0;
+  const readyCompoundMetrics: string[] = [];
   for (const metric of input.expectedMetrics) {
     if (
       await graphDbMetricHasObservations({
@@ -186,10 +188,10 @@ async function countReadyMetrics(input: {
         graphDbBaseUrl: input.graphDbBaseUrl,
       })
     ) {
-      ready += 1;
+      readyCompoundMetrics.push(metric);
     }
   }
-  return ready;
+  return { readyCount: readyCompoundMetrics.length, readyCompoundMetrics };
 }
 
 export async function assessIntentDataReadiness(input: {
@@ -209,7 +211,7 @@ export async function assessIntentDataReadiness(input: {
   );
   const metricsTotal = expectedMetrics.length;
 
-  const metricsReady = await countReadyMetrics({
+  const { readyCount: metricsReady, readyCompoundMetrics } = await countReadyMetrics({
     intentId: input.intentId,
     storage: input.storage,
     repositoryId: input.repositoryId,
@@ -223,7 +225,7 @@ export async function assessIntentDataReadiness(input: {
     metricsTotal > 0 && metricsReady === metricsTotal ? "ready" : "pending";
 
   let bounds: ObservationTimeBounds | null = null;
-  if (status === "ready") {
+  if (metricsReady > 0) {
     if (input.storage === "prometheus") {
       bounds = await fetchPrometheusObservationBounds(
         input.intentId,
@@ -243,6 +245,7 @@ export async function assessIntentDataReadiness(input: {
     status,
     metricsReady,
     metricsTotal,
+    readyCompoundMetrics,
     bounds,
   };
 }

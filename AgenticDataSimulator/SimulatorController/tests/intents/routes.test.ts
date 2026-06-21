@@ -92,7 +92,8 @@ describe("intents routes", () => {
         mode: "full",
         cacheKey: undefined,
         ownedIntentIds: ["I04fb0697e3a243e7a292c6cb57e9f797"],
-        grafanaLoginUsername: "alice",
+        prometheusBaseUrl: undefined,
+        graphDbBaseUrl: undefined,
       },
     );
     await expect(response.json()).resolves.toEqual({
@@ -132,7 +133,6 @@ describe("intents routes", () => {
         cacheKey:
           "user-1:telenor.5g4data:I04fb0697e3a243e7a292c6cb57e9f797:repo-1|http://example/graph::",
         ownedIntentIds: ["I04fb0697e3a243e7a292c6cb57e9f797"],
-        grafanaLoginUsername: "alice",
         prometheusBaseUrl: undefined,
         graphDbBaseUrl: undefined,
       },

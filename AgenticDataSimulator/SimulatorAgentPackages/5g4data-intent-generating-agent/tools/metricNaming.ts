@@ -1,6 +1,9 @@
 /** Condition-scoped compound metric: `<stem>_CO<32-hex>`. */
 export const CONDITION_COMPOUND_METRIC_RE = /^(.*)_((?:CO[A-Fa-f0-9]{32}))$/iu;
 
+/** Network metric stems are always lowercase in generated intents (see network.md / SKILL.md). */
+export const CANONICAL_NETWORK_METRIC_STEMS = ["bandwidth", "latency"] as const;
+
 /** Parse metric stems from catalogue runtime context (values.yaml objectives/sustainability). */
 export function parseMetricStemsFromRuntimeContext(runtimeContext: string): string[] {
   const stems = new Set<string>();
@@ -58,6 +61,9 @@ export function collectKnownMetricStems(args: {
   explicitStems?: Iterable<string>;
 }): string[] {
   const stems = new Set<string>();
+  for (const stem of CANONICAL_NETWORK_METRIC_STEMS) {
+    stems.add(stem);
+  }
   for (const stem of args.explicitStems ?? []) {
     if (stem.trim()) stems.add(stem.trim());
   }

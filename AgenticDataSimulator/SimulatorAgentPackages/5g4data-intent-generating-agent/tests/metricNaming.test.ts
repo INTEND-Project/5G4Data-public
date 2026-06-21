@@ -80,3 +80,22 @@ test("postprocessor normalizes using explicit knownMetricStems from runtime", ()
   assert.match(text, /data5g:p99-token-target_CO8a2ee50e254443f1963db6a70ff9729a/);
 });
 
+test("postprocessor lowercases capitalized network metric stems on valuesOfTargetProperty", () => {
+  const input = `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+
+data5g:COlatency a icm:Condition ;
+  set:forAll [ icm:valuesOfTargetProperty data5g:Latency_CO8a2ee50e254443f1963db6a70ff9729a ] .
+data5g:CObandwidth a icm:Condition ;
+  set:forAll [ icm:valuesOfTargetProperty data5g:Bandwidth_CO8a2ee50e254443f1963db6a70ff9729b ] .`;
+
+  const { text } = applyPostprocessor({
+    text: input,
+    context: { runtimeContext: "", validatorRules: {} }
+  });
+  assert.match(text, /data5g:latency_CO8a2ee50e254443f1963db6a70ff9729a/);
+  assert.match(text, /data5g:bandwidth_CO8a2ee50e254443f1963db6a70ff9729b/);
+  assert.ok(!/data5g:Latency_CO/.test(text));
+  assert.ok(!/data5g:Bandwidth_CO/.test(text));
+});
+

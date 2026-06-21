@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import {
+  clampReportingIntervalSeconds,
+  formatIntervalLabelFromSeconds,
+} from "./reportingIntervalLabel.js";
 
 type ParsedObjective = {
   name: string;
@@ -152,14 +156,23 @@ function renderSustainabilityExpectation(
         data5g:${cxLocal} .`;
 }
 
+type ReportingTarget = "deployment" | "sustainability" | "network-slice";
+type ReportEventKind = "Deployment" | "Sustainability" | "Network";
+
+function reportingTargetDescription(target: ReportingTarget): string {
+  if (target === "deployment") return "Deployment observation reports on the configured interval.";
+  if (target === "sustainability") return "Sustainability observation reports on the configured interval.";
+  return "Network observation reports on the configured interval.";
+}
+
 function renderReportingExpectation(
   reLocal: string,
-  target: "deployment" | "sustainability",
+  target: ReportingTarget,
   eventLocal: string,
   storage: "prometheus" | "graphdb"
 ): string {
   return `data5g:${reLocal} a icm:ObservationReportingExpectation ;
-    dct:description "${target === "deployment" ? "Deployment" : "Sustainability"} observation reports." ;
+    dct:description "${reportingTargetDescription(target)}" ;
     icm:target data5g:${target} ;
     icm:reportDestinations [ a rdfs:Container ;
             rdfs:member data5g:${storage} ] ;
@@ -170,17 +183,105 @@ function renderReportingExpectation(
 function renderReportEvent(
   eventLocal: string,
   durationLocal: string,
-  kind: "Deployment" | "Sustainability",
-  deOrSeLocal: string
+  kind: ReportEventKind,
+  expectationLocal: string,
+  intervalSeconds: number
 ): string {
   return `data5g:${durationLocal} a time:DurationDescription ;
-    time:numericDuration "60"^^xsd:decimal ;
+    time:numericDuration "${intervalSeconds}"^^xsd:decimal ;
     time:unitType time:unitSecond .
 
 data5g:${eventLocal} a rdfs:Class ;
     rdfs:subClassOf imo:Event ;
     time:delay ( data5g:lastReportInstant data5g:${durationLocal} ) ;
-    imo:eventFor data5g:${deOrSeLocal} .`;
+    imo:eventFor data5g:${expectationLocal} .`;
+}
+
+function extractSubjectBlock(text: string, local: string): string | null {
+  const start = text.search(new RegExp(String.raw`\bdata5g:${local}\s+a\b`, "i"));
+  if (start < 0) return null;
+  const tail = text.slice(start);
+  const nextSubject = tail.slice(1).search(/\n\s*data5g:/);
+  const end = nextSubject >= 0 ? start + 1 + nextSubject : text.length;
+  return text.slice(start, end);
+}
+
+function parseNetworkExpectationLocal(text: string): string | null {
+  const match = text.match(/\bdata5g:(NE[0-9a-fA-F]{32})\s+a\s+data5g:NetworkExpectation\b/i);
+  return match?.[1] ?? null;
+}
+
+function hasNetworkExpectation(text: string): boolean {
+  return /data5g:NetworkExpectation/.test(text);
+}
+
+function hasNetworkReportingExpectation(text: string): boolean {
+  return /icm:ObservationReportingExpectation[\s\S]*?icm:target\s+data5g:network-slice\b/i.test(text);
+}
+
+function firstConditionAnchorInExpectation(expBlock: string): string | null {
+  const allOfMatch = expBlock.match(/log:allOf\s+([^;]+)/is);
+  if (!allOfMatch?.[1]) return null;
+  const coMatch = allOfMatch[1].match(/\bdata5g:(CO[0-9a-fA-F]{32})\b/i);
+  return coMatch?.[1] ?? null;
+}
+
+function resolveReportingIntervalSeconds(context: {
+  reportingIntervalSeconds?: number;
+}): number {
+  if (context.reportingIntervalSeconds !== undefined && context.reportingIntervalSeconds !== null) {
+    return clampReportingIntervalSeconds(context.reportingIntervalSeconds);
+  }
+  return 60;
+}
+
+function appendIntentAllOfMembers(text: string, intentLocal: string, newMembers: string[]): string {
+  const intentPattern = new RegExp(
+    String.raw`(data5g:${intentLocal}\s+a\s+icm:Intent\s*;[\s\S]*?log:allOf\s+)([^;]+)(;)`,
+    "i"
+  );
+  const match = text.match(intentPattern);
+  if (!match?.[2]) return text;
+  const existing = match[2];
+  const toAdd = newMembers.filter((local) => !existing.includes(`data5g:${local}`));
+  if (toAdd.length === 0) return text;
+  const refs = toAdd.map((local) => `data5g:${local}`).join(",\n        ");
+  const updated = `${existing.trimEnd()},\n        ${refs}`;
+  return text.replace(intentPattern, `$1${updated}$3`);
+}
+
+function augmentNetworkReportingExpectation(
+  text: string,
+  context: { reportingIntervalSeconds?: number; runtimeContext?: string }
+): { text: string; changes: number } {
+  if (!hasNetworkExpectation(text) || hasNetworkReportingExpectation(text)) {
+    return { text, changes: 0 };
+  }
+
+  const neLocal = parseNetworkExpectationLocal(text);
+  if (!neLocal) return { text, changes: 0 };
+
+  const neBlock = extractSubjectBlock(text, neLocal);
+  const anchorCo = (neBlock && firstConditionAnchorInExpectation(neBlock)) ?? neLocal;
+  const intervalSeconds = resolveReportingIntervalSeconds(context);
+  const intervalLabel = formatIntervalLabelFromSeconds(intervalSeconds);
+  const reLocal = newLocal("RE");
+  const durationLocal = `durationNetwork_${anchorCo}`;
+  const eventLocal = `${intervalLabel}ReportEventNetwork_${anchorCo}`;
+  const storage = detectReportStorage(text, context.runtimeContext ?? "");
+
+  const blocks = [
+    renderReportEvent(eventLocal, durationLocal, "Network", neLocal, intervalSeconds),
+    renderReportingExpectation(reLocal, "network-slice", eventLocal, storage),
+  ];
+
+  let updated = `${text.trim()}\n\n${blocks.join("\n\n")}`;
+  const intentLocal = findIntentLocal(updated);
+  if (intentLocal) {
+    updated = appendIntentAllOfMembers(updated, intentLocal, [reLocal]);
+  }
+
+  return { text: updated, changes: 1 };
 }
 
 function detectReportStorage(text: string, runtimeContext: string): "prometheus" | "graphdb" {
@@ -227,7 +328,23 @@ export function applyPostprocessor(args: {
   const flags = args.context.intentFlags ?? {};
   const needsDeployment = Boolean(flags.deployment);
   const needsSustainability = Boolean(flags.sustainability);
-  if (!needsDeployment && !needsSustainability) {
+  const needsNetwork = Boolean(flags.networkQos);
+
+  if (
+    hasNetworkExpectation(args.text) &&
+    !hasNetworkReportingExpectation(args.text)
+  ) {
+    const augmented = augmentNetworkReportingExpectation(args.text, args.context);
+    if (augmented.changes > 0) {
+      return {
+        text: augmented.text,
+        changes: augmented.changes,
+        note: "workloadExpectations: added network ObservationReportingExpectation for existing NetworkExpectation",
+      };
+    }
+  }
+
+  if (!needsDeployment && !needsSustainability && !needsNetwork) {
     return { text: args.text, changes: 0 };
   }
 
@@ -279,11 +396,13 @@ export function applyPostprocessor(args: {
     const deLocal = newLocal("DE");
     const coLocal = newLocal("CO");
     const reLocal = newLocal("RE");
+    const intervalSeconds = resolveReportingIntervalSeconds(args.context);
+    const intervalLabel = formatIntervalLabelFromSeconds(intervalSeconds);
     const durationLocal = `durationDeployment_${coLocal}`;
-    const eventLocal = `SixtySecondReportEventDeployment_${coLocal}`;
+    const eventLocal = `${intervalLabel}ReportEventDeployment_${coLocal}`;
     blocks.push(renderConditionBlock(coLocal, parsed.deploymentObjectives[0]));
     blocks.push(renderDeploymentExpectation(deLocal, coLocal, cxLocal, parsed.chartName));
-    blocks.push(renderReportEvent(eventLocal, durationLocal, "Deployment", deLocal));
+    blocks.push(renderReportEvent(eventLocal, durationLocal, "Deployment", deLocal, intervalSeconds));
     blocks.push(renderReportingExpectation(reLocal, "deployment", eventLocal, detectReportStorage(text, args.context.runtimeContext ?? "")));
     intentMembers.push(deLocal, reLocal);
     changes += 1;
@@ -299,10 +418,12 @@ export function applyPostprocessor(args: {
     }
     const reLocal = newLocal("RE");
     const anchorCo = coLocals[0] ?? newLocal("CO");
+    const intervalSeconds = resolveReportingIntervalSeconds(args.context);
+    const intervalLabel = formatIntervalLabelFromSeconds(intervalSeconds);
     const durationLocal = `durationSustainability_${anchorCo}`;
-    const eventLocal = `SixtySecondReportEventSustainability_${anchorCo}`;
+    const eventLocal = `${intervalLabel}ReportEventSustainability_${anchorCo}`;
     blocks.push(renderSustainabilityExpectation(seLocal, coLocals, cxLocal));
-    blocks.push(renderReportEvent(eventLocal, durationLocal, "Sustainability", seLocal));
+    blocks.push(renderReportEvent(eventLocal, durationLocal, "Sustainability", seLocal, intervalSeconds));
     blocks.push(renderReportingExpectation(reLocal, "sustainability", eventLocal, detectReportStorage(text, args.context.runtimeContext ?? "")));
     intentMembers.push(seLocal, reLocal);
     changes += 1;

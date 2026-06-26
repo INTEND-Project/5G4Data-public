@@ -15,7 +15,7 @@ start5g-1.cs.uit.no {
         reverse_proxy http://host.docker.internal:8080
     }
 
-    # OpenClaw Controller production (host port 3000)
+    # SimulatorController production (host port 3000)
     handle /tmf-simulator* {
         reverse_proxy http://host.docker.internal:3000 {
             header_up Host {host}
@@ -25,7 +25,7 @@ start5g-1.cs.uit.no {
         }
     }
 
-    # OpenClaw Controller dev (host port 3001)
+    # SimulatorController dev (host port 3001)
     handle /tmf-simulator-dev* {
         reverse_proxy http://host.docker.internal:3001 {
             header_up Host {host}
@@ -35,7 +35,7 @@ start5g-1.cs.uit.no {
         }
     }
 
-    # OpenClaw agents (host ports; must match registry wellKnownURI paths)
+    # SimulatorController agents (host ports; must match registry wellKnownURI paths)
     handle_path /5g4data-intent-generating-agent/* {
         reverse_proxy http://host.docker.internal:3011
     }
@@ -44,6 +44,11 @@ start5g-1.cs.uit.no {
         reverse_proxy http://host.docker.internal:3012
     }
 
+    handle_path /5g4data-intent-mistral-small4-generating-agent/* {
+        reverse_proxy http://host.docker.internal:3013
+    }
+
+    # Legacy mistral path (pre agents/ rename); keep until registry entries are migrated
     handle_path /5g4data-intent-generating-agent-mistral-small4/* {
         reverse_proxy http://host.docker.internal:3013
     }
@@ -77,7 +82,7 @@ start5g-1.cs.uit.no {
         reverse_proxy http://webapp:3000
     }
 
-    # GraphDB on host port 7200 (OpenClaw agents use https://…/graphdb/…)
+    # GraphDB on host port 7200 (SimulatorController agents use https://…/graphdb/…)
     @graphdb path /graphdb /graphdb/*
     @graphdb_allowed {
         path /graphdb /graphdb/*

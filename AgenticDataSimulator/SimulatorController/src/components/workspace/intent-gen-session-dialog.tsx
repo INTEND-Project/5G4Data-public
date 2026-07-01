@@ -322,6 +322,9 @@ export function IntentGenSessionDialog({
         if (llmFields.llmModel) {
           payload.llmModel = llmFields.llmModel;
         }
+        if (llmFields.llmApiBaseUrl) {
+          payload.llmApiBaseUrl = llmFields.llmApiBaseUrl;
+        }
         if (llmFields.temperature !== undefined) {
           payload.temperature = llmFields.temperature;
         }

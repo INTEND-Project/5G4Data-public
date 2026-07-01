@@ -18,6 +18,22 @@ function clampTemperature(value: unknown): number {
   return Math.min(2, Math.max(0, value));
 }
 
+function runtimeLlmPayload(
+  model: string,
+  temperature: number,
+  source: "agent" | "env",
+  apiBaseUrl?: string,
+  extra?: Record<string, unknown>,
+) {
+  return {
+    model,
+    apiBaseUrl,
+    temperature,
+    source,
+    ...extra,
+  };
+}
+
 export async function GET(request: Request, context: RouteContext) {
   const user = await getAuthenticatedUser(request);
 
@@ -40,11 +56,14 @@ export async function GET(request: Request, context: RouteContext) {
     if (!envFallback) {
       return NextResponse.json({ error: `Agent "${decodedName}" not found in registry.` }, { status: 404 });
     }
-    return NextResponse.json({
-      model: envFallback.model,
-      temperature: envFallback.temperature,
-      source: envFallback.source,
-    });
+    return NextResponse.json(
+      runtimeLlmPayload(
+        envFallback.model,
+        envFallback.temperature,
+        envFallback.source,
+        envFallback.apiBaseUrl,
+      ),
+    );
   }
 
   const appEnv = loadAppEnv(process.env);
@@ -58,12 +77,15 @@ export async function GET(request: Request, context: RouteContext) {
     if (!envFallback) {
       return NextResponse.json({ error: rpc.message }, { status: 502 });
     }
-    return NextResponse.json({
-      model: envFallback.model,
-      temperature: envFallback.temperature,
-      source: envFallback.source,
-      warning: rpc.message,
-    });
+    return NextResponse.json(
+      runtimeLlmPayload(
+        envFallback.model,
+        envFallback.temperature,
+        envFallback.source,
+        envFallback.apiBaseUrl,
+        { warning: rpc.message },
+      ),
+    );
   }
 
   const authHeaders = buildA2AAuthHeaders(appEnv, {
@@ -90,12 +112,15 @@ export async function GET(request: Request, context: RouteContext) {
           { status: 502 },
         );
       }
-      return NextResponse.json({
-        model: envFallback.model,
-        temperature: envFallback.temperature,
-        source: envFallback.source,
-        warning: `Agent info request failed (${response.status}).`,
-      });
+      return NextResponse.json(
+        runtimeLlmPayload(
+          envFallback.model,
+          envFallback.temperature,
+          envFallback.source,
+          envFallback.apiBaseUrl,
+          { warning: `Agent info request failed (${response.status}).` },
+        ),
+      );
     }
 
     const payload = (await response.json()) as {
@@ -108,21 +133,27 @@ export async function GET(request: Request, context: RouteContext) {
       if (!envFallback) {
         return NextResponse.json({ error: "Agent info response missing model." }, { status: 502 });
       }
-      return NextResponse.json({
-        model: envFallback.model,
-        temperature: envFallback.temperature,
-        source: envFallback.source,
-        warning: "Agent info response missing model.",
-      });
+      return NextResponse.json(
+        runtimeLlmPayload(
+          envFallback.model,
+          envFallback.temperature,
+          envFallback.source,
+          envFallback.apiBaseUrl,
+          { warning: "Agent info response missing model." },
+        ),
+      );
     }
 
-    return NextResponse.json({
-      model,
-      temperature: clampTemperature(
-        payload.temperature ?? envFallback?.temperature ?? DEFAULT_AGENT_TEMPERATURE,
+    return NextResponse.json(
+      runtimeLlmPayload(
+        model,
+        clampTemperature(
+          payload.temperature ?? envFallback?.temperature ?? DEFAULT_AGENT_TEMPERATURE,
+        ),
+        "agent",
+        envFallback?.apiBaseUrl,
       ),
-      source: "agent" as const,
-    });
+    );
   } catch (err) {
     if (!envFallback) {
       return NextResponse.json(
@@ -130,11 +161,14 @@ export async function GET(request: Request, context: RouteContext) {
         { status: 502 },
       );
     }
-    return NextResponse.json({
-      model: envFallback.model,
-      temperature: envFallback.temperature,
-      source: envFallback.source,
-      warning: String(err),
-    });
+    return NextResponse.json(
+      runtimeLlmPayload(
+        envFallback.model,
+        envFallback.temperature,
+        envFallback.source,
+        envFallback.apiBaseUrl,
+        { warning: String(err) },
+      ),
+    );
   }
 }

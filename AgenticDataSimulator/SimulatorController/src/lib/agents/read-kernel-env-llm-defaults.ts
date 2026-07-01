@@ -11,6 +11,7 @@ import {
 
 export type AgentRuntimeLlmDefaults = {
   model: string;
+  apiBaseUrl: string;
   temperature: number;
   source: "agent" | "env";
 };
@@ -54,6 +55,12 @@ function cloneEnvPathForAgent(agentName: string): string | undefined {
   return resolve(root, "agents", packageDir, ".env");
 }
 
+function normalizeApiBaseUrl(raw: string | undefined): string {
+  const trimmed = raw?.trim() ?? "";
+  if (!trimmed) return "https://api.openai.com/v1";
+  return trimmed.replace(/\/+$/, "");
+}
+
 /** Read model/temperature from a known agent clone `.env` or baseline kernel `.env`. */
 export function readEnvFileLlmDefaults(agentName: string): AgentRuntimeLlmDefaults | null {
   const candidates = [
@@ -69,6 +76,7 @@ export function readEnvFileLlmDefaults(agentName: string): AgentRuntimeLlmDefaul
     if (!model) continue;
     return {
       model,
+      apiBaseUrl: normalizeApiBaseUrl(readDotEnvKey(envPath, "OPENAI_BASE_URL")),
       temperature: parseTemperature(readDotEnvKey(envPath, "OPENAI_TEMPERATURE")),
       source: "env",
     };

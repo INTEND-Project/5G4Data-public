@@ -28,11 +28,16 @@ describe("graph-target-binding", () => {
 
   it("wraps llm settings in openclaw metadata envelope v1", () => {
     expect(
-      openClawMetadataEnvelope({ llmModel: "gpt-4o-mini", temperature: 0.25 }),
+      openClawMetadataEnvelope({
+        llmModel: "codestral:latest",
+        llmApiBaseUrl: "http://spark-88e2.taile6732f.ts.net:11434/v1",
+        temperature: 0.25,
+      }),
     ).toEqual({
       openclaw: {
         controllerBindingVersion: "1",
-        llmModel: "gpt-4o-mini",
+        llmModel: "codestral:latest",
+        llmApiBaseUrl: "http://spark-88e2.taile6732f.ts.net:11434/v1",
         temperature: 0.25,
       },
     });

@@ -1731,7 +1731,8 @@ select.workspace-script-run-select:disabled {
   min-width: 0;
 }
 
-.workspace-agent-settings-dialog .workspace-input {
+.workspace-agent-settings-dialog .workspace-input,
+.workspace-agent-settings-dialog .workspace-select {
   width: 100%;
   margin-bottom: 10px;
 }

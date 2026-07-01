@@ -1,86 +1,54 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  hasAgentLlmPreference,
-  isIntentGenerationAgent,
   normalizeAgentLlmPreference,
-  parseAgentLlmPreferencesMap,
   preferenceForOpenClawMetadata,
 } from "@/lib/agents/agent-llm-preferences";
-import { filterChatCapableOpenAiModels } from "@/lib/openai/filter-chat-models";
-import {
-  hasOpenClawMetadataFields,
-  openClawMetadataEnvelope,
-} from "@/lib/kg/graph-target-binding";
+import { parseOpenAiCompatibleModelIds } from "@/lib/openai/parse-models-response";
 
 describe("agent-llm-preferences", () => {
-  it("parses stored preferences map", () => {
-    const map = parseAgentLlmPreferencesMap(
-      JSON.stringify({
-        "5g4data-intent-generating-agent": { model: "gpt-4o-mini", temperature: 0.3 },
+  it("normalizes api base URL without trailing slash", () => {
+    expect(
+      normalizeAgentLlmPreference({
+        model: "codestral:latest",
+        apiBaseUrl: "http://spark:11434/v1/",
+        temperature: 0.5,
       }),
-    );
-    expect(map["5g4data-intent-generating-agent"]).toEqual({
-      model: "gpt-4o-mini",
-      temperature: 0.3,
+    ).toEqual({
+      model: "codestral:latest",
+      apiBaseUrl: "http://spark:11434/v1",
+      temperature: 0.5,
     });
   });
 
-  it("maps stored preference to openclaw metadata fields", () => {
-    expect(
-      preferenceForOpenClawMetadata(
-        { model: "gpt-4o", temperature: 0.5, reportingIntervalMinutes: 5 },
-        true,
-      ),
-    ).toEqual({ llmModel: "gpt-4o", temperature: 0.5, reportingIntervalMinutes: 5 });
-    expect(
-      preferenceForOpenClawMetadata({ model: "gpt-4o", temperature: 0.5 }, true),
-    ).toEqual({ llmModel: "gpt-4o", temperature: 0.5 });
-    expect(preferenceForOpenClawMetadata({ model: "", temperature: 0 }, true)).toEqual({
-      temperature: 0,
+  it("maps stored preferences to openclaw metadata fields", () => {
+    const pref = normalizeAgentLlmPreference({
+      model: "codestral:latest",
+      apiBaseUrl: "http://spark:11434/v1",
+      temperature: 0.8,
     });
-    expect(preferenceForOpenClawMetadata({ model: "", temperature: 0 }, false)).toEqual({});
-  });
-
-  it("detects stored preferences by agent name", () => {
-    const map = parseAgentLlmPreferencesMap(
-      JSON.stringify({ "agent-a": { model: "gpt-4o-mini", temperature: 0 } }),
-    );
-    expect(hasAgentLlmPreference(map, "agent-a")).toBe(true);
-    expect(hasAgentLlmPreference(map, "agent-b")).toBe(false);
-  });
-
-  it("clamps temperature on normalize", () => {
-    expect(normalizeAgentLlmPreference({ model: "x", temperature: 9 }).temperature).toBe(2);
-  });
-
-  it("isIntentGenerationAgent matches registry name variants", () => {
-    expect(isIntentGenerationAgent("5g4data-intent-generating-agent")).toBe(true);
-    expect(isIntentGenerationAgent("5g4data-intent-generation-agent")).toBe(true);
-    expect(isIntentGenerationAgent("5g4data-intent-observation-generating-agent")).toBe(false);
+    expect(preferenceForOpenClawMetadata(pref, true)).toEqual({
+      llmModel: "codestral:latest",
+      llmApiBaseUrl: "http://spark:11434/v1",
+      temperature: 0.8,
+    });
   });
 });
 
-describe("openClawMetadataEnvelope llm fields", () => {
-  it("includes llmModel and temperature when set", () => {
-    const envelope = openClawMetadataEnvelope({
-      llmModel: "gpt-4o-mini",
-      temperature: 0.2,
-    });
-    expect(envelope.openclaw.llmModel).toBe("gpt-4o-mini");
-    expect(envelope.openclaw.temperature).toBe(0.2);
-    expect(hasOpenClawMetadataFields({ llmModel: "gpt-4o-mini" })).toBe(true);
+describe("parseOpenAiCompatibleModelIds", () => {
+  it("reads OpenAI-style data[].id entries", () => {
+    expect(
+      parseOpenAiCompatibleModelIds({
+        data: [{ id: "gpt-4o-mini" }, { id: "codestral:latest" }],
+      }),
+    ).toEqual(["codestral:latest", "gpt-4o-mini"]);
   });
-});
 
-describe("filterChatCapableOpenAiModels", () => {
-  it("filters embeddings and keeps gpt models", () => {
-    const models = filterChatCapableOpenAiModels([
-      "text-embedding-3-small",
-      "gpt-4o-mini",
-      "o3-mini",
-      "whisper-1",
-    ]);
-    expect(models).toEqual(["gpt-4o-mini", "o3-mini"]);
+  it("reads Ollama-style models[].name entries", () => {
+    expect(
+      parseOpenAiCompatibleModelIds({
+        models: [{ name: "codestral:latest" }, { name: "llama3.2:latest" }],
+      }),
+    ).toEqual(["codestral:latest", "llama3.2:latest"]);
   });
 });

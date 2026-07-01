@@ -45,6 +45,7 @@ export type OpenClawControllerMetadata = {
   prometheusBaseUrl?: string;
   prometheusStorageMode?: PrometheusStackMode;
   llmModel?: string;
+  llmApiBaseUrl?: string;
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
@@ -57,6 +58,7 @@ export function openClawMetadataEnvelope(opts: {
   prometheusBaseUrl?: string;
   prometheusStorageMode?: PrometheusStackMode;
   llmModel?: string;
+  llmApiBaseUrl?: string;
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
@@ -78,6 +80,8 @@ export function openClawMetadataEnvelope(opts: {
   }
   const model = opts.llmModel?.trim();
   if (model) openclaw.llmModel = model;
+  const llmApiBaseUrl = opts.llmApiBaseUrl?.trim().replace(/\/+$/, "");
+  if (llmApiBaseUrl) openclaw.llmApiBaseUrl = llmApiBaseUrl;
   if (opts.temperature !== undefined && Number.isFinite(opts.temperature)) {
     openclaw.temperature = Math.min(2, Math.max(0, opts.temperature));
   }
@@ -103,6 +107,7 @@ export function hasOpenClawMetadataFields(opts: {
   prometheusBaseUrl?: string;
   prometheusStorageMode?: PrometheusStackMode;
   llmModel?: string;
+  llmApiBaseUrl?: string;
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
@@ -113,6 +118,7 @@ export function hasOpenClawMetadataFields(opts: {
       opts.createIntentStorage ||
       opts.prometheusBaseUrl?.trim() ||
       opts.llmModel?.trim() ||
+      opts.llmApiBaseUrl?.trim() ||
       (opts.temperature !== undefined && Number.isFinite(opts.temperature)) ||
       (opts.reportingIntervalMinutes !== undefined && Number.isFinite(opts.reportingIntervalMinutes)) ||
       (opts.reportingIntervalSeconds !== undefined && Number.isFinite(opts.reportingIntervalSeconds)),

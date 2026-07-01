@@ -13,7 +13,6 @@ import {
 import {
   type AgentLlmPreference,
   type AgentLlmPreferencesMap,
-  DEFAULT_AGENT_TEMPERATURE,
   hasAgentLlmPreference,
   normalizeAgentLlmPreference,
   readAgentLlmPreferencesFromStorage,
@@ -46,7 +45,7 @@ export function AgentLlmPreferencesProvider({ children }: { children: ReactNode 
     (agentName: string): AgentLlmPreference => {
       const stored = map[agentName];
       if (stored) return stored;
-      return { model: "", temperature: DEFAULT_AGENT_TEMPERATURE };
+      return normalizeAgentLlmPreference({});
     },
     [map],
   );
@@ -86,7 +85,7 @@ export function useAgentLlmPreferences(agentName: string | null | undefined) {
   }
   const preference = agentName
     ? context.getPreference(agentName)
-    : { model: "", temperature: DEFAULT_AGENT_TEMPERATURE };
+    : normalizeAgentLlmPreference({});
   const hasStored = agentName ? context.hasStoredPreference(agentName) : false;
   const setPreference = useCallback(
     (next: AgentLlmPreference) => {

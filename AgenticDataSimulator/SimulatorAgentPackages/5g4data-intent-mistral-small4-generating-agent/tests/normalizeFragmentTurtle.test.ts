@@ -83,3 +83,18 @@ test("normalizeFragmentTurtle removes duplicate semicolons after set:forAll bloc
   assert.ok(result.changes > 0);
   assert.doesNotMatch(result.text, /\]\s*;\s*\n\s*;\s*\n/);
 });
+
+test("normalizeFragmentTurtle dedupes duplicate set:forAll members in fragment", () => {
+  const input = `data5g:CO903c65898f9a4639a525d649c699e6a0 a icm:Condition ;
+    dct:description "p99-token-target condition quan:larger: 400 token/s" ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:p99-token-target_CO903c65898f9a4639a525d649c699e6a0 ;
+        quan:larger [ quan:unit "token/s" ; rdf:value 400 ]
+        ], [
+        icm:valuesOfTargetProperty data5g:p99-token-target_CO903c65898f9a4639a525d649c699e6a0 ;
+        quan:larger [ quan:unit "token/s" ; rdf:value 400 ]
+        ] .`;
+  const result = normalizeFragmentTurtle(input, { fragmentId: "deployment" });
+  assert.ok(result.changes > 0);
+  assert.equal([...result.text.matchAll(/valuesOfTargetProperty/gi)].length, 1);
+});

@@ -1,6 +1,8 @@
 /**
  * Lightweight Turtle fixes for LLM fragment bodies before syntax validation.
  */
+import { dedupePredicateCollection } from "./postprocess/turtleCollectionDedupe.js";
+
 const CONTINUATION_LINE =
   /^\s+(time:|ut:|log:|dct:|set:|quan:|rdfs:|imo:|icm:|geo:|data5g:|fun:|mf:)/;
 
@@ -189,6 +191,14 @@ function singlePass(
     if (eofRepair.changes > 0) {
       result = eofRepair.text;
       changes += eofRepair.changes;
+    }
+  }
+
+  for (const predicate of ["set:forAll", "log:forAll"]) {
+    const deduped = dedupePredicateCollection(result, predicate);
+    if (deduped.changes > 0) {
+      result = deduped.text;
+      changes += deduped.changes;
     }
   }
 

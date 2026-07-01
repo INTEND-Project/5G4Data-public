@@ -49,6 +49,11 @@
       "id": "intent-members-sync",
       "module": "tools/postprocess/intentMembersSync.ts",
       "when": "always"
+    },
+    {
+      "id": "turtle-collection-dedupe",
+      "module": "tools/postprocess/turtleCollectionDedupe.ts",
+      "when": "always"
     }
   ]
 }

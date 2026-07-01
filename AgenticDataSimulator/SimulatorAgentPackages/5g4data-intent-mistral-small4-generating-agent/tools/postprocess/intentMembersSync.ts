@@ -226,14 +226,25 @@ function dedupeIntentDescription(text: string, intentLocal: string): string {
   return text.replace(block, cleaned);
 }
 
+function parseLogAllOfBody(block: string): string | null {
+  const match = block.match(/log:allOf\s+([\s\S]*?)(\s*[;.]\s*)$/im);
+  return match?.[1]?.trim() ?? null;
+}
+
 function ensureDeploymentContexts(text: string): { text: string; changes: number } {
   let result = text;
   let changes = 0;
-  for (const match of text.matchAll(
-    /data5g:(DE[A-Za-z0-9_]+)\s+a\s+data5g:DeploymentExpectation[\s\S]*?log:allOf\s+([^;]+);/gi
-  )) {
-    const deLocal = match[1];
-    const allOfBody = match[2];
+  const deLocals = [
+    ...text.matchAll(/data5g:(DE[A-Za-z0-9_]+)\s+a\s+data5g:DeploymentExpectation/gi)
+  ].map((match) => match[1]);
+
+  for (const deLocal of deLocals) {
+    if (!deLocal) continue;
+    const deBlock = extractSubjectBlock(result, deLocal);
+    if (!deBlock) continue;
+    const allOfBody = parseLogAllOfBody(deBlock);
+    if (!allOfBody) continue;
+
     const memberLocals = [...allOfBody.matchAll(/data5g:([A-Za-z0-9_]+)/g)].map((m) => m[1]);
     let validMembers = memberLocals.filter((local) => isConditionOrContext(result, local));
     const hasCondition = validMembers.some((local) => isConditionLocal(result, local));
@@ -289,8 +300,10 @@ function ensureDeploymentContexts(text: string): { text: string; changes: number
     const refs = validMembers.map((local) => `data5g:${local}`).join(",\n        ");
     if (refs.length === 0) continue;
 
-    const deBlock = match[0];
-    const updatedDe = deBlock.replace(/log:allOf\s+([^;]+);/i, `log:allOf ${refs} ;`);
+    const updatedDe = deBlock.replace(
+      /log:allOf\s+[\s\S]*?(\s*[;.]\s*)$/im,
+      `log:allOf ${refs}$1`
+    );
     if (updatedDe !== deBlock) {
       result = result.replace(deBlock, updatedDe);
       changes += 1;

@@ -66,8 +66,13 @@ export class GraphDbTool {
     queryLimit?: number
   ): GraphDbTool {
     const limit = queryLimit ?? fallback.graphDbQueryLimit;
-    const infraEndpoint = fallback.graphDbInfraEndpoint || fallback.graphDbEndpoint;
-    const infraNamedGraph = fallback.graphDbInfraNamedGraph || fallback.graphDbNamedGraph;
+    const infraEndpoint = fallback.graphDbInfraEndpoint?.trim();
+    const infraNamedGraph = fallback.graphDbInfraNamedGraph?.trim();
+    if (!infraEndpoint || !infraNamedGraph) {
+      throw new Error(
+        "Infrastructure GraphDB lookup requires GRAPHDB_INFRA_ENDPOINT and GRAPHDB_INFRA_NAMED_GRAPH.",
+      );
+    }
     const repoBase = normalizeSparqlPostEndpoint(infraEndpoint);
     return new GraphDbTool(repoBase, infraNamedGraph, limit, repoBase);
   }

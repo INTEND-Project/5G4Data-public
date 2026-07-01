@@ -16,6 +16,8 @@ const baseConfig: AppConfig = {
   workloadCatalogBaseUrl: "",
   graphDbEndpoint: "",
   graphDbNamedGraph: "",
+  graphDbInfraEndpoint: "http://127.0.0.1:7200/repositories/telenor-infrastructure-5g4data",
+  graphDbInfraNamedGraph: "http://intendproject.eu/telenor/infra",
   graphDbQueryLimit: 0,
   graphDbContextLimit: 10,
   defaultIntentHandler: "inServ",
@@ -116,6 +118,42 @@ test("openai adapter applies session model and temperature overrides", async () 
     assert.equal(requestBody.temperature, 0.7);
     assert.equal(result.call.temperature, 0.7);
     assert.equal(result.call.temperatureSent, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("openai adapter uses session api base url override without auth for local endpoints", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl = "";
+  let hasAuthHeader = false;
+  globalThis.fetch = (async (url, init) => {
+    requestUrl = String(url);
+    const headers = init?.headers;
+    if (headers instanceof Headers) {
+      hasAuthHeader = headers.has("Authorization");
+    } else if (headers && typeof headers === "object") {
+      hasAuthHeader = "Authorization" in headers || "authorization" in headers;
+    }
+    return new Response(
+      JSON.stringify({
+        id: "req_ollama",
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }) as typeof fetch;
+  try {
+    const invoker = createOpenClawModelInvoker({ ...baseConfig, openAiApiKey: "" });
+    const result = await invoker([{ role: "user", content: "hi" }], {
+      stage: "main_turn",
+      llmModel: "codestral:latest",
+      llmApiBaseUrl: "http://spark:11434/v1"
+    });
+    assert.equal(requestUrl, "http://spark:11434/v1/chat/completions");
+    assert.equal(hasAuthHeader, false);
+    assert.equal(result.call.model, "codestral:latest");
   } finally {
     globalThis.fetch = originalFetch;
   }

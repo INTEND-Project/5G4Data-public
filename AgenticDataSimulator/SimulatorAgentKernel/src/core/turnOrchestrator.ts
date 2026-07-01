@@ -343,6 +343,7 @@ export class TurnOrchestrator {
     return {
       stage,
       llmModel: session.llmModelOverride ?? undefined,
+      llmApiBaseUrl: session.llmApiBaseUrlOverride ?? undefined,
       temperature: session.temperatureOverride ?? undefined
     };
   }

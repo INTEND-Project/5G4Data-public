@@ -21,3 +21,17 @@ test("forInfrastructureLookup uses infra repository, not controller persist bind
     "http://intendproject.eu/telenor/infra",
   );
 });
+
+test("forInfrastructureLookup rejects missing infra env fallback", () => {
+  assert.throws(
+    () =>
+      GraphDbTool.forInfrastructureLookup({
+        graphDbEndpoint: "http://example/repositories/user-intent-repo",
+        graphDbNamedGraph: "urn:intend:kg:user:intents",
+        graphDbInfraEndpoint: "",
+        graphDbInfraNamedGraph: "",
+        graphDbQueryLimit: 0,
+      }),
+    /GRAPHDB_INFRA_ENDPOINT and GRAPHDB_INFRA_NAMED_GRAPH/,
+  );
+});

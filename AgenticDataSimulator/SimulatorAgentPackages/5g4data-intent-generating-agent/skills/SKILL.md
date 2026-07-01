@@ -179,8 +179,8 @@ Rules:
 ### GraphDB/SPARQL lookup (mandatory when locality matters)
 
 - Geocode place name to coordinates.
-- Query GraphDB repository `telenor-infrastructure-5g4data` at `https://start5g-1.cs.uit.no/graphdb/`, graph `http://intendproject.eu/telenor/infra`.
-- Use SPARQL nearest edge data center for `data5g:DataCenter`.
+- The kernel performs infrastructure SPARQL using runtime env: `GRAPHDB_INFRA_ENDPOINT`, `GRAPHDB_INFRA_REPOSITORY_ID`, and `GRAPHDB_INFRA_NAMED_GRAPH` (edge-cluster locality KG — not the intent persistence repo).
+- Use the nearest edge data center from that lookup for `data5g:DataCenter`.
 - If unresolved/ambiguous, ask follow-up; never guess.
 
 ## Required workflow

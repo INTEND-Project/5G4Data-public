@@ -42,12 +42,14 @@ test("parseOpenClawControllerMetadata accepts llm-only envelope", () => {
   const parsed = parseOpenClawControllerMetadata({
     openclaw: {
       controllerBindingVersion: "1",
-      llmModel: "gpt-4o-mini",
+      llmModel: "codestral:latest",
+      llmApiBaseUrl: "http://spark:11434/v1",
       temperature: 0.4,
     },
   });
   assert.ok(parsed);
-  assert.equal(parsed.llmModel, "gpt-4o-mini");
+  assert.equal(parsed.llmModel, "codestral:latest");
+  assert.equal(parsed.llmApiBaseUrl, "http://spark:11434/v1");
   assert.equal(parsed.temperature, 0.4);
   assert.equal(parsed.graphTarget, null);
 });

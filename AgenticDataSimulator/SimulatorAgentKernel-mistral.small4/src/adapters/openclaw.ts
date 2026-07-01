@@ -33,19 +33,22 @@ async function invokeOpenAi(
   messages: ModelMessage[],
   options: ModelInvokeOptions
 ): Promise<ModelInvocationResult> {
-  if (!config.openAiApiKey) {
+  const baseUrl = (options.llmApiBaseUrl?.trim() || config.openAiBaseUrl).replace(/\/$/, "");
+  const apiKey = config.openAiApiKey?.trim();
+  if (!apiKey && baseUrl.includes("api.openai.com")) {
     throw new Error("OPENAI_API_KEY is not set.");
   }
   const model = resolveModel(config, "openai", options.llmModel);
   const temperature = resolveTemperature(config, options.temperature);
   const temperatureSent = temperature !== 0;
   const started = Date.now();
-  const response = await fetch(`${config.openAiBaseUrl.replace(/\/$/, "")}/chat/completions`, {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.openAiApiKey}`,
-      "Content-Type": "application/json"
-    },
+    headers,
     body: JSON.stringify({
       model,
       messages,

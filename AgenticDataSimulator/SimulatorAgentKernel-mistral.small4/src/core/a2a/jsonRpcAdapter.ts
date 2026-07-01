@@ -186,6 +186,9 @@ function applyOpenClawMetadataToSession(
   if (parsed.llmModel) {
     session.llmModelOverride = parsed.llmModel;
   }
+  if (parsed.llmApiBaseUrl) {
+    session.llmApiBaseUrlOverride = parsed.llmApiBaseUrl;
+  }
   if (parsed.temperature !== null) {
     session.temperatureOverride = parsed.temperature;
   }

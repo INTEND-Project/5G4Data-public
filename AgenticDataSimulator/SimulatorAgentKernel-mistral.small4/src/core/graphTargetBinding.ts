@@ -63,6 +63,7 @@ export type OpenClawControllerMetadata = {
   prometheusBaseUrl: string | null;
   prometheusStorageMode: PrometheusStackMode | null;
   llmModel: string | null;
+  llmApiBaseUrl: string | null;
   temperature: number | null;
   reportingIntervalMinutes: number | null;
   reportingIntervalSeconds: number | null;
@@ -139,6 +140,7 @@ export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawCont
   const prometheusBaseUrl = readNonEmptyString(openclaw.prometheusBaseUrl);
   const prometheusStorageMode = parsePrometheusStorageModeField(openclaw.prometheusStorageMode);
   const llmModel = readNonEmptyString(openclaw.llmModel);
+  const llmApiBaseUrl = readNonEmptyString(openclaw.llmApiBaseUrl)?.replace(/\/+$/, "") ?? null;
   const temperature = parseTemperatureField(openclaw.temperature);
   const reportingIntervalMinutes = parseReportingIntervalMinutesField(
     openclaw.reportingIntervalMinutes
@@ -153,6 +155,7 @@ export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawCont
     !createIntentStorage &&
     !prometheusBaseUrl &&
     !llmModel &&
+    !llmApiBaseUrl &&
     temperature === null &&
     reportingIntervalMinutes === null &&
     reportingIntervalSeconds === null
@@ -167,6 +170,7 @@ export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawCont
     prometheusBaseUrl,
     prometheusStorageMode,
     llmModel,
+    llmApiBaseUrl,
     temperature,
     reportingIntervalMinutes,
     reportingIntervalSeconds

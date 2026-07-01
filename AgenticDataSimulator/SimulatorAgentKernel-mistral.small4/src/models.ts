@@ -42,6 +42,8 @@ export interface ChatSession {
   createIntentStorage?: ObservationStorageType | null;
   /** From A2A metadata.openclaw.llmModel for this task. */
   llmModelOverride?: string | null;
+  /** From A2A metadata.openclaw.llmApiBaseUrl for this task. */
+  llmApiBaseUrlOverride?: string | null;
   /** From A2A metadata.openclaw.temperature for this task. */
   temperatureOverride?: number | null;
   /** From A2A metadata.openclaw.reportingIntervalMinutes for this task. */
@@ -59,6 +61,7 @@ export interface ChatSession {
 export type ModelInvokeOptions = {
   stage: string;
   llmModel?: string | null;
+  llmApiBaseUrl?: string | null;
   temperature?: number | null;
 };
 

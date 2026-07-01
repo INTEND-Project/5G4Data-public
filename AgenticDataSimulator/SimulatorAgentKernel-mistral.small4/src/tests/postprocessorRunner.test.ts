@@ -176,3 +176,47 @@ data5g:CO__ID_CONDITION_container_cpu_watts_1__ a icm:Condition ;
   const p99Metric = text.match(/data5g:p99-token-target_(CO[0-9a-f]{32})/)?.[1];
   assert.equal(p99Cond, p99Metric);
 });
+
+const mistralSmall4PackageDir =
+  "/home/telco/arneme/INTEND-Project/5G4Data-public/AgenticDataSimulator/SimulatorAgentPackages/5g4data-intent-mistral-small4-generating-agent";
+
+test("mistral-small4 postprocessor dedupes duplicate valuesOfTargetProperty in set:forAll", async () => {
+  const domainPackage = loadDomainPackage(mistralSmall4PackageDir);
+  const input = `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+
+data5g:I__ID_INTENT_1__ a icm:Intent ;
+    log:allOf data5g:DE__ID_DEPLOYMENT_1__ .
+
+data5g:DE__ID_DEPLOYMENT_1__ a data5g:DeploymentExpectation ;
+    icm:target data5g:deployment ;
+    log:allOf data5g:CO__ID_CONDITION_1__ .
+
+data5g:CO__ID_CONDITION_1__ a icm:Condition ;
+    dct:description "p99-token-target condition quan:larger: 400 token/s" ;
+    set:forAll [
+        icm:valuesOfTargetProperty data5g:p99-token-target___ID_CONDITION_1__ ;
+        quan:larger [ quan:unit "token/s" ; rdf:value 400 ]
+        ], [
+        icm:valuesOfTargetProperty data5g:p99-token-target___ID_CONDITION_1__ ;
+        quan:larger [ quan:unit "token/s" ; rdf:value 400 ]
+        ] .`;
+  const debug: string[] = [];
+  const text = await runConfiguredPostprocessors({
+    text: input,
+    context: {
+      runtimeContext: "runtime",
+      intentFlags: { deployment: true, locality: false, networkQos: false },
+      validatorRules: domainPackage.validatorRules
+    },
+    domainPackage,
+    when: "always",
+    debug
+  });
+  assert.ok(debug.some((line) => line.includes("postprocessor_applied=turtle-collection-dedupe")));
+  assert.equal([...text.matchAll(/valuesOfTargetProperty/gi)].length, 1);
+  assert.equal(text.includes("__ID_"), false);
+});

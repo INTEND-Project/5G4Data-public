@@ -16,6 +16,8 @@ const baseConfig: AppConfig = {
   workloadCatalogBaseUrl: "",
   graphDbEndpoint: "",
   graphDbNamedGraph: "",
+  graphDbInfraEndpoint: "http://127.0.0.1:7200/repositories/telenor-infrastructure-5g4data",
+  graphDbInfraNamedGraph: "http://intendproject.eu/telenor/infra",
   graphDbQueryLimit: 0,
   graphDbContextLimit: 10,
   defaultIntentHandler: "inServ",

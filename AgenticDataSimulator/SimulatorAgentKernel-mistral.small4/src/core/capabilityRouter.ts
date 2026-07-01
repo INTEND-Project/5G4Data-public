@@ -153,14 +153,29 @@ export class CapabilityRouter {
     const mod = await this.importToolModule("graphdbTool.ts");
     const forInfra = mod.GraphDbTool as {
       forInfrastructureLookup?: (
-        fallback: { graphDbEndpoint: string; graphDbNamedGraph: string; graphDbQueryLimit: number },
+        fallback: {
+          graphDbEndpoint: string;
+          graphDbNamedGraph: string;
+          graphDbInfraEndpoint: string;
+          graphDbInfraNamedGraph: string;
+          graphDbQueryLimit: number;
+        },
         queryLimit?: number
       ) => GraphDbApi;
     };
     if (typeof forInfra.forInfrastructureLookup === "function") {
       return forInfra.forInfrastructureLookup(this.graphDbEnvFallback());
     }
-    return this.createGraphDbApi(null);
+    const ToolCtor = mod.GraphDbTool as new (
+      endpoint: string,
+      namedGraph: string,
+      queryLimit: number
+    ) => GraphDbApi;
+    return new ToolCtor(
+      this.config.graphDbInfraEndpoint,
+      this.config.graphDbInfraNamedGraph,
+      this.config.graphDbQueryLimit
+    );
   }
 
   private async createOntologyApi(): Promise<OntologyApi> {

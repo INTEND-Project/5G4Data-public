@@ -200,9 +200,7 @@ export function loadConfig(): AppConfig {
       repositoryId: process.env.GRAPHDB_INFRA_REPOSITORY_ID?.trim() || undefined,
     }),
     graphDbInfraNamedGraph:
-      process.env.GRAPHDB_INFRA_NAMED_GRAPH?.trim() ||
-      process.env.GRAPHDB_NAMED_GRAPH?.trim() ||
-      DEFAULT_GRAPHDB_INFRA_NAMED_GRAPH,
+      process.env.GRAPHDB_INFRA_NAMED_GRAPH?.trim() || DEFAULT_GRAPHDB_INFRA_NAMED_GRAPH,
     graphDbQueryLimit: Math.max(0, numberFromEnv(process.env.GRAPHDB_QUERY_LIMIT, 0)),
     graphDbContextLimit: Math.max(1, numberFromEnv(process.env.GRAPHDB_CONTEXT_LIMIT, 10)),
     defaultIntentHandler: process.env.DEFAULT_INTENT_HANDLER ?? "inServ",

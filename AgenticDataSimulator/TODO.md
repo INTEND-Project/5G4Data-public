@@ -15,8 +15,8 @@ Always move recently closed TODOs to the top of the closed list.
 
 
 ### Easy TODO´s?
-
-- [ ] Dockerize the Controller (not sure, maybe eventually, but development is easier without)
+- [ ] Pretty print should only add blank nodes that is part of the intent (when more than one intent has the same blank node it gets duplicated in the pretty print)
+- [ ] Sometimes the request observation-report progress bars dissapeared before the generation was completed. Fix it.
 
 ## Closed
 - [x] Change the intent generating agent to support the format (with CoordinationExpectation and utility functions) that inCoord expects. First version ready, needs to be aligned with TUW expectations.

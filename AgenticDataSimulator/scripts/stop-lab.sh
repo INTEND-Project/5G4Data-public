@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop the AgenticDataSimulator lab started by restart-lab-from-source.sh:
+# Stop the AgenticDataSimulator lab started by complete-restart-lab-from-source.sh:
 #   - prod (3000) and dev (3001) Controllers
 #   - simulator agents (./agent-control stop)
 #   - IntentReportQueryProxy and a2a-registry docker stacks
@@ -296,7 +296,7 @@ main() {
 
   echo ""
   echo "Lab stop complete."
-  echo "Restart with: ./scripts/restart-lab-from-source.sh"
+  echo "Restart with: ./scripts/complete-restart-lab-from-source.sh"
 }
 
 main "$@"

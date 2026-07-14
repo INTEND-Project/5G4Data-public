@@ -13,6 +13,7 @@ ENV_ID = "EdgeDataCenter-v0"
 DEFAULT_MAX_EPISODE_STEPS = 200
 NUM_DATACENTERS = 2
 OBS_FEATURES_PER_DC = 8
+ARRIVAL_MODES = ("bernoulli", "poisson")
 
 
 @dataclass
@@ -64,8 +65,10 @@ class EdgeDataCenterEnv(gym.Env):
         # Peak token throughput per DC in tokens/sec (hardware ceiling per site). Should be calculated 
         # based on edge data center capacity and hardware specs
         max_capacity: tuple[float, float] = (200_000.0, 150_000.0),
-        # Every step has a probability of a new session arriving (e.g. 0.40 means 40% chance per step)
+        # Arrivals per step: Bernoulli trial (rate in (0,1]) or Poisson mean (rate can be >1).
         arrival_rate: float = 0.40,
+        arrival_mode: str = "bernoulli",
+        initial_sessions_range: tuple[int, int] = (1, 3),
         min_tps: float = 400.0,
         # How long a session lasts in steps (e.g. randomly between 20 and 60 steps)
         session_duration_range: tuple[int, int] = (20, 60),
@@ -79,6 +82,19 @@ class EdgeDataCenterEnv(gym.Env):
         # Example at defaults: 10,000 TPS → 0.04 × 10,000 = 400 kW on top of the idle term.
         throughput_energy_kw: float = 0.04,
         max_sla_violations: int = 20,
+        # Reward shaping — tuned for SLA compliance with minimal energy:
+        # provision capacity close to active_sessions * min_tps per datacenter.
+        energy_cost_scale: float = 300.0,
+        sla_penalty_weight: float = 50.0,
+        dropped_session_penalty: float = 25.0,
+        session_completion_reward: float = 2.0,
+        stranded_session_penalty_weight: float = 100.0,
+        sla_termination_penalty: float = 1000.0,
+        enable_session_migration: bool = True,
+        overprovision_penalty_weight: float = 25.0,
+        idle_provision_penalty_weight: float = 12.0,
+        efficiency_bonus_weight: float = 0.15,
+        efficiency_headroom_max: float = 1.05,
         render_mode: str | None = None,
     ):
         super().__init__()
@@ -89,13 +105,35 @@ class EdgeDataCenterEnv(gym.Env):
                 f"max_capacity must have {NUM_DATACENTERS} values, got {len(max_capacity)}"
             )
         self.max_capacity = tuple(max_capacity)
+        if arrival_mode not in ARRIVAL_MODES:
+            raise ValueError(
+                f"arrival_mode must be one of {ARRIVAL_MODES}, got {arrival_mode!r}"
+            )
         self.arrival_rate = arrival_rate
+        self.arrival_mode = arrival_mode
+        low, high = initial_sessions_range
+        if low < 0 or high < low:
+            raise ValueError(
+                f"initial_sessions_range must satisfy 0 <= low <= high, got {initial_sessions_range}"
+            )
+        self.initial_sessions_range = initial_sessions_range
         self.min_tps = min_tps
         self.session_duration_range = session_duration_range
         self.base_cost_per_kw = base_cost_per_kw
         self.idle_energy_kw = idle_energy_kw
         self.throughput_energy_kw = throughput_energy_kw
         self.max_sla_violations = max_sla_violations
+        self.energy_cost_scale = energy_cost_scale
+        self.sla_penalty_weight = sla_penalty_weight
+        self.dropped_session_penalty = dropped_session_penalty
+        self.session_completion_reward = session_completion_reward
+        self.stranded_session_penalty_weight = stranded_session_penalty_weight
+        self.sla_termination_penalty = sla_termination_penalty
+        self.enable_session_migration = enable_session_migration
+        self.overprovision_penalty_weight = overprovision_penalty_weight
+        self.idle_provision_penalty_weight = idle_provision_penalty_weight
+        self.efficiency_bonus_weight = efficiency_bonus_weight
+        self.efficiency_headroom_max = efficiency_headroom_max
         self.render_mode = render_mode
 
         obs_dim = NUM_DATACENTERS * OBS_FEATURES_PER_DC
@@ -111,6 +149,9 @@ class EdgeDataCenterEnv(gym.Env):
         self._sla_violations = 0
         self._dropped_sessions = 0
         self._completed_sessions = 0
+        self._migrated_sessions = 0
+        self._arrivals_this_step = [0] * NUM_DATACENTERS
+        self._dropped_this_step = 0
         self._datacenters: list[DataCenter] = []
 
     def reset(
@@ -124,6 +165,9 @@ class EdgeDataCenterEnv(gym.Env):
         self._sla_violations = 0
         self._dropped_sessions = 0
         self._completed_sessions = 0
+        self._migrated_sessions = 0
+        self._arrivals_this_step = [0] * NUM_DATACENTERS
+        self._dropped_this_step = 0
         self._datacenters = [
             DataCenter(
                 capacity=float(self._rng.uniform(0.35, 0.55) * max_cap),
@@ -136,7 +180,8 @@ class EdgeDataCenterEnv(gym.Env):
         ]
 
         for dc in self._datacenters:
-            initial_sessions = int(self._rng.integers(1, 4))
+            low, high = self.initial_sessions_range
+            initial_sessions = int(self._rng.integers(low, high + 1))
             for _ in range(initial_sessions):
                 dc.sessions.append(self._sample_session())
 
@@ -150,21 +195,27 @@ class EdgeDataCenterEnv(gym.Env):
         if not self.action_space.contains(action):
             raise ValueError(f"Invalid action {action}")
 
+        self._arrivals_this_step = [0] * NUM_DATACENTERS
+        self._dropped_this_step = 0
+
         for dc, target_fraction in zip(self._datacenters, action):
             dc.capacity = float(
                 np.clip(target_fraction, 0.0, 1.0) * dc.max_capacity
             )
 
+        if self.enable_session_migration:
+            self._migrated_sessions += self._migrate_stranded_sessions()
+
         self._update_throughput_and_energy()
         self._vary_cost_per_kw()
 
-        reward = -self._energy_cost()
+        reward = -self._energy_cost() / self.energy_cost_scale
         reward += self._apply_sla_penalties()
+        reward += self._apply_stranded_session_penalties()
+        reward += self._apply_overprovisioning_penalties()
+        reward += self._apply_efficiency_bonus()
 
-        # Bernoulli distribution of new session arrivals (if self._rng.random() < self.arrival_rate)
-        # and how it is load balanced (_route_new_session()), thus modelling the external load balancer
-        if self._rng.random() < self.arrival_rate:
-            reward += self._route_new_session()
+        reward += self._process_arrivals()
 
         reward += self._advance_sessions()
 
@@ -173,6 +224,9 @@ class EdgeDataCenterEnv(gym.Env):
         self._step_count += 1
         terminated = self._sla_violations >= self.max_sla_violations
         truncated = self._step_count >= self.max_episode_steps
+
+        if terminated:
+            reward -= self.sla_termination_penalty
 
         if self.render_mode in ("human", "ansi"):
             self.render()
@@ -220,10 +274,115 @@ class EdgeDataCenterEnv(gym.Env):
                 if session.current_tps < session.min_tps:
                     violating = True
                     shortfall = (session.min_tps - session.current_tps) / session.min_tps
-                    penalty -= 1.5 * shortfall
+                    penalty -= self.sla_penalty_weight * shortfall
         if violating:
             self._sla_violations += 1
         return penalty
+
+    def _minimum_required_capacity(self, dc: DataCenter) -> float:
+        return dc.active_sessions * self.min_tps
+
+    def _available_session_slots(self, dc: DataCenter) -> int:
+        if dc.capacity <= 0:
+            return 0
+        spare = dc.capacity - dc.active_sessions * self.min_tps
+        return max(0, int(spare // self.min_tps))
+
+    def _migrate_stranded_sessions(self) -> int:
+        """Move sessions off zero-capacity datacenters when spare SLA capacity exists."""
+        migrated = 0
+        for source_idx, source in enumerate(self._datacenters):
+            if source.capacity > 0 or not source.sessions:
+                continue
+
+            pending = source.sessions
+            source.sessions = []
+            while pending:
+                options: list[tuple[int, int, float]] = []
+                for target_idx, target in enumerate(self._datacenters):
+                    if target_idx == source_idx:
+                        continue
+                    slots = self._available_session_slots(target)
+                    if slots > 0:
+                        options.append((target_idx, slots, target.cost_per_kw))
+
+                if not options:
+                    source.sessions.extend(pending)
+                    break
+
+                options.sort(key=lambda item: (item[2], -item[1]))
+                target_idx, slots, _ = options[0]
+                target = self._datacenters[target_idx]
+                move_count = min(len(pending), slots)
+                target.sessions.extend(pending[:move_count])
+                pending = pending[move_count:]
+                migrated += move_count
+
+        return migrated
+
+    def _apply_stranded_session_penalties(self) -> float:
+        """Penalize each session on a datacenter with zero provisioned capacity."""
+        penalty = 0.0
+        for dc in self._datacenters:
+            if dc.active_sessions > 0 and dc.capacity <= 0:
+                penalty -= self.stranded_session_penalty_weight * dc.active_sessions
+        return penalty
+
+    def _sample_arrival_count(self) -> int:
+        if self.arrival_mode == "bernoulli":
+            return 1 if self._rng.random() < self.arrival_rate else 0
+        return int(self._rng.poisson(self.arrival_rate))
+
+    def _process_arrivals(self) -> float:
+        reward = 0.0
+        for _ in range(self._sample_arrival_count()):
+            reward += self._route_new_session()
+        return reward
+
+    @property
+    def combined_max_sessions_at_sla(self) -> int:
+        return int(sum(self.max_capacity) / self.min_tps)
+
+    def count_stranded_sessions(self) -> int:
+        return sum(
+            dc.active_sessions
+            for dc in self._datacenters
+            if dc.active_sessions > 0 and dc.capacity <= 0
+        )
+
+    def _apply_overprovisioning_penalties(self) -> float:
+        """Penalize capacity above the SLA floor or provisioned idle capacity."""
+        penalty = 0.0
+        for dc in self._datacenters:
+            if dc.active_sessions == 0:
+                if dc.capacity > 0:
+                    penalty -= self.idle_provision_penalty_weight * (
+                        dc.capacity / dc.max_capacity
+                    )
+                continue
+
+            min_required = self._minimum_required_capacity(dc)
+            if dc.capacity > min_required:
+                excess_fraction = (dc.capacity - min_required) / dc.max_capacity
+                penalty -= self.overprovision_penalty_weight * excess_fraction
+        return penalty
+
+    def _apply_efficiency_bonus(self) -> float:
+        """Reward sessions running just above the minimum TPS floor."""
+        bonus = 0.0
+        margin = self.efficiency_headroom_max - 1.0
+        if margin <= 0:
+            return bonus
+
+        for dc in self._datacenters:
+            for session in dc.sessions:
+                if session.current_tps < session.min_tps:
+                    continue
+                headroom = session.current_tps / session.min_tps
+                if headroom <= self.efficiency_headroom_max:
+                    closeness = 1.0 - (headroom - 1.0) / margin
+                    bonus += self.efficiency_bonus_weight * max(0.0, closeness)
+        return bonus
 
     def _route_new_session(self) -> float:
         candidates = [
@@ -233,11 +392,13 @@ class EdgeDataCenterEnv(gym.Env):
         ]
         if not candidates:
             self._dropped_sessions += 1
-            return -2.0
+            self._dropped_this_step += 1
+            return -self.dropped_session_penalty
 
         loads = [self._datacenters[index].load_ratio() for index in candidates]
         chosen = candidates[int(np.argmin(loads))]
         self._datacenters[chosen].sessions.append(self._sample_session())
+        self._arrivals_this_step[chosen] += 1
         return 0.0
 
     def _advance_sessions(self) -> float:
@@ -248,7 +409,7 @@ class EdgeDataCenterEnv(gym.Env):
                 session.remaining_steps -= 1
                 if session.remaining_steps <= 0:
                     self._completed_sessions += 1
-                    reward += 0.5
+                    reward += self.session_completion_reward
                 else:
                     still_active.append(session)
             dc.sessions = still_active
@@ -348,9 +509,16 @@ class EdgeDataCenterEnv(gym.Env):
                 self._datacenter_info(index, dc)
                 for index, dc in enumerate(self._datacenters)
             ],
+            "arrivals_this_step": list(self._arrivals_this_step),
+            "dropped_this_step": self._dropped_this_step,
             "completed_sessions": self._completed_sessions,
             "dropped_sessions": self._dropped_sessions,
             "sla_violations": self._sla_violations,
+            "stranded_sessions": self.count_stranded_sessions(),
+            "migrated_sessions": self._migrated_sessions,
+            "total_active_sessions": sum(dc.active_sessions for dc in self._datacenters),
+            "arrival_rate": self.arrival_rate,
+            "arrival_mode": self.arrival_mode,
         }
 
     def render(self) -> str | None:
@@ -388,11 +556,13 @@ def make_env(
     *,
     max_episode_steps: int = DEFAULT_MAX_EPISODE_STEPS,
     render_mode: str | None = None,
+    **kwargs: Any,
 ) -> gym.Env:
     """Build the edge data center environment."""
     return EdgeDataCenterEnv(
         max_episode_steps=max_episode_steps,
         render_mode=render_mode,
+        **kwargs,
     )
 
 

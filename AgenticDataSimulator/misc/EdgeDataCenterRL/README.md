@@ -12,11 +12,88 @@ pip install -r requirements.txt
 python demo.py
 ```
 
+### Dev container
+
+Open this folder in Cursor or VS Code and choose **Reopen in Container** (Dev Containers extension). Dependencies install automatically on first build; then run:
+
+```bash
+python demo.py
+```
+
 Print environment state each step:
 
 ```bash
 python demo.py --render
 ```
+
+## Training
+
+Train a policy with [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) (PPO by default). Training uses **Poisson arrivals** and an **arrival-rate curriculum** (4 → 22 sessions/step) to approach combined DC capacity (~875 sessions at SLA):
+
+```bash
+python train.py \
+  --timesteps 1000000 \
+  --n-envs 16 \
+  --save-path models/edge_dc_ppo_v5 \
+  --tensorboard-log tb_logs/ppo_run5
+```
+
+Common options:
+
+```bash
+# SAC, fixed high load (no curriculum)
+python train.py --algorithm sac --no-curriculum --arrival-rate-end 22 --n-envs 8
+
+# Tune initial load and observation scaling for heavy traffic
+python train.py --initial-sessions-min 20 --initial-sessions-max 60 --session-count-scale 1024
+```
+
+| Flag | Default (train) | Purpose |
+| ---- | --------------- | ------- |
+| `--arrival-rate-start` | 4.0 | Curriculum start (Poisson mean arrivals/step) |
+| `--arrival-rate-end` | 22.0 | Curriculum end (~875 concurrent at mean duration 40) |
+| `--arrival-mode` | poisson | `poisson` (training) or `bernoulli` (demo-style) |
+| `--initial-sessions-min/max` | 10 / 40 | Sessions per DC at `reset()` |
+| `--session-duration-min/max` | 20 / 60 | Session lifetime range (steps) |
+| `--session-count-scale` | 1024 | Obs normalization for high session counts |
+| `--no-curriculum` | off | Keep `--arrival-rate-end` fixed |
+
+Monitor training:
+
+```bash
+tensorboard --logdir tb_logs
+```
+
+Evaluate at high load (match training settings):
+
+```bash
+python eval.py --model-path models/edge_dc_ppo_v4 --arrival-rate 22 --arrival-mode poisson --episodes 10
+```
+
+**Note:** `rollout/ep_rew_mean` in TensorBoard reflects **normalized** training rewards when VecNormalize is enabled. Use `eval.py` and `info` counters (`completed`, `dropped`, `sla_violations`, `stranded_sessions`, episode length) to judge policy quality.
+
+| Script          | Purpose                                      |
+| --------------- | -------------------------------------------- |
+| `train.py`      | Train PPO or SAC; saves to `models/`         |
+| `eval.py`       | Load a checkpoint and run deterministic rollouts |
+| `visualize.py`  | Animated scene of a trained-policy episode     |
+| `env_config.py` | Shared env defaults and CLI helpers            |
+
+## Visualization
+
+Render one trained-policy episode as an animated scene (GIF or MP4):
+
+```bash
+python visualize.py --model-path models/edge_dc_ppo_v5 --out run.gif
+```
+
+The scene shows:
+
+- A **load balancer** at the top with incoming session dots, routing arrows, and two split bars showing each datacenter's share of recent arrivals (last 20 steps). The split shifts as the agent adjusts capacity.
+- Per datacenter: a **barrel** filled by accumulated TPS (fraction of `max_capacity`) with a dashed marker for the agent's provisioned capacity, a **battery indicator** for energy draw (green/yellow/red) with the current **electricity price (USD/kWh)** above it, and a **mean per-session TPS bar** with the `min_tps` SLA floor marked (turns red on SLA breach).
+- A **status strip** with the step reward, session counters, and SLA violation steps.
+
+Useful options: `--max-episode-steps 60` for a shorter clip, `--fps`/`--smooth` for animation pacing, `--out run.mp4` (needs ffmpeg), `--live` for an interactive window, plus the same environment flags as `eval.py`.
 
 ## Environment: `EdgeDataCenter-v0`
 
@@ -35,7 +112,9 @@ Two datacenters serve concurrent LLM inference sessions. Each site has its own h
 
 Every session shares the same `min_tps` (default 400, or similar, this is the Helm chart objective value). Throughput above that floor is fine; only shortfalls are penalized.
 
-New sessions arrive stochastically (Bernoulli trial per step). The load balancer assigns each arrival to the datacenter with the lowest load ratio (`active_sessions / capacity`), skipping sites with zero capacity. There is no cap on how many sessions a datacenter can host.
+New sessions arrive each step via **Bernoulli** (demo default: one trial at probability `arrival_rate`) or **Poisson** (training: `arrival_rate` is the mean count per step, can exceed 1). The load balancer assigns each arrival to the datacenter with the lowest load ratio (`active_sessions / capacity`), skipping sites with zero capacity. There is no cap on how many sessions a datacenter can host; SLA-feasible limits are `max_capacity / min_tps` per site (**500** on DC0, **375** on DC1, **875** combined at defaults).
+
+**Stranded sessions** are active sessions on a datacenter with `capacity = 0`. They are heavily penalized. When `enable_session_migration` is on (default), sessions on a zero-capacity site **automatically move** to another datacenter that has spare SLA capacity, preferring the **cheaper** site — enabling valid single-DC consolidation without stranding.
 
 The agent's only lever is setting each datacenter's provisioned capacity. Higher capacity improves per-session TPS but increases energy draw.
 
@@ -58,7 +137,7 @@ The observation vector contains the same signals for each datacenter, in order (
 | Capacity                | Provisioned throughput, normalized by that DC's `max_capacity`                  |
 | Energy                  | Normalized current power draw (kW), scaled per DC                               |
 | Cost per kW             | Normalized electricity cost                                                     |
-| Active sessions         | Session count / `session_count_scale` (default scale: 256)                      |
+| Active sessions         | Session count / `session_count_scale` (demo: 256; training: 1024)               |
 | Accumulated TPS         | Sum of per-session TPS, normalized by that DC's `max_capacity`                  |
 | SLA pressure            | `active_sessions * min_tps / capacity`, clipped to `[0, 1]` (0.5 = at SLA edge) |
 | SLA headroom            | Per-session TPS / `min_tps`, clipped to `[0, 1]` (1.0 = at or above floor)      |
@@ -89,7 +168,7 @@ Global counters track completed/dropped sessions and SLA violation steps.
 
 1. Each datacenter is created with a fixed `max_capacity` from the constructor tuple (default: 200,000 and 150,000 tokens/sec).
 2. Starting **provisioned** capacity is random at 35–55% of that site's `max_capacity`; electricity cost is sampled from `base_cost_per_kw`.
-3. Each datacenter starts with 1–3 sessions. Every session uses the global `min_tps` and a random lifetime from `session_duration_range`.
+3. Each datacenter starts with `initial_sessions_range` sessions (demo default: 1–3; training default: 10–40).
 4. Per-session TPS and energy are computed from those values.
 
 #### `step(action)` — one timestep
@@ -97,13 +176,14 @@ Global counters track completed/dropped sessions and SLA violation steps.
 Each step runs in this order:
 
 1. **Capacity** — `capacity[i] = action[i] * max_capacity[i]`.
-2. **TPS and energy (first pass)** — fair-share TPS and power from provisioned capacity and throughput.
-3. **Cost per kW** — drifts slowly on a sine wave, slightly offset per datacenter.
-4. **Reward** — energy cost, SLA penalties, possible arrival penalty, and session-completion bonus (see Reward).
-5. **New sessions** — Bernoulli trial with probability `arrival_rate` (default 40%). If a session arrives, the load balancer routes it to the lowest `active_sessions / capacity` among sites with capacity > 0. If both sites have zero capacity, the session is dropped (−2.0 reward).
-6. **Session aging** — each session's `remaining_steps` decreases by 1; finished sessions are removed (+0.5 reward each).
-7. **TPS and energy (second pass)** — recalculated after arrivals and completions.
-8. **Observation** — the normalized `Box(16,)` vector is built from the updated internal state.
+2. **Session migration** — sessions on zero-capacity sites move to cheaper DCs with spare SLA capacity (if enabled).
+3. **TPS and energy (first pass)** — fair-share TPS and power from provisioned capacity and throughput.
+4. **Cost per kW** — drifts slowly on a sine wave, slightly offset per datacenter.
+5. **Reward** — energy cost, SLA penalties, possible arrival penalty, and session-completion bonus (see Reward).
+6. **New sessions** — sample `arrival_count` from Bernoulli or Poisson (`arrival_mode`). Route each arrival via the load balancer; dropped if both sites have zero capacity.
+7. **Session aging** — each session's `remaining_steps` decreases by 1; finished sessions are removed (`session_completion_reward`, default +2 each).
+8. **TPS and energy (second pass)** — recalculated after arrivals and completions.
+9. **Observation** — the normalized `Box(16,)` vector is built from the updated internal state.
 
 The observation is a normalized snapshot of aggregate state. Individual sessions are still simulated and appear in `info["datacenters"][i]["sessions"]`.
 
@@ -116,14 +196,35 @@ The observation is a normalized snapshot of aggregate state. Individual sessions
 | 1     | Set DC1 capacity to `action[1] * max_capacity[1]` |
 
 
+### Optimization objective
+
+The agent should keep every session **just above** the minimum TPS floor (`min_tps`) while **minimizing total energy** across both datacenters.
+
+With fair-share scheduling, each session receives `capacity / active_sessions`. The energy-efficient setpoint for a datacenter with active sessions is:
+
+```text
+capacity ≈ active_sessions × min_tps
+```
+
+Provisioned capacity below that risks SLA violations; far above it wastes throughput and power. When a datacenter has no sessions, capacity should be driven toward zero to avoid idle provisioning cost.
+
 ### Reward
 
 Per-step reward combines:
 
-- **Energy cost**: `−sum(energy * cost_per_kw)` across both datacenters
-- **SLA shortfall**: `−1.5 × (min_tps − current_tps) / min_tps` per violating session; any step with at least one violation increments `sla_violations`
-- **Session completion**: `+0.5` per session that reaches `remaining_steps == 0`
-- **Dropped session**: `−2.0` when an arrival occurs but both datacenters have zero capacity
+- **Energy cost**: `−sum(energy * cost_per_kw) / energy_cost_scale` across both datacenters (default scale: 300)
+- **SLA shortfall**: `−sla_penalty_weight × (min_tps − current_tps) / min_tps` per violating session (default weight: 50); any step with at least one violation increments `sla_violations`
+- **Stranded sessions**: `−stranded_session_penalty_weight × active_sessions` per DC with sessions but zero capacity (default weight: 100 per session)
+- **SLA termination**: `−sla_termination_penalty` when the episode ends due to sustained SLA violations (default: 1000)
+- **Over-provisioning**: `−overprovision_penalty_weight × (capacity − active_sessions × min_tps) / max_capacity` when capacity exceeds the SLA floor (default weight: 25)
+- **Idle provisioning**: `−idle_provision_penalty_weight × capacity / max_capacity` when a datacenter has no sessions but capacity > 0 (default weight: 12)
+- **Efficiency bonus**: `+efficiency_bonus_weight × closeness` per session with TPS in `[min_tps, min_tps × efficiency_headroom_max]` (defaults: weight 0.15, headroom 1.05)
+- **Session completion**: `+session_completion_reward` per session that reaches `remaining_steps == 0` (default: 2)
+- **Dropped session**: `−dropped_session_penalty` when an arrival occurs but both datacenters have zero capacity (default: 25)
+
+Together, these terms penalize both **shutdown exploits** (zero capacity) and **max-capacity exploits** (over-provisioning), while rewarding right-sized throughput.
+
+`train.py` also wraps environments in **VecNormalize** (observations and rewards) by default; stats are saved as `{save-path}_vecnormalize.pkl` for `eval.py`.
 
 ### Episode end
 
@@ -178,6 +279,10 @@ print(info["completed_sessions"], info["dropped_sessions"], info["sla_violations
 | ------------------------ | --------------------------------------------------- |
 | `edge_datacenter_env.py` | Environment implementation and `make_env()` factory |
 | `demo.py`                | Random-policy demo script                           |
+| `train.py`               | Train PPO or SAC with Stable-Baselines3             |
+| `eval.py`                | Evaluate a saved policy                             |
+| `visualize.py`           | Animated visualization of a trained-policy episode  |
+| `env_config.py`          | Shared env defaults and CLI helpers                 |
 | `requirements.txt`       | Python dependencies                                 |
 
 
@@ -187,13 +292,26 @@ print(info["completed_sessions"], info["dropped_sessions"], info["sla_violations
 
 - `session_count_scale` — reference peak session count for normalizing `active_sessions` in the observation (default: 256; not a simulation limit)
 - `max_capacity` — hardware ceiling per site as a 2-tuple in tokens/sec (default: `(200000, 150000)`)
-- `arrival_rate` — probability of a new session per step (default: 0.40)
+- `arrival_rate` — Bernoulli probability or Poisson mean arrivals per step (demo: 0.40)
+- `arrival_mode` — `bernoulli` or `poisson` (training uses `poisson`)
+- `initial_sessions_range` — inclusive session count range per DC at `reset()` (demo: 1–3)
 - `min_tps` — minimum TPS per session from Helm chart SLA (default: 400)
 - `session_duration_range` — how long sessions stay active in steps (default: 20–60)
 - `base_cost_per_kw` — electricity cost range per DC (default: 0.08–0.18)
 - `idle_energy_kw` — baseline power at full provisioned capacity (default: 2.0 kW)
 - `throughput_energy_kw` — marginal power per token/sec delivered (default: 0.04)
 - `max_sla_violations` — steps with any TPS shortfall before termination (default: 20)
+- `energy_cost_scale` — divides raw energy cost in the reward (default: 300)
+- `sla_penalty_weight` — multiplier for per-session SLA shortfall penalty (default: 50)
+- `dropped_session_penalty` — reward when a session is dropped (default: 25)
+- `session_completion_reward` — reward per completed session (default: 2)
+- `stranded_session_penalty_weight` — per stranded session per step when capacity is zero (default: 100)
+- `sla_termination_penalty` — penalty when episode terminates on SLA violations (default: 1000)
+- `enable_session_migration` — move sessions off zero-capacity DCs when spare capacity exists (default: true)
+- `overprovision_penalty_weight` — penalizes capacity above `active_sessions × min_tps` (default: 25)
+- `idle_provision_penalty_weight` — penalizes provisioned capacity when a DC has no sessions (default: 12)
+- `efficiency_bonus_weight` — bonus for sessions just above the TPS floor (default: 0.15)
+- `efficiency_headroom_max` — upper headroom ratio for the efficiency bonus (default: 1.05)
 
 ## Future work
 
@@ -312,4 +430,6 @@ The in-process rule-based env today varies cost by step index, not clock time, s
 
 ## Next steps
 
-A random capacity policy wastes energy and often breaches minimum TPS. Train an agent (e.g. PPO or SAC) to learn when to scale each datacenter up or down as session load and electricity costs shift.
+- Tune `train.py` hyperparameters (`--timesteps`, `--n-envs`, `--learning-rate`) for your hardware.
+- Compare `demo.py` (random) vs `eval.py` (trained) on mean reward and `sla_violations`.
+- Experiment with env difficulty via `EdgeDataCenterEnv` constructor options (see Configuration).

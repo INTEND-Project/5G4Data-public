@@ -54,7 +54,8 @@ def main() -> None:
         print(
             f"completed={info['completed_sessions']} "
             f"dropped={info['dropped_sessions']} "
-            f"sla_violations={info['sla_violations']}"
+            f"sla_violations={info['sla_violations']} "
+            f"stranded_sessions={info.get('stranded_sessions', 0)}"
         )
         for index, dc in enumerate(info["datacenters"]):
             print(

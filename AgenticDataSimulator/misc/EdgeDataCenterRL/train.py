@@ -28,36 +28,42 @@ def vecnormalize_path(save_path: Path) -> Path:
     return save_path.parent / f"{save_path.name}_vecnormalize.pkl"
 
 
-class ArrivalRateCurriculumCallback(BaseCallback):
-    """Ramp Poisson arrival rate over training to approach combined DC capacity."""
+class MixedLoadCurriculumCallback(BaseCallback):
+    """Three-phase arrival curriculum: low → medium → high load."""
 
     def __init__(
         self,
         vec_env: VecEnv,
         *,
-        start_rate: float,
-        end_rate: float,
+        rate_low: float,
+        rate_mid: float,
+        rate_high: float,
         total_timesteps: int,
         verbose: int = 0,
     ):
         super().__init__(verbose)
         self.vec_env = vec_env
-        self.start_rate = start_rate
-        self.end_rate = end_rate
+        self.rate_low = rate_low
+        self.rate_mid = rate_mid
+        self.rate_high = rate_high
         self.total_timesteps = total_timesteps
         self._last_logged_rate: float | None = None
 
     def _current_rate(self) -> float:
         progress = self.num_timesteps / max(self.total_timesteps, 1)
-        # Hold peak arrival rate for the final 40% of training.
-        if progress >= 0.6:
-            return self.end_rate
-
-        scaled = progress / 0.6
-        midpoint = (self.start_rate + self.end_rate) / 2.0
-        if scaled < 0.5:
-            return self.start_rate + (midpoint - self.start_rate) * (scaled / 0.5)
-        return midpoint + (self.end_rate - midpoint) * ((scaled - 0.5) / 0.5)
+        # Phase 1 (0–30%): low load — learn right-sizing.
+        if progress < 0.30:
+            return self.rate_low
+        # Phase 2 (30–60%): ramp to medium load.
+        if progress < 0.60:
+            phase = (progress - 0.30) / 0.30
+            return self.rate_low + (self.rate_mid - self.rate_low) * phase
+        # Phase 3 (60–80%): ramp to peak load.
+        if progress < 0.80:
+            phase = (progress - 0.60) / 0.20
+            return self.rate_mid + (self.rate_high - self.rate_mid) * phase
+        # Phase 4 (80–100%): hold at peak.
+        return self.rate_high
 
     def _on_step(self) -> bool:
         rate = self._current_rate()
@@ -140,6 +146,12 @@ def parse_args() -> argparse.Namespace:
         help="Curriculum start Poisson mean arrivals/step (default: 4).",
     )
     parser.add_argument(
+        "--arrival-rate-mid",
+        type=float,
+        default=12.0,
+        help="Curriculum medium Poisson mean arrivals/step (default: 12).",
+    )
+    parser.add_argument(
         "--arrival-rate-end",
         type=float,
         default=22.0,
@@ -170,6 +182,7 @@ def build_train_config(args: argparse.Namespace) -> TrainEnvConfig:
         session_duration_range=(args.session_duration_min, args.session_duration_max),
         session_count_scale=args.session_count_scale or 1024.0,
         arrival_rate_start=args.arrival_rate_start,
+        arrival_rate_mid=args.arrival_rate_mid,
         arrival_rate_end=args.arrival_rate_end,
         curriculum_enabled=not args.no_curriculum,
     )
@@ -182,6 +195,7 @@ def build_train_config(args: argparse.Namespace) -> TrainEnvConfig:
         initial_sessions_range=env_cfg.initial_sessions_range,
         session_duration_range=env_cfg.session_duration_range,
         arrival_rate_start=args.arrival_rate_start,
+        arrival_rate_mid=args.arrival_rate_mid,
         arrival_rate_end=args.arrival_rate_end,
         curriculum_enabled=not args.no_curriculum,
     )
@@ -219,6 +233,11 @@ def main() -> None:
         tensorboard_log=str(args.tensorboard_log),
     )
 
+    mid_estimate = steady_state_sessions_estimate(
+        train_cfg.arrival_rate_mid,
+        train_cfg.session_duration_range,
+        arrival_mode=train_cfg.arrival_mode,
+    )
     end_estimate = steady_state_sessions_estimate(
         train_cfg.arrival_rate_end,
         train_cfg.session_duration_range,
@@ -235,9 +254,10 @@ def main() -> None:
     )
     if train_cfg.curriculum_enabled:
         print(
-            f"Arrival curriculum: {train_cfg.arrival_rate_start:.1f} -> "
-            f"{train_cfg.arrival_rate_end:.1f} "
-            f"(est. ~{end_estimate:.0f} concurrent sessions at end)"
+            f"Mixed-load curriculum: {train_cfg.arrival_rate_start:.1f} "
+            f"(0-30%) -> {train_cfg.arrival_rate_mid:.1f} (30-60%) -> "
+            f"{train_cfg.arrival_rate_end:.1f} (60-80%+, hold to end) "
+            f"(est. ~{mid_estimate:.0f} / ~{end_estimate:.0f} concurrent sessions)"
         )
     else:
         print(
@@ -248,10 +268,11 @@ def main() -> None:
     callbacks = []
     if train_cfg.curriculum_enabled:
         callbacks.append(
-            ArrivalRateCurriculumCallback(
+            MixedLoadCurriculumCallback(
                 vec_env,
-                start_rate=train_cfg.arrival_rate_start,
-                end_rate=train_cfg.arrival_rate_end,
+                rate_low=train_cfg.arrival_rate_start,
+                rate_mid=train_cfg.arrival_rate_mid,
+                rate_high=train_cfg.arrival_rate_end,
                 total_timesteps=args.timesteps,
                 verbose=1,
             )

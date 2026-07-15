@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -50,9 +51,9 @@ class EdgeDataCenterEnv(gym.Env):
     Manage LLM inference capacity across two edge datacenters.
 
     The same LLM runs in both sites. An external load balancer routes new
-    sessions to the datacenter with the lowest load (active sessions /
-    capacity). The agent sets each datacenter's capacity to minimize energy
-    cost while meeting per-session minimum TPS requirements.
+    sessions to the cheapest datacenter with spare SLA capacity, tie-breaking
+    on load (active sessions / capacity). The agent sets each datacenter's
+    capacity to minimize energy cost while meeting per-session minimum TPS.
     """
 
     metadata = {"render_modes": ["human", "ansi"], "render_fps": 4}
@@ -91,10 +92,19 @@ class EdgeDataCenterEnv(gym.Env):
         stranded_session_penalty_weight: float = 100.0,
         sla_termination_penalty: float = 1000.0,
         enable_session_migration: bool = True,
-        overprovision_penalty_weight: float = 25.0,
+        overprovision_penalty_weight: float = 50.0,
         idle_provision_penalty_weight: float = 12.0,
-        efficiency_bonus_weight: float = 0.15,
-        efficiency_headroom_max: float = 1.05,
+        throughput_waste_penalty_weight: float = 0.12,
+        efficiency_bonus_weight: float = 0.25,
+        efficiency_headroom_max: float = 1.10,
+        cheapest_dc_routing: bool = True,
+        # Optional external electricity price control: step index -> cost per
+        # kW for each datacenter. Overrides the built-in sine wave when set.
+        cost_schedule: Callable[[int], Sequence[float]] | None = None,
+        # Optional deterministic reset state (used by the Streamlit visualizer).
+        initial_capacity_fraction: tuple[float, float] | None = None,
+        initial_sessions_per_dc: tuple[int, int] | None = None,
+        initial_session_duration: int | None = None,
         render_mode: str | None = None,
     ):
         super().__init__()
@@ -132,8 +142,42 @@ class EdgeDataCenterEnv(gym.Env):
         self.enable_session_migration = enable_session_migration
         self.overprovision_penalty_weight = overprovision_penalty_weight
         self.idle_provision_penalty_weight = idle_provision_penalty_weight
+        self.throughput_waste_penalty_weight = throughput_waste_penalty_weight
         self.efficiency_bonus_weight = efficiency_bonus_weight
         self.efficiency_headroom_max = efficiency_headroom_max
+        self.cheapest_dc_routing = cheapest_dc_routing
+        self.cost_schedule = cost_schedule
+        if initial_capacity_fraction is not None:
+            if len(initial_capacity_fraction) != NUM_DATACENTERS:
+                raise ValueError(
+                    "initial_capacity_fraction must have "
+                    f"{NUM_DATACENTERS} values, got {len(initial_capacity_fraction)}"
+                )
+            for fraction in initial_capacity_fraction:
+                if not 0.0 <= fraction <= 1.0:
+                    raise ValueError(
+                        "initial_capacity_fraction values must be in [0, 1], "
+                        f"got {fraction}"
+                    )
+        if initial_sessions_per_dc is not None:
+            if len(initial_sessions_per_dc) != NUM_DATACENTERS:
+                raise ValueError(
+                    "initial_sessions_per_dc must have "
+                    f"{NUM_DATACENTERS} values, got {len(initial_sessions_per_dc)}"
+                )
+            if any(count < 0 for count in initial_sessions_per_dc):
+                raise ValueError(
+                    f"initial_sessions_per_dc must be non-negative, "
+                    f"got {initial_sessions_per_dc}"
+                )
+        if initial_session_duration is not None and initial_session_duration <= 0:
+            raise ValueError(
+                "initial_session_duration must be positive, "
+                f"got {initial_session_duration}"
+            )
+        self.initial_capacity_fraction = initial_capacity_fraction
+        self.initial_sessions_per_dc = initial_sessions_per_dc
+        self.initial_session_duration = initial_session_duration
         self.render_mode = render_mode
 
         obs_dim = NUM_DATACENTERS * OBS_FEATURES_PER_DC
@@ -168,22 +212,41 @@ class EdgeDataCenterEnv(gym.Env):
         self._migrated_sessions = 0
         self._arrivals_this_step = [0] * NUM_DATACENTERS
         self._dropped_this_step = 0
-        self._datacenters = [
-            DataCenter(
-                capacity=float(self._rng.uniform(0.35, 0.55) * max_cap),
-                max_capacity=max_cap,
-                cost_per_kw=float(
-                    self._rng.uniform(*self.base_cost_per_kw)
-                ),
+        initial_costs = self._scheduled_costs(0)
+        self._datacenters = []
+        for index, max_cap in enumerate(self.max_capacity):
+            if self.initial_capacity_fraction is not None:
+                cap_fraction = self.initial_capacity_fraction[index]
+            else:
+                cap_fraction = float(self._rng.uniform(0.35, 0.55))
+            self._datacenters.append(
+                DataCenter(
+                    capacity=float(cap_fraction * max_cap),
+                    max_capacity=max_cap,
+                    cost_per_kw=(
+                        initial_costs[index]
+                        if initial_costs is not None
+                        else float(self._rng.uniform(*self.base_cost_per_kw))
+                    ),
+                )
             )
-            for max_cap in self.max_capacity
-        ]
 
-        for dc in self._datacenters:
-            low, high = self.initial_sessions_range
-            initial_sessions = int(self._rng.integers(low, high + 1))
+        for index, dc in enumerate(self._datacenters):
+            if self.initial_sessions_per_dc is not None:
+                initial_sessions = self.initial_sessions_per_dc[index]
+            else:
+                low, high = self.initial_sessions_range
+                initial_sessions = int(self._rng.integers(low, high + 1))
             for _ in range(initial_sessions):
-                dc.sessions.append(self._sample_session())
+                if self.initial_session_duration is not None:
+                    dc.sessions.append(
+                        LLMSession(
+                            min_tps=self.min_tps,
+                            remaining_steps=self.initial_session_duration,
+                        )
+                    )
+                else:
+                    dc.sessions.append(self._sample_session())
 
         self._update_throughput_and_energy()
         return self._get_obs(), self._get_info()
@@ -213,6 +276,7 @@ class EdgeDataCenterEnv(gym.Env):
         reward += self._apply_sla_penalties()
         reward += self._apply_stranded_session_penalties()
         reward += self._apply_overprovisioning_penalties()
+        reward += self._apply_throughput_waste_penalties()
         reward += self._apply_efficiency_bonus()
 
         reward += self._process_arrivals()
@@ -254,7 +318,23 @@ class EdgeDataCenterEnv(gym.Env):
                 + self.throughput_energy_kw * throughput_fraction * dc.max_capacity
             )
 
+    def _scheduled_costs(self, step: int) -> list[float] | None:
+        """Costs from the external schedule, clipped to base_cost_per_kw."""
+        if self.cost_schedule is None:
+            return None
+        costs = self.cost_schedule(step)
+        if len(costs) != NUM_DATACENTERS:
+            raise ValueError(
+                f"cost_schedule must return {NUM_DATACENTERS} values, got {len(costs)}"
+            )
+        return [float(np.clip(cost, *self.base_cost_per_kw)) for cost in costs]
+
     def _vary_cost_per_kw(self) -> None:
+        scheduled = self._scheduled_costs(self._step_count)
+        if scheduled is not None:
+            for dc, cost in zip(self._datacenters, scheduled):
+                dc.cost_per_kw = cost
+            return
         for index, dc in enumerate(self._datacenters):
             base = sum(self.base_cost_per_kw) / 2.0
             offset = (index - 0.5) * 0.04
@@ -367,6 +447,17 @@ class EdgeDataCenterEnv(gym.Env):
                 penalty -= self.overprovision_penalty_weight * excess_fraction
         return penalty
 
+    def _apply_throughput_waste_penalties(self) -> float:
+        """Penalize per-session throughput above the SLA floor (wasted tokens/sec)."""
+        penalty = 0.0
+        for dc in self._datacenters:
+            for session in dc.sessions:
+                if session.current_tps <= session.min_tps:
+                    continue
+                excess_fraction = (session.current_tps - session.min_tps) / session.min_tps
+                penalty -= self.throughput_waste_penalty_weight * excess_fraction
+        return penalty
+
     def _apply_efficiency_bonus(self) -> float:
         """Reward sessions running just above the minimum TPS floor."""
         bonus = 0.0
@@ -384,6 +475,25 @@ class EdgeDataCenterEnv(gym.Env):
                     bonus += self.efficiency_bonus_weight * max(0.0, closeness)
         return bonus
 
+    def _choose_routing_datacenter(self, candidates: list[int]) -> int:
+        if self.cheapest_dc_routing:
+            with_spare = [
+                index
+                for index in candidates
+                if self._available_session_slots(self._datacenters[index]) > 0
+            ]
+            pool = with_spare if with_spare else candidates
+            return min(
+                pool,
+                key=lambda index: (
+                    self._datacenters[index].cost_per_kw,
+                    self._datacenters[index].load_ratio(),
+                ),
+            )
+
+        loads = [self._datacenters[index].load_ratio() for index in candidates]
+        return candidates[int(np.argmin(loads))]
+
     def _route_new_session(self) -> float:
         candidates = [
             index
@@ -395,8 +505,7 @@ class EdgeDataCenterEnv(gym.Env):
             self._dropped_this_step += 1
             return -self.dropped_session_penalty
 
-        loads = [self._datacenters[index].load_ratio() for index in candidates]
-        chosen = candidates[int(np.argmin(loads))]
+        chosen = self._choose_routing_datacenter(candidates)
         self._datacenters[chosen].sessions.append(self._sample_session())
         self._arrivals_this_step[chosen] += 1
         return 0.0

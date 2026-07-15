@@ -2,7 +2,7 @@
 
 A [Gymnasium](https://gymnasium.farama.org/) environment for reinforcement learning on edge data center LLM session scheduling.
 
-The same LLM runs in two edge datacenters with different hardware ceilings. An external load balancer routes new sessions to the site with the lowest load (`active sessions / capacity`). You adjust each datacenter's provisioned capacity to minimize energy cost.
+The same LLM runs in two edge datacenters with different hardware ceilings. An external load balancer routes new sessions to the **cheapest datacenter with spare SLA capacity** (tie-break: lowest load ratio). You adjust each datacenter's provisioned capacity to minimize energy cost.
 
 ## Quick start
 
@@ -28,14 +28,14 @@ python demo.py --render
 
 ## Training
 
-Train a policy with [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) (PPO by default). Training uses **Poisson arrivals** and an **arrival-rate curriculum** (4 → 22 sessions/step) to approach combined DC capacity (~875 sessions at SLA):
+Train a policy with [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) (PPO by default). Training uses **Poisson arrivals** and a **mixed-load curriculum** (λ 4 → 12 → 22) so the policy learns right-sizing at low load and saturation at peak:
 
 ```bash
 python train.py \
   --timesteps 1000000 \
   --n-envs 16 \
-  --save-path models/edge_dc_ppo_v5 \
-  --tensorboard-log tb_logs/ppo_run5
+  --save-path models/edge_dc_ppo_v6 \
+  --tensorboard-log tb_logs/ppo_run6
 ```
 
 Common options:
@@ -50,8 +50,9 @@ python train.py --initial-sessions-min 20 --initial-sessions-max 60 --session-co
 
 | Flag | Default (train) | Purpose |
 | ---- | --------------- | ------- |
-| `--arrival-rate-start` | 4.0 | Curriculum start (Poisson mean arrivals/step) |
-| `--arrival-rate-end` | 22.0 | Curriculum end (~875 concurrent at mean duration 40) |
+| `--arrival-rate-start` | 4.0 | Phase 1 low load (0–30% of training) |
+| `--arrival-rate-mid` | 12.0 | Phase 2 target (ramps 30–60%) |
+| `--arrival-rate-end` | 22.0 | Phase 3–4 peak (ramps 60–80%, hold 80–100%) |
 | `--arrival-mode` | poisson | `poisson` (training) or `bernoulli` (demo-style) |
 | `--initial-sessions-min/max` | 10 / 40 | Sessions per DC at `reset()` |
 | `--session-duration-min/max` | 20 / 60 | Session lifetime range (steps) |
@@ -77,6 +78,8 @@ python eval.py --model-path models/edge_dc_ppo_v4 --arrival-rate 22 --arrival-mo
 | `train.py`      | Train PPO or SAC; saves to `models/`         |
 | `eval.py`       | Load a checkpoint and run deterministic rollouts |
 | `visualize.py`  | Animated scene of a trained-policy episode     |
+| `app.py`        | Streamlit control panel for the visualization  |
+| `schedules.py`  | Cost / arrival-rate schedule generators        |
 | `env_config.py` | Shared env defaults and CLI helpers            |
 
 ## Visualization
@@ -95,6 +98,36 @@ The scene shows:
 
 Useful options: `--max-episode-steps 60` for a shorter clip, `--fps`/`--smooth` for animation pacing, `--out run.mp4` (needs ffmpeg), `--live` for an interactive window, plus the same environment flags as `eval.py`.
 
+### Interactive visualization (Streamlit)
+
+An alternative browser front-end with knobs for the run conditions:
+
+```bash
+streamlit run app.py
+```
+
+Open http://localhost:8501 (the dev container forwards port 8501). Knobs, prefilled with the defaults:
+
+**Initial state** (at `reset()`, before the agent acts):
+
+- Per-datacenter **max capacity** (hardware ceiling, tokens/sec)
+- Per-datacenter **provisioned capacity** (% of max at reset)
+- Per-datacenter **active session count**
+- **min TPS** (SLA floor) and **session count scale** (observation normalization)
+- **Initial session remaining steps** (fixed, or random from the new-session duration range)
+- **New session duration** min/max (for arrivals during the episode)
+
+**Variation over episode**:
+
+- **Cost per kW per datacenter** — fixed value, or vary between min/max as a sine wave, ramp up/down, or random walk
+- **Incoming sessions per step** — fixed (default 22) or varying with the same patterns; Poisson or Bernoulli arrival process
+
+**Episode settings** in the sidebar: seed, model (dropdown from `models/`), algorithm
+
+**Animation** in the sidebar: **steps to visualize** (10–500, default 100), fps, smooth
+
+An expandable summary table shows the composed step-0 state. Charts preview the scheduled cost and arrival-rate profiles. Nothing runs until you click **Run**; then the trained policy is rolled out and the animation plus episode metrics appear. The `visualize.py` CLI keeps working independently.
+
 ## Environment: `EdgeDataCenter-v0`
 
 
@@ -112,7 +145,7 @@ Two datacenters serve concurrent LLM inference sessions. Each site has its own h
 
 Every session shares the same `min_tps` (default 400, or similar, this is the Helm chart objective value). Throughput above that floor is fine; only shortfalls are penalized.
 
-New sessions arrive each step via **Bernoulli** (demo default: one trial at probability `arrival_rate`) or **Poisson** (training: `arrival_rate` is the mean count per step, can exceed 1). The load balancer assigns each arrival to the datacenter with the lowest load ratio (`active_sessions / capacity`), skipping sites with zero capacity. There is no cap on how many sessions a datacenter can host; SLA-feasible limits are `max_capacity / min_tps` per site (**500** on DC0, **375** on DC1, **875** combined at defaults).
+New sessions arrive each step via **Bernoulli** (demo default) or **Poisson** (training). The load balancer sends each arrival to the **cheapest datacenter with spare SLA capacity** (`capacity − active_sessions × min_tps ≥ min_tps`), tie-breaking on load ratio. If no site has spare capacity, it still routes to the cheapest site with `capacity > 0` (overload). Sites with zero capacity are skipped. SLA-feasible limits are `max_capacity / min_tps` per site (**500** on DC0, **375** on DC1, **875** combined at defaults).
 
 **Stranded sessions** are active sessions on a datacenter with `capacity = 0`. They are heavily penalized. When `enable_session_migration` is on (default), sessions on a zero-capacity site **automatically move** to another datacenter that has spare SLA capacity, preferring the **cheaper** site — enabling valid single-DC consolidation without stranding.
 
@@ -216,9 +249,10 @@ Per-step reward combines:
 - **SLA shortfall**: `−sla_penalty_weight × (min_tps − current_tps) / min_tps` per violating session (default weight: 50); any step with at least one violation increments `sla_violations`
 - **Stranded sessions**: `−stranded_session_penalty_weight × active_sessions` per DC with sessions but zero capacity (default weight: 100 per session)
 - **SLA termination**: `−sla_termination_penalty` when the episode ends due to sustained SLA violations (default: 1000)
-- **Over-provisioning**: `−overprovision_penalty_weight × (capacity − active_sessions × min_tps) / max_capacity` when capacity exceeds the SLA floor (default weight: 25)
+- **Over-provisioning**: `−overprovision_penalty_weight × (capacity − active_sessions × min_tps) / max_capacity` when capacity exceeds the SLA floor (default weight: 50)
+- **Throughput waste**: `−throughput_waste_penalty_weight × (current_tps − min_tps) / min_tps` per session above the floor (default weight: 0.12)
 - **Idle provisioning**: `−idle_provision_penalty_weight × capacity / max_capacity` when a datacenter has no sessions but capacity > 0 (default weight: 12)
-- **Efficiency bonus**: `+efficiency_bonus_weight × closeness` per session with TPS in `[min_tps, min_tps × efficiency_headroom_max]` (defaults: weight 0.15, headroom 1.05)
+- **Efficiency bonus**: `+efficiency_bonus_weight × closeness` per session with TPS in `[min_tps, min_tps × efficiency_headroom_max]` (defaults: weight 0.25, headroom 1.10)
 - **Session completion**: `+session_completion_reward` per session that reaches `remaining_steps == 0` (default: 2)
 - **Dropped session**: `−dropped_session_penalty` when an arrival occurs but both datacenters have zero capacity (default: 25)
 
@@ -282,6 +316,8 @@ print(info["completed_sessions"], info["dropped_sessions"], info["sla_violations
 | `train.py`               | Train PPO or SAC with Stable-Baselines3             |
 | `eval.py`                | Evaluate a saved policy                             |
 | `visualize.py`           | Animated visualization of a trained-policy episode  |
+| `app.py`                 | Streamlit control panel with cost/arrival knobs     |
+| `schedules.py`           | Schedule generators (fixed, sine, ramp, random walk) |
 | `env_config.py`          | Shared env defaults and CLI helpers                 |
 | `requirements.txt`       | Python dependencies                                 |
 
@@ -308,10 +344,12 @@ print(info["completed_sessions"], info["dropped_sessions"], info["sla_violations
 - `stranded_session_penalty_weight` — per stranded session per step when capacity is zero (default: 100)
 - `sla_termination_penalty` — penalty when episode terminates on SLA violations (default: 1000)
 - `enable_session_migration` — move sessions off zero-capacity DCs when spare capacity exists (default: true)
-- `overprovision_penalty_weight` — penalizes capacity above `active_sessions × min_tps` (default: 25)
+- `overprovision_penalty_weight` — penalizes capacity above `active_sessions × min_tps` (default: 50)
+- `throughput_waste_penalty_weight` — penalizes per-session TPS above the floor (default: 0.12)
 - `idle_provision_penalty_weight` — penalizes provisioned capacity when a DC has no sessions (default: 12)
-- `efficiency_bonus_weight` — bonus for sessions just above the TPS floor (default: 0.15)
-- `efficiency_headroom_max` — upper headroom ratio for the efficiency bonus (default: 1.05)
+- `efficiency_bonus_weight` — bonus for sessions just above the TPS floor (default: 0.25)
+- `efficiency_headroom_max` — upper headroom ratio for the efficiency bonus (default: 1.10)
+- `cheapest_dc_routing` — route arrivals to cheapest DC with spare SLA capacity (default: true)
 
 ## Future work
 

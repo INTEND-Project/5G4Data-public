@@ -129,6 +129,7 @@ def snapshot_from(info: dict, *, reward: float, total_reward: float) -> dict[str
         "step": info["step"],
         "reward": reward,
         "total_reward": total_reward,
+        "arrival_rate": info.get("arrival_rate", 0.0),
         "arrivals": list(info.get("arrivals_this_step", (0, 0))),
         "dropped_this_step": info.get("dropped_this_step", 0),
         "completed": info["completed_sessions"],
@@ -154,20 +155,29 @@ def snapshot_from(info: dict, *, reward: float, total_reward: float) -> dict[str
     }
 
 
-def rollout(args: argparse.Namespace) -> tuple[list[dict], dict[str, Any]]:
-    """Run one episode with the trained policy and record per-step snapshots."""
-    model_path = str(args.model_path)
+def run_episode(
+    model_path: Path | str,
+    algorithm: str,
+    env_kwargs: dict[str, Any],
+    *,
+    seed: int = 0,
+    deterministic: bool = True,
+    arrival_schedule: Any = None,
+) -> tuple[list[dict], dict[str, Any]]:
+    """Run one episode with the trained policy and record per-step snapshots.
+
+    `env_kwargs` may include `cost_schedule` (see EdgeDataCenterEnv). When
+    `arrival_schedule` (step index -> arrivals per step) is given, it drives
+    `env.arrival_rate` before each step.
+    """
+    model_path = Path(model_path)
     if not Path(f"{model_path}.zip").exists():
         raise FileNotFoundError(
             f"Model not found at {model_path}.zip. Train first with: python train.py"
         )
 
-    defaults = EnvConfig(max_episode_steps=args.max_episode_steps)
-    env_cfg = env_config_from_args(args, defaults=defaults)
-    env_kwargs = env_cfg.to_kwargs()
-
-    model = ALGORITHMS[args.algorithm].load(model_path)
-    normalizer = load_normalizer(vecnormalize_path(args.model_path), env_kwargs)
+    model = ALGORITHMS[algorithm].load(str(model_path))
+    normalizer = load_normalizer(vecnormalize_path(model_path), env_kwargs)
     if normalizer is None:
         print(
             "Warning: VecNormalize stats not found; running without "
@@ -175,24 +185,30 @@ def rollout(args: argparse.Namespace) -> tuple[list[dict], dict[str, Any]]:
         )
 
     env = make_env(**env_kwargs)
-    observation, info = env.reset(seed=args.seed)
+    if arrival_schedule is not None:
+        env.arrival_rate = float(arrival_schedule(0))
+    observation, info = env.reset(seed=seed)
     snapshots = [snapshot_from(info, reward=0.0, total_reward=0.0)]
 
     total_reward = 0.0
+    step = 0
     done = False
     while not done:
+        if arrival_schedule is not None:
+            env.arrival_rate = float(arrival_schedule(step))
         policy_input = (
             normalize_observation(normalizer, observation)
             if normalizer is not None
             else observation
         )
-        action, _ = model.predict(policy_input, deterministic=not args.stochastic)
+        action, _ = model.predict(policy_input, deterministic=deterministic)
         action = np.asarray(action, dtype=np.float32).reshape(-1)
         observation, reward, terminated, truncated, info = env.step(action)
         total_reward += float(reward)
         snapshots.append(
             snapshot_from(info, reward=float(reward), total_reward=total_reward)
         )
+        step += 1
         done = terminated or truncated
 
     params = {
@@ -207,6 +223,19 @@ def rollout(args: argparse.Namespace) -> tuple[list[dict], dict[str, Any]]:
     if normalizer is not None:
         normalizer.close()
     return snapshots, params
+
+
+def rollout(args: argparse.Namespace) -> tuple[list[dict], dict[str, Any]]:
+    """CLI entry: build env kwargs from argparse args and run one episode."""
+    defaults = EnvConfig(max_episode_steps=args.max_episode_steps)
+    env_cfg = env_config_from_args(args, defaults=defaults)
+    return run_episode(
+        args.model_path,
+        args.algorithm,
+        env_cfg.to_kwargs(),
+        seed=args.seed,
+        deterministic=not args.stochastic,
+    )
 
 
 # --- Frame preparation (interpolation between env steps) ------------------------
@@ -269,6 +298,7 @@ def discrete_state(snap: dict) -> dict:
         "step": snap["step"],
         "reward": snap["reward"],
         "total_reward": snap["total_reward"],
+        "arrival_rate": snap["arrival_rate"],
         "arrivals": snap["arrivals"],
         "dropped_this_step": snap["dropped_this_step"],
         "completed": snap["completed"],
@@ -586,6 +616,7 @@ def draw_status(ax, frame: dict, total_steps: int, terminated: bool) -> None:
     center = 64.0
     parts = [
         f"reward {frame['reward']:+.1f}  (total {frame['total_reward']:+.1f})",
+        f"arrival rate {frame['arrival_rate']:.1f}/step",
         f"active {frame['total_active']}",
         f"completed {frame['completed']}",
         f"dropped {frame['dropped']}",
@@ -626,6 +657,45 @@ def draw_scene(
 # --- Animation -------------------------------------------------------------------
 
 
+def make_animation(frames: list[dict], params: dict, total_steps: int, fps: int):
+    """Build the matplotlib figure and FuncAnimation for the given frames."""
+    fig, ax = plt.subplots(figsize=(12.8, 7.2), dpi=110)
+    fig.patch.set_facecolor(BG)
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+    def render(i: int):
+        draw_scene(ax, frames[i], params, i, total_steps)
+        return []
+
+    animation = FuncAnimation(
+        fig, render, frames=len(frames), interval=1000 / fps, blit=False
+    )
+    return fig, animation
+
+
+def save_animation(
+    frames: list[dict],
+    params: dict,
+    out_path: Path | str,
+    fps: int,
+    progress_callback: Any = None,
+) -> None:
+    """Render the frames and save them as GIF or MP4 (by file extension)."""
+    out_path = Path(out_path)
+    total_steps = frames[-1]["step"]
+    fig, animation = make_animation(frames, params, total_steps, fps)
+
+    if out_path.suffix.lower() == ".mp4":
+        writer = FFMpegWriter(fps=fps)
+    else:
+        writer = PillowWriter(fps=fps)
+
+    try:
+        animation.save(str(out_path), writer=writer, progress_callback=progress_callback)
+    finally:
+        plt.close(fig)
+
+
 def main() -> None:
     args = parse_args()
 
@@ -640,26 +710,10 @@ def main() -> None:
     smooth = max(1, args.smooth)
     frames = build_frames(snapshots, params, smooth)
 
-    fig, ax = plt.subplots(figsize=(12.8, 7.2), dpi=110)
-    fig.patch.set_facecolor(BG)
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-
-    def render(i: int):
-        draw_scene(ax, frames[i], params, i, total_steps)
-        return []
-
-    animation = FuncAnimation(
-        fig, render, frames=len(frames), interval=1000 / args.fps, blit=False
-    )
-
     if args.live:
+        fig, animation = make_animation(frames, params, total_steps, args.fps)
         plt.show()
         return
-
-    if args.out.suffix.lower() == ".mp4":
-        writer = FFMpegWriter(fps=args.fps)
-    else:
-        writer = PillowWriter(fps=args.fps)
 
     last_report = -1
 
@@ -670,7 +724,7 @@ def main() -> None:
             last_report = percent // 20
             print(f"  saving... {percent}%")
 
-    animation.save(str(args.out), writer=writer, progress_callback=progress)
+    save_animation(frames, params, args.out, args.fps, progress_callback=progress)
     print(f"Saved animation to {args.out} ({len(frames)} frames at {args.fps} fps)")
 
 

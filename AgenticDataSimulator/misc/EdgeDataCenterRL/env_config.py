@@ -33,18 +33,32 @@ class EnvConfig:
     arrival_mode: str = "bernoulli"
     initial_sessions_range: tuple[int, int] = (1, 3)
     session_duration_range: tuple[int, int] = (20, 60)
+    max_capacity: tuple[float, float] = DEFAULT_MAX_CAPACITY
+    min_tps: float = DEFAULT_MIN_TPS
+    initial_capacity_fraction: tuple[float, float] | None = None
+    initial_sessions_per_dc: tuple[int, int] | None = None
+    initial_session_duration: int | None = None
     render_mode: str | None = None
 
     def to_kwargs(self) -> dict[str, Any]:
-        return {
+        kwargs: dict[str, Any] = {
             "max_episode_steps": self.max_episode_steps,
             "session_count_scale": self.session_count_scale,
             "arrival_rate": self.arrival_rate,
             "arrival_mode": self.arrival_mode,
             "initial_sessions_range": self.initial_sessions_range,
             "session_duration_range": self.session_duration_range,
+            "max_capacity": self.max_capacity,
+            "min_tps": self.min_tps,
             "render_mode": self.render_mode,
         }
+        if self.initial_capacity_fraction is not None:
+            kwargs["initial_capacity_fraction"] = self.initial_capacity_fraction
+        if self.initial_sessions_per_dc is not None:
+            kwargs["initial_sessions_per_dc"] = self.initial_sessions_per_dc
+        if self.initial_session_duration is not None:
+            kwargs["initial_session_duration"] = self.initial_session_duration
+        return kwargs
 
     @property
     def combined_max_sessions_at_sla(self) -> int:
@@ -67,8 +81,9 @@ class TrainEnvConfig(EnvConfig):
     initial_sessions_range: tuple[int, int] = (10, 40)
     session_count_scale: float = 1024.0
 
-    # Curriculum targets (~875 concurrent at λ=22, mean duration 40).
+    # Mixed-load curriculum: low → medium → high Poisson arrival rate.
     arrival_rate_start: float = 4.0
+    arrival_rate_mid: float = 12.0
     arrival_rate_end: float = 22.0
     curriculum_enabled: bool = True
 

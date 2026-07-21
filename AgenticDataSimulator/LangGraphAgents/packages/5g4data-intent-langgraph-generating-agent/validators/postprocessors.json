@@ -1,0 +1,34 @@
+{
+  "postprocessors": [
+    {
+      "id": "uuid-localname-fix",
+      "module": "tools/postprocess/uuidFix.ts",
+      "when": "always"
+    },
+    {
+      "id": "workload-expectations",
+      "module": "tools/postprocess/workloadExpectations.ts",
+      "when": "always"
+    },
+    {
+      "id": "coordination-utility",
+      "module": "tools/postprocess/coordinationUtility.ts",
+      "when": "always"
+    },
+    {
+      "id": "reporting-triggers",
+      "module": "tools/postprocess/reportingTriggers.ts",
+      "when": "always"
+    },
+    {
+      "id": "required-prefixes",
+      "module": "tools/postprocess/requiredPrefixes.ts",
+      "when": "always"
+    },
+    {
+      "id": "report-destinations",
+      "module": "tools/postprocess/reportDestinations.ts",
+      "when": "always"
+    }
+  ]
+}

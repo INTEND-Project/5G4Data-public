@@ -1,0 +1,9 @@
+{
+  "baseCapabilities": ["ontology_summary"],
+  "intentCapabilities": {},
+  "prompts": {
+    "runtimeContextHeader": "Runtime grounding context:",
+    "deploymentDatacenterClarificationTag": "[Deployment datacenter clarification required]",
+    "selectedWorkloadTag": "[Selected workload objectives]"
+  }
+}

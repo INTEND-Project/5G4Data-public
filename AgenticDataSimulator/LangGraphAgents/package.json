@@ -1,0 +1,36 @@
+{
+  "name": "langgraph-agents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LangGraph-based 5G4Data intent agents with package system and LangSmith observability",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test dist/tests/*.test.js",
+    "test:dev": "tsx --test src/tests/*.test.ts",
+    "package:tgz": "node scripts/create-package-tgz.mjs",
+    "a2a:chat": "node scripts/a2a-interactive.mjs",
+    "smoke": "tsx scripts/smoke-langsmith.mjs"
+  },
+  "dependencies": {
+    "@langchain/anthropic": "^0.3.26",
+    "@langchain/core": "^0.3.72",
+    "@langchain/langgraph": "^0.4.9",
+    "@langchain/openai": "^0.6.9",
+    "langsmith": "^0.3.68",
+    "n3": "^1.17.4",
+    "protobufjs": "^8.7.1",
+    "rdf-validate-shacl": "^0.6.5",
+    "snappyjs": "^0.7.0",
+    "uuid": "^11.0.3",
+    "yaml": "^2.6.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/n3": "^1.16.5",
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

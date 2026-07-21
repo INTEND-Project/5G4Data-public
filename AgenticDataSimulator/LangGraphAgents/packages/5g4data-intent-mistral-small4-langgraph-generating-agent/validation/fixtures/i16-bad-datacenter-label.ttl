@@ -1,0 +1,28 @@
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix fun: <http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+data5g:I_bad a icm:Intent ;
+    dct:description "bad datacenter label" ;
+    imo:handler "inServ" ;
+    imo:owner "inChat" ;
+    log:allOf data5g:DE1, data5g:RE1 .
+
+data5g:DE1 a data5g:DeploymentExpectation ;
+    icm:target data5g:deployment ;
+    log:allOf data5g:CX1 .
+
+data5g:CX1 a icm:Context ;
+    data5g:DataCenter "Tromsø Data Center" ;
+    data5g:DeploymentDescriptor "https://example/chart" .
+
+data5g:RE1 a icm:ObservationReportingExpectation ;
+    icm:target data5g:deployment .

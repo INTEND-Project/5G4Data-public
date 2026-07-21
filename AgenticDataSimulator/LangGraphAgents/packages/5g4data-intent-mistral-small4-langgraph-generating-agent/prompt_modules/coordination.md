@@ -1,0 +1,31 @@
+Coordination policy (inCoord):
+
+When the user prompt requests coordination (`coordination`, `symmetric coordination`, `weighted coordination`, etc.):
+
+1. Include `data5g:CoordinationExpectation` in the root intent `log:allOf` with placeholder `data5g:CE__ID_COORDINATION_1__`.
+2. Target must be `data5g:coordination-service`.
+3. CE `log:allOf` must reference the **same** `data5g:CO…` condition resources already used under the coordinated Deployment/Sustainability/Network expectations (one per coordinated metric from the workload—do **not** create new `icm:Condition` nodes for CE). You may omit CE `log:allOf`; the postprocessor wires it from workload conditions and the prompt.
+4. Emit `ut:utility data5g:U_coord` and `data5g:coordinates` listing the expectation(s) that own the coordinated metrics (typically `DeploymentExpectation`, `SustainabilityExpectation`, and/or `NetworkExpectation`—not always all three).
+5. Include `NetworkExpectation` only when coordinated metrics are network-related (`bandwidth`, `latency`, or other network metric stems) **or** the prompt explicitly requests network QoS/latency/bandwidth/connectivity. Do **not** add network solely because coordination was requested.
+6. Coordinate only the metrics named in the user prompt (or implied by which catalogue objectives they map to). `data5g:coordinates` lists the expectations that own those metrics—often deployment and/or sustainability, sometimes network. **Omit** `NetworkExpectation` and network reporting unless a coordinated metric is network-related or the prompt explicitly requests network QoS.
+7. Add `icm:ObservationReportingExpectation` targeting `data5g:coordination-service` with per-anchor report event (postprocessor will scope triggers).
+
+Utility function rules:
+
+- Use only these namespaces: `ut:` (Utility), `fun:` (FunctionOntology), `mf:` (MathFunctions), `time:` (TimeOntology). Never use `UtilityFunctions/` IRIs or invent `uf:`/`ns1:` prefixes.
+- One utility argument per CE condition: `data5g:U_arg_<metric-stem>` where `<metric-stem>` matches the condition metric local without `_CO…` suffix.
+- Emit a draft `data5g:U_coord`, `data5g:UP_coord`, and `data5g:utilityFn_<profile>` block; the coordination utility postprocessor normalizes numeric parameters and wiring.
+- Each `mf:logistic` call must end up as `(metric, k, limit, x0)` with `k` and `limit` as `^^xsd:decimal` and `x0` as `^^quan:quantity`; use negative `k` for `quan:smaller` conditions.
+- Symmetric profile (`symmetric coordination`): equal sub-utility limits across all coordinated metrics; prefer `mf:logistic` for each.
+- Weighted profile (`weighted coordination`, `prioritize …`): unequal limits reflecting emphasis; secondary coordinated metrics may use `mf:poly` when appropriate.
+- Severity cues: `critical`/`strict` → stricter curves; `trivial`/`lenient` → gentler curves; default is major.
+
+Reference patterns: `examples/intent_utility_symmetric.ttl` and `examples/intent_utility_weighted.ttl`. Names like `U_arg_tps` in those files are specific to their metrics—not fixed templates.
+
+Review checklist additions:
+
+- Confirm `CoordinationExpectation` is present when coordination was requested.
+- Confirm CE `log:allOf` reuses existing expectation conditions (no duplicate CO subjects).
+- Confirm each CE condition metric has a matching `U_arg_<metric-stem>` in the utility function.
+- Confirm `data5g:coordinates` references the expectation(s) that own the coordinated metrics (deployment, sustainability, and/or network as applicable).
+- Confirm `NetworkExpectation` is present only when coordinated metrics or the prompt require network QoS—not by default for every coordination request.

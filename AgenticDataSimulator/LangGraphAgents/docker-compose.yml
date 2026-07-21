@@ -1,0 +1,21 @@
+services:
+  agent:
+    build: .
+    env_file:
+      - .env
+    ports:
+      - "${API_SERVER_PORT:-3031}:${API_SERVER_PORT:-3031}"
+    # mlflow-network gateway — host-gateway resolves to 172.17.0.1 and cannot reach host GraphDB
+    extra_hosts:
+      - "host.docker.internal:172.30.0.1"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - default
+      - mlflow
+    restart: unless-stopped
+
+networks:
+  mlflow:
+    external: true
+    name: mlflow-network

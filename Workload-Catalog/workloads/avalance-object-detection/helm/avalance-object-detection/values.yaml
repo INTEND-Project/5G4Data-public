@@ -2,7 +2,7 @@ intent:
   objectives:
     - name: detection-latency
       value: "0.0"
-      tmf-value-hint: "5000"
+      tmf-value-hint: "2000"
       tmf-quantifier-hint: "quan:smaller"
       tmf-unit-hint: "ms"
       measuredBy: intend/detectionlatency

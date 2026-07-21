@@ -41,3 +41,23 @@ Killed
 
  ✓ Starting...
  ✓ Ready in 598ms
+
+> simulator-controller@0.1.0 dev:lab:fast
+> bash scripts/run-dev-lab-fast.sh
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3001
+   - Network:      http://0.0.0.0:3001
+
+ ✓ Starting...
+ ✓ Ready in 564ms
+
+> simulator-controller@0.1.0 dev:lab:fast
+> bash scripts/run-dev-lab-fast.sh
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3001
+   - Network:      http://0.0.0.0:3001
+
+ ✓ Starting...
+ ✓ Ready in 559ms

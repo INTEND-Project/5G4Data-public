@@ -11,7 +11,7 @@ export type ParsedSendMessageResult = {
   errorText: string;
 };
 
-function readOpenClawAgentTrace(result: Record<string, unknown>): {
+function readSimulatorAgentTrace(result: Record<string, unknown>): {
   turnId?: string;
   mlflowTraceId?: string;
 } {
@@ -19,11 +19,11 @@ function readOpenClawAgentTrace(result: Record<string, unknown>): {
   if (!metadata || typeof metadata !== "object") {
     return {};
   }
-  const openclaw = (metadata as { openclaw?: unknown }).openclaw;
-  if (!openclaw || typeof openclaw !== "object") {
+  const simulator = (metadata as { simulator?: unknown }).simulator;
+  if (!simulator || typeof simulator !== "object") {
     return {};
   }
-  const trace = openclaw as { turnId?: unknown; mlflowTraceId?: unknown };
+  const trace = simulator as { turnId?: unknown; mlflowTraceId?: unknown };
   const turnId = typeof trace.turnId === "string" && trace.turnId.trim() ? trace.turnId.trim() : undefined;
   const mlflowTraceId =
     typeof trace.mlflowTraceId === "string" && trace.mlflowTraceId.trim()
@@ -107,7 +107,7 @@ export function interpretSendMessageResult(envelope: unknown): ParsedSendMessage
 
   const taskId = typeof r.id === "string" ? r.id : null;
   const contextId = typeof r.contextId === "string" ? r.contextId : null;
-  const agentTrace = readOpenClawAgentTrace(r);
+  const agentTrace = readSimulatorAgentTrace(r);
   const status = r.status as { state?: unknown; message?: { parts?: unknown } } | undefined;
   const state = status?.state;
 

@@ -35,7 +35,7 @@ describe("auth-headers", () => {
   it("extracts slug from well-known URI", () => {
     expect(
       agentSlugFromWellKnownUri(
-        "https://host.example/openclaw-agents/5g4data-intent-generating-agent/.well-known/agent-card.json",
+        "https://host.example/simulator-agents/5g4data-intent-generating-agent/.well-known/agent-card.json",
       ),
     ).toBe("5g4data-intent-generating-agent");
   });

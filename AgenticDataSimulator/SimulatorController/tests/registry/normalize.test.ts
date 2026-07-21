@@ -23,7 +23,7 @@ describe("registry normalization", () => {
         name: "5g4data-intent-generation-agent",
         domain: "telenor.5g4data",
         wellKnownURI:
-          "https://start5g-1.cs.uit.no/openclaw-agents/5g4data-intent-generation-agent/.well-known/agent-card.json",
+          "https://start5g-1.cs.uit.no/simulator-agents/5g4data-intent-generation-agent/.well-known/agent-card.json",
       },
       {
         agent_card: {
@@ -31,7 +31,7 @@ describe("registry normalization", () => {
           domain: "telenor.5g4data",
         },
         wellKnownURI:
-          "https://start5g-1.cs.uit.no/openclaw-agents/5g4data-observation-generation-agent/.well-known/agent-card.json",
+          "https://start5g-1.cs.uit.no/simulator-agents/5g4data-observation-generation-agent/.well-known/agent-card.json",
       },
       {
         name: "power-reduction-status-agent",
@@ -46,7 +46,7 @@ describe("registry normalization", () => {
         name: "5g4data-intent-generation-agent",
         status: "unknown",
         wellKnownURI:
-          "https://start5g-1.cs.uit.no/openclaw-agents/5g4data-intent-generation-agent/.well-known/agent-card.json",
+          "https://start5g-1.cs.uit.no/simulator-agents/5g4data-intent-generation-agent/.well-known/agent-card.json",
       },
       {
         domain: "telenor.5g4data",
@@ -54,7 +54,7 @@ describe("registry normalization", () => {
         name: "5g4data-observation-generation-agent",
         status: "unknown",
         wellKnownURI:
-          "https://start5g-1.cs.uit.no/openclaw-agents/5g4data-observation-generation-agent/.well-known/agent-card.json",
+          "https://start5g-1.cs.uit.no/simulator-agents/5g4data-observation-generation-agent/.well-known/agent-card.json",
       },
       {
         domain: "telenor.5gPowerReduction",

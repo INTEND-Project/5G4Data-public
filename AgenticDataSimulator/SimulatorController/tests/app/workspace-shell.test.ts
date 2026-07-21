@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("workspace shell bootstrap", () => {
-  it("defines login and workspace pages with OpenClaw-specific copy", () => {
+  it("defines login and workspace pages with Simulator-specific copy", () => {
     const loginSource = readFileSync(resolve(process.cwd(), "src/app/login/page.tsx"), "utf8");
     const workspaceSource = readFileSync(
       resolve(process.cwd(), "src/app/workspace/page.tsx"),
@@ -94,7 +94,7 @@ describe("workspace shell bootstrap", () => {
     expect(workspaceSource).toContain('withAppBasePath("/api/kg-targets")');
     expect(workspaceSource).toContain('withAppBasePath("/api/scripts")');
     expect(shellSource).not.toContain("INTEND Controller");
-    expect(shellSource).not.toContain("OpenClaw Workspace");
+    expect(shellSource).not.toContain("Simulator Workspace");
     expect(shellSource).toContain("registryConnected");
     expect(shellSource).toContain("INTEND Integration and Data Generation Controller Studio");
     expect(shellSource).toContain(
@@ -225,7 +225,7 @@ describe("workspace shell bootstrap", () => {
     expect(toolsPanelSource).toContain('sectionId="tools"');
     expect(collapsibleSectionSource).toContain("aria-expanded");
     expect(collapsibleSectionSource).toContain("localStorage");
-    expect(collapsibleSectionSource).toContain("openclaw-workspace-section-");
+    expect(collapsibleSectionSource).toContain("simulator-workspace-section-");
     expect(domainSelectorSource).toContain('"use client"');
     expect(domainSelectorSource).toContain("useRouter");
     expect(domainSelectorSource).toContain('router.push(`${withAppBasePath("/workspace")}?');

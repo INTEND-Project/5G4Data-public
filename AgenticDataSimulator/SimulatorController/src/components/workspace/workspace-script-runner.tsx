@@ -98,7 +98,7 @@ type WorkspaceScriptRunnerProps = {
   previewMetricsApiUrl: string;
 };
 
-const EDITOR_HEIGHT_STORAGE_KEY = "openclaw-workspace-editor-height-px";
+const EDITOR_HEIGHT_STORAGE_KEY = "simulator-workspace-editor-height-px";
 const DEFAULT_EDITOR_HEIGHT = 360;
 const MIN_EDITOR_HEIGHT = 140;
 const MAX_EDITOR_HEIGHT = 960;

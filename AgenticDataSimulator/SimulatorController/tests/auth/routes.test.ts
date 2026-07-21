@@ -19,8 +19,8 @@ const passwordMock = {
 };
 
 const sessionMock = {
-  SESSION_COOKIE_NAME: "openclaw-controller-session",
-  getSessionCookieName: vi.fn(() => "openclaw-controller-session"),
+  SESSION_COOKIE_NAME: "simulator-controller-session",
+  getSessionCookieName: vi.fn(() => "simulator-controller-session"),
   createSessionToken: vi.fn(),
   createSessionExpiry: vi.fn(),
   createSessionCookie: vi.fn(),
@@ -60,7 +60,7 @@ beforeEach(() => {
   sessionMock.createSessionExpiry.mockReturnValue(new Date("2030-01-01T00:00:00.000Z"));
   sessionMock.hashSessionToken.mockImplementation((token: string) => `hashed:${token}`);
   sessionMock.createSessionCookie.mockImplementation((value: string, secure: boolean) => ({
-    name: "openclaw-controller-session",
+    name: "simulator-controller-session",
     value,
     options: {
       httpOnly: true,
@@ -71,7 +71,7 @@ beforeEach(() => {
     },
   }));
   sessionMock.createClearedSessionCookie.mockImplementation((secure: boolean) => ({
-    name: "openclaw-controller-session",
+    name: "simulator-controller-session",
     value: "",
     options: {
       httpOnly: true,
@@ -82,7 +82,7 @@ beforeEach(() => {
     },
   }));
   sessionMock.createLegacyClearedSessionCookie.mockImplementation((secure: boolean) => ({
-    name: "openclaw-controller-session",
+    name: "simulator-controller-session",
     value: "",
     options: {
       httpOnly: true,
@@ -287,7 +287,7 @@ describe("auth route handlers", () => {
     const response = await routeModule.GET(
       new Request("http://localhost/api/auth/session", {
         headers: {
-          cookie: "openclaw-controller-session=session-token",
+          cookie: "simulator-controller-session=session-token",
         },
       }),
     );
@@ -312,7 +312,7 @@ describe("auth route handlers", () => {
       new Request("http://localhost/api/auth/logout", {
         method: "POST",
         headers: {
-          cookie: "openclaw-controller-session=session-token",
+          cookie: "simulator-controller-session=session-token",
         },
       }),
     );
@@ -335,7 +335,7 @@ describe("auth route handlers", () => {
         method: "POST",
         headers: {
           "content-type": "application/x-www-form-urlencoded",
-          cookie: "openclaw-controller-session=session-token",
+          cookie: "simulator-controller-session=session-token",
         },
       }),
     );

@@ -82,7 +82,7 @@ Expected: PASS
 
 ```ts
 expect(shellSource).not.toContain("INTEND Controller");
-expect(shellSource).not.toContain("OpenClaw Workspace");
+expect(shellSource).not.toContain("Simulator Workspace");
 expect(shellSource).toContain("INTEND Data Generation Controller Studio");
 expect(shellSource).toContain(
   "TM Forum intent data generation script design and execution for cognitive continuum",

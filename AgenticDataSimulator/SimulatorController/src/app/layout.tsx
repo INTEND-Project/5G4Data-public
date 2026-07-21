@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Controller Studio",
-  description: "Controller workspace for two-stage OpenClaw script authoring and execution.",
+  description: "Controller workspace for two-stage Simulator script authoring and execution.",
 };
 
 const isDevEnvironment =

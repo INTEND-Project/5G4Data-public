@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const STORAGE_KEY = "openclaw-workspace-right-sidebar-width";
+const STORAGE_KEY = "simulator-workspace-right-sidebar-width";
 const DEFAULT_WIDTH = 320;
 const MIN_WIDTH = 220;
 const MAX_WIDTH = 560;

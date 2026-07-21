@@ -44,7 +44,7 @@ describe("session helpers", () => {
     const cookie = loaded.createSessionCookie("session-token", false);
 
     expect(cookie).toMatchObject({
-      name: "openclaw-controller-session-tmf-simulator",
+      name: "simulator-controller-session-tmf-simulator",
       value: "session-token",
       options: {
         httpOnly: true,
@@ -70,13 +70,13 @@ describe("session helpers", () => {
     }
 
     expect(loaded.getSessionCookieName("/tmf-simulator-dev")).toBe(
-      "openclaw-controller-session-tmf-simulator-dev",
+      "simulator-controller-session-tmf-simulator-dev",
     );
     expect(loaded.sessionCookiePath("/tmf-simulator-dev")).toBe("/tmf-simulator-dev");
 
     const cookie = loaded.createSessionCookie("session-token", true);
 
-    expect(cookie.name).toBe("openclaw-controller-session-tmf-simulator-dev");
+    expect(cookie.name).toBe("simulator-controller-session-tmf-simulator-dev");
     expect(cookie.options.path).toBe("/tmf-simulator-dev");
   });
 });

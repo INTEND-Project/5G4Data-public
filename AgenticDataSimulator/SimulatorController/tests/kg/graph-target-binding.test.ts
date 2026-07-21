@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildGraphTargetBinding,
-  openClawMetadataEnvelope,
+  simulatorMetadataEnvelope,
 } from "../../src/lib/kg/graph-target-binding";
 
 describe("graph-target-binding", () => {
@@ -26,15 +26,15 @@ describe("graph-target-binding", () => {
     });
   });
 
-  it("wraps llm settings in openclaw metadata envelope v1", () => {
+  it("wraps llm settings in simulator metadata envelope v1", () => {
     expect(
-      openClawMetadataEnvelope({
+      simulatorMetadataEnvelope({
         llmModel: "codestral:latest",
         llmApiBaseUrl: "http://spark-88e2.taile6732f.ts.net:11434/v1",
         temperature: 0.25,
       }),
     ).toEqual({
-      openclaw: {
+      simulator: {
         controllerBindingVersion: "1",
         llmModel: "codestral:latest",
         llmApiBaseUrl: "http://spark-88e2.taile6732f.ts.net:11434/v1",
@@ -43,31 +43,31 @@ describe("graph-target-binding", () => {
     });
   });
 
-  it("wraps reportingIntervalMinutes in openclaw metadata envelope v1", () => {
-    expect(openClawMetadataEnvelope({ reportingIntervalMinutes: 15 })).toEqual({
-      openclaw: {
+  it("wraps reportingIntervalMinutes in simulator metadata envelope v1", () => {
+    expect(simulatorMetadataEnvelope({ reportingIntervalMinutes: 15 })).toEqual({
+      simulator: {
         controllerBindingVersion: "1",
         reportingIntervalMinutes: 15,
       },
     });
   });
 
-  it("wraps reportingIntervalSeconds in openclaw metadata envelope v1", () => {
-    expect(openClawMetadataEnvelope({ reportingIntervalSeconds: 60 })).toEqual({
-      openclaw: {
+  it("wraps reportingIntervalSeconds in simulator metadata envelope v1", () => {
+    expect(simulatorMetadataEnvelope({ reportingIntervalSeconds: 60 })).toEqual({
+      simulator: {
         controllerBindingVersion: "1",
         reportingIntervalSeconds: 60,
       },
     });
   });
 
-  it("wraps binding in openclaw metadata envelope v1", () => {
+  it("wraps binding in simulator metadata envelope v1", () => {
     const binding = buildGraphTargetBinding(
       { id: "t", repositoryId: "r", graphIri: "urn:g" },
       "http://host:7200",
     );
-    expect(openClawMetadataEnvelope({ graphTarget: binding })).toEqual({
-      openclaw: {
+    expect(simulatorMetadataEnvelope({ graphTarget: binding })).toEqual({
+      simulator: {
         controllerBindingVersion: "1",
         graphTarget: binding,
       },

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add the partner logos from the design mockup directly below the `Available agents` list and its `Refresh` button in the left sidebar of the OpenClaw workspace, matching the provided `2 x 2` tiled appearance.
+Add the partner logos from the design mockup directly below the `Available agents` list and its `Refresh` button in the left sidebar of the Simulator workspace, matching the provided `2 x 2` tiled appearance.
 
 ## Placement
 

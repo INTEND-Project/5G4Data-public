@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAgentLlmPreferences } from "@/components/workspace/agent-llm-preferences-context";
 import { ObservationProgressBar } from "@/components/workspace/observation-progress-bar";
 import type { ObservationSetupError } from "@/lib/observation-agent/metric-progress-display";
-import { preferenceForOpenClawMetadata } from "@/lib/agents/agent-llm-preferences";
+import { preferenceForSimulatorMetadata } from "@/lib/agents/agent-llm-preferences";
 import { useWorkspaceScriptSession } from "@/components/workspace/workspace-script-session-context";
 import type { ObservationProgressSnapshot } from "@/lib/observation-agent/progress-types";
 import {
@@ -21,7 +21,7 @@ type TranscriptTurn = {
   text: string;
 };
 
-const SIZE_STORAGE_KEY = "openclaw-workspace-a2a-session-dialog-size";
+const SIZE_STORAGE_KEY = "simulator-workspace-a2a-session-dialog-size";
 const DEFAULT_WIDTH = 1024;
 const DEFAULT_HEIGHT = 640;
 const MIN_WIDTH = 480;
@@ -104,7 +104,7 @@ export type IntentGenSessionDialogProps = {
     canonicalIntentId: string,
     createIntentStorage?: "graphdb" | "prometheus",
   ) => void;
-  /** Per-run GraphDB target from Controller runner (A2A metadata.openclaw.graphTarget). */
+  /** Per-run GraphDB target from Controller runner (A2A metadata.simulator.graphTarget). */
   graphTargetBinding?: GraphTargetBinding | null;
   observationStorage?: "graphdb" | "prometheus" | null;
   createIntentStorage?: "graphdb" | "prometheus" | null;
@@ -318,7 +318,7 @@ export function IntentGenSessionDialog({
         if (createIntentStorage) {
           payload.createIntentStorage = createIntentStorage;
         }
-        const llmFields = preferenceForOpenClawMetadata(llmPreference, hasLlmPreference);
+        const llmFields = preferenceForSimulatorMetadata(llmPreference, hasLlmPreference);
         if (llmFields.llmModel) {
           payload.llmModel = llmFields.llmModel;
         }

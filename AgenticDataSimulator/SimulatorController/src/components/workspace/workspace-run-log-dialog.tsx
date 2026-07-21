@@ -7,7 +7,7 @@ import {
   useWorkspaceScriptSession,
 } from "@/components/workspace/workspace-script-session-context";
 
-const SIZE_STORAGE_KEY = "openclaw-workspace-run-log-dialog-size";
+const SIZE_STORAGE_KEY = "simulator-workspace-run-log-dialog-size";
 const DEFAULT_WIDTH = 720;
 const DEFAULT_HEIGHT = 560;
 const MIN_WIDTH = 360;

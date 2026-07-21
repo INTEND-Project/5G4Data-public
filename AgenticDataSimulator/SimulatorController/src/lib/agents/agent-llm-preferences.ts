@@ -97,7 +97,7 @@ export function hasAgentLlmPreference(
   return Object.prototype.hasOwnProperty.call(map, agentName);
 }
 
-export function preferenceForOpenClawMetadata(
+export function preferenceForSimulatorMetadata(
   pref: AgentLlmPreference | undefined,
   stored: boolean,
 ): {

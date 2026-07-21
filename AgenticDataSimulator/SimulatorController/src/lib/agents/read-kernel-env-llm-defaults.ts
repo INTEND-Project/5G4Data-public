@@ -71,8 +71,8 @@ export function readEnvFileLlmDefaults(agentName: string): AgentRuntimeLlmDefaul
   for (const envPath of candidates) {
     if (!existsSync(envPath)) continue;
     const openAiModel = readDotEnvKey(envPath, "OPENAI_MODEL");
-    const openClawModel = readDotEnvKey(envPath, "OPENCLAW_MODEL");
-    const model = (openClawModel ?? openAiModel)?.trim();
+    const simulatorModel = readDotEnvKey(envPath, "SIMULATOR_MODEL");
+    const model = (simulatorModel ?? openAiModel)?.trim();
     if (!model) continue;
     return {
       model,

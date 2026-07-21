@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { APP_BASE_PATH } from "@/lib/app-paths";
 
 /** Legacy cookie name (path `/`). Kept for one release so existing sessions still work. */
-export const SESSION_COOKIE_NAME = "openclaw-controller-session";
+export const SESSION_COOKIE_NAME = "simulator-controller-session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 /** Per-instance cookie name so prod and dev on the same host do not overwrite each other. */

@@ -1,4 +1,4 @@
-/** openclaw.controller.v1 — carried on A2A user messages from Controller. */
+/** simulator.controller.v1 — carried on A2A user messages from Controller. */
 export type GraphTargetBinding = {
   graphTargetId?: string;
   repositoryId: string;
@@ -37,7 +37,7 @@ export function buildGraphTargetBinding(
 
 export type PrometheusStackMode = "local" | "external";
 
-export type OpenClawControllerMetadata = {
+export type SimulatorControllerMetadata = {
   controllerBindingVersion: "1";
   graphTarget?: GraphTargetBinding;
   observationStorage?: "graphdb" | "prometheus";
@@ -51,7 +51,7 @@ export type OpenClawControllerMetadata = {
   reportingIntervalSeconds?: number;
 };
 
-export function openClawMetadataEnvelope(opts: {
+export function simulatorMetadataEnvelope(opts: {
   graphTarget?: GraphTargetBinding;
   observationStorage?: "graphdb" | "prometheus";
   createIntentStorage?: "graphdb" | "prometheus";
@@ -63,44 +63,44 @@ export function openClawMetadataEnvelope(opts: {
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
 }): {
-  openclaw: OpenClawControllerMetadata;
+  simulator: SimulatorControllerMetadata;
 } {
-  const openclaw: OpenClawControllerMetadata = {
+  const simulator: SimulatorControllerMetadata = {
     controllerBindingVersion: "1",
   };
-  if (opts.graphTarget) openclaw.graphTarget = opts.graphTarget;
-  if (opts.observationStorage) openclaw.observationStorage = opts.observationStorage;
-  if (opts.createIntentStorage) openclaw.createIntentStorage = opts.createIntentStorage;
+  if (opts.graphTarget) simulator.graphTarget = opts.graphTarget;
+  if (opts.observationStorage) simulator.observationStorage = opts.observationStorage;
+  if (opts.createIntentStorage) simulator.createIntentStorage = opts.createIntentStorage;
   const promBase = opts.prometheusBaseUrl?.trim();
   if (promBase) {
-    openclaw.prometheusBaseUrl = promBase;
+    simulator.prometheusBaseUrl = promBase;
     if (opts.prometheusStorageMode) {
-      openclaw.prometheusStorageMode = opts.prometheusStorageMode;
+      simulator.prometheusStorageMode = opts.prometheusStorageMode;
     }
   }
   const model = opts.llmModel?.trim();
-  if (model) openclaw.llmModel = model;
+  if (model) simulator.llmModel = model;
   const llmApiBaseUrl = opts.llmApiBaseUrl?.trim().replace(/\/+$/, "");
-  if (llmApiBaseUrl) openclaw.llmApiBaseUrl = llmApiBaseUrl;
+  if (llmApiBaseUrl) simulator.llmApiBaseUrl = llmApiBaseUrl;
   if (opts.temperature !== undefined && Number.isFinite(opts.temperature)) {
-    openclaw.temperature = Math.min(2, Math.max(0, opts.temperature));
+    simulator.temperature = Math.min(2, Math.max(0, opts.temperature));
   }
   if (opts.reportingIntervalMinutes !== undefined && Number.isFinite(opts.reportingIntervalMinutes)) {
-    openclaw.reportingIntervalMinutes = Math.min(
+    simulator.reportingIntervalMinutes = Math.min(
       1440,
       Math.max(1, Math.round(opts.reportingIntervalMinutes)),
     );
   }
   if (opts.reportingIntervalSeconds !== undefined && Number.isFinite(opts.reportingIntervalSeconds)) {
-    openclaw.reportingIntervalSeconds = Math.min(
+    simulator.reportingIntervalSeconds = Math.min(
       86_400,
       Math.max(1, Math.round(opts.reportingIntervalSeconds)),
     );
   }
-  return { openclaw };
+  return { simulator };
 }
 
-export function hasOpenClawMetadataFields(opts: {
+export function hasSimulatorMetadataFields(opts: {
   graphTarget?: GraphTargetBinding;
   observationStorage?: "graphdb" | "prometheus";
   createIntentStorage?: "graphdb" | "prometheus";

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { interpretSendMessageResult } from "@/lib/a2a/interpret-message-result";
 
 describe("interpretSendMessageResult", () => {
-  it("reads openclaw trace ids from task metadata", () => {
+  it("reads simulator trace ids from task metadata", () => {
     const parsed = interpretSendMessageResult({
       jsonrpc: "2.0",
       id: "1",
@@ -14,7 +14,7 @@ describe("interpretSendMessageResult", () => {
         status: { state: "completed" },
         artifacts: [{ parts: [{ kind: "text", text: "@prefix icm: <x#> ." }] }],
         metadata: {
-          openclaw: {
+          simulator: {
             agentTraceVersion: "1",
             turnId: "turn-123",
             mlflowTraceId: "tr-456",

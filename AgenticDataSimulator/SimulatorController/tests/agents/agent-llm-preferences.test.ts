@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   normalizeAgentLlmPreference,
-  preferenceForOpenClawMetadata,
+  preferenceForSimulatorMetadata,
 } from "@/lib/agents/agent-llm-preferences";
 import { parseOpenAiCompatibleModelIds } from "@/lib/openai/parse-models-response";
 
@@ -21,13 +21,13 @@ describe("agent-llm-preferences", () => {
     });
   });
 
-  it("maps stored preferences to openclaw metadata fields", () => {
+  it("maps stored preferences to simulator metadata fields", () => {
     const pref = normalizeAgentLlmPreference({
       model: "codestral:latest",
       apiBaseUrl: "http://spark:11434/v1",
       temperature: 0.8,
     });
-    expect(preferenceForOpenClawMetadata(pref, true)).toEqual({
+    expect(preferenceForSimulatorMetadata(pref, true)).toEqual({
       llmModel: "codestral:latest",
       llmApiBaseUrl: "http://spark:11434/v1",
       temperature: 0.8,

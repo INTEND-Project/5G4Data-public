@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
 
-const STORAGE_PREFIX = "openclaw-workspace-section-";
+const STORAGE_PREFIX = "simulator-workspace-section-";
 
 function storageKey(sectionId: string): string {
   return `${STORAGE_PREFIX}${sectionId}-expanded`;

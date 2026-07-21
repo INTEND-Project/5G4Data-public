@@ -8,8 +8,8 @@ import { interpretSendMessageResult } from "@/lib/a2a/interpret-message-result";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { loadAppEnv } from "@/lib/env";
 import {
-  hasOpenClawMetadataFields,
-  openClawMetadataEnvelope,
+  hasSimulatorMetadataFields,
+  simulatorMetadataEnvelope,
 } from "@/lib/kg/graph-target-binding";
 import { parsePrometheusBaseUrlInput } from "@/lib/prometheus/resolve-base-url";
 import { prometheusStackMode } from "@/lib/prometheus/resolve-stack-urls";
@@ -149,8 +149,8 @@ export async function POST(request: Request) {
     reportingIntervalMinutes: body.reportingIntervalMinutes,
     reportingIntervalSeconds: body.reportingIntervalSeconds,
   };
-  if (hasOpenClawMetadataFields(metadataOpts)) {
-    message.metadata = openClawMetadataEnvelope(metadataOpts);
+  if (hasSimulatorMetadataFields(metadataOpts)) {
+    message.metadata = simulatorMetadataEnvelope(metadataOpts);
   }
 
   const requestId = randomUUID();

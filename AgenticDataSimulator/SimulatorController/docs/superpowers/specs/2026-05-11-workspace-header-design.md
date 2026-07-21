@@ -2,7 +2,7 @@
 
 ## Goal
 
-Replace the current OpenClaw workspace top header with a design-matched header based on the original mockup. The new header should update both the left brand block and the right action area, while only wiring live behavior for the agent registry status chip at this stage.
+Replace the current Simulator workspace top header with a design-matched header based on the original mockup. The new header should update both the left brand block and the right action area, while only wiring live behavior for the agent registry status chip at this stage.
 
 ## Left Brand Block
 
@@ -12,7 +12,7 @@ The left side of the header should match the design structure:
 - primary title: `INTEND Data Generation Controller Studio`
 - secondary subtitle: `TM Forum intent data generation script design and execution for cognitive continuum`
 
-This replaces the current `INTEND Controller` eyebrow and `OpenClaw Workspace` title. The layout should visually resemble the design’s `brand` block with the icon sitting to the left of the title stack.
+This replaces the current `INTEND Controller` eyebrow and `Simulator Workspace` title. The layout should visually resemble the design’s `brand` block with the icon sitting to the left of the title stack.
 
 ## Right Action Area
 
@@ -62,7 +62,7 @@ The header must remain renderable even when the registry is unavailable.
 
 Add a source-level test proving:
 
-- the old `INTEND Controller` and `OpenClaw Workspace` text is gone
+- the old `INTEND Controller` and `Simulator Workspace` text is gone
 - the new title and subtitle are present
 - the INTEND logo reference is present
 - the right-side header includes the registry status chip text and the placeholder `runId` chip

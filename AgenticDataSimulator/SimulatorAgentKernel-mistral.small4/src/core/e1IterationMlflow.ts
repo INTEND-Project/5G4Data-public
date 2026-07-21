@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { resolveProjectRoot } from "../config.js";
 
@@ -15,6 +15,10 @@ let cachedConfig: E1IterationMlflowConfig | null = null;
 function loadConfig(): E1IterationMlflowConfig {
   if (cachedConfig) return cachedConfig;
   const path = join(resolveProjectRoot(), "scripts", "e1-iteration-mlflow.json");
+  if (!existsSync(path)) {
+    cachedConfig = {};
+    return cachedConfig;
+  }
   cachedConfig = JSON.parse(readFileSync(path, "utf8")) as E1IterationMlflowConfig;
   return cachedConfig;
 }

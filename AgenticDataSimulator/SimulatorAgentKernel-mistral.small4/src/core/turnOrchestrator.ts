@@ -100,7 +100,7 @@ export class TurnOrchestrator {
     const warnings: string[] = [];
     const calls: LlmCallRecord[] = [];
     const hookDebug = hooks?.replHookDebug ?? false;
-    const hookDebugLogPath = hooks?.replHookDebugLogPath ?? "logs/openclaw-agent-debug.jsonl";
+    const hookDebugLogPath = hooks?.replHookDebugLogPath ?? "logs/simulator-agent-debug.jsonl";
 
     const replHookResult = await tryReplPackageHook({
       line: userText.trim(),

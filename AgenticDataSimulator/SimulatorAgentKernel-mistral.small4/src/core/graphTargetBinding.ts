@@ -11,7 +11,7 @@ import {
   rewriteGraphDbUrlForContainerAccess,
 } from "../graphdb-url.js";
 
-/** openclaw.controller.v1 — parsed from A2A message.metadata.openclaw */
+/** simulator.controller.v1 — parsed from A2A message.metadata.simulator */
 
 export type GraphTargetBinding = {
   graphTargetId?: string;
@@ -56,7 +56,7 @@ function parsePrometheusStorageModeField(value: unknown): PrometheusStackMode | 
 
 export type PrometheusStackMode = "local" | "external";
 
-export type OpenClawControllerMetadata = {
+export type SimulatorControllerMetadata = {
   graphTarget: GraphTargetBinding | null;
   observationStorage: ObservationStorageType | null;
   createIntentStorage: ObservationStorageType | null;
@@ -102,21 +102,21 @@ function parseReportingIntervalSecondsField(value: unknown): number | null {
   return null;
 }
 
-export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawControllerMetadata | null {
+export function parseSimulatorControllerMetadata(metadata: unknown): SimulatorControllerMetadata | null {
   if (!isRecord(metadata)) return null;
-  const openclaw = metadata.openclaw;
-  if (!isRecord(openclaw)) return null;
+  const simulator = metadata.simulator;
+  if (!isRecord(simulator)) return null;
 
-  const version = readNonEmptyString(openclaw.controllerBindingVersion);
+  const version = readNonEmptyString(simulator.controllerBindingVersion);
   if (version && version !== "1") {
     console.warn(
-      `[openclaw] Ignoring metadata with unsupported controllerBindingVersion=${version}`,
+      `[simulator] Ignoring metadata with unsupported controllerBindingVersion=${version}`,
     );
     return null;
   }
 
   let graphTarget: GraphTargetBinding | null = null;
-  const raw = openclaw.graphTarget;
+  const raw = simulator.graphTarget;
   if (isRecord(raw)) {
     const repositoryId = readNonEmptyString(raw.repositoryId);
     const graphIri = readNonEmptyString(raw.graphIri);
@@ -135,18 +135,18 @@ export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawCont
     }
   }
 
-  const observationStorage = parseStorageField(openclaw.observationStorage);
-  const createIntentStorage = parseStorageField(openclaw.createIntentStorage);
-  const prometheusBaseUrl = readNonEmptyString(openclaw.prometheusBaseUrl);
-  const prometheusStorageMode = parsePrometheusStorageModeField(openclaw.prometheusStorageMode);
-  const llmModel = readNonEmptyString(openclaw.llmModel);
-  const llmApiBaseUrl = readNonEmptyString(openclaw.llmApiBaseUrl)?.replace(/\/+$/, "") ?? null;
-  const temperature = parseTemperatureField(openclaw.temperature);
+  const observationStorage = parseStorageField(simulator.observationStorage);
+  const createIntentStorage = parseStorageField(simulator.createIntentStorage);
+  const prometheusBaseUrl = readNonEmptyString(simulator.prometheusBaseUrl);
+  const prometheusStorageMode = parsePrometheusStorageModeField(simulator.prometheusStorageMode);
+  const llmModel = readNonEmptyString(simulator.llmModel);
+  const llmApiBaseUrl = readNonEmptyString(simulator.llmApiBaseUrl)?.replace(/\/+$/, "") ?? null;
+  const temperature = parseTemperatureField(simulator.temperature);
   const reportingIntervalMinutes = parseReportingIntervalMinutesField(
-    openclaw.reportingIntervalMinutes
+    simulator.reportingIntervalMinutes
   );
   const reportingIntervalSeconds = parseReportingIntervalSecondsField(
-    openclaw.reportingIntervalSeconds
+    simulator.reportingIntervalSeconds
   );
 
   if (
@@ -178,7 +178,7 @@ export function parseOpenClawControllerMetadata(metadata: unknown): OpenClawCont
 }
 
 export function parseGraphTargetBindingFromMetadata(metadata: unknown): GraphTargetBinding | null {
-  return parseOpenClawControllerMetadata(metadata)?.graphTarget ?? null;
+  return parseSimulatorControllerMetadata(metadata)?.graphTarget ?? null;
 }
 
 export function bindingsConflict(

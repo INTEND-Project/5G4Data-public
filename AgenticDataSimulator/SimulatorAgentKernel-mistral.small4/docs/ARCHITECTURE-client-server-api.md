@@ -1,5 +1,5 @@
 ---
-name: OpenClaw client-server and discovery architecture
+name: Simulator client-server and discovery architecture
 overview: "Unified architecture for API transport, A2A-style agent discovery, reverse-proxy routing, and GraphDB-backed logical-name binding for intent-specific agents."
 todos:
   - id: api-contract-v1
@@ -36,7 +36,7 @@ This enables runtime-independent controller scripts to create intents using logi
 
 ## Current state
 
-- OpenClaw runtime is CLI-first, centered on `TurnOrchestrator.runTurn(...)`.
+- Simulator runtime is CLI-first, centered on `TurnOrchestrator.runTurn(...)`.
 - Domain behavior is package-driven under `SimulatorAgentPackages`.
 - Observation reporting package supports natural-language and structured override behavior.
 - No production-ready built-in server for discovery, routing, and binding lifecycles yet.
@@ -235,7 +235,7 @@ This prevents cross-run collisions when logical names are reused.
 
 Adopt a combined pattern:
 
-1. Thin OpenClaw HTTP API for invocation.
+1. Thin Simulator HTTP API for invocation.
 2. A2A-style card registry for discovery.
 3. GraphDB-backed binding service for logical name resolution.
 4. Static reverse proxy with dynamic intent-aware router.

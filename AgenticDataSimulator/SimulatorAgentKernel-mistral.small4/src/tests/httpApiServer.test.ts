@@ -16,7 +16,7 @@ test("OpenAPI server handles sessions, turns, and agent card", async () => {
       return { manifest: { name: "demo", version: "0.1.0" } };
     },
     getAppConfig() {
-      return { openClawModel: "demo-model" };
+      return { simulatorModel: "demo-model" };
     }
   };
   const agentCard: AgentCard = {
@@ -104,7 +104,7 @@ test("JSON-RPC listens on /v1 when advertised card.url pathname includes proxy p
       return { manifest: { name: "demo", version: "0.1.0" } };
     },
     getAppConfig() {
-      return { openClawModel: "demo-model" };
+      return { simulatorModel: "demo-model" };
     }
   };
   const agentCard: AgentCard = {
@@ -185,7 +185,7 @@ test("OpenAPI server handles workload preview control endpoint", async () => {
       return { manifest: { name: "demo", version: "0.1.0" } };
     },
     getAppConfig() {
-      return { openClawModel: "demo-model" };
+      return { simulatorModel: "demo-model" };
     },
   };
   const agentCard: AgentCard = {

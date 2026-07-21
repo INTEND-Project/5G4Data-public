@@ -2,7 +2,7 @@
 
 We need data, and we therefore want to create a 5G4Data data generation simulator that can give the INTEND project inCoord, inSustain and inExplain the necessary data foundation to make it possible to showcase how these tools could be integrated into the 5G4Data use-case.
 
-We want to experiment with an agentic framework for such a simulator and preferably use European based tech while doing so. We have therefore landed on using the OpenClaw agent as the agentic framework for this work since it seems to be a good technical choice and since it is developed (as open source) in Europe.
+We want to experiment with an agentic framework for such a simulator and preferably use European based tech while doing so. We have therefore landed on using the Simulator agent as the agentic framework for this work since it seems to be a good technical choice and since it is developed (as open source) in Europe.
 
 The architecture for the simulator will be a set of agents that can be controlled by natural language (and structured instructions) and that will generate intents, intent status reports and intent observation reports for the 5G4Data use-case. This data will together define a digital observational twin at an intent abstraction level for the 5G4Data use-case.
 

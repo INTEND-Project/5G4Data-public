@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import {
   bindingsConflict,
   parseGraphTargetBindingFromMetadata,
-  parseOpenClawControllerMetadata,
+  parseSimulatorControllerMetadata,
 } from "../core/graphTargetBinding.js";
 
 test("parseGraphTargetBindingFromMetadata accepts v1 envelope", () => {
   const binding = parseGraphTargetBindingFromMetadata({
-    openclaw: {
+    simulator: {
       controllerBindingVersion: "1",
       graphTarget: {
         graphTargetId: "cuid-1",
@@ -26,7 +26,7 @@ test("parseGraphTargetBindingFromMetadata accepts v1 envelope", () => {
 
 test("parseGraphTargetBindingFromMetadata rejects unsupported version", () => {
   const binding = parseGraphTargetBindingFromMetadata({
-    openclaw: {
+    simulator: {
       controllerBindingVersion: "99",
       graphTarget: {
         repositoryId: "repo-a",
@@ -38,9 +38,9 @@ test("parseGraphTargetBindingFromMetadata rejects unsupported version", () => {
   assert.equal(binding, null);
 });
 
-test("parseOpenClawControllerMetadata accepts llm-only envelope", () => {
-  const parsed = parseOpenClawControllerMetadata({
-    openclaw: {
+test("parseSimulatorControllerMetadata accepts llm-only envelope", () => {
+  const parsed = parseSimulatorControllerMetadata({
+    simulator: {
       controllerBindingVersion: "1",
       llmModel: "codestral:latest",
       llmApiBaseUrl: "http://spark:11434/v1",
@@ -54,9 +54,9 @@ test("parseOpenClawControllerMetadata accepts llm-only envelope", () => {
   assert.equal(parsed.graphTarget, null);
 });
 
-test("parseOpenClawControllerMetadata clamps temperature", () => {
-  const parsed = parseOpenClawControllerMetadata({
-    openclaw: {
+test("parseSimulatorControllerMetadata clamps temperature", () => {
+  const parsed = parseSimulatorControllerMetadata({
+    simulator: {
       controllerBindingVersion: "1",
       temperature: 9,
     },
@@ -65,9 +65,9 @@ test("parseOpenClawControllerMetadata clamps temperature", () => {
   assert.equal(parsed.temperature, 2);
 });
 
-test("parseOpenClawControllerMetadata accepts reportingIntervalMinutes", () => {
-  const parsed = parseOpenClawControllerMetadata({
-    openclaw: {
+test("parseSimulatorControllerMetadata accepts reportingIntervalMinutes", () => {
+  const parsed = parseSimulatorControllerMetadata({
+    simulator: {
       controllerBindingVersion: "1",
       reportingIntervalMinutes: 15,
     },
@@ -76,9 +76,9 @@ test("parseOpenClawControllerMetadata accepts reportingIntervalMinutes", () => {
   assert.equal(parsed.reportingIntervalMinutes, 15);
 });
 
-test("parseOpenClawControllerMetadata clamps reportingIntervalMinutes", () => {
-  const parsed = parseOpenClawControllerMetadata({
-    openclaw: {
+test("parseSimulatorControllerMetadata clamps reportingIntervalMinutes", () => {
+  const parsed = parseSimulatorControllerMetadata({
+    simulator: {
       controllerBindingVersion: "1",
       reportingIntervalMinutes: 99999,
     },
@@ -87,9 +87,9 @@ test("parseOpenClawControllerMetadata clamps reportingIntervalMinutes", () => {
   assert.equal(parsed.reportingIntervalMinutes, 1440);
 });
 
-test("parseOpenClawControllerMetadata accepts prometheusBaseUrl", () => {
-  const parsed = parseOpenClawControllerMetadata({
-    openclaw: {
+test("parseSimulatorControllerMetadata accepts prometheusBaseUrl", () => {
+  const parsed = parseSimulatorControllerMetadata({
+    simulator: {
       controllerBindingVersion: "1",
       prometheusBaseUrl: "https://partner.example/prometheus",
       prometheusStorageMode: "external",
@@ -100,9 +100,9 @@ test("parseOpenClawControllerMetadata accepts prometheusBaseUrl", () => {
   assert.equal(parsed.prometheusStorageMode, "external");
 });
 
-test("parseOpenClawControllerMetadata accepts reportingIntervalSeconds", () => {
-  const parsed = parseOpenClawControllerMetadata({
-    openclaw: {
+test("parseSimulatorControllerMetadata accepts reportingIntervalSeconds", () => {
+  const parsed = parseSimulatorControllerMetadata({
+    simulator: {
       controllerBindingVersion: "1",
       reportingIntervalSeconds: 60,
     },

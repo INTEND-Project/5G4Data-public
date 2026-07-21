@@ -15,8 +15,8 @@ function resolveModel(
 ): string {
   const fallback =
     provider === "openai"
-      ? config.openClawModel || config.openAiModel
-      : config.openClawModel || config.anthropicModel;
+      ? config.simulatorModel || config.openAiModel
+      : config.simulatorModel || config.anthropicModel;
   const raw = override?.trim() || fallback;
   return normalizeModel(raw, provider);
 }
@@ -159,7 +159,7 @@ async function invokeAnthropic(
   };
 }
 
-export function createOpenClawModelInvoker(config: AppConfig) {
+export function createSimulatorModelInvoker(config: AppConfig) {
   return async (
     messages: ModelMessage[],
     options: ModelInvokeOptions = { stage: "main_turn" }

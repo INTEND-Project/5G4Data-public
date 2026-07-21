@@ -18,7 +18,7 @@ Observation of intent-level abstractions is sufficient to support the integratio
 
 ## 3. Architectural approach
 
-The simulator is implemented as a multiagent system based on OpenClaw:
+The simulator is implemented as a multiagent system based on Simulator:
 
 - `SimulatorAgentKernel` is the generic runtime kernel.
 - `SimulatorAgentPackages` contain domain-specific behavior.
@@ -336,7 +336,7 @@ This supports practical integration testing of inCoord, inSustain, and inExplain
 
 The simulator adopts a combined architecture:
 
-1. OpenClaw kernel + package-based domain agents
+1. Simulator kernel + package-based domain agents
 2. OpenAPI-defined invocation APIs
 3. A2A-style registry and agent cards for discovery
 4. GraphDB-backed logical-name binding service

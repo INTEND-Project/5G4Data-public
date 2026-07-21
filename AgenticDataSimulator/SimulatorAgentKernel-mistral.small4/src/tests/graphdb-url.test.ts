@@ -9,6 +9,7 @@ import {
   graphDbSparqlEndpointFromBase,
   repositoryIdFromGraphDbEndpoint,
   resolveGraphDbEndpoint,
+  resolveGraphDbInfraEndpoint,
   rewriteGraphDbUrlForContainerAccess,
 } from "../graphdb-url.js";
 
@@ -31,6 +32,15 @@ test("resolveGraphDbEndpoint builds from base URL and repository id", () => {
   );
 });
 
+test("resolveGraphDbEndpoint strips /sparql suffix from explicit endpoint", () => {
+  assert.equal(
+    resolveGraphDbEndpoint({
+      endpoint: "http://127.0.0.1:7200/repositories/demo/sparql",
+    }),
+    "http://127.0.0.1:7200/repositories/demo",
+  );
+});
+
 test("graphDbBaseUrlForCloneFromController rewrites localhost for containers", () => {
   assert.equal(
     graphDbBaseUrlForCloneFromController("http://127.0.0.1:7200/"),
@@ -39,6 +49,8 @@ test("graphDbBaseUrlForCloneFromController rewrites localhost for containers", (
 });
 
 test("rewriteGraphDbUrlForContainerAccess leaves public URLs unchanged on host", () => {
+  const dockerEnvPath = join(tmpdir(), `dockerenv-${process.pid}`);
+  writeFileSync(dockerEnvPath, "");
   const previous = process.env.SIMULATOR_AGENT_CONTAINER;
   delete process.env.SIMULATOR_AGENT_CONTAINER;
 
@@ -52,6 +64,7 @@ test("rewriteGraphDbUrlForContainerAccess leaves public URLs unchanged on host",
   } finally {
     if (previous === undefined) delete process.env.SIMULATOR_AGENT_CONTAINER;
     else process.env.SIMULATOR_AGENT_CONTAINER = previous;
+    if (existsSync(dockerEnvPath)) unlinkSync(dockerEnvPath);
   }
 });
 
@@ -65,5 +78,25 @@ test("repositoryIdFromGraphDbEndpoint extracts repository segment", () => {
   assert.equal(
     graphDbSparqlEndpointFromBase("http://host.docker.internal:7200/", "demo"),
     "http://host.docker.internal:7200/repositories/demo",
+  );
+});
+
+test("resolveGraphDbInfraEndpoint defaults to telenor-infrastructure-5g4data", () => {
+  assert.equal(
+    resolveGraphDbInfraEndpoint({
+      baseUrl: "http://127.0.0.1:7200/",
+    }),
+    "http://127.0.0.1:7200/repositories/telenor-infrastructure-5g4data",
+  );
+});
+
+test("resolveGraphDbInfraEndpoint strips quoted repository ids from baked endpoints", () => {
+  assert.equal(
+    resolveGraphDbInfraEndpoint({
+      endpoint:
+        "http://host.docker.internal:7200/repositories/%22telenor-infrastructure-5g4data%22",
+      repositoryId: "telenor-infrastructure-5g4data",
+    }),
+    "http://host.docker.internal:7200/repositories/telenor-infrastructure-5g4data",
   );
 });

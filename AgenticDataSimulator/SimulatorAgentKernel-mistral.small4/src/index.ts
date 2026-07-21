@@ -3,7 +3,7 @@ import { join, relative, resolve } from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { loadConfig, type AppConfig } from "./config.js";
-import { createOpenClawModelInvoker } from "./adapters/openclaw.js";
+import { createSimulatorModelInvoker } from "./adapters/llm.js";
 import {
   initializeMlflowTracing,
   shutdownMlflowTracing,
@@ -54,7 +54,7 @@ export function createAgentRuntime() {
     stripFrontmatter(readFileSync(config.skillFile, "utf8"))
   ).trim();
   domainPackage.systemPromptText = `${domainPackage.systemPromptText}\n\n${skillText}`.trim();
-  const invokeModel = wrapTracedModelInvoker(createOpenClawModelInvoker(config));
+  const invokeModel = wrapTracedModelInvoker(createSimulatorModelInvoker(config));
   return new TurnOrchestrator(config, domainPackage, invokeModel);
 }
 
@@ -223,7 +223,7 @@ interface CliOptions {
 function parseCliOptions(argv: string[]): CliOptions {
   let debug = false;
   let noGraphDB = false;
-  let debugLogPath = "logs/openclaw-agent-debug.jsonl";
+  let debugLogPath = "logs/simulator-agent-debug.jsonl";
   let obsLogN = 100;
   let apiServerPort: number | undefined;
   const promptParts: string[] = [];
@@ -394,7 +394,9 @@ async function runPackageLoadCommand(argv: string[]): Promise<boolean> {
   updateEnvFile(cloneEnvPath, cloneEnvUpdates);
   applyPackageMappingEnvDefaults(cloneEnvPath, installed.packageDir);
   const iterationMlflowExperiment = resolveE1IterationMlflowExperimentName(iterationLabel);
-  const iterationMlflowDescription = resolveE1IterationMlflowDescription();
+  const iterationMlflowDescription = iterationMlflowExperiment
+    ? resolveE1IterationMlflowDescription()
+    : undefined;
   if (iterationMlflowExperiment) {
     const mlflowEnvUpdates: Array<{ key: string; value: string }> = [
       { key: "MLFLOW_EXPERIMENT_NAME", value: iterationMlflowExperiment }

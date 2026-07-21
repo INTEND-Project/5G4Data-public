@@ -98,7 +98,7 @@ export async function tryReplPackageHook(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[openclaw] replPreTurn hook failed:", error);
+    console.error("[simulator] replPreTurn hook failed:", error);
     await appendReplHookFailureToObservationLog({
       packageDir: input.domainPackage.packageDir,
       sessionId: input.session.sessionId,

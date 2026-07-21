@@ -26,7 +26,7 @@ const mockRuntime = {
     manifest: { name: "demo-package", version: "1.0.0" },
     intentBindingMetadata: null
   }),
-  getAppConfig: () => ({ openClawModel: "test-model" })
+  getAppConfig: () => ({ simulatorModel: "test-model" })
 };
 
 test("httpApiServer rejects protected routes without API key", async () => {

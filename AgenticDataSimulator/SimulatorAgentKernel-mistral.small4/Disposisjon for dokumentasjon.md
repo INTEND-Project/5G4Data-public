@@ -5,7 +5,7 @@
 - **Describe the hypothesis**: Observation of the intent level abstraction is sufficient for the extra functional tools and their integration in the 5G4Data use-case
 - **Present the architecture**: Use figure and text
 - **Go into idea details**:
-  - Agent architecture options (e.g. Antrophic managed agents, Hermes, Standalone (potentially using open source frameworks), OpenClaw etc. Short study through PoC implementations: OpenClaw the winner (mainly due to that it is European and open source, cost and that it seems to fit well)
+  - Agent architecture options (e.g. Antrophic managed agents, Hermes, Standalone (potentially using open source frameworks), Simulator etc. Short study through PoC implementations: Simulator the winner (mainly due to that it is European and open source, cost and that it seems to fit well)
   - Idea to create generic kernel and plugable packages. Separate the domain specific working of the agent from the core functionality since we want to create many agents. Use skills, promps, rules, validators etc that is packed into a plugable unit (package). The rational is partly to increase deterministic behaviour and increase repeatability.
 - **Go into specific agent (packages) details**:
   - Generate intents from natural language

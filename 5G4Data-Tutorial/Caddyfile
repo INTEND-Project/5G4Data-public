@@ -48,9 +48,18 @@ start5g-1.cs.uit.no {
         reverse_proxy http://host.docker.internal:3013
     }
 
-    # Legacy mistral path (pre agents/ rename); keep until registry entries are migrated
-    handle_path /5g4data-intent-generating-agent-mistral-small4/* {
-        reverse_proxy http://host.docker.internal:3013
+    # LangGraphAgents (distinct registry names / public paths; ports 3031–3033)
+    # Note: 3021 is used by inserv on this host.
+    handle_path /5g4data-intent-langgraph-generating-agent/* {
+        reverse_proxy http://host.docker.internal:3031
+    }
+
+    handle_path /5g4data-intent-observation-langgraph-generating-agent/* {
+        reverse_proxy http://host.docker.internal:3032
+    }
+
+    handle_path /5g4data-intent-mistral-small4-langgraph-generating-agent/* {
+        reverse_proxy http://host.docker.internal:3033
     }
 
     # A2A Registry API (host port 17001; strip /a2a-registry prefix)

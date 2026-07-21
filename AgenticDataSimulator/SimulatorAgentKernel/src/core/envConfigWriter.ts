@@ -246,14 +246,14 @@ function readGraphDbCredentialUpdates(controllerEnvPath: string): EnvUpdate[] {
   for (const key of GRAPHDB_CREDENTIAL_KEYS) {
     const value = readDotEnvKey(controllerEnvPath, key);
     if (value === undefined) continue;
+    const unquoted = stripEnvQuotes(value);
     if (key === "GRAPHDB_PASSWORD") {
-      if (value.length === 0) continue;
-      updates.push({ key, value });
+      if (unquoted.length === 0) continue;
+      updates.push({ key, value: unquoted });
       continue;
     }
-    const trimmed = value.trim();
-    if (!trimmed) continue;
-    updates.push({ key, value: trimmed });
+    if (!unquoted) continue;
+    updates.push({ key, value: unquoted });
   }
   return updates;
 }
@@ -269,17 +269,19 @@ function readGraphDbConfigUpdates(
 
   const cloneBaseUrl = graphDbBaseUrlForCloneFromController(controllerBaseUrl);
   const cloneRepositoryId =
-    readDotEnvKey(cloneEnvPath, "GRAPHDB_REPOSITORY_ID")?.trim() ||
+    stripEnvQuotes(readDotEnvKey(cloneEnvPath, "GRAPHDB_REPOSITORY_ID") ?? "") ||
     (readDotEnvKey(cloneEnvPath, "GRAPHDB_ENDPOINT")
-      ? repositoryIdFromGraphDbEndpoint(readDotEnvKey(cloneEnvPath, "GRAPHDB_ENDPOINT") ?? "")
+      ? repositoryIdFromGraphDbEndpoint(
+          stripEnvQuotes(readDotEnvKey(cloneEnvPath, "GRAPHDB_ENDPOINT") ?? ""),
+        )
       : undefined);
   const infraRepositoryId =
-    readDotEnvKey(controllerEnvPath, "GRAPHDB_INFRA_REPOSITORY_ID")?.trim() ||
-    readDotEnvKey(cloneEnvPath, "GRAPHDB_INFRA_REPOSITORY_ID")?.trim() ||
+    stripEnvQuotes(readDotEnvKey(controllerEnvPath, "GRAPHDB_INFRA_REPOSITORY_ID") ?? "") ||
+    stripEnvQuotes(readDotEnvKey(cloneEnvPath, "GRAPHDB_INFRA_REPOSITORY_ID") ?? "") ||
     DEFAULT_GRAPHDB_INFRA_REPOSITORY_ID;
   const infraNamedGraph =
-    readDotEnvKey(controllerEnvPath, "GRAPHDB_INFRA_NAMED_GRAPH")?.trim() ||
-    readDotEnvKey(cloneEnvPath, "GRAPHDB_INFRA_NAMED_GRAPH")?.trim() ||
+    stripEnvQuotes(readDotEnvKey(controllerEnvPath, "GRAPHDB_INFRA_NAMED_GRAPH") ?? "") ||
+    stripEnvQuotes(readDotEnvKey(cloneEnvPath, "GRAPHDB_INFRA_NAMED_GRAPH") ?? "") ||
     DEFAULT_GRAPHDB_INFRA_NAMED_GRAPH;
 
   const updates: EnvUpdate[] = [{ key: "GRAPHDB_BASE_URL", value: cloneBaseUrl }];

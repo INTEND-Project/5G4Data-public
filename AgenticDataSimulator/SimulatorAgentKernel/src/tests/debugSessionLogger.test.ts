@@ -10,7 +10,7 @@ test("OpenAPI server appends debug log on HTTP turns when apiDebug is enabled", 
   const logsDir = mkdtempSync(join(tmpdir(), "api-debug-log-"));
   const previousCwd = process.cwd();
   process.chdir(logsDir);
-  const debugLogPath = "logs/openclaw-agent-debug.jsonl";
+  const debugLogPath = "logs/simulator-agent-debug.jsonl";
 
   const runtime = {
     async runTurn(
@@ -30,7 +30,7 @@ test("OpenAPI server appends debug log on HTTP turns when apiDebug is enabled", 
       return { manifest: { name: "demo", version: "0.1.0" } };
     },
     getAppConfig() {
-      return { openClawModel: "demo-model" };
+      return { simulatorModel: "demo-model" };
     }
   };
   const agentCard: AgentCard = {

@@ -1,9 +1,9 @@
 {
-  "name": "openclaw-agent",
+  "name": "simulator-agent-kernel",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "OpenClaw-native 5G4Data intent authoring agent",
+  "description": "Simulator-native 5G4Data intent authoring agent",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",

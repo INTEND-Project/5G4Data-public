@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOpenClawModelInvoker } from "../adapters/openclaw.js";
+import { createSimulatorModelInvoker } from "../adapters/llm.js";
 import type { AppConfig } from "../config.js";
 
 const baseConfig: AppConfig = {
@@ -11,7 +11,7 @@ const baseConfig: AppConfig = {
   anthropicApiKey: "a",
   anthropicModel: "claude-3-5-sonnet-latest",
   anthropicBaseUrl: "https://api.anthropic.com",
-  openClawModel: "gpt-5.3-chat-latest",
+  simulatorModel: "gpt-5.3-chat-latest",
   openAiTemperature: 1,
   workloadCatalogBaseUrl: "",
   graphDbEndpoint: "",
@@ -57,7 +57,7 @@ test("openai adapter sends configured default temperature", async () => {
     );
   }) as typeof fetch;
   try {
-    const invoker = createOpenClawModelInvoker(baseConfig);
+    const invoker = createSimulatorModelInvoker(baseConfig);
     const result = await invoker([{ role: "user", content: "hi" }], { stage: "main_turn" });
     assert.equal(requestBody.model, "gpt-5.3-chat-latest");
     assert.equal(requestBody.temperature, 1);
@@ -83,7 +83,7 @@ test("openai adapter omits temperature when configured to zero", async () => {
     );
   }) as typeof fetch;
   try {
-    const invoker = createOpenClawModelInvoker({ ...baseConfig, openAiTemperature: 0 });
+    const invoker = createSimulatorModelInvoker({ ...baseConfig, openAiTemperature: 0 });
     const result = await invoker([{ role: "user", content: "hi" }], { stage: "main_turn" });
     assert.equal("temperature" in requestBody, false);
     assert.equal(result.call.temperature, 0);
@@ -108,7 +108,7 @@ test("openai adapter applies session model and temperature overrides", async () 
     );
   }) as typeof fetch;
   try {
-    const invoker = createOpenClawModelInvoker(baseConfig);
+    const invoker = createSimulatorModelInvoker(baseConfig);
     const result = await invoker([{ role: "user", content: "hi" }], {
       stage: "main_turn",
       llmModel: "gpt-4o-mini",
@@ -145,7 +145,7 @@ test("openai adapter uses session api base url override without auth for local e
     );
   }) as typeof fetch;
   try {
-    const invoker = createOpenClawModelInvoker({ ...baseConfig, openAiApiKey: "" });
+    const invoker = createSimulatorModelInvoker({ ...baseConfig, openAiApiKey: "" });
     const result = await invoker([{ role: "user", content: "hi" }], {
       stage: "main_turn",
       llmModel: "codestral:latest",
@@ -171,7 +171,7 @@ test("openai adapter captures usage fields", async () => {
       { status: 200, headers: { "Content-Type": "application/json" } }
     )) as typeof fetch;
   try {
-    const invoker = createOpenClawModelInvoker(baseConfig);
+    const invoker = createSimulatorModelInvoker(baseConfig);
     const result = await invoker([{ role: "user", content: "hi" }], { stage: "main_turn" });
     assert.equal(result.call.usage.inputTokens, 100);
     assert.equal(result.call.usage.outputTokens, 25);

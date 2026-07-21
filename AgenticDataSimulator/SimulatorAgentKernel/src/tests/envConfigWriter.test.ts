@@ -134,7 +134,8 @@ test("syncGraphDbCredentialsToClone copies username, password, and internal Grap
   mkdirSync(join(root, "clone"), { recursive: true });
   writeFileSync(
     controllerEnv,
-    "GRAPHDB_BASE_URL=http://127.0.0.1:7200/\nGRAPHDB_USERNAME=telenor\nGRAPHDB_PASSWORD=partner-secret\nGRAPHDB_INFRA_REPOSITORY_ID=telenor-infrastructure-5g4data\nGRAPHDB_INFRA_NAMED_GRAPH=http://intendproject.eu/telenor/infra\n",
+    // Controller .env often quotes values; sync must not encode those quotes into the URL.
+    'GRAPHDB_BASE_URL=http://127.0.0.1:7200/\nGRAPHDB_USERNAME="telenor"\nGRAPHDB_PASSWORD="partner-secret"\nGRAPHDB_INFRA_REPOSITORY_ID="telenor-infrastructure-5g4data"\nGRAPHDB_INFRA_NAMED_GRAPH="http://intendproject.eu/telenor/infra"\n',
     "utf8"
   );
   writeFileSync(

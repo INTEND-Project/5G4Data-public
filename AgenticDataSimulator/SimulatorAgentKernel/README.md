@@ -1,6 +1,6 @@
 # SimulatorAgentKernel
 
-TypeScript-first OpenClaw kernel for package-based intent agents.
+TypeScript-first Simulator kernel for package-based intent agents.
 
 `SimulatorAgentKernel` is the generic loader/kernel.  
 The actual runnable agents are the cloned instances created as `../SimulatorAgentKernel-<package-name>` (or versioned variants such as `-v2`).
@@ -16,7 +16,7 @@ Related guide:
 - Package-provided domain tools loaded at runtime from the active package
 - Output policy validation + repair loop (`src/core/outputPolicyValidator.ts`, `src/core/repairEngine.ts`)
 - SHACL validation via `rdf-validate-shacl` plus SPARQL coverage checks (`src/core/shaclValidatorTool.ts`)
-- OpenAI/Anthropic integration adapter (`src/adapters/openclaw.ts`)
+- OpenAI/Anthropic integration adapter (`src/adapters/llm.ts`)
 - A2A v0.3 API key authentication on the HTTP control API (agent card, OpenAPI, JSON-RPC, REST sessions); `GET /health` stays public
 
 ## Install
@@ -99,14 +99,14 @@ npx tsx src/index.ts --debug logs/my-debug.jsonl
 
 Default debug log file:
 
-- `logs/openclaw-agent-debug.jsonl`
+- `logs/simulator-agent-debug.jsonl`
 
 ## Environment variables
 
 - `LLM_PROVIDER`: `openai` or `anthropic`
 - `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`
 - `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_BASE_URL`
-- `OPENCLAW_MODEL`
+- `SIMULATOR_MODEL`
 - `DOMAIN_PACKAGE_DIR` (defaults to `../SimulatorAgentPackages/5g4data-intent-generating-agent`)
 - `LLM_USAGE_LOG_PATH` (optional JSONL file for per-intent token/cost summaries)
 - `WORKLOAD_CATALOG_BASE_URL`

@@ -216,13 +216,6 @@ export function collectOutputIssues(args: {
     ];
   }
 
-  const hasForbiddenPhrase = validatorRules.forbiddenPhrases.some((phrase) =>
-    lowered.includes(phrase.toLowerCase())
-  );
-  if (hasForbiddenPhrase) {
-    issues.push("Contains narration/progress text or placeholder markers.");
-  }
-
   const candidateTurtle = text.includes("@prefix") ? extractTurtlePayload(text) : text;
   if (!looksLikeTurtleIntent(candidateTurtle)) {
     if (isReviewTurnOutput(text, assistantMarkers)) {

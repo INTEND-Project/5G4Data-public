@@ -77,7 +77,7 @@ function createPackageSkill(packageName: string): AgentCard["skills"][number] {
     id: `${packageName}-turn`,
     name: `${packageName} turn execution`,
     description: `Primary intent-processing skill for package ${packageName}.`,
-    tags: [packageName, "openclaw", "intent"],
+    tags: [packageName, "simulator", "intent"],
     inputModes: ["text/plain"],
     outputModes: ["text/plain"]
   };

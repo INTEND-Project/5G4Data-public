@@ -23,21 +23,21 @@ export interface ChatSession {
   sessionId: string;
   createdAt: string;
   messages: ChatMessage[];
-  /** From first A2A message metadata.openclaw.graphTarget for this task. */
+  /** From first A2A message metadata.simulator.graphTarget for this task. */
   graphTargetBinding?: GraphTargetBinding | null;
   /** Session override from `request observation-report … storage`. */
   observationStorage?: ObservationStorageType | null;
   /** From Controller `create intent … storage` for the bound intent alias. */
   createIntentStorage?: ObservationStorageType | null;
-  /** From A2A metadata.openclaw.llmModel for this task. */
+  /** From A2A metadata.simulator.llmModel for this task. */
   llmModelOverride?: string | null;
-  /** From A2A metadata.openclaw.llmApiBaseUrl for this task. */
+  /** From A2A metadata.simulator.llmApiBaseUrl for this task. */
   llmApiBaseUrlOverride?: string | null;
-  /** From A2A metadata.openclaw.temperature for this task. */
+  /** From A2A metadata.simulator.temperature for this task. */
   temperatureOverride?: number | null;
-  /** From A2A metadata.openclaw.reportingIntervalMinutes for this task. */
+  /** From A2A metadata.simulator.reportingIntervalMinutes for this task. */
   reportingIntervalMinutesOverride?: number | null;
-  /** From A2A metadata.openclaw.reportingIntervalSeconds for this task (takes precedence over minutes). */
+  /** From A2A metadata.simulator.reportingIntervalSeconds for this task (takes precedence over minutes). */
   reportingIntervalSecondsOverride?: number | null;
   /** Workspace Prometheus API base from Controller UI. */
   prometheusBaseUrl?: string | null;

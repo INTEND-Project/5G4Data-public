@@ -16,7 +16,7 @@ export interface AppConfig {
   anthropicApiKey: string;
   anthropicModel: string;
   anthropicBaseUrl: string;
-  openClawModel: string;
+  simulatorModel: string;
   openAiTemperature: number;
   workloadCatalogBaseUrl: string;
   graphDbEndpoint: string;
@@ -160,7 +160,7 @@ export function loadConfig(): AppConfig {
     ? resolve(process.cwd(), process.env.LLM_USAGE_LOG_PATH)
     : undefined;
 
-  // Validate at startup so misconfiguration fails fast in OpenClaw.
+  // Validate at startup so misconfiguration fails fast in Simulator.
   mustRead(skillFile);
   mustRead(systemPromptFile);
   if (!existsSync(domainPackageDir)) {
@@ -180,7 +180,7 @@ export function loadConfig(): AppConfig {
       process.env.ANTHROPIC_BASE_URL,
       "https://api.anthropic.com"
     ),
-    openClawModel: process.env.OPENCLAW_MODEL ?? derivedModel,
+    simulatorModel: process.env.SIMULATOR_MODEL ?? derivedModel,
     openAiTemperature: clampTemperature(floatFromEnv(process.env.OPENAI_TEMPERATURE, 1)),
     workloadCatalogBaseUrl:
       process.env.WORKLOAD_CATALOG_BASE_URL ?? "https://start5g-1.cs.uit.no/wchartmuseum",

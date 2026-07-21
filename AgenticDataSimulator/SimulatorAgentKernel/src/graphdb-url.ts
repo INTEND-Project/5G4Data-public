@@ -60,10 +60,26 @@ export function graphDbBaseUrlForCloneFromController(controllerBaseUrl: string):
   }
 }
 
+function stripSurroundingQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
 export function repositoryIdFromGraphDbEndpoint(endpoint: string): string | undefined {
   const match = endpoint.match(/\/repositories\/([^/?#]+)/i);
-  const repo = match?.[1]?.trim();
-  return repo || undefined;
+  const raw = match?.[1]?.trim();
+  if (!raw) return undefined;
+  try {
+    return stripSurroundingQuotes(decodeURIComponent(raw)) || undefined;
+  } catch {
+    return stripSurroundingQuotes(raw) || undefined;
+  }
 }
 
 export function normalizeGraphDbRepositoryEndpoint(endpoint: string): string {
@@ -75,7 +91,7 @@ export function graphDbRepositoryEndpointFromBase(
   repositoryId: string = DEFAULT_GRAPHDB_REPOSITORY_ID,
 ): string {
   const base = normalizeGraphDbBaseUrl(baseUrl);
-  const repo = encodeURIComponent(repositoryId.trim());
+  const repo = encodeURIComponent(stripSurroundingQuotes(repositoryId));
   return `${base}repositories/${repo}`;
 }
 
@@ -112,15 +128,26 @@ export function resolveGraphDbInfraEndpoint(options?: {
   repositoryId?: string;
 }): string {
   const endpoint = options?.endpoint?.trim();
+  const repositoryId =
+    stripSurroundingQuotes(options?.repositoryId ?? "") ||
+    (endpoint ? repositoryIdFromGraphDbEndpoint(endpoint) : undefined) ||
+    DEFAULT_GRAPHDB_INFRA_REPOSITORY_ID;
+
   if (endpoint) {
-    return rewriteGraphDbUrlForContainerAccess(normalizeGraphDbRepositoryEndpoint(endpoint));
+    const normalized = normalizeGraphDbRepositoryEndpoint(endpoint);
+    // Always rebuild the /repositories/{id} segment so quoted/encoded junk
+    // (e.g. %22repo%22 from .env values like GRAPHDB_INFRA_REPOSITORY_ID="…")
+    // cannot break GraphDB lookups.
+    const cleaned = normalized.replace(
+      /\/repositories\/[^/?#]+/i,
+      `/repositories/${encodeURIComponent(repositoryId)}`,
+    );
+    return rewriteGraphDbUrlForContainerAccess(cleaned);
   }
 
   const baseUrl = normalizeGraphDbBaseUrl(
     options?.baseUrl?.trim() || defaultGraphDbBaseUrl(),
   );
-  const repositoryId =
-    options?.repositoryId?.trim() || DEFAULT_GRAPHDB_INFRA_REPOSITORY_ID;
   return rewriteGraphDbUrlForContainerAccess(
     graphDbRepositoryEndpointFromBase(baseUrl, repositoryId),
   );

@@ -33,15 +33,15 @@ test("cloneAgentForPackage uses exact path when iterationLabel is set", () => {
 
   const clone = cloneAgentForPackage({
     baselineAgentDir: baseline,
-    packageName: "5g4data-intent-generating-agent-mistral-small4",
+    packageName: "5g4data-intent-mistral-small4-generating-agent",
     iterationLabel: "i1"
   });
-  assert.match(clone.cloneDir, /agents\/5g4data-intent-generating-agent-mistral-small4-i1$/);
+  assert.match(clone.cloneDir, /agents\/5g4data-intent-mistral-small4-generating-agent-i1$/);
 
   assert.throws(() =>
     cloneAgentForPackage({
       baselineAgentDir: baseline,
-      packageName: "5g4data-intent-generating-agent-mistral-small4",
+      packageName: "5g4data-intent-mistral-small4-generating-agent",
       iterationLabel: "i1"
     })
   );

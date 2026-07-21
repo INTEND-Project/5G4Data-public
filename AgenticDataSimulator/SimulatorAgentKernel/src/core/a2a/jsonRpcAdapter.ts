@@ -3,7 +3,7 @@ import { createSession } from "../turnOrchestrator.js";
 import {
   bindingsConflict,
   parseGraphTargetBindingFromMetadata,
-  parseOpenClawControllerMetadata
+  parseSimulatorControllerMetadata
 } from "../graphTargetBinding.js";
 import type { AgentTurnResult, ChatSession } from "../../models.js";
 
@@ -99,7 +99,7 @@ function buildCompletedTaskResult(options: {
     artifacts: [
       {
         artifactId: randomUUID(),
-        name: "openclaw-response",
+        name: "simulator-response",
         parts: [{ kind: "text", text: options.agentText }]
       }
     ],
@@ -116,7 +116,7 @@ function buildCompletedTaskResult(options: {
 
   if (options.turnId || options.mlflowTraceId) {
     result.metadata = {
-      openclaw: {
+      simulator: {
         agentTraceVersion: "1",
         ...(options.turnId ? { turnId: options.turnId } : {}),
         ...(options.mlflowTraceId ? { mlflowTraceId: options.mlflowTraceId } : {})
@@ -139,11 +139,11 @@ type PreparedSend =
     }
   | { ok: false; httpStatus: number; body: string };
 
-function applyOpenClawMetadataToSession(
+function applySimulatorMetadataToSession(
   session: ChatSession,
   incoming: IncomingMessageShape
 ): PreparedSend | null {
-  const parsed = parseOpenClawControllerMetadata(incoming.metadata);
+  const parsed = parseSimulatorControllerMetadata(incoming.metadata);
   if (!parsed) return null;
 
   const graphTarget = parsed.graphTarget;
@@ -297,7 +297,7 @@ export class A2AJsonRpcAdapter {
       taskId = incoming.taskId;
       contextId = binding.contextId;
       session = binding.session;
-      const bindingConflict = applyOpenClawMetadataToSession(session, incoming);
+      const bindingConflict = applySimulatorMetadataToSession(session, incoming);
       if (bindingConflict) {
         return bindingConflict;
       }
@@ -305,7 +305,7 @@ export class A2AJsonRpcAdapter {
       taskId = randomUUID();
       contextId = randomUUID();
       session = createSession();
-      const bindingConflict = applyOpenClawMetadataToSession(session, incoming);
+      const bindingConflict = applySimulatorMetadataToSession(session, incoming);
       if (bindingConflict) {
         return bindingConflict;
       }

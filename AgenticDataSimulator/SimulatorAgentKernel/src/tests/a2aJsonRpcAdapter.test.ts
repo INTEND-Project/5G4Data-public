@@ -48,7 +48,7 @@ test("A2A message/send returns completed task + artifact", async () => {
   assert.equal(body.result?.artifacts?.[0]?.parts?.[0]?.text, "done");
 });
 
-test("A2A message/send includes openclaw trace metadata when turn provides ids", async () => {
+test("A2A message/send includes simulator trace metadata when turn provides ids", async () => {
   const adapter = new A2AJsonRpcAdapter({
     async runTurn() {
       return {
@@ -75,11 +75,11 @@ test("A2A message/send includes openclaw trace metadata when turn provides ids",
   );
   const body = JSON.parse(res.body) as {
     result?: {
-      metadata?: { openclaw?: { turnId?: string; mlflowTraceId?: string } };
+      metadata?: { simulator?: { turnId?: string; mlflowTraceId?: string } };
     };
   };
-  assert.equal(body.result?.metadata?.openclaw?.turnId, "turn-abc");
-  assert.equal(body.result?.metadata?.openclaw?.mlflowTraceId, "tr-xyz");
+  assert.equal(body.result?.metadata?.simulator?.turnId, "turn-abc");
+  assert.equal(body.result?.metadata?.simulator?.mlflowTraceId, "tr-xyz");
 });
 
 test("SendMessage alias and multi-turn binds same ChatSession", async () => {
@@ -129,7 +129,7 @@ test("SendMessage alias and multi-turn binds same ChatSession", async () => {
   assert.strictEqual(sessionsSeen[0], sessionsSeen[1]);
 });
 
-test("message/send metadata.openclaw.graphTarget binds ChatSession", async () => {
+test("message/send metadata.simulator.graphTarget binds ChatSession", async () => {
   let boundSession: ChatSession | undefined;
   const adapter = new A2AJsonRpcAdapter({
     async runTurn(session) {
@@ -147,7 +147,7 @@ test("message/send metadata.openclaw.graphTarget binds ChatSession", async () =>
           role: "user",
           parts: [{ kind: "text", text: "observe" }],
           metadata: {
-            openclaw: {
+            simulator: {
               controllerBindingVersion: "1",
               graphTarget: {
                 repositoryId: "repo-bind",
@@ -184,7 +184,7 @@ test("conflicting graphTarget on same taskId returns JSON-RPC error", async () =
           role: "user",
           parts: [{ kind: "text", text: "one" }],
           metadata: {
-            openclaw: {
+            simulator: {
               controllerBindingVersion: "1",
               graphTarget: {
                 repositoryId: "repo-a",
@@ -211,7 +211,7 @@ test("conflicting graphTarget on same taskId returns JSON-RPC error", async () =
           taskId,
           parts: [{ kind: "text", text: "two" }],
           metadata: {
-            openclaw: {
+            simulator: {
               controllerBindingVersion: "1",
               graphTarget: {
                 repositoryId: "repo-b",

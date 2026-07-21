@@ -89,3 +89,14 @@ test("resolveGraphDbInfraEndpoint defaults to telenor-infrastructure-5g4data", (
     "http://127.0.0.1:7200/repositories/telenor-infrastructure-5g4data",
   );
 });
+
+test("resolveGraphDbInfraEndpoint strips quoted repository ids from baked endpoints", () => {
+  assert.equal(
+    resolveGraphDbInfraEndpoint({
+      endpoint:
+        "http://host.docker.internal:7200/repositories/%22telenor-infrastructure-5g4data%22",
+      repositoryId: "telenor-infrastructure-5g4data",
+    }),
+    "http://host.docker.internal:7200/repositories/telenor-infrastructure-5g4data",
+  );
+});

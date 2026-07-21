@@ -35,7 +35,7 @@ interface RuntimeApi {
     controlApiExtension?: { paths?: Record<string, unknown> };
     intentBindingMetadata?: unknown;
   };
-  getAppConfig(): { openClawModel: string };
+  getAppConfig(): { simulatorModel: string };
 }
 
 interface OpenApiServerOptions {
@@ -216,7 +216,7 @@ export function createOpenApiSpec(
         responses: {
           "200": {
             description:
-              "A2A JSON-RPC 2.0 (v0.3-style message/send mapped to OpenClaw turn execution)"
+              "A2A JSON-RPC 2.0 (v0.3-style message/send mapped to Simulator turn execution)"
           },
           "401": {
             description: "Missing or invalid API key"
@@ -327,7 +327,7 @@ export function startOpenApiServer(options: OpenApiServerOptions) {
           JSON.stringify({
             packageName: manifest.name,
             packageVersion: manifest.version,
-            model: options.runtime.getAppConfig().openClawModel,
+            model: options.runtime.getAppConfig().simulatorModel,
             temperature: options.runtime.getAppConfig().openAiTemperature,
             llmProvider: options.runtime.getAppConfig().llmProvider,
             intentBindingMetadata: options.runtime.getDomainPackage().intentBindingMetadata ?? null

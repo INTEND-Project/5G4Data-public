@@ -51,7 +51,7 @@ test("applyObservationOverride merges min/max for active session", async () => {
         graphDbQueryLimit: 0
       },
       debug: false,
-      debugLogPath: "logs/openclaw-agent-debug.jsonl"
+      debugLogPath: "logs/simulator-agent-debug.jsonl"
     });
     assert.ok(msg.includes("Started"));
     assert.ok(

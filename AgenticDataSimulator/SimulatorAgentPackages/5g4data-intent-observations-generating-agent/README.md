@@ -35,7 +35,7 @@ These prompts are handled in the agent pre-turn hook (REPL **and** HTTP `/v1/ses
 5. Generate TM Forum observation report Turtle payloads.
 6. Retain the last N observation payloads per metric in `logs/observations-<metric>.ndjson` (default N=100; `--obsLogN` on the agent CLI or `OBS_LOG_N`; `OBSERVATION_LOG_PATH` to override the log directory).
 7. Store the latest synthetic sampler program per metric in `logs/observation-program-<metric>.js` (LLM-generated function body; overwritten on each new synthetic run for that metric).
-8. Persist observation datapoints per `icm:reportDestinations` on the intent (`data5g:graphdb` → Turtle in GraphDB; `data5g:prometheus` → Pushgateway per sample for **streaming**, or **chunked Prometheus remote write** for historic runs). Historic `storage prometheus` uses a fast path (no per-tick Turtle/GraphDB/NDJSON) and flushes every `SYNTH_OBS_PROM_FLUSH_CHUNK` samples so the Controller can mark intents green as data lands in Prometheus. Always register retrieval metadata in GraphDB (`storeGraphdbMetadata` or `storePrometheusMetadata`). Session override via A2A `openclaw.observationStorage` or Controller `request observation-report … storage`. Print payloads when `--noGraphDB` skips GraphDB inserts only.
+8. Persist observation datapoints per `icm:reportDestinations` on the intent (`data5g:graphdb` → Turtle in GraphDB; `data5g:prometheus` → Pushgateway per sample for **streaming**, or **chunked Prometheus remote write** for historic runs). Historic `storage prometheus` uses a fast path (no per-tick Turtle/GraphDB/NDJSON) and flushes every `SYNTH_OBS_PROM_FLUSH_CHUNK` samples so the Controller can mark intents green as data lands in Prometheus. Always register retrieval metadata in GraphDB (`storeGraphdbMetadata` or `storePrometheusMetadata`). Session override via A2A `simulator.observationStorage` or Controller `request observation-report … storage`. Print payloads when `--noGraphDB` skips GraphDB inserts only.
 
 ## Clone / Prometheus env
 
@@ -61,7 +61,7 @@ Equivalent to setting `API_SERVER_PORT` for that process; use a unique port per 
 
 ## `--obsLogN`
 
-On the OpenClaw agent CLI (observation clone runtime):
+On the Simulator agent CLI (observation clone runtime):
 
 ```bash
 npx tsx src/index.ts --obsLogN 250

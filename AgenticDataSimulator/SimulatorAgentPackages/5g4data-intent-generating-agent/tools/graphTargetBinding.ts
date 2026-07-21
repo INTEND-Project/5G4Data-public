@@ -1,4 +1,4 @@
-/** openclaw.controller.v1 — mirrored from Controller/Agent (no cross-package import). */
+/** simulator.controller.v1 — mirrored from Controller/Agent (no cross-package import). */
 
 export type GraphTargetBinding = {
   graphTargetId?: string;

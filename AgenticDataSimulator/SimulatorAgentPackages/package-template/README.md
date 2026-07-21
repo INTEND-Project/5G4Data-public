@@ -1,6 +1,6 @@
 # package-template
 
-Starter template for creating a new OpenClaw domain package.
+Starter template for creating a new Simulator domain package.
 
 ## How to use
 

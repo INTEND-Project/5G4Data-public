@@ -113,7 +113,7 @@ Script execution **pauses**. The Controller opens **Intent generation (A2A)** (`
 - `seedPrompt` = composed prompt above
 - `wellKnownURI` = resolved agent card URL
 - `createIntentStorage` = `graphdb` or `prometheus` from the DSL line
-- `graphTargetBinding` = selected KG target (passed as A2A metadata `openclaw.graphTarget`)
+- `graphTargetBinding` = selected KG target (passed as A2A metadata `simulator.graphTarget`)
 
 The dialog automatically sends the seed prompt as the first user message.
 
@@ -125,7 +125,7 @@ Each user/agent turn goes through:
 2. **Controller** fetches the agent card from `wellKnownURI`, reads the JSON-RPC URL, and calls `message/send` (A2A v0.3) with:
    - `text` (user message)
    - persistent `taskId` / `contextId` (same dialogue for follow-ups)
-   - optional `openclaw` metadata: `graphTarget`, `createIntentStorage`, LLM preferences, reporting interval, Prometheus base URL
+   - optional `simulator` metadata: `graphTarget`, `createIntentStorage`, LLM preferences, reporting interval, Prometheus base URL
 3. **Agent** runs one turn and returns `visibleText`
 
 Task and context identifiers are reused so confirmation (`OK`) and adjustments stay in one session.

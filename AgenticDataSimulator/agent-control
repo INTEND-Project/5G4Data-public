@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Control OpenClaw simulator agents (intent generation + observations).
+# Control simulator agents (intent generation + observations).
 #
 #   agent-control start    Load or start agent containers (reload clone when package or kernel changed).
 #   agent-control stop     Stop and remove agent containers.
@@ -576,7 +576,7 @@ stop_agent() {
 cmd_start() {
   require_docker
   resolve_agents "${PACKAGE_FILTER:-}" || exit 1
-  echo "Starting OpenClaw simulator agents from ${ROOT}"
+  echo "Starting simulator agents from ${ROOT}"
   echo
 
   local entry package port agent_card
@@ -592,7 +592,7 @@ cmd_start() {
 cmd_stop() {
   require_docker
   resolve_agents "${PACKAGE_FILTER:-}" || exit 1
-  echo "Stopping OpenClaw simulator agents from ${ROOT}"
+  echo "Stopping simulator agents from ${ROOT}"
   echo
 
   local entry package agent_card
@@ -607,7 +607,7 @@ cmd_stop() {
 cmd_restart() {
   require_docker
   resolve_agents "${PACKAGE_FILTER:-}" || exit 1
-  echo "Checking OpenClaw simulator agents for package, kernel, or clone changes from ${ROOT}"
+  echo "Checking simulator agents for package, kernel, or clone changes from ${ROOT}"
   echo
 
   local entry package port agent_card updated=0
@@ -629,7 +629,7 @@ cmd_restart() {
 cmd_reload() {
   require_docker
   resolve_agents "${PACKAGE_FILTER:-}" || exit 1
-  echo "Force-reloading OpenClaw simulator agents from ${ROOT}"
+  echo "Force-reloading simulator agents from ${ROOT}"
   echo "    AGENT_API_KEYS preserved from SimulatorController/.env when present."
 
   local entry package

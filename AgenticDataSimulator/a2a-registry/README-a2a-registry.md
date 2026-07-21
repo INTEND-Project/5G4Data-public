@@ -1,10 +1,10 @@
-# A2A Registry deployment notes (start5g / OpenClaw integration)
+# A2A Registry deployment notes (start5g / Simulator integration)
 
 **Mirror:** `AgenticDataSimulator/README-a2a-registry.md` — update both when changing this document.
 
 ---
 
-This document summarizes changes and operational steps used to run **a2a-registry** at `~/arneme/a2a-agent-registry/a2a-registry` together with **Caddy**, **UFW**, the **OpenClaw intent-generation agent**, and PostgreSQL.
+This document summarizes changes and operational steps used to run **a2a-registry** at `~/arneme/a2a-agent-registry/a2a-registry` together with **Caddy**, **UFW**, the **Simulator intent-generation agent**, and PostgreSQL.
 
 ---
 
@@ -55,7 +55,7 @@ Several independent issues had to be resolved:
 **Rule that matched the actual Docker network:**
 
 ```bash
-sudo ufw allow from 172.21.0.0/16 to any port 3011 proto tcp comment 'OpenClaw intent generation agent from 5g4data-tutorial-app-network'
+sudo ufw allow from 172.21.0.0/16 to any port 3011 proto tcp comment 'Simulator intent generation agent from 5g4data-tutorial-app-network'
 sudo ufw reload
 ```
 
@@ -96,15 +96,18 @@ sudo ufw allow from 172.21.0.0/16 to any port 9091 proto tcp comment 'Pushgatewa
 sudo ufw reload
 ```
 
-Docker publishes lab service ports on all interfaces, so UFW alone does not block internet scanners. Restrict the `DOCKER-USER` chain (private ranges only). Use the idempotent script and enable it on boot via systemd:
+Docker publishes lab service ports on all interfaces, so UFW alone does not block internet scanners. Restrict the `DOCKER-USER` chain via `/etc/docker-user-firewall/config` and systemd — see `[scripts/docker-user-firewall/README.md](../scripts/docker-user-firewall/README.md)`:
 
 ```bash
-sudo cp scripts/systemd/prometheus-docker-user-firewall.service.example /etc/systemd/system/prometheus-docker-user-firewall.service
+sudo mkdir -p /etc/docker-user-firewall
+sudo cp scripts/docker-user-firewall/config.example /etc/docker-user-firewall/config
+sudo install -m 755 scripts/configure-docker-user-firewall.sh /usr/local/sbin/configure-docker-user-firewall.sh
+sudo cp scripts/systemd/docker-user-firewall.service.example /etc/systemd/system/docker-user-firewall.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now prometheus-docker-user-firewall.service
+sudo systemctl enable --now docker-user-firewall.service
 ```
 
-The script lives at `[Prometheus/configure-docker-user-firewall.sh](../Prometheus/configure-docker-user-firewall.sh)`; re-run after Docker restarts if the unit is not installed: `sudo ./Prometheus/configure-docker-user-firewall.sh`.
+After editing `/etc/docker-user-firewall/config`: `sudo systemctl restart docker-user-firewall.service`.
 
 Verify from the Caddy container:
 
@@ -145,7 +148,7 @@ Set **`A2A_AGENT_BASE_URL`** in each clone’s `.env` to the matching public pat
 
 ### 4.2 Optional unified proxy (legacy, not in this repository)
 
-Some deployments use a registry-backed reverse proxy under a single prefix such as `/openclaw-agents/*` → `host.docker.internal:18080`. That proxy is **not** part of `AgenticDataSimulator/`; if you run it locally, document its path in your own ops notes. Prefer **§4.1** for new setups.
+Some deployments use a registry-backed reverse proxy under a single prefix such as `/simulator-agents/*` → `host.docker.internal:18080`. That proxy is **not** part of `AgenticDataSimulator/`; if you run it locally, document its path in your own ops notes. Prefer **§4.1** for new setups.
 
 - **Upstream:** `host.docker.internal` reaches the **host** from the Caddy container (requires `extra_hosts: host.docker.internal:host-gateway` or equivalent in Compose).
 - **`header_up Host localhost:3011`:** Some stacks expect `Host` to match what the Node server would see locally; adjust if your HTTP stack validates `Host`.
@@ -161,7 +164,7 @@ docker compose restart reverse-proxy
 
 ---
 
-## 5. OpenClaw agent configuration
+## 5. Simulator agent configuration
 
 **Environment (baseline or clone `.env`):**
 

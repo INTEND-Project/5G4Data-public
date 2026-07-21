@@ -21,7 +21,7 @@ export async function geocodePlace(place: string): Promise<Coordinates | null> {
     url.searchParams.set("format", "json");
     url.searchParams.set("limit", "1");
     const response = await fetch(url, {
-      headers: { "User-Agent": "openclaw-agent/0.1" }
+      headers: { "User-Agent": "simulator-agent/0.1" }
     });
     if (!response.ok) return null;
     const payload = (await response.json()) as Array<{ lat: string; lon: string }>;

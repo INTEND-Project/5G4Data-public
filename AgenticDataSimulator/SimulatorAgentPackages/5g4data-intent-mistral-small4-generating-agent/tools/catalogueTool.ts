@@ -210,7 +210,7 @@ export class WorkloadCatalogueTool {
   }
 
   private extractValuesYamlFromArchiveBytes(archiveBytes: Buffer): string | null {
-    const workDir = mkdtempSync(join(tmpdir(), "openclaw-chart-"));
+    const workDir = mkdtempSync(join(tmpdir(), "simulator-chart-"));
     const archivePath = join(workDir, "chart.tgz");
     try {
       writeFileSync(archivePath, archiveBytes);

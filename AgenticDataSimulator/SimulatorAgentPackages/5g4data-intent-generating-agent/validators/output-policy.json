@@ -7,9 +7,9 @@
     "please hold on",
     "now i will create",
     "icm:ReportingExpectation",
-    "data5g:TenMinuteReportEventDeployment",
-    "data5g:TenMinuteReportEventSustainability",
-    "data5g:TenMinuteReportEventNetwork",
+    "data5g:TenMinuteReportEventDeployment a",
+    "data5g:TenMinuteReportEventSustainability a",
+    "data5g:TenMinuteReportEventNetwork a",
     "data5g:tenMinutesDeployment",
     "data5g:tenMinutesSustainability",
     "data5g:tenMinutesNetwork"

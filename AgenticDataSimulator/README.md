@@ -252,7 +252,7 @@ Each running agent container bind-mounts its log directory to the corresponding 
 | Observations      | `SimulatorAgentKernel-5g4data-intent-observation-generating-agent/logs/` |
 
 
-Agents are started with `--debug`, so you will typically see files such as `openclaw-agent-debug.jsonl` there (and additional observation logs under the observations agent clone).
+Agents are started with `--debug`, so you will typically see files such as `simulator-agent-debug.jsonl` there (and additional observation logs under the observations agent clone).
 
 To **stop** writing logs to the host filesystem, remove the bind mount from that agent's `docker-compose.yml`:
 
@@ -303,7 +303,7 @@ Set in the observation clone `.env` (see `SimulatorAgentPackages/5g4data-intent-
 | `GRAPHDB_NAMED_GRAPH`                   | Named graph for observation reports (e.g. `http://intent-reports`)                                                                               |
 | `PROMETHEUS_URL`                        | Prometheus API base for GraphDB `hasQuery` metadata (IntentReportQueryProxy reads this URL); use `http://127.0.0.1:9090/prometheus` on start5g-1 |
 | `PROMETHEUS_REMOTE_WRITE_URL`           | Historic observation batch write endpoint; use `http://host.docker.internal:9090/prometheus/api/v1/write` from Dockerized agent                  |
-| `PUSHGATEWAY_URL`                       | Pushgateway base for streaming samples on the **local** lab stack only; external Prometheus sessions use remote write for streaming too (set via Controller UI → A2A `openclaw`) |
+| `PUSHGATEWAY_URL`                       | Pushgateway base for streaming samples on the **local** lab stack only; external Prometheus sessions use remote write for streaming too (set via Controller UI → A2A `simulator`) |
 | `NO_GRAPHDB`                            | When `true`, skip GraphDB observation inserts (metadata registration still attempted)                                                            |
 
 
@@ -384,7 +384,7 @@ Caddy routes are defined in `[5G4Data-Tutorial/Caddyfile](../5G4Data-Tutorial/Ca
 
 **Grafana behind `/grafana/`** — Grafana runs with `GF_SERVER_SERVE_FROM_SUB_PATH=true` and `GF_SERVER_ROOT_URL=https://start5g-1.cs.uit.no/grafana/`. Caddy forwards `/grafana*` to host port 3002 **without** stripping the prefix. Remote users reach Grafana over HTTPS on port 443 only; UFW needs a rule from the Caddy Docker subnet (`172.21.0.0/16`) to host port 3002, not a public allow on 3002. Re-run `./Grafana/configure-jwt-auth.sh` after changing `GRAFANA_BASE_URL` in `SimulatorController/.env`.
 
-**Prometheus behind `/prometheus/`** — HTTPS paths are IP-restricted in Caddy (same allowlist as `/mlflow`: `85.165.67.213`). Do **not** expose host ports 9090/9091 publicly. UFW: allow from `172.21.0.0/16` to ports 9090 and 9091 (Caddy subnet). Because Docker publishes those ports (and other lab services on the host), restrict the `DOCKER-USER` chain so only private ranges (10/8, 172.16/12, 127/8) can reach them directly — use `[Prometheus/configure-docker-user-firewall.sh](Prometheus/configure-docker-user-firewall.sh)` with `[scripts/systemd/prometheus-docker-user-firewall.service.example](scripts/systemd/prometheus-docker-user-firewall.service.example)` for persistence across reboot; see `[a2a-registry/README-a2a-registry.md](a2a-registry/README-a2a-registry.md)`.
+**Prometheus behind `/prometheus/`** — HTTPS paths are IP-restricted in Caddy (same allowlist as `/mlflow`: `85.165.67.213`). Do **not** expose host ports 9090/9091 publicly. UFW: allow from `172.21.0.0/16` to ports 9090 and 9091 (Caddy subnet). Because Docker publishes those ports (and other lab services on the host), restrict the `DOCKER-USER` chain so only private ranges (10/8, 172.16/12, 127/8) can reach them directly — config in `/etc/docker-user-firewall/config`, applied by systemd unit `docker-user-firewall.service`; see `[scripts/docker-user-firewall/README.md](scripts/docker-user-firewall/README.md)`.
 
 **GraphDB Workbench behind `/graphdb/` (start5g-1)** — Caddy strips the `/graphdb` prefix before forwarding to port 7200, but the Workbench ships with `<base href="/">`, so the UI loads JS/CSS from the site root and stays on “GraphDB Workbench is loading…”. On start5g-1 this has been fixed on the native install (`~/arneme/GraphDB/graphdb-11.1.1`):
 

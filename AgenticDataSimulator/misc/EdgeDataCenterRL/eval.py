@@ -8,7 +8,12 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 import edge_datacenter_env  # noqa: F401 — registers EdgeDataCenter-v0
 from edge_datacenter_env import make_env
-from env_config import EnvConfig, add_env_arguments, env_config_from_args
+from env_config import (
+    DEFAULT_MIN_TPS,
+    EnvConfig,
+    add_env_arguments,
+    env_config_from_args,
+)
 
 ALGORITHMS = {
     "ppo": PPO,
@@ -84,10 +89,14 @@ def print_episode_summary(episode: int, total_reward: float, info: dict) -> None
         f"total_active={info.get('total_active_sessions', 0)}"
     )
     for index, dc in enumerate(info["datacenters"]):
-        required = dc["active_sessions"] * 400
+        required = dc.get("required_capacity", dc["active_sessions"] * DEFAULT_MIN_TPS)
+        headroom = dc.get("capacity_headroom", 0.0)
+        tps_ratio = dc.get("mean_tps_ratio", 0.0)
         print(
             f"dc{index}: capacity={dc['capacity']:.1f}  "
             f"required~={required:.0f}  "
+            f"headroom={headroom:.3f}  "
+            f"mean_tps_ratio={tps_ratio:.3f}  "
             f"energy={dc['energy']:.2f} kW  "
             f"sessions={dc['active_sessions']}  "
             f"accum_tps={dc['accumulated_tps']:.1f}"

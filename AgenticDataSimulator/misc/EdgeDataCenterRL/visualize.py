@@ -185,6 +185,15 @@ def run_episode(
         )
 
     env = make_env(**env_kwargs)
+    model_obs_dim = int(model.observation_space.shape[0])
+    env_obs_dim = int(env.observation_space.shape[0])
+    if model_obs_dim != env_obs_dim:
+        env.close()
+        raise ValueError(
+            f"Model observation size ({model_obs_dim}) does not match "
+            f"environment ({env_obs_dim}). Select a compatible model or adjust "
+            "obs_features_per_dc in the environment configuration."
+        )
     if arrival_schedule is not None:
         env.arrival_rate = float(arrival_schedule(0))
     observation, info = env.reset(seed=seed)

@@ -29,7 +29,7 @@ def vecnormalize_path(save_path: Path) -> Path:
 
 
 class MixedLoadCurriculumCallback(BaseCallback):
-    """Three-phase arrival curriculum: low → medium → high load."""
+    """Four-phase arrival curriculum: extended low load → medium → high."""
 
     def __init__(
         self,
@@ -51,18 +51,18 @@ class MixedLoadCurriculumCallback(BaseCallback):
 
     def _current_rate(self) -> float:
         progress = self.num_timesteps / max(self.total_timesteps, 1)
-        # Phase 1 (0–30%): low load — learn right-sizing.
-        if progress < 0.30:
+        # Phase 1 (0–50%): low load — learn right-sizing and consolidation.
+        if progress < 0.50:
             return self.rate_low
-        # Phase 2 (30–60%): ramp to medium load.
-        if progress < 0.60:
-            phase = (progress - 0.30) / 0.30
+        # Phase 2 (50–75%): ramp to medium load.
+        if progress < 0.75:
+            phase = (progress - 0.50) / 0.25
             return self.rate_low + (self.rate_mid - self.rate_low) * phase
-        # Phase 3 (60–80%): ramp to peak load.
-        if progress < 0.80:
-            phase = (progress - 0.60) / 0.20
+        # Phase 3 (75–90%): ramp to peak load.
+        if progress < 0.90:
+            phase = (progress - 0.75) / 0.15
             return self.rate_mid + (self.rate_high - self.rate_mid) * phase
-        # Phase 4 (80–100%): hold at peak.
+        # Phase 4 (90–100%): hold at peak.
         return self.rate_high
 
     def _on_step(self) -> bool:
@@ -255,8 +255,8 @@ def main() -> None:
     if train_cfg.curriculum_enabled:
         print(
             f"Mixed-load curriculum: {train_cfg.arrival_rate_start:.1f} "
-            f"(0-30%) -> {train_cfg.arrival_rate_mid:.1f} (30-60%) -> "
-            f"{train_cfg.arrival_rate_end:.1f} (60-80%+, hold to end) "
+            f"(0-50%) -> {train_cfg.arrival_rate_mid:.1f} (50-75%) -> "
+            f"{train_cfg.arrival_rate_end:.1f} (75-90%+, hold to end) "
             f"(est. ~{mid_estimate:.0f} / ~{end_estimate:.0f} concurrent sessions)"
         )
     else:

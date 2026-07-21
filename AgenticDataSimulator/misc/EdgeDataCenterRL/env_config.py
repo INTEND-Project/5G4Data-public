@@ -38,6 +38,7 @@ class EnvConfig:
     initial_capacity_fraction: tuple[float, float] | None = None
     initial_sessions_per_dc: tuple[int, int] | None = None
     initial_session_duration: int | None = None
+    obs_features_per_dc: int | None = None
     render_mode: str | None = None
 
     def to_kwargs(self) -> dict[str, Any]:
@@ -52,6 +53,8 @@ class EnvConfig:
             "min_tps": self.min_tps,
             "render_mode": self.render_mode,
         }
+        if self.obs_features_per_dc is not None:
+            kwargs["obs_features_per_dc"] = self.obs_features_per_dc
         if self.initial_capacity_fraction is not None:
             kwargs["initial_capacity_fraction"] = self.initial_capacity_fraction
         if self.initial_sessions_per_dc is not None:

@@ -13,7 +13,24 @@ from gymnasium import spaces
 ENV_ID = "EdgeDataCenter-v0"
 DEFAULT_MAX_EPISODE_STEPS = 200
 NUM_DATACENTERS = 2
-OBS_FEATURES_PER_DC = 8
+OBS_FEATURES_PER_DC = 10
+# Per-datacenter observation feature names (v8 = legacy 16-dim models, v10 = current).
+DC_OBS_FEATURES_V8 = (
+    "capacity",
+    "energy",
+    "cost",
+    "active_sessions",
+    "accumulated_tps",
+    "sla_pressure",
+    "sla_headroom",
+    "mean_remaining_steps",
+)
+DC_OBS_FEATURES_V10 = DC_OBS_FEATURES_V8 + (
+    "required_capacity",
+    "capacity_excess",
+)
+SUPPORTED_OBS_FEATURES_PER_DC = (8, 10)
+CAPACITY_ACTION_MODES = ("fraction", "headroom")
 ARRIVAL_MODES = ("bernoulli", "poisson")
 
 
@@ -51,9 +68,12 @@ class EdgeDataCenterEnv(gym.Env):
     Manage LLM inference capacity across two edge datacenters.
 
     The same LLM runs in both sites. An external load balancer routes new
-    sessions to the cheapest datacenter with spare SLA capacity, tie-breaking
-    on load (active sessions / capacity). The agent sets each datacenter's
-    capacity to minimize energy cost while meeting per-session minimum TPS.
+    sessions to the cheapest datacenter until its hardware SLA session limit
+    (max_capacity / min_tps), tie-breaking on load (active sessions / capacity).
+    The agent sets each datacenter's
+    provisioned capacity (headroom mode: sessions * min_tps * (1 + margin *
+    action)) to minimize energy while meeting per-session minimum TPS.
+    Delivered throughput per session is capped at min_tps * delivery_headroom_cap.
     """
 
     metadata = {"render_modes": ["human", "ansi"], "render_fps": 4}
@@ -83,20 +103,29 @@ class EdgeDataCenterEnv(gym.Env):
         # Example at defaults: 10,000 TPS → 0.04 × 10,000 = 400 kW on top of the idle term.
         throughput_energy_kw: float = 0.04,
         max_sla_violations: int = 20,
+        # Delivered per-session TPS is capped at min_tps * delivery_headroom_cap so
+        # provisioned capacity above need does not burn throughput energy.
+        delivery_headroom_cap: float = 1.05,
+        # Action semantics: "headroom" maps action in [0,1] to
+        # capacity = sessions * min_tps * (1 + margin * action); "fraction" uses
+        # capacity = action * max_capacity (legacy).
+        capacity_action_mode: str = "headroom",
+        capacity_headroom_margin: float = 0.10,
+        overprovision_buffer: float = 1.02,
         # Reward shaping — tuned for SLA compliance with minimal energy:
         # provision capacity close to active_sessions * min_tps per datacenter.
-        energy_cost_scale: float = 300.0,
+        energy_cost_scale: float = 120.0,
         sla_penalty_weight: float = 50.0,
         dropped_session_penalty: float = 25.0,
         session_completion_reward: float = 2.0,
         stranded_session_penalty_weight: float = 100.0,
         sla_termination_penalty: float = 1000.0,
         enable_session_migration: bool = True,
-        overprovision_penalty_weight: float = 50.0,
+        overprovision_penalty_weight: float = 200.0,
         idle_provision_penalty_weight: float = 12.0,
-        throughput_waste_penalty_weight: float = 0.12,
-        efficiency_bonus_weight: float = 0.25,
-        efficiency_headroom_max: float = 1.10,
+        throughput_waste_penalty_weight: float = 1.5,
+        efficiency_bonus_weight: float = 0.75,
+        efficiency_headroom_max: float = 1.05,
         cheapest_dc_routing: bool = True,
         # Optional external electricity price control: step index -> cost per
         # kW for each datacenter. Overrides the built-in sine wave when set.
@@ -105,11 +134,18 @@ class EdgeDataCenterEnv(gym.Env):
         initial_capacity_fraction: tuple[float, float] | None = None,
         initial_sessions_per_dc: tuple[int, int] | None = None,
         initial_session_duration: int | None = None,
+        obs_features_per_dc: int = OBS_FEATURES_PER_DC,
         render_mode: str | None = None,
     ):
         super().__init__()
+        if obs_features_per_dc not in SUPPORTED_OBS_FEATURES_PER_DC:
+            raise ValueError(
+                f"obs_features_per_dc must be one of {SUPPORTED_OBS_FEATURES_PER_DC}, "
+                f"got {obs_features_per_dc}"
+            )
         self.max_episode_steps = max_episode_steps
         self.session_count_scale = session_count_scale
+        self.obs_features_per_dc = obs_features_per_dc
         if len(max_capacity) != NUM_DATACENTERS:
             raise ValueError(
                 f"max_capacity must have {NUM_DATACENTERS} values, got {len(max_capacity)}"
@@ -133,6 +169,24 @@ class EdgeDataCenterEnv(gym.Env):
         self.idle_energy_kw = idle_energy_kw
         self.throughput_energy_kw = throughput_energy_kw
         self.max_sla_violations = max_sla_violations
+        if capacity_action_mode not in CAPACITY_ACTION_MODES:
+            raise ValueError(
+                f"capacity_action_mode must be one of {CAPACITY_ACTION_MODES}, "
+                f"got {capacity_action_mode!r}"
+            )
+        if delivery_headroom_cap < 1.0:
+            raise ValueError(
+                f"delivery_headroom_cap must be >= 1.0, got {delivery_headroom_cap}"
+            )
+        if capacity_headroom_margin <= 0.0:
+            raise ValueError(
+                "capacity_headroom_margin must be positive, "
+                f"got {capacity_headroom_margin}"
+            )
+        self.delivery_headroom_cap = delivery_headroom_cap
+        self.capacity_action_mode = capacity_action_mode
+        self.capacity_headroom_margin = capacity_headroom_margin
+        self.overprovision_buffer = overprovision_buffer
         self.energy_cost_scale = energy_cost_scale
         self.sla_penalty_weight = sla_penalty_weight
         self.dropped_session_penalty = dropped_session_penalty
@@ -180,7 +234,7 @@ class EdgeDataCenterEnv(gym.Env):
         self.initial_session_duration = initial_session_duration
         self.render_mode = render_mode
 
-        obs_dim = NUM_DATACENTERS * OBS_FEATURES_PER_DC
+        obs_dim = NUM_DATACENTERS * obs_features_per_dc
         self.observation_space = spaces.Box(
             low=0.0, high=1.0, shape=(obs_dim,), dtype=np.float32
         )
@@ -215,13 +269,9 @@ class EdgeDataCenterEnv(gym.Env):
         initial_costs = self._scheduled_costs(0)
         self._datacenters = []
         for index, max_cap in enumerate(self.max_capacity):
-            if self.initial_capacity_fraction is not None:
-                cap_fraction = self.initial_capacity_fraction[index]
-            else:
-                cap_fraction = float(self._rng.uniform(0.35, 0.55))
             self._datacenters.append(
                 DataCenter(
-                    capacity=float(cap_fraction * max_cap),
+                    capacity=0.0,
                     max_capacity=max_cap,
                     cost_per_kw=(
                         initial_costs[index]
@@ -248,6 +298,21 @@ class EdgeDataCenterEnv(gym.Env):
                 else:
                     dc.sessions.append(self._sample_session())
 
+        for index, dc in enumerate(self._datacenters):
+            if self.initial_capacity_fraction is not None:
+                dc.capacity = float(
+                    self.initial_capacity_fraction[index] * dc.max_capacity
+                )
+            elif self.capacity_action_mode == "headroom":
+                if dc.active_sessions > 0:
+                    headroom_action = float(self._rng.uniform(0.0, 0.5))
+                    dc.capacity = self._capacity_from_action(dc, headroom_action)
+                else:
+                    dc.capacity = 0.0
+            else:
+                cap_fraction = float(self._rng.uniform(0.35, 0.55))
+                dc.capacity = float(cap_fraction * dc.max_capacity)
+
         self._update_throughput_and_energy()
         return self._get_obs(), self._get_info()
 
@@ -261,10 +326,8 @@ class EdgeDataCenterEnv(gym.Env):
         self._arrivals_this_step = [0] * NUM_DATACENTERS
         self._dropped_this_step = 0
 
-        for dc, target_fraction in zip(self._datacenters, action):
-            dc.capacity = float(
-                np.clip(target_fraction, 0.0, 1.0) * dc.max_capacity
-            )
+        for dc, action_value in zip(self._datacenters, action):
+            dc.capacity = self._capacity_from_action(dc, float(action_value))
 
         if self.enable_session_migration:
             self._migrated_sessions += self._migrate_stranded_sessions()
@@ -301,7 +364,21 @@ class EdgeDataCenterEnv(gym.Env):
         duration = int(self._rng.integers(*self.session_duration_range))
         return LLMSession(min_tps=self.min_tps, remaining_steps=duration)
 
+    def _capacity_from_action(self, dc: DataCenter, action_value: float) -> float:
+        action_value = float(np.clip(action_value, 0.0, 1.0))
+        if self.capacity_action_mode == "fraction":
+            return action_value * dc.max_capacity
+
+        if dc.active_sessions == 0:
+            return action_value * dc.max_capacity
+
+        target = dc.active_sessions * self.min_tps * (
+            1.0 + self.capacity_headroom_margin * action_value
+        )
+        return float(np.clip(target, 0.0, dc.max_capacity))
+
     def _update_throughput_and_energy(self) -> None:
+        delivery_cap = self.min_tps * self.delivery_headroom_cap
         for dc in self._datacenters:
             if not dc.sessions:
                 dc.energy = self.idle_energy_kw * (dc.capacity / dc.max_capacity)
@@ -309,7 +386,7 @@ class EdgeDataCenterEnv(gym.Env):
 
             fair_share = dc.capacity / len(dc.sessions)
             for session in dc.sessions:
-                session.current_tps = fair_share
+                session.current_tps = min(fair_share, delivery_cap)
 
             capacity_fraction = dc.capacity / dc.max_capacity
             throughput_fraction = dc.accumulated_tps / dc.max_capacity
@@ -362,11 +439,15 @@ class EdgeDataCenterEnv(gym.Env):
     def _minimum_required_capacity(self, dc: DataCenter) -> float:
         return dc.active_sessions * self.min_tps
 
+    def _max_sessions_at_sla(self, dc: DataCenter) -> int:
+        """Hardware session ceiling: max concurrent sessions at min_tps."""
+        return int(dc.max_capacity / self.min_tps)
+
     def _available_session_slots(self, dc: DataCenter) -> int:
+        """How many more sessions fit under the hardware SLA session limit."""
         if dc.capacity <= 0:
             return 0
-        spare = dc.capacity - dc.active_sessions * self.min_tps
-        return max(0, int(spare // self.min_tps))
+        return max(0, self._max_sessions_at_sla(dc) - dc.active_sessions)
 
     def _migrate_stranded_sessions(self) -> int:
         """Move sessions off zero-capacity datacenters when spare SLA capacity exists."""
@@ -442,9 +523,11 @@ class EdgeDataCenterEnv(gym.Env):
                 continue
 
             min_required = self._minimum_required_capacity(dc)
-            if dc.capacity > min_required:
-                excess_fraction = (dc.capacity - min_required) / dc.max_capacity
+            buffered_required = min_required * self.overprovision_buffer
+            if dc.capacity > buffered_required:
+                excess_fraction = (dc.capacity - buffered_required) / dc.max_capacity
                 penalty -= self.overprovision_penalty_weight * excess_fraction
+                penalty -= self.overprovision_penalty_weight * (excess_fraction**2)
         return penalty
 
     def _apply_throughput_waste_penalties(self) -> float:
@@ -477,12 +560,13 @@ class EdgeDataCenterEnv(gym.Env):
 
     def _choose_routing_datacenter(self, candidates: list[int]) -> int:
         if self.cheapest_dc_routing:
-            with_spare = [
+            # Fill cheapest DC until max_capacity / min_tps, then spill over.
+            with_room = [
                 index
                 for index in candidates
                 if self._available_session_slots(self._datacenters[index]) > 0
             ]
-            pool = with_spare if with_spare else candidates
+            pool = with_room if with_room else candidates
             return min(
                 pool,
                 key=lambda index: (
@@ -554,8 +638,24 @@ class EdgeDataCenterEnv(gym.Env):
     def _normalize_sla_headroom(self, dc: DataCenter) -> float:
         if dc.active_sessions == 0:
             return 1.0
-        per_session_tps = dc.capacity / dc.active_sessions
-        return float(np.clip(per_session_tps / self.min_tps, 0.0, 1.0))
+        mean_delivered_tps = dc.accumulated_tps / dc.active_sessions
+        return float(np.clip(mean_delivered_tps / self.min_tps, 0.0, 1.0))
+
+    def _normalize_required_capacity(self, dc: DataCenter) -> float:
+        return float(
+            np.clip(dc.active_sessions * self.min_tps / dc.max_capacity, 0.0, 1.0)
+        )
+
+    def _normalize_capacity_excess(self, dc: DataCenter) -> float:
+        if dc.active_sessions == 0:
+            return float(np.clip(dc.capacity / dc.max_capacity, 0.0, 1.0))
+        required = dc.active_sessions * self.min_tps
+        if required <= 0:
+            return 0.0
+        excess_ratio = (dc.capacity / required) - 1.0
+        return float(
+            np.clip(excess_ratio / self.capacity_headroom_margin, 0.0, 1.0)
+        )
 
     def _normalize_mean_remaining_steps(self, dc: DataCenter) -> float:
         if dc.active_sessions == 0:
@@ -567,7 +667,7 @@ class EdgeDataCenterEnv(gym.Env):
         return float(np.clip(mean_remaining / max_duration, 0.0, 1.0))
 
     def _datacenter_observation(self, dc: DataCenter) -> list[float]:
-        return [
+        features = [
             self._normalize_capacity(dc.capacity, dc.max_capacity),
             self._normalize_energy(dc.energy, dc.max_capacity),
             self._normalize_cost(dc.cost_per_kw),
@@ -577,12 +677,33 @@ class EdgeDataCenterEnv(gym.Env):
             self._normalize_sla_headroom(dc),
             self._normalize_mean_remaining_steps(dc),
         ]
+        if self.obs_features_per_dc >= 10:
+            features.extend(
+                [
+                    self._normalize_required_capacity(dc),
+                    self._normalize_capacity_excess(dc),
+                ]
+            )
+        return features
 
     def _get_obs(self) -> np.ndarray:
         values: list[float] = []
         for dc in self._datacenters:
             values.extend(self._datacenter_observation(dc))
         return np.array(values, dtype=np.float32)
+
+    def _mean_capacity_headroom(self, dc: DataCenter) -> float:
+        if dc.active_sessions == 0:
+            return 0.0
+        required = dc.active_sessions * self.min_tps
+        if required <= 0:
+            return 0.0
+        return dc.capacity / required
+
+    def _mean_per_session_tps_ratio(self, dc: DataCenter) -> float:
+        if dc.active_sessions == 0:
+            return 0.0
+        return (dc.accumulated_tps / dc.active_sessions) / self.min_tps
 
     def _datacenter_info(self, index: int, dc: DataCenter) -> dict[str, Any]:
         return {
@@ -595,6 +716,11 @@ class EdgeDataCenterEnv(gym.Env):
             "load_ratio": dc.load_ratio(),
             "sla_pressure": self._normalize_sla_pressure(dc),
             "sla_headroom": self._normalize_sla_headroom(dc),
+            "required_capacity": dc.active_sessions * self.min_tps,
+            "max_sessions_at_sla": self._max_sessions_at_sla(dc),
+            "available_session_slots": self._available_session_slots(dc),
+            "capacity_headroom": self._mean_capacity_headroom(dc),
+            "mean_tps_ratio": self._mean_per_session_tps_ratio(dc),
             "mean_remaining_steps": (
                 0.0
                 if dc.active_sessions == 0

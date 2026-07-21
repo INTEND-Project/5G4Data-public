@@ -16,17 +16,21 @@ import pandas as pd
 import streamlit as st
 
 from env_config import DEFAULT_MAX_CAPACITY, DEFAULT_MIN_TPS, EnvConfig
+from model_info import ALL_KNOB_IDS, ModelObsInfo, get_model_obs_info
 from schedules import PATTERNS, make_schedule, preview
 from visualize import build_frames, run_episode, save_animation
 
-# Defaults matching the environment / eval setup.
+# Streamlit UI defaults for initial state and episode variation.
 COST_RANGE = (0.08, 0.18)   # env base_cost_per_kw
-COST_DEFAULT = 0.13
-ARRIVAL_DEFAULT = 22.0      # eval.py default (Poisson mean arrivals/step)
+COST_DEFAULT_DC0 = 0.080
+COST_DEFAULT_DC1 = 0.150
+ARRIVAL_DEFAULT = 22.0
 ARRIVAL_BOUNDS = (0.0, 40.0)
-DEFAULT_CAPACITY_FRAC = 0.45   # mid of env's random 35–55%
-DEFAULT_INITIAL_SESSIONS = 25    # mid of eval initial_sessions_range 10–40
-DEFAULT_INITIAL_DURATION = 40    # mid of session_duration_range 20–60
+ARRIVAL_DEFAULT_PATTERN = "ramp up"
+ARRIVAL_DEFAULT_RANGE = (5.0, 30.0)
+DEFAULT_CAPACITY_FRAC = 0.0
+DEFAULT_INITIAL_SESSIONS = 0
+DEFAULT_INITIAL_DURATION = 1
 MODELS_DIR = Path("models")
 DEFAULT_MODEL = "models/edge_dc_ppo_v5"
 
@@ -51,9 +55,69 @@ def list_model_paths() -> list[str]:
 def model_label(path: str) -> str:
     prefix = Path(path)
     vecnorm = prefix.parent / f"{prefix.name}_vecnormalize.pkl"
+    parts = [prefix.name]
+    try:
+        obs_info = get_model_obs_info(path)
+        parts.append(f"Box({obs_info.obs_dim},)")
+    except (FileNotFoundError, ValueError, KeyError):
+        pass
     if vecnorm.exists():
-        return f"{path} (vecnorm)"
-    return path
+        parts.append("vecnorm")
+    return " · ".join(parts)
+
+
+@st.cache_data(show_spinner=False)
+def cached_model_obs_info(model_path: str) -> ModelObsInfo:
+    return get_model_obs_info(model_path)
+
+
+def knob_enabled(knob_id: str, supported: frozenset[str]) -> bool:
+    return knob_id in supported
+
+
+def unsupported_knob_caption(knob_id: str, *, default: object) -> None:
+    st.caption(
+        f"Not in this model's observation schema. Using default: `{default}`."
+    )
+
+
+def gated_number_input(
+    knob_id: str,
+    supported: frozenset[str],
+    *,
+    default: float | int,
+    **kwargs: object,
+) -> float | int:
+    if knob_enabled(knob_id, supported):
+        return st.number_input(**kwargs)
+    unsupported_knob_caption(knob_id, default=default)
+    return default
+
+
+def gated_slider(
+    knob_id: str,
+    supported: frozenset[str],
+    *,
+    default: float | int,
+    **kwargs: object,
+) -> float | int:
+    if knob_enabled(knob_id, supported):
+        return st.slider(**kwargs)
+    unsupported_knob_caption(knob_id, default=default)
+    return default
+
+
+def gated_checkbox(
+    knob_id: str,
+    supported: frozenset[str],
+    *,
+    default: bool,
+    **kwargs: object,
+) -> bool:
+    if knob_enabled(knob_id, supported):
+        return st.checkbox(**kwargs)
+    unsupported_knob_caption(knob_id, default=default)
+    return default
 
 
 def schedule_knobs(
@@ -68,9 +132,22 @@ def schedule_knobs(
     fmt: str,
     total_steps: int,
     seed: int,
+    enabled: bool = True,
 ):
     """Render pattern controls for one quantity and return its schedule."""
     st.markdown(f"**{label}**")
+    if not enabled:
+        unsupported_knob_caption(key, default=default_value)
+        return make_schedule(
+            "fixed",
+            value=default_value,
+            low=default_value,
+            high=default_value,
+            total_steps=total_steps,
+            cycles=2.0,
+            seed=seed,
+        )
+
     pattern = st.selectbox(
         "Variation",
         PATTERNS,
@@ -163,69 +240,124 @@ with st.sidebar:
         "Interpolated frames per step", min_value=1, max_value=4, value=2
     )
 
+model_obs_info: ModelObsInfo | None = None
+supported_knobs = ALL_KNOB_IDS
+if model_path is not None:
+    try:
+        model_obs_info = cached_model_obs_info(model_path)
+        supported_knobs = model_obs_info.supported_knobs
+        st.sidebar.caption(
+            f"Observations: `Box({model_obs_info.obs_dim},)` — "
+            f"{model_obs_info.features_per_dc} features per datacenter"
+        )
+        unsupported = ALL_KNOB_IDS - supported_knobs
+        if unsupported:
+            st.sidebar.caption(
+                "Some controls are locked because this model's observation "
+                f"schema does not include the corresponding features."
+            )
+    except (FileNotFoundError, ValueError, KeyError) as error:
+        st.sidebar.warning(f"Could not read model observation schema: {error}")
+
 # --- Initial state ---------------------------------------------------------------
 
 st.subheader("Initial state")
-st.caption(
-    "Values at `reset()` before the agent takes its first action. "
-    "Electricity cost and arrival rate at step 0 follow the variation "
-    "schedules below when those patterns are not fixed."
-)
+if model_obs_info is not None:
+    st.caption(
+        f"Configured for model observation size `Box({model_obs_info.obs_dim},)`. "
+        "Controls that do not map to features in this schema are locked."
+    )
+else:
+    st.caption(
+        "Values at `reset()` before the agent takes its first action. "
+        "Electricity cost and arrival rate at step 0 follow the variation "
+        "schedules below when those patterns are not fixed."
+    )
 
 hw_col, cap_col, sess_col = st.columns(3)
 
 with hw_col:
     st.markdown("**Hardware & SLA**")
-    max_cap_dc0 = st.number_input(
-        "DC0 max capacity (tokens/sec)",
-        min_value=10_000,
-        max_value=500_000,
-        value=int(DEFAULT_MAX_CAPACITY[0]),
-        step=10_000,
-        key="max_cap_dc0",
+    max_cap_dc0 = int(
+        gated_number_input(
+            "max_cap_dc0",
+            supported_knobs,
+            default=int(DEFAULT_MAX_CAPACITY[0]),
+            label="DC0 max capacity (tokens/sec)",
+            min_value=10_000,
+            max_value=500_000,
+            value=int(DEFAULT_MAX_CAPACITY[0]),
+            step=10_000,
+            key="max_cap_dc0",
+        )
     )
-    max_cap_dc1 = st.number_input(
-        "DC1 max capacity (tokens/sec)",
-        min_value=10_000,
-        max_value=500_000,
-        value=int(DEFAULT_MAX_CAPACITY[1]),
-        step=10_000,
-        key="max_cap_dc1",
+    max_cap_dc1 = int(
+        gated_number_input(
+            "max_cap_dc1",
+            supported_knobs,
+            default=int(DEFAULT_MAX_CAPACITY[1]),
+            label="DC1 max capacity (tokens/sec)",
+            min_value=10_000,
+            max_value=500_000,
+            value=int(DEFAULT_MAX_CAPACITY[1]),
+            step=10_000,
+            key="max_cap_dc1",
+        )
     )
-    min_tps = st.number_input(
-        "Minimum TPS per session (SLA)",
-        min_value=50,
-        max_value=2_000,
-        value=int(DEFAULT_MIN_TPS),
-        step=50,
-        key="min_tps",
+    min_tps = int(
+        gated_number_input(
+            "min_tps",
+            supported_knobs,
+            default=int(DEFAULT_MIN_TPS),
+            label="Minimum TPS per session (SLA)",
+            min_value=50,
+            max_value=2_000,
+            value=int(DEFAULT_MIN_TPS),
+            step=50,
+            key="min_tps",
+        )
     )
-    session_count_scale = st.number_input(
-        "Session count scale (obs normalization)",
-        min_value=64,
-        max_value=4096,
-        value=1024,
-        step=64,
-        key="session_count_scale",
+    session_count_scale = float(
+        gated_number_input(
+            "session_count_scale",
+            supported_knobs,
+            default=1024,
+            label="Session count scale (obs normalization)",
+            min_value=64,
+            max_value=4096,
+            value=1024,
+            step=64,
+            key="session_count_scale",
+        )
     )
 
 with cap_col:
     st.markdown("**Provisioned capacity at reset**")
-    cap_frac_dc0 = st.slider(
-        "DC0 capacity (% of max)",
-        min_value=0,
-        max_value=100,
-        value=int(DEFAULT_CAPACITY_FRAC * 100),
-        step=1,
-        key="cap_frac_dc0",
+    cap_frac_dc0 = int(
+        gated_slider(
+            "cap_frac_dc0",
+            supported_knobs,
+            default=int(DEFAULT_CAPACITY_FRAC * 100),
+            label="DC0 capacity (% of max)",
+            min_value=0,
+            max_value=100,
+            value=int(DEFAULT_CAPACITY_FRAC * 100),
+            step=1,
+            key="cap_frac_dc0",
+        )
     )
-    cap_frac_dc1 = st.slider(
-        "DC1 capacity (% of max)",
-        min_value=0,
-        max_value=100,
-        value=int(DEFAULT_CAPACITY_FRAC * 100),
-        step=1,
-        key="cap_frac_dc1",
+    cap_frac_dc1 = int(
+        gated_slider(
+            "cap_frac_dc1",
+            supported_knobs,
+            default=int(DEFAULT_CAPACITY_FRAC * 100),
+            label="DC1 capacity (% of max)",
+            min_value=0,
+            max_value=100,
+            value=int(DEFAULT_CAPACITY_FRAC * 100),
+            step=1,
+            key="cap_frac_dc1",
+        )
     )
     st.caption(
         f"DC0: {cap_frac_dc0 / 100 * max_cap_dc0:,.0f} tokens/sec  ·  "
@@ -234,55 +366,83 @@ with cap_col:
 
 with sess_col:
     st.markdown("**Sessions at reset**")
-    sessions_dc0 = st.number_input(
-        "DC0 active sessions",
-        min_value=0,
-        max_value=500,
-        value=DEFAULT_INITIAL_SESSIONS,
-        step=1,
-        key="sessions_dc0",
+    sessions_dc0 = int(
+        gated_number_input(
+            "sessions_dc0",
+            supported_knobs,
+            default=DEFAULT_INITIAL_SESSIONS,
+            label="DC0 active sessions",
+            min_value=0,
+            max_value=500,
+            value=DEFAULT_INITIAL_SESSIONS,
+            step=1,
+            key="sessions_dc0",
+        )
     )
-    sessions_dc1 = st.number_input(
-        "DC1 active sessions",
-        min_value=0,
-        max_value=500,
-        value=DEFAULT_INITIAL_SESSIONS,
-        step=1,
-        key="sessions_dc1",
+    sessions_dc1 = int(
+        gated_number_input(
+            "sessions_dc1",
+            supported_knobs,
+            default=DEFAULT_INITIAL_SESSIONS,
+            label="DC1 active sessions",
+            min_value=0,
+            max_value=500,
+            value=DEFAULT_INITIAL_SESSIONS,
+            step=1,
+            key="sessions_dc1",
+        )
     )
-    use_fixed_initial_duration = st.checkbox(
-        "Fixed remaining steps for initial sessions",
+    use_fixed_initial_duration = gated_checkbox(
+        "fixed_initial_duration",
+        supported_knobs,
+        default=True,
+        label="Fixed remaining steps for initial sessions",
         value=True,
         key="fixed_initial_duration",
     )
     if use_fixed_initial_duration:
-        initial_session_duration = st.slider(
-            "Initial session remaining steps",
-            min_value=1,
-            max_value=120,
-            value=DEFAULT_INITIAL_DURATION,
-            key="initial_session_duration",
+        initial_session_duration = int(
+            gated_slider(
+                "initial_session_duration",
+                supported_knobs,
+                default=DEFAULT_INITIAL_DURATION,
+                label="Initial session remaining steps",
+                min_value=1,
+                max_value=120,
+                value=DEFAULT_INITIAL_DURATION,
+                key="initial_session_duration",
+            )
         )
     else:
         initial_session_duration = None
     dur_col1, dur_col2 = st.columns(2)
     with dur_col1:
-        session_duration_min = st.number_input(
-            "New session min duration",
-            min_value=1,
-            max_value=120,
-            value=20,
-            step=1,
-            key="session_duration_min",
+        session_duration_min = int(
+            gated_number_input(
+                "session_duration_min",
+                supported_knobs,
+                default=20,
+                label="New session min duration",
+                min_value=1,
+                max_value=120,
+                value=20,
+                step=1,
+                key="session_duration_min",
+            )
         )
     with dur_col2:
-        session_duration_max = st.number_input(
-            "New session max duration",
-            min_value=1,
-            max_value=120,
-            value=60,
-            step=1,
-            key="session_duration_max",
+        session_duration_max = int(
+            gated_number_input(
+                "session_duration_max",
+                supported_knobs,
+                default=60,
+                label="New session max duration",
+                min_value=1,
+                max_value=120,
+                value=60,
+                step=1,
+                key="session_duration_max",
+            )
         )
     if session_duration_max < session_duration_min:
         st.error("Max session duration must be >= min.")
@@ -297,48 +457,55 @@ with col_dc0:
     cost0_schedule = schedule_knobs(
         "DC0 cost per kW (USD/kWh)",
         "cost0",
-        default_pattern="sine",
-        default_value=COST_DEFAULT,
+        default_pattern="fixed",
+        default_value=COST_DEFAULT_DC0,
         bounds=COST_RANGE,
         default_range=COST_RANGE,
         step=0.005,
         fmt="%.3f",
         total_steps=total_steps,
         seed=int(seed),
+        enabled=knob_enabled("cost0", supported_knobs),
     )
 
 with col_dc1:
     cost1_schedule = schedule_knobs(
         "DC1 cost per kW (USD/kWh)",
         "cost1",
-        default_pattern="sine",
-        default_value=COST_DEFAULT,
+        default_pattern="fixed",
+        default_value=COST_DEFAULT_DC1,
         bounds=COST_RANGE,
         default_range=COST_RANGE,
         step=0.005,
         fmt="%.3f",
         total_steps=total_steps,
         seed=int(seed) + 1,
+        enabled=knob_enabled("cost1", supported_knobs),
     )
 
 with col_arrivals:
-    arrival_mode = st.selectbox(
-        "Arrival process",
-        ("poisson", "bernoulli"),
-        index=0,
-        key="arrival_mode",
-    )
+    if knob_enabled("arrival_mode", supported_knobs):
+        arrival_mode = st.selectbox(
+            "Arrival process",
+            ("poisson", "bernoulli"),
+            index=0,
+            key="arrival_mode",
+        )
+    else:
+        arrival_mode = "poisson"
+        unsupported_knob_caption("arrival_mode", default=arrival_mode)
     arrival_schedule = schedule_knobs(
         "Incoming sessions per step",
         "arrivals",
-        default_pattern="fixed",
+        default_pattern=ARRIVAL_DEFAULT_PATTERN,
         default_value=ARRIVAL_DEFAULT,
         bounds=ARRIVAL_BOUNDS,
-        default_range=(5.0, 30.0),
+        default_range=ARRIVAL_DEFAULT_RANGE,
         step=1.0,
         fmt="%.0f",
         total_steps=total_steps,
         seed=int(seed) + 2,
+        enabled=knob_enabled("arrivals", supported_knobs),
     )
 
 # --- Schedule preview ---------------------------------------------------------------
@@ -398,6 +565,11 @@ with st.expander("Initial state summary (step 0)"):
         f"- **Arrival rate at step 0:** {init_arrival:.1f}/step ({arrival_mode})\n"
         f"- **Seed:** {int(seed)}"
     )
+    if model_obs_info is not None:
+        st.markdown(
+            f"- **Model observation schema:** `Box({model_obs_info.obs_dim},)` "
+            f"({model_obs_info.features_per_dc} features per datacenter)"
+        )
 
 # --- Run ---------------------------------------------------------------------------
 
@@ -425,6 +597,9 @@ if run:
         ),
         initial_sessions_per_dc=(int(sessions_dc0), int(sessions_dc1)),
         initial_session_duration=initial_session_duration,
+        obs_features_per_dc=(
+            model_obs_info.features_per_dc if model_obs_info is not None else None
+        ),
     )
     env_kwargs = env_cfg.to_kwargs()
     env_kwargs["cost_schedule"] = lambda step: (

@@ -1,243 +1,121 @@
 ---
-name: OpenClaw client-server and discovery architecture
-overview: "Unified architecture for API transport, A2A-style agent discovery, reverse-proxy routing, and GraphDB-backed logical-name binding for intent-specific agents."
-todos:
-  - id: api-contract-v1
-    content: "Publish OpenAPI v1 for sessions/turns + minimal package metadata routes"
-    status: pending
-  - id: registry-contract
-    content: "Define agent-card registration + heartbeat/TTL schema for discovery"
-    status: pending
-  - id: binding-contract
-    content: "Define GraphDB binding vocabulary and thin binding API"
-    status: pending
-  - id: router-service
-    content: "Implement intent-aware router behind start5g-1 reverse proxy"
-    status: pending
-  - id: ops-hardening
-    content: "Add auth, rate limits, correlation IDs, retries, and reconciliation jobs"
-    status: pending
-    note: "API key auth for agent HTTP/A2A endpoints implemented (AGENT_API_KEY); rate limits and correlation IDs still pending"
+name: Simulator client-server and discovery architecture
+overview: "HTTP/A2A transport, registry discovery, Caddy routing, and Controller scripting for package-based simulator agents."
 isProject: false
 ---
 
-# SimulatorAgentKernel client-server and discovery architecture
+# Client-server and discovery architecture
 
 ## Executive summary
 
-This architecture extends the original API plan with runtime discovery and binding:
+The lab stack combines:
 
-- Keep a thin, versioned HTTP API around `TurnOrchestrator.runTurn(session, userText)`.
-- Use A2A-style agent cards for discovery and capability advertisement.
-- Run a stable reverse proxy on `start5g-1.cs.uit.no` and route dynamically via a router service.
-- Persist logical-name-to-intent bindings in GraphDB as authoritative state.
+- Package-based agent kernels (`SimulatorAgentKernel`, optional `LangGraphAgents`) exposing HTTP + A2A JSON-RPC.
+- An A2A registry for agent-card discovery.
+- Caddy on `start5g-1.cs.uit.no` with **static** path prefixes per agent card name.
+- SimulatorController (Next.js) running scripts that discover agents, create intents, and request observation reports.
 
-This enables runtime-independent controller scripts to create intents using logical names and later send control messages to the correct intent-specific reporting agent.
+Logical intent aliases are resolved **in Controller memory for the script run**. GraphDB-backed binding and an intent-aware `/agents/{intentId}` router remain **future** work.
 
-## Current state
+## Current state (as of 2026-07)
 
-- OpenClaw runtime is CLI-first, centered on `TurnOrchestrator.runTurn(...)`.
-- Domain behavior is package-driven under `SimulatorAgentPackages`.
-- Observation reporting package supports natural-language and structured override behavior.
-- No production-ready built-in server for discovery, routing, and binding lifecycles yet.
-
-## Architecture goals
-
-1. Decouple controller scripts from runtime-generated `intent_id` values.
-2. Support one reporting agent per intent and dynamic agent lifecycles.
-3. Avoid static reverse-proxy edits per new agent instance.
-4. Provide durable, auditable binding state across controller restarts.
-5. Keep invocation contracts explicit and versioned (OpenAPI).
-
-## Non-goals
-
-- Defining a universal cross-platform "agent control protocol."
-- Moving package/domain semantics into the discovery layer.
-- Replacing OpenAPI transport contracts with discovery metadata.
+| Area | Status |
+|------|--------|
+| Kernel HTTP API + A2A `message/send` | Implemented |
+| Agent cards at `/.well-known/agent-card.json` | Implemented |
+| Registry register/lookup | Implemented (`a2a-registry`) |
+| API key auth (`X-Api-Key` / `AGENT_API_KEYS`) | Implemented |
+| Caddy public paths `/<agent-card-name>/` | Implemented (static) |
+| Controller script DSL + preferred agents | Implemented |
+| Shared observation agent | Implemented |
+| In-memory intent aliases in script runs | Implemented |
+| Dynamic intent router `/agents/{intentId}` | **Not** implemented |
+| One reporting agent per intent | **Not** implemented |
+| GraphDB authoritative intent-name binding API | **Not** implemented |
 
 ## System components
 
-### 1) Controller
+### 1) SimulatorController
 
-- Executes runtime-independent scripts with logical intent names.
-- Discovers intent-generation and reporting agents.
-- Writes and resolves logical-name bindings.
+- Prod **:3000**, lab/dev **:3001** (often under `/tmf-simulator` / `/tmf-simulator-dev`).
+- Discovers intent / observation agents via registry (optional preferred agent name from UI).
+- Runs DSL scripts: `discover …`, `create intent … as <alias>`, `request observation-report …`.
+- Sends A2A turns with `metadata.simulator` (graph target, storage, LLM overrides, reporting intervals).
+- Progress/errors for observations via `/v1/observation-progress` and `/v1/observation-errors`.
 
-### 2) Intent-generation agent (`5g4data-intent-generation`)
+### 2) Intent-generation agents
 
-- One agent per domain/use-case.
-- Registers an agent card at startup.
-- Creates intents and returns `intent_id` + `intentIri` + correlation/idempotency key.
+Examples:
 
-### 3) Observation reporting agents (`5g4data-intent-observations`)
+- Stock: `5g4data-intent-generating-agent` (:3011)
+- Mistral fragmented: `5g4data-intent-mistral-small4-generating-agent` (:3013)
+- LangGraph: `5g4data-intent-langgraph-generating-agent` (:3031)
 
-- One agent instance per created intent.
-- Register cards with explicit `intentBinding`.
-- Receive control messages for reporting behavior.
+One long-lived instance per package clone. Registers card at startup. Creates intents from NL (+ Controller metadata).
 
-### 4) Registry (A2A-style discovery)
+### 3) Observation reporting agents
 
-- Stores agent cards with TTL/heartbeat.
-- Supports lookup by capability/domain and by `intent_id`.
+Shared long-lived instance (e.g. `5g4data-intent-observation-generating-agent` :3012). Not spawned per intent. Target intent is supplied in the control/A2A payload.
 
-### 5) Binding service (GraphDB-backed)
+### 4) Registry (A2A)
 
-- Authoritative mapping for `(runId, logicalName) -> (intent_id, intentIri, metadata)`.
-- Exposed through a small controller-facing API (or direct SPARQL if needed).
+- Base URL e.g. `https://start5g-1.cs.uit.no/a2a-registry`
+- Agents register with `wellKnownURI` pointing at the public card URL
+- Controller discovers by domain / skill tags / preferred name
 
-### 6) Reverse proxy + router
+### 5) Reverse proxy (Caddy)
 
-- Reverse proxy endpoint: `start5g-1.cs.uit.no`.
-- Static top-level config forwards `/agents/*` to router.
-- Router resolves current target from registry and proxies dynamically.
+- TLS termination for `start5g-1.cs.uit.no`
+- Per-agent `handle_path /<card-name>/*` → `host.docker.internal:<port>`
+- New agent types need a new path + port (no dynamic router yet)
 
-## End-to-end flows
+### 6) Kernels and packages
 
-### A) Intent creation with binding
+- Stock packages: `SimulatorAgentPackages/`
+- LangGraph packages: `LangGraphAgents/packages/`
+- Clones: `agents/<package-folder>/` via `package load`
 
-1. Controller script requests creation for logical name `X`.
-2. Controller discovers intent-generation agent card.
-3. Controller calls generation API.
-4. Agent returns `intent_id`, `intentIri`, `creationRequestId`.
-5. Controller upserts GraphDB binding for `(runId, X)`.
+## End-to-end flows (current)
 
-### B) Reporting control using logical name
+### A) Intent creation
 
-1. Script step references logical name `X`.
-2. Controller resolves `X` to `intent_id` via binding service/cache.
-3. Controller (or router) discovers reporting agent by `intent_id`.
-4. Controller sends control request through gateway.
-5. Router forwards to resolved reporting agent endpoint.
+1. Script discovers intent agent (registry + optional preferred name).
+2. Opens A2A session; user/Controller dialog may confirm plan (`OK`).
+3. Agent emits Turtle; may persist to GraphDB per metadata / env.
+4. Controller binds `intentAlias → intent_id` in run-local memory.
 
-### C) Metric-driven control
+### B) Observation reporting
 
-If a script references a metric:
+1. Script discovers observation agent.
+2. `request observation-report` for a logical alias / intent id (resolved from run maps).
+3. Shared observation agent generates streams; Controller polls progress/errors APIs.
+4. Datapoints go to GraphDB and/or Prometheus per `icm:reportDestinations` / script storage.
 
-1. Parse/extract `conditionId` from metric naming (`<targetProperty>_<conditionId>`).
-2. Resolve `conditionId -> intent_id` from graph/index.
-3. Continue with intent-based discovery/routing.
+## Invocation and discovery contracts
 
-## Discovery model (A2A-style cards)
+### Invocation
 
-Use discovery cards for advertisement and lookup, not as the full invocation contract.
+- A2A JSON-RPC `message/send` (primary Controller path)
+- OpenAPI at `/openapi.json`; health at `/health`
+- Optional control extensions (workload preview, observation progress/errors)
 
-Recommended card metadata:
+### Discovery
 
-- `agentId`, `capabilities`, `domain.useCase`
-- `domain.ontologyNamespace` (for 5G4Data: `http://5g4data.eu/5g4data#`)
-- `intentBinding.intentLocalId` and `intentBinding.intentIri` (for reporting agents)
-- endpoint base URL and OpenAPI URL
-- auth requirements
+- Agent cards (A2A v0.3-style fields used in this lab)
+- Registry register + list/discover APIs
+- Lookup by domain / capabilities / preferred agent **name**, not by `intent_id` → dedicated instance
 
-## Binding model (GraphDB authoritative store)
+### Auth
 
-### Ownership decision
+- Agent: `AGENT_API_KEY`
+- Controller / registry consumers: `AGENT_API_KEYS` JSON map keyed by card name
+- Header: `X-Api-Key` (default)
 
-- Intent-generation agent creates intents.
-- Controller owns logical-name binding writes.
+## Future work (still valid goals)
 
-Rationale:
+1. GraphDB-backed `(runId, logicalName)` binding with Controller-owned upserts.
+2. Optional intent-aware router so reporting instances can register without new Caddy paths.
+3. Optional one reporting agent per intent if concurrency/isolation requires it.
+4. Stronger correlation IDs, rate limits, and reconciliation jobs.
 
-- Logical names are orchestration concerns.
-- Works across controller restarts and multi-controller setups.
-- Reduces coupling between generation and orchestration policies.
-
-### Keying
-
-Primary key: `(runId, logicalName)`
-
-This prevents cross-run collisions when logical names are reused.
-
-### Suggested binding fields
-
-- `runId`
-- `logicalName`
-- `intentLocalId`
-- `intentRef` (IRI)
-- `status` (`provisioning`, `active`, `failed`, `terminated`)
-- `creatorAgentId` (domain-specific stable role id, e.g. `5g4data-intent-generation-agent`)
-- timestamps and correlation/idempotency fields
-
-## API layers
-
-### Invocation API (OpenAPI v1)
-
-- `POST /v1/sessions`
-- `POST /v1/sessions/{id}/turns`
-- Optional package metadata GET endpoints
-
-### Discovery API
-
-- register card
-- heartbeat/lease renewal
-- lookup by capability/domain
-- lookup by `intent_id`
-
-### Binding API
-
-- `PUT /bindings/{runId}/{logicalName}` (upsert)
-- `GET /bindings/{runId}/{logicalName}` (resolve)
-- `GET /bindings?runId=...` (list)
-- optional delete/cleanup route
-
-## Reverse proxy and router design
-
-### Reverse proxy (Caddy)
-
-- Keep config static (no per-agent updates).
-- Terminate TLS and enforce edge auth.
-- Forward `/agents/*` to router service.
-
-### Router
-
-- Validate request and extract `intent_id` context.
-- Resolve target agent from registry.
-- Proxy request and return normalized errors for missing/stale/unhealthy targets.
-
-## Reliability and operations
-
-- TTL + heartbeat to expire dead agent cards.
-- Idempotent intent creation and binding upserts.
-- Per-session in-flight turn control.
-- Retries with backoff for discovery and routing.
-- Reconciliation job for:
-  - intents without bindings
-  - bindings without active reporting agents
-- Correlation IDs across controller, registry, router, and agents.
-
-## Trade-offs and choices
-
-- **A2A for discovery, OpenAPI for invocation:** best separation of concerns.
-- **GraphDB as binding source of truth:** stronger durability/audit/queryability than controller-only memory.
-- **Controller-owned binding:** cleaner responsibility boundaries than generation-agent-owned binding.
-- **Static proxy + dynamic router:** avoids operational overhead of per-agent proxy edits.
-
-## Phased implementation
-
-### Phase 1 (core API and discovery)
-
-- Implement OpenAPI v1 endpoints around orchestrator.
-- Add registry with agent-card registration and lookup.
-- Add router service behind `start5g-1.cs.uit.no`.
-
-### Phase 2 (binding and control hardening)
-
-- Implement GraphDB binding model and binding API.
-- Add idempotency, retries, reconciliation, and structured error taxonomy.
-
-### Phase 3 (scalability and advanced behavior)
-
-- External session store and horizontal scaling.
-- Streaming responses where needed.
-- Policy-driven routing/security enhancements.
-
-## Final architecture decision
-
-Adopt a combined pattern:
-
-1. Thin OpenClaw HTTP API for invocation.
-2. A2A-style card registry for discovery.
-3. GraphDB-backed binding service for logical name resolution.
-4. Static reverse proxy with dynamic intent-aware router.
-
-This satisfies runtime-independent controller scripting while preserving clear separation between domain logic, discovery, and transport contracts.
+See also: `ControllerIntentNameBindingDesign.md`, `ReportingAgentDiscovery.md`, `LangGraphAgents/docs/CONTROLLER_CUTOVER.md`.

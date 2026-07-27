@@ -3,6 +3,34 @@ import { isReviewTurnOutput } from "./confirmationState.js";
 import type { ValidatorRules } from "./packageLoader.js";
 import type { IntentFlags } from "./workflowEngine.js";
 
+const IDENTIFIER_CHAR = /[A-Za-z0-9_-]/;
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Matches a forbidden phrase as a whole token rather than as a substring, so a
+// bare template name (e.g. `data5g:TenMinuteReportEventDeployment`) is caught
+// but the legitimately condition-scoped identifier the reportingTriggers
+// postprocessor emits (`data5g:TenMinuteReportEventDeployment_CO<uuid>`) is not.
+// Boundary assertions are only added on an edge that is itself an identifier
+// char, so phrases wrapped in punctuation (e.g. `<uuid4>`) keep substring
+// semantics.
+function containsForbiddenPhrase(lowered: string, phrases: string[]): boolean {
+  return phrases.some((phrase) => {
+    const needle = phrase.toLowerCase();
+    if (needle.length === 0) return false;
+    const startsWithIdent = IDENTIFIER_CHAR.test(needle[0]!);
+    const endsWithIdent = IDENTIFIER_CHAR.test(needle[needle.length - 1]!);
+    if (!startsWithIdent && !endsWithIdent) {
+      return lowered.includes(needle);
+    }
+    const prefix = startsWithIdent ? "(?<![A-Za-z0-9_-])" : "";
+    const suffix = endsWithIdent ? "(?![A-Za-z0-9_-])" : "";
+    return new RegExp(`${prefix}${escapeRegExp(needle)}${suffix}`).test(lowered);
+  });
+}
+
 function isUuid4Hex(hex: string): boolean {
   if (!/^[0-9a-fA-F]{32}$/.test(hex)) return false;
   const versionNibble = hex[12]?.toLowerCase();
@@ -164,8 +192,9 @@ function collectNonTurtlePolicyIssues(args: {
   const { text, validatorRules } = args;
   const issues: string[] = [];
   const lowered = text.toLowerCase();
-  const hasForbiddenPhrase = validatorRules.forbiddenPhrases.some((phrase) =>
-    lowered.includes(phrase.toLowerCase())
+  const hasForbiddenPhrase = containsForbiddenPhrase(
+    lowered,
+    validatorRules.forbiddenPhrases
   );
   if (hasForbiddenPhrase) {
     issues.push("Contains narration/progress text or placeholder markers.");

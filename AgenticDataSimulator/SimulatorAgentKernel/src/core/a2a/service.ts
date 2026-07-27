@@ -44,6 +44,7 @@ export interface A2AConfig {
   a2aAgentBaseUrl: string;
   a2aAgentCardPath: string;
   a2aAutoRegisterOnStartup: boolean;
+  a2aDisablePathSlug?: boolean;
   agentApiKey?: string;
   agentApiKeyHeader?: string;
 }
@@ -68,7 +69,11 @@ function normalizeSlug(value: string): string {
   return normalized || "agent";
 }
 
-function buildAgentPublicBaseUrl(baseUrl: string, cardName: string): string {
+function buildAgentPublicBaseUrl(baseUrl: string, cardName: string, disableSlug = false): string {
+  // Production fronts each agent with a reverse proxy that routes `/<slug>/*` to the
+  // agent root. Local/proxy-less deployments set A2A_DISABLE_PATH_SLUG so the registered
+  // URLs match the paths the agent actually serves (`/.well-known/...`, `/v1`).
+  if (disableSlug) return trimTrailingSlash(baseUrl);
   return `${trimTrailingSlash(baseUrl)}/${normalizeSlug(cardName)}`;
 }
 
@@ -105,7 +110,7 @@ export function buildAgentCard(config: A2AConfig, domainPackage: LoadedDomainPac
   const packageName = domainPackage.manifest.name;
   const partial = domainPackage.agentCardPartial;
   const cardName = partial?.name ?? packageName;
-  const publicBaseUrl = buildAgentPublicBaseUrl(config.a2aAgentBaseUrl, cardName);
+  const publicBaseUrl = buildAgentPublicBaseUrl(config.a2aAgentBaseUrl, cardName, config.a2aDisablePathSlug);
   const card: AgentCard = {
     protocolVersion: partial?.protocolVersion ?? "0.3.0",
     name: cardName,
@@ -134,7 +139,7 @@ export function buildAgentCard(config: A2AConfig, domainPackage: LoadedDomainPac
 }
 
 export function buildWellKnownAgentCardUrl(config: A2AConfig, cardName: string): string {
-  const baseUrl = buildAgentPublicBaseUrl(config.a2aAgentBaseUrl, cardName);
+  const baseUrl = buildAgentPublicBaseUrl(config.a2aAgentBaseUrl, cardName, config.a2aDisablePathSlug);
   const cardPath = normalizeCardPath(config.a2aAgentCardPath);
   return `${baseUrl}${cardPath}`;
 }

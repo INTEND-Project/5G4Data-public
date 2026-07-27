@@ -33,6 +33,7 @@ const baseConfig: AppConfig = {
   a2aAgentBaseUrl: "http://localhost:3010",
   a2aAgentCardPath: "/.well-known/agent-card.json",
   a2aAutoRegisterOnStartup: true,
+  a2aDisablePathSlug: false,
   apiServerEnabled: false,
   apiServerHost: "0.0.0.0",
   apiServerPort: 3010,

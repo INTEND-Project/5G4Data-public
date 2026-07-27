@@ -39,6 +39,7 @@ export interface AppConfig {
   a2aAgentBaseUrl: string;
   a2aAgentCardPath: string;
   a2aAutoRegisterOnStartup: boolean;
+  a2aDisablePathSlug: boolean;
   apiServerEnabled: boolean;
   apiServerHost: string;
   apiServerPort: number;
@@ -220,6 +221,7 @@ export function loadConfig(): AppConfig {
     a2aAgentBaseUrl: normalizedBaseUrl(process.env.A2A_AGENT_BASE_URL, "http://localhost:3010"),
     a2aAgentCardPath: normalizedPath(process.env.A2A_AGENT_CARD_PATH, "/.well-known/agent-card.json"),
     a2aAutoRegisterOnStartup: boolFromEnv(process.env.A2A_AUTO_REGISTER_ON_STARTUP, true),
+    a2aDisablePathSlug: boolFromEnv(process.env.A2A_DISABLE_PATH_SLUG, false),
     apiServerEnabled: boolFromEnv(process.env.API_SERVER_ENABLED, true),
     apiServerHost: process.env.API_SERVER_HOST?.trim() || "0.0.0.0",
     apiServerPort: Math.max(1, numberFromEnv(process.env.API_SERVER_PORT, 3011)),

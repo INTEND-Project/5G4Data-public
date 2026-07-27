@@ -91,6 +91,28 @@ test("buildAgentCard and persistAgentCard writes well-known file", () => {
   assert.equal(saved.domain, "telenor.5g4data");
 });
 
+test("a2aDisablePathSlug drops the slug segment from card url and well-known URI", () => {
+  const config: A2AConfig = { ...baseConfig, a2aDisablePathSlug: true };
+  const card = buildAgentCard(
+    config,
+    {
+      ...mockPackage,
+      agentCardPartial: {
+        name: "custom-name",
+        description: "custom-desc",
+        domain: "telenor.5g4data",
+        skills: [{ id: "s1", name: "Skill 1", description: "Test skill" }]
+      }
+    } as never
+  );
+  // No `/custom-name` segment: the agent serves these paths at its root (no reverse proxy).
+  assert.equal(card.url, "http://agent.local:3010/v1");
+  assert.equal(
+    buildWellKnownAgentCardUrl(config, card.name),
+    "http://agent.local:3010/.well-known/agent-card.json"
+  );
+});
+
 test("registerAgentCard treats 409 as idempotent success", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () =>

@@ -96,6 +96,7 @@ function a2aSlice(config: AppConfig): A2AConfig {
     a2aAgentBaseUrl: config.a2aAgentBaseUrl,
     a2aAgentCardPath: config.a2aAgentCardPath,
     a2aAutoRegisterOnStartup: config.a2aAutoRegisterOnStartup,
+    a2aDisablePathSlug: config.a2aDisablePathSlug,
     agentApiKey: config.agentApiKey,
     agentApiKeyHeader: config.agentApiKeyHeader
   };
@@ -174,12 +175,15 @@ function loadA2AConfigFromEnv(): A2AConfig {
   const rawCardPath = process.env.A2A_AGENT_CARD_PATH ?? readDotEnvValue("A2A_AGENT_CARD_PATH");
   const rawAuto =
     process.env.A2A_AUTO_REGISTER_ON_STARTUP ?? readDotEnvValue("A2A_AUTO_REGISTER_ON_STARTUP");
+  const rawDisableSlug =
+    process.env.A2A_DISABLE_PATH_SLUG ?? readDotEnvValue("A2A_DISABLE_PATH_SLUG");
   return {
     a2aEnabled: boolLike(rawEnabled, false),
     a2aRegistryBaseUrl: rawRegistry?.trim() || "http://localhost:8000",
     a2aAgentBaseUrl: rawAgentBase?.trim() || "http://localhost:3010",
     a2aAgentCardPath: rawCardPath?.trim() || "/.well-known/agent-card.json",
     a2aAutoRegisterOnStartup: boolLike(rawAuto, true),
+    a2aDisablePathSlug: boolLike(rawDisableSlug, false),
     agentApiKey:
       process.env.AGENT_API_KEY?.trim() || readDotEnvValue("AGENT_API_KEY")?.trim() || undefined,
     agentApiKeyHeader:
@@ -204,6 +208,7 @@ function loadA2AConfigFromDirectory(agentDir: string): A2AConfig {
     a2aAgentBaseUrl: pick("A2A_AGENT_BASE_URL")?.trim() || "http://localhost:3010",
     a2aAgentCardPath: pick("A2A_AGENT_CARD_PATH")?.trim() || "/.well-known/agent-card.json",
     a2aAutoRegisterOnStartup: boolLike(pick("A2A_AUTO_REGISTER_ON_STARTUP"), true),
+    a2aDisablePathSlug: boolLike(pick("A2A_DISABLE_PATH_SLUG"), false),
     agentApiKey: pick("AGENT_API_KEY") || undefined,
     agentApiKeyHeader: pick("AGENT_API_KEY_HEADER")?.trim() || "X-Api-Key"
   };

@@ -49,3 +49,17 @@ AgenticDataSimulator/.cache-infra-reload/telenorKG.jsonld
 AgenticDataSimulator/Prometheus/configure-docker-user-firewall.sh
 AgenticDataSimulator/scripts/systemd/prometheus-docker-user-firewall.service.example
 AgenticDataSimulator/MistralAPI-key.txt
+
+# Local-deployment example (AgenticDataSimulator/GraphDB, LiteLLM) — secrets and
+# generated artefacts. Per-directory .gitignore files cannot be used here because
+# `.gitignore` itself is ignored above.
+AgenticDataSimulator/GraphDB/*.license
+AgenticDataSimulator/GraphDB/nordic_edge_infra.ttl
+AgenticDataSimulator/LiteLLM/.env
+
+# Agent clones created by ./agent-control (regenerated from
+# SimulatorAgentPackages + SimulatorAgentKernel; contain per-clone .env keys).
+AgenticDataSimulator/agents/
+
+# mock-inorch local venv
+mock-inorch/.venv/

@@ -23,5 +23,15 @@ services:
       - 3040:3000
     depends_on:
       - chartmuseum
+    networks:
+      - default
+      - mlflow
     environment:
       CHARTMUSEUM_URL: http://chartmuseum:8080
+
+networks:
+  # Shared app network; the simulator agents join the same one by name.
+  # Create once with:  docker network create mlflow-network
+  mlflow:
+    external: true
+    name: mlflow-network

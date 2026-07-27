@@ -32,16 +32,25 @@ services:
       DATABASE_URL_OVERRIDE: postgresql://a2a_user:a2a_password@postgres:5432/a2a_registry
       API_HOST: 0.0.0.0
       API_PORT: 8000
-      API_RELOAD: "true"
+      # Reload watches /app, but agent-control writes AGENT_API_KEYS into the mounted
+      # backend/.env, which sent the reloader into an endless restart loop. Off for local.
+      API_RELOAD: "false"
       CORS_ORIGINS: '["http://localhost:17173","http://localhost:5173","http://localhost:5174","http://localhost:3000","https://www.a2aregistry.org"]'
       POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
       POSTHOG_HOST: ${POSTHOG_HOST:-https://us.posthog.com}
       POSTHOG_ENABLED: ${POSTHOG_ENABLED:-false}
       ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      # Shared agent key used to authenticate the registry's card fetch + smoke test.
+      # Slug-less local URLs can't be name-matched, so the global fallback is used.
+      AGENT_API_KEY: ${AGENT_API_KEY:-}
+      AGENT_API_KEY_HEADER: ${AGENT_API_KEY_HEADER:-X-Api-Key}
       HEALTH_CHECK_INTERVAL_SECONDS: 300
       HEALTH_CHECK_TIMEOUT_SECONDS: 10
     ports:
       - "17001:8000"
+    networks:
+      - default
+      - mlflow
     volumes:
       - ./backend:/app
       - ./agents:/agents
@@ -59,6 +68,9 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL_OVERRIDE: postgresql://a2a_user:a2a_password@postgres:5432/a2a_registry
+      # Worker re-runs conformance checks on a schedule; needs the same agent auth as api.
+      AGENT_API_KEY: ${AGENT_API_KEY:-}
+      AGENT_API_KEY_HEADER: ${AGENT_API_KEY_HEADER:-X-Api-Key}
       HEALTH_CHECK_INTERVAL_SECONDS: 300
       HEALTH_CHECK_TIMEOUT_SECONDS: 10
     volumes:
@@ -81,6 +93,13 @@ services:
       - api
     ports:
       - "17173:80"
+
+networks:
+  # Shared app network; the simulator agents join the same one by name.
+  # Create once with:  docker network create mlflow-network
+  mlflow:
+    external: true
+    name: mlflow-network
 
 volumes:
   postgres_data:

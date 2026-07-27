@@ -1,0 +1,14 @@
+model_list:
+  - model_name: claude-opus-4-8
+    litellm_params:
+      model: bedrock/eu.anthropic.claude-opus-4-8
+      aws_region_name: os.environ/AWS_REGION
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
+  # Do not persist request/response bodies. Prompts and completions stay in memory only.
+  turn_off_message_logging: true
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

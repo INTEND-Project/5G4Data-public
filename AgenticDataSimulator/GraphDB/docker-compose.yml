@@ -1,0 +1,42 @@
+services:
+  graphdb:
+    # License is valid for "any version in the 11.x range" (per issuing email).
+    # Older 11.x builds (11.0.x, 11.1.x) shipped a validator that rejects the
+    # range license; 11.4.x accepts it. Pin to latest 11.x.
+    image: ontotext/graphdb:11.4.2
+    container_name: graphdb
+    restart: unless-stopped
+    # Published on the host for the Workbench UI / SPARQL. Agents reach GraphDB
+    # by container name (graphdb:7200) on the shared `mlflow-network`.
+    ports:
+      - "7200:7200"
+    networks:
+      - default
+      - mlflow
+    environment:
+      # JVM heap — raise if you load large infrastructure graphs.
+      GDB_JAVA_OPTS: >-
+        -Xmx2g -Xms2g
+        -Dgraphdb.home=/opt/graphdb/home
+      # License file path inside the container (mounted read-only below).
+      GRAPHDB_LICENSE_FILE: /opt/graphdb/home/conf/graphdb.license
+    volumes:
+      # Persist repositories + config across restarts.
+      - graphdb-data:/opt/graphdb/home
+      - ./graphdb.license:/opt/graphdb/home/conf/graphdb.license:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7200/rest/repositories || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  # Shared app network; the simulator agents join the same one by name.
+  # Create once with:  docker network create mlflow-network
+  mlflow:
+    external: true
+    name: mlflow-network
+
+volumes:
+  graphdb-data:

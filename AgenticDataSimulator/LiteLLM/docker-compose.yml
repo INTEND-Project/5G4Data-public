@@ -1,0 +1,42 @@
+services:
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: litellm-bedrock
+    restart: unless-stopped
+    # Bound to localhost for host tooling. Agents reach the proxy by container
+    # name (litellm-bedrock:4000) on the shared `mlflow-network`. The `default`
+    # bridge stays so LiteLLM can egress to AWS Bedrock.
+    ports:
+      - "127.0.0.1:4000:4000"
+    networks:
+      - default
+      - mlflow
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--host", "0.0.0.0"]
+    environment:
+      # Master key required on every request. Set in .env (see .env.example).
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      # AWS region for Bedrock. Model IDs in config.yaml are region-scoped.
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
+      # Point boto3 at the mounted SSO cache. Set AWS_PROFILE in .env to your
+      # own SSO profile name (see .env.example) — there is no useful default.
+      AWS_PROFILE: ${AWS_PROFILE:?set AWS_PROFILE in .env}
+      # Keep logs at INFO so prompts/responses are not written to disk.
+      LITELLM_LOG: INFO
+    volumes:
+      # Read-only SSO cache and config — never writable from inside the container.
+      - ${HOME}/.aws:/root/.aws:ro
+      - ./config.yaml:/app/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=2).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+networks:
+  # Shared app network; the simulator agents join the same one by name.
+  # Create once with:  docker network create mlflow-network
+  mlflow:
+    external: true
+    name: mlflow-network

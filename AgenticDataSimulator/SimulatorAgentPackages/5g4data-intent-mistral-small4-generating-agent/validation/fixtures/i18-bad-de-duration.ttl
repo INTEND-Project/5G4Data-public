@@ -1,0 +1,19 @@
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+data5g:I_bad_de_duration a icm:Intent ;
+    log:allOf data5g:DE1, data5g:RE1 .
+
+data5g:DE1 a data5g:DeploymentExpectation ;
+    icm:target data5g:deployment ;
+    log:allOf data5g:CX1 ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:CX1 a icm:Context .
+
+data5g:RE1 a icm:ObservationReportingExpectation ;
+    icm:target data5g:deployment .

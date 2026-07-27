@@ -1,0 +1,6 @@
+{
+  "forbiddenPhrases": ["<uuid4>"],
+  "requiredTokens": ["icm:Intent"],
+  "conditionalRequirements": [],
+  "identifierRules": []
+}

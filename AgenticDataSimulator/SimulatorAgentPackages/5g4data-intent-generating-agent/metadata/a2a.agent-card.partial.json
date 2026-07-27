@@ -1,0 +1,23 @@
+{
+  "protocolVersion": "0.3.0",
+  "name": "5g4data-intent-generating-agent",
+  "description": "Intent generating — Generates 5G4Data intent definitions and deployment-ready payload guidance.",
+  "domain": "telenor.5g4data",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false,
+    "stateTransitionHistory": false
+  },
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["text/plain"],
+  "skills": [
+    {
+      "id": "generate-intent",
+      "name": "Generate intent",
+      "description": "Create intent payloads for 5G4Data workloads.",
+      "tags": ["5g4data", "intent", "generation", "discovery-task:intent-agent"],
+      "inputModes": ["text/plain"],
+      "outputModes": ["text/plain"]
+    }
+  ]
+}

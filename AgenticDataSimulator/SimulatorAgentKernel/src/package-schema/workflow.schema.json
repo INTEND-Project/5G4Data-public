@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Workflow DSL",
+  "type": "object",
+  "required": ["stages"],
+  "properties": {
+    "confirmation": {
+      "type": "object",
+      "required": ["acceptedUserInputs", "assistantMarkers", "forceGenerateInstruction"],
+      "properties": {
+        "acceptedUserInputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "assistantMarkers": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "forceGenerateInstruction": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "includeModules"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "includeModules": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "whenIntentFlags": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "confirmationRequired": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

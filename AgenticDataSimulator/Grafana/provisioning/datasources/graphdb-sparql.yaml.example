@@ -1,0 +1,17 @@
+# Template only. configure-jwt-auth.sh renders graphdb-sparql.yaml from SimulatorController/.env.
+apiVersion: 1
+datasources:
+  - name: flandersmake-sparql-datasource
+    type: flandersmake-sparql-datasource
+    access: proxy
+    isDefault: true
+    basicAuth: true
+    basicAuthUser: telenor
+    jsonData:
+      pdcInjected: false
+      source: https://start5g-1.cs.uit.no/graphdb/repositories/intents_and_intent_reports
+      username: telenor
+    secureJsonData:
+      basicAuthPassword: "<GRAPHDB_PASSWORD>"
+      password: "<GRAPHDB_PASSWORD>"
+      bearer: "<base64(telenor:GRAPHDB_PASSWORD) — required by flandersmake-sparql-datasource plugin>"

@@ -70,15 +70,129 @@ th {
     font-style: italic;
 }
 
+.action-col {
+    text-align: center;
+    width: 4.5em;
+    white-space: nowrap;
+}
+
+.col-metrics,
+.col-delete {
+    width: 4.5em;
+}
+
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25em;
+    vertical-align: middle;
+    min-width: 2em;
+    min-height: 2em;
+}
+
+.action-icon {
+    display: block;
+    width: 20px;
+    height: 20px;
+}
+
+.metrics-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.metrics-btn:hover .action-icon {
+    filter: brightness(1.2);
+}
+
+.metrics-btn:disabled {
+    cursor: wait;
+    opacity: 0.5;
+}
+
 .delete-btn {
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 1.2em;
 }
 
-.delete-btn:hover {
-    color: red;
+.delete-btn:hover .action-icon {
+    filter: brightness(0.8) sepia(1) saturate(5) hue-rotate(-50deg);
+}
+
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.modal[hidden] {
+    display: none;
+}
+
+.modal-content {
+    position: relative;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    max-width: 480px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 1.5em 2em;
+}
+
+.modal-close {
+    position: absolute;
+    top: 0.5em;
+    right: 0.75em;
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    cursor: pointer;
+    color: #666;
+    line-height: 1;
+}
+
+.modal-close:hover {
+    color: #000;
+}
+
+#intent-modal-title {
+    margin: 0 0 1em;
+    font-size: 1.25em;
+    color: #004080;
+}
+
+.intent-section {
+    margin-bottom: 1.25em;
+}
+
+.intent-section h3 {
+    margin: 0 0 0.5em;
+    font-size: 1em;
+    color: #004080;
+}
+
+.intent-section ul {
+    margin: 0;
+    padding-left: 1.5em;
+}
+
+.intent-section .empty {
+    margin: 0;
+    color: #666;
+    font-style: italic;
+}
+
+.intent-error {
+    color: #c00;
 }
 
 

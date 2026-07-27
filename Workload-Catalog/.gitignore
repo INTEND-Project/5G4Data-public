@@ -1,4 +1,5 @@
 charts/
+charts.old/
 # Extracted chart icons and manifest (runtime; created by the web app)
 public/chart-icons/
 test/
@@ -14,3 +15,5 @@ venv/
 .venv/
 env/
 workloads/ai-server/venv/
+workloads/ai-server/open-webui/
+workloads/ai-server/rusty_llm/

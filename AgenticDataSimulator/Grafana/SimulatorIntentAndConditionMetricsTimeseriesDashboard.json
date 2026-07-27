@@ -1,0 +1,570 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_YESOREYERAM-INFINITY-DATASOURCE",
+      "label": "yesoreyeram-infinity-datasource",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "yesoreyeram-infinity-datasource",
+      "pluginName": "Infinity"
+    },
+    {
+      "name": "DS_FLANDERSMAKE-SPARQL-DATASOURCE",
+      "label": "flandersmake-sparql-datasource",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "flandersmake-sparql-datasource",
+      "pluginName": "SPARQL"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "flandersmake-sparql-datasource",
+      "name": "SPARQL",
+      "version": "1.1.0"
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "11.6.0"
+    },
+    {
+      "type": "panel",
+      "id": "marcusolsson-dynamictext-panel",
+      "name": "Business Text",
+      "version": "6.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "text",
+      "name": "Text",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    },
+    {
+      "type": "datasource",
+      "id": "yesoreyeram-infinity-datasource",
+      "name": "Infinity",
+      "version": "3.6.0"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "<div style=\"background-color: #1885f1; padding: 20px; text-align: center; color: white;\">\n  <a href=\"https://intendproject.eu/\" target=\"_blank\" rel=\"noopener noreferrer\">\n    <img src=\"https://intendproject.eu/assets/INTEND_logo-97702745.gif\" alt=\"INTEND Logo\" style=\"height: 60px;\" />\n  </a>\n  <div style=\"margin-top: 10px; font-size: 24px;\">\n    INTEND 5G4Data Intent Dashboard\n  </div>\n</div>\n",
+        "mode": "html"
+      },
+      "pluginVersion": "11.6.0",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "A = metric observations (Infinity). B = intent bounds via /api/get-metric-bounds (Infinity; replaces SPARQL). configFromData applies B to Value thresholds.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": true,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed+area"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red"
+              },
+              {
+                "color": "#EAB839",
+                "value": 300
+              },
+              {
+                "color": "#6ED0E0",
+                "value": 310
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "repeat": "condition_metrics",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "columns": [
+            {
+              "selector": "timestamp",
+              "text": "time",
+              "type": "timestamp_epoch"
+            },
+            {
+              "selector": "value",
+              "text": "Value",
+              "type": "number"
+            },
+            {
+              "selector": "unit",
+              "text": "Unit",
+              "type": "string"
+            }
+          ],
+          "computed_columns": [],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "${DS_YESOREYERAM-INFINITY-DATASOURCE}"
+          },
+          "filters": [],
+          "format": "table",
+          "global_query_id": "",
+          "parser": "backend",
+          "refId": "A",
+          "root_selector": "data",
+          "source": "url",
+          "type": "json",
+          "url": "http://start5g-1.cs.uit.no:3010/api/get-metric-reports/${condition_metrics}?repository_id=${repository_id}&start=${__from}&end=${__to}&step=${__interval}",
+          "url_options": {
+            "data": "",
+            "method": "GET"
+          }
+        },
+        {
+          "columns": [
+            {
+              "selector": "value1",
+              "text": "value1",
+              "type": "number"
+            },
+            {
+              "selector": "value2",
+              "text": "value2",
+              "type": "number"
+            }
+          ],
+          "computed_columns": [],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "${DS_YESOREYERAM-INFINITY-DATASOURCE}"
+          },
+          "filters": [],
+          "format": "table",
+          "global_query_id": "",
+          "hide": false,
+          "parser": "backend",
+          "refId": "B",
+          "root_selector": "data",
+          "source": "url",
+          "type": "json",
+          "url": "http://start5g-1.cs.uit.no:3010/api/get-metric-bounds?repository_id=${repository_id}&graph_iri=${graph_iri}&intent_id=${intent_id}&condition_metrics=${condition_metrics}",
+          "url_options": {
+            "data": "",
+            "method": "GET"
+          }
+        }
+      ],
+      "title": "${condition_metrics}",
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "number",
+                "targetField": "Value"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "value1"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "value2"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "configFromData",
+          "options": {
+            "applyTo": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "configRefId": "B",
+            "mappings": [
+              {
+                "fieldName": "value1",
+                "handlerArguments": {
+                  "threshold": {
+                    "color": "semi-dark-green"
+                  }
+                },
+                "handlerKey": "threshold1",
+                "reducerId": "last"
+              },
+              {
+                "fieldName": "value2",
+                "handlerArguments": {
+                  "threshold": {
+                    "color": "dark-red"
+                  }
+                },
+                "handlerKey": "threshold1",
+                "reducerId": "last"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "id": 2,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "condition_descriptions"
+          }
+        ]
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "queryText": "PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\n\nSELECT DISTINCT \n  (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n  (GROUP_CONCAT(DISTINCT ?description; separator=\"; \") AS ?intent_description)\n  (GROUP_CONCAT(DISTINCT ?condition_description; separator=\"; \") AS ?condition_descriptions)\nWHERE {\n  BIND(IRI(CONCAT(\"repository:\", \"${repository_id}\")) AS ?__repository)\n  BIND(IRI(\"${graph_iri}\") AS ?__graph)\n  SERVICE ?__repository {\n    GRAPH ?__graph {\n    BIND(data5g:${intent_id} AS ?intent)\n    ?intent rdf:type ?intentType ;\n            log:allOf ?expectation .\n\n    ?expectation rdf:type ?expectationType ;\n                 dct:description ?description .\n\n    OPTIONAL {\n      ?expectation log:allOf ?condition .\n      ?condition rdf:type icm:Condition .\n\n      OPTIONAL {\n        ?condition set:forAll [\n          icm:valuesOfTargetProperty ?metric\n        ] .\n      }\n\n      OPTIONAL {\n        ?condition dct:description ?condition_description .\n      }\n    }\n\n    FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n  \n    }}\n}\nGROUP BY ?intent\nLIMIT 10",
+          "refId": "A"
+        }
+      ],
+      "title": "Panel Title",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${DS_YESOREYERAM-INFINITY-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 1,
+      "options": {
+        "afterRender": "",
+        "content": "<pre style=\"margin:0\"><code class=\"language-turtle\">{{ data }}</code></pre>",
+        "contentPartials": [],
+        "defaultContent": "The query didn't return any results.",
+        "editor": {
+          "format": "auto",
+          "language": "markdown"
+        },
+        "editors": [],
+        "externalStyles": [],
+        "helpers": "",
+        "mode": "html",
+        "renderMode": "everyRow",
+        "styles": "",
+        "wrap": true
+      },
+      "pluginVersion": "6.0.0",
+      "targets": [
+        {
+          "columns": [
+            {
+              "selector": "data",
+              "text": "data",
+              "type": "string"
+            },
+            {
+              "selector": "intent_id",
+              "text": "intent_id",
+              "type": "string"
+            }
+          ],
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "${DS_YESOREYERAM-INFINITY-DATASOURCE}"
+          },
+          "filters": [],
+          "format": "table",
+          "global_query_id": "",
+          "method": "GET",
+          "parser": "backend",
+          "refId": "A",
+          "root_selector": "$",
+          "source": "url",
+          "type": "json",
+          "url": "http://start5g-1.cs.uit.no:3010/api/get-intent/${intent_id}",
+          "url_options": {
+            "data": "",
+            "method": "GET"
+          }
+        }
+      ],
+      "title": "Intent Turtle",
+      "type": "marcusolsson-dynamictext-panel"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "I40554800be0b4d9ab03a2f97e11186bf",
+          "value": "I40554800be0b4d9ab03a2f97e11186bf"
+        },
+        "label": "Intent ID",
+        "name": "intent_id",
+        "options": [
+          {
+            "selected": true,
+            "text": "I40554800be0b4d9ab03a2f97e11186bf",
+            "value": "I40554800be0b4d9ab03a2f97e11186bf"
+          }
+        ],
+        "query": "I40554800be0b4d9ab03a2f97e11186bf",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "telenor-5g4data-simulator-demo",
+          "value": "telenor-5g4data-simulator-demo"
+        },
+        "hide": 2,
+        "label": "Repository ID",
+        "name": "repository_id",
+        "options": [
+          {
+            "selected": true,
+            "text": "telenor-5g4data-simulator-demo",
+            "value": "telenor-5g4data-simulator-demo"
+          }
+        ],
+        "query": "telenor-5g4data-simulator-demo",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "urn:intend:kg:telenor-5g4data:simulator-demo",
+          "value": "urn:intend:kg:telenor-5g4data:simulator-demo"
+        },
+        "hide": 2,
+        "label": "Graph IRI",
+        "name": "graph_iri",
+        "options": [
+          {
+            "selected": true,
+            "text": "urn:intend:kg:telenor-5g4data:simulator-demo",
+            "value": "urn:intend:kg:telenor-5g4data:simulator-demo"
+          }
+        ],
+        "query": "urn:intend:kg:telenor-5g4data:simulator-demo",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "",
+          "value": ""
+        },
+        "hide": 2,
+        "includeAll": false,
+        "label": "Condition Metrics",
+        "multi": true,
+        "name": "condition_metrics",
+        "options": [],
+        "query": "",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Simulator Intent And Condition Metrics Timeseries Dashboard",
+  "uid": "Simulator-5g4data-Metrics",
+  "version": 22,
+  "weekStart": ""
+}

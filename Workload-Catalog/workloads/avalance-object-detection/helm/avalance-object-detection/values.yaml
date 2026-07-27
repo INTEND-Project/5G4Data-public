@@ -2,5 +2,20 @@ intent:
   objectives:
     - name: detection-latency
       value: "0.0"
-      tmf-value-hint: "5000"
+      tmf-value-hint: "2000"
+      tmf-quantifier-hint: "quan:smaller"
+      tmf-unit-hint: "ms"
       measuredBy: intend/detectionlatency
+  sustainability:
+    - name: energy-consumption
+      value: "50"
+      tmf-value-hint: "50"
+      tmf-quantifier-hint: "quan:larger"
+      tmf-unit-hint: "J"
+      measuredBy: intend/energy-consumption
+    - name: power-consumption
+      value: "3000"
+      tmf-value-hint: "3000"
+      tmf-quantifier-hint: "quan:smaller"
+      tmf-unit-hint: "W"
+      measuredBy: intend/power-consumption

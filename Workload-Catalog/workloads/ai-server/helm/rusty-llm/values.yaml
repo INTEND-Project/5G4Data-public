@@ -131,7 +131,23 @@ intent:
   objectives:
     - name: p99-token-target
       value: 0.0  # Set to null so that TMF-proxy can set it during deployment based on value in TMF intent
+      tmf-value-hint: "400"
+      tmf-quantifier-hint: "quan:larger"
+      tmf-unit-hint: "token/s"
       measuredBy: intend/p99token
+  sustainability:
+    - name: power-consumption
+      value: "50"
+      tmf-value-hint: "50"
+      tmf-quantifier-hint: "quan:smaller"
+      tmf-unit-hint: "W"
+      measuredBy: intend/energy-consumption
+    - name: energy-consumption
+      value: "100"
+      tmf-value-hint: "100"
+      tmf-quantifier-hint: "quan:smaller"
+      tmf-unit-hint: "MJ"
+      measuredBy: intend/power-consumption
   labels: {}
 
 # KPIProfile configuration for INTEND system

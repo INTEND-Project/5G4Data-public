@@ -1,0 +1,26 @@
+{
+  "name": "5g4data-intent-observation-langgraph-generating-agent",
+  "version": "1.0.0",
+  "workflow": "workflow.dsl.json",
+  "promptModulesDir": "prompt_modules",
+  "systemPromptFile": "prompts/system.md",
+  "rules": {
+    "classification": "rules/classification.json",
+    "context": "rules/context.json"
+  },
+  "validators": "validators/output-policy.json",
+  "toolBindings": "tools/bindings.json",
+  "postprocessors": "validators/postprocessors.json",
+  "discovery": {
+    "agentCardPartial": "metadata/a2a.agent-card.partial.json",
+    "controlApi": "metadata/control-api.extensions.json",
+    "intentBinding": "metadata/intent-binding.json"
+  },
+  "runtimePatches": {
+    "cliNoGraphDbFlag": true
+  },
+  "runtimeHooks": {
+    "onPackageLoad": "tools/onPackageLoad.ts",
+    "replPreTurn": "tools/replObserveHook.ts"
+  }
+}

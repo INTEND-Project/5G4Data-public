@@ -1,0 +1,84 @@
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix geo: <http://www.opengis.net/ont/geosparql#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+data5g:I90c0b1e7024b45389636775b480f25b1 a icm:Intent,
+icm:IntentElement ;
+    dct:description "Deploy rusty-llm application to edge datacenter and set up network slice" ;
+    imo:handler "inServ" ;
+    imo:owner "inChat" ;
+    log:allOf data5g:DEa41afc0545144ee5858c5c985c8b4d6b,
+        data5g:NEd2ea3fdd1ce04535ab68dd31e06bb920,
+        data5g:RE3c5894d46e1e43f0bf1213366650e3ce .
+
+data5g:CO553d7a1aadae4e72b81f22c863bf6c54 a icm:Condition ;
+    dct:description "Token compute p99 condition quan:smaller: 400ms" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_CO553d7a1aadae4e72b81f22c863bf6c54 ;
+            quan:smaller [ quan:unit "ms" ;
+                    rdf:value 400 ] ],
+        [ icm:valuesOfTargetProperty data5g:p99-token-target_CO553d7a1aadae4e72b81f22c863bf6c54 ;
+            quan:smaller [ quan:unit "ms" ;
+                    rdf:value 400 ] ] .
+
+data5g:CO8ba2075e813543c596e71541d963274d a icm:Condition ;
+    dct:description "Bandwidth condition quan:larger: 300mbit/s" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:bandwidth_CO8ba2075e813543c596e71541d963274d ;
+            quan:larger [ quan:unit "mbit/s" ;
+                    rdf:value 300.0 ] ],
+        [ icm:valuesOfTargetProperty data5g:bandwidth_CO8ba2075e813543c596e71541d963274d ;
+            quan:larger [ quan:unit "mbit/s" ;
+                    rdf:value 300.0 ] ] .
+
+data5g:COcb3479bb6ca64ee993e4f1cb84be600c a icm:Condition ;
+    dct:description "Latency condition quan:smaller: 50ms" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:networklatency_COcb3479bb6ca64ee993e4f1cb84be600c ;
+            quan:smaller [ quan:unit "ms" ;
+                    rdf:value 50.0 ] ],
+        [ icm:valuesOfTargetProperty data5g:networklatency_COcb3479bb6ca64ee993e4f1cb84be600c ;
+            quan:smaller [ quan:unit "ms" ;
+                    rdf:value 50.0 ] ] .
+
+data5g:CX5d5705416ed14e1190239f491aab6cc3 a icm:Context,
+        icm:IntentElement ;
+    data5g:appliesToCustomer "+47 90914547" ;
+    data5g:appliesToRegion data5g:RG0583ef50010845a7b35a7e3a67717724 .
+
+data5g:CXe0b5aa4182b74fdaa955337e885731a0 a icm:Context,
+        icm:IntentElement ;
+    data5g:Application "rusty-llm" ;
+    data5g:DataCenter "EC31" ;
+    data5g:DeploymentDescriptor "http://start5g-1.cs.uit.no:3040/charts/rusty-llm-0.1.16.tgz" .
+
+data5g:DEa41afc0545144ee5858c5c985c8b4d6b a data5g:DeploymentExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
+    dct:description "Deploy rusty-llm application to Edge Data Center" ;
+    icm:target data5g:deployment ;
+    log:allOf data5g:CO553d7a1aadae4e72b81f22c863bf6c54,
+        data5g:CXe0b5aa4182b74fdaa955337e885731a0 .
+
+data5g:NEd2ea3fdd1ce04535ab68dd31e06bb920 a data5g:NetworkExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
+    dct:description "Ensure QoS guarantees for rusty-llm network slice" ;
+    icm:target data5g:network-slice ;
+    log:allOf data5g:CO8ba2075e813543c596e71541d963274d,
+        data5g:COcb3479bb6ca64ee993e4f1cb84be600c,
+        data5g:CX5d5705416ed14e1190239f491aab6cc3 .
+
+data5g:RE3c5894d46e1e43f0bf1213366650e3ce a icm:Expectation,
+        icm:IntentElement,
+        icm:ReportingExpectation ;
+    dct:description "Report if expectation is met with reports including metrics related to expectations." ;
+    icm:target data5g:deployment .
+
+data5g:RG0583ef50010845a7b35a7e3a67717724 a geo:Feature ;
+    geo:hasGeometry [ a geo:Polygon ;
+        geo:asWKT "POLYGON((19.1182 69.8769, 19.1180 69.8793, 19.1175 69.8823, ....))"^^geo:wktLiteral ] .

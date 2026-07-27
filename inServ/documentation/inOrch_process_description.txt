@@ -1,0 +1,24 @@
+Create a new python script (create_inOrch_animation.py) that shows an animation in the same style as the create_inServ_animation.py and that explains what the purpose of inOrch is. 
+
+Elements (rectangles) that should be part of the animation is:
+ - inServ (sends intent to inOrch)
+ - inGraph (inOrch retrieves workload information)
+ - inOrch
+
+inOrch consist of:
+ - Kubernetes cluster (inOrch functionalities are dployed to a Kubernetes cluster)
+ - In Kubernetes cluster: inOrch-TMF-Proxy
+ - In Kubernetes cluster: Intel IDO
+ - In Kubernetes cluster: Planner
+ - In Kubernetes cluster: Prometheus
+
+The animation should illustrate that:
+ - The inOrch-TMF-Proxy  receives intents from InServ (illustrated by arrow and annimation)​
+
+ - The intent is parsed by inOrch-TMF-Proxy and its Turtle expression is analyzed to extract deployment information such as Helm chart URLs, application names, performance targets.​
+
+ - Based on the parsed intent info, the proxy deploys the found workload to the Kubernetes cluster using the identified Helm chart, with each deployment created in its own namespace.​
+
+ - The proxy transforms the TMF Forum formatted intent into IDO (Intent Driven Orchestration) Intent CRDs, which are used by the IDO/Planner components installed in the cluster to manage workload orchestration and optimization.​
+
+ - The proxy monitors workload performance via Prometheus and reports intent state changes and metrics back to the intent owner (inChat) and stores them in the GraphDB digital twin (inGraph) for observability.​

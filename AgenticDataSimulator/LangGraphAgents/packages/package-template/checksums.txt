@@ -1,0 +1,1 @@
+# Placeholder integrity file for package artifacts.

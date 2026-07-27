@@ -1,0 +1,13 @@
+{
+  "name": "package-template",
+  "version": "1.0.0",
+  "workflow": "workflow.dsl.json",
+  "promptModulesDir": "prompt_modules",
+  "systemPromptFile": "prompts/system.md",
+  "rules": {
+    "classification": "rules/classification.json",
+    "context": "rules/context.json"
+  },
+  "validators": "validators/output-policy.json",
+  "toolBindings": "tools/bindings.json"
+}

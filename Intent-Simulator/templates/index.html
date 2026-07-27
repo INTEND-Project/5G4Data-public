@@ -436,7 +436,7 @@
         }
 
         document.getElementById('deleteAll').addEventListener('click', async function() {
-            if (!confirm('Are you sure you want to delete all intents? This action cannot be undone.')) {
+            if (!confirm('Delete all intents created by this simulator? Infrastructure and other knowledge graph data will not be removed. This cannot be undone.')) {
                 return;
             }
 

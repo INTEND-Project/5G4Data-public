@@ -1,0 +1,12 @@
+{
+  "name": "5g4data-intent-mistral-small4-langgraph-generating-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "n3": "^2.0.3"
+  },
+  "devDependencies": {
+    "@types/n3": "^1.26.1"
+  }
+}

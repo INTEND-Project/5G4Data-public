@@ -1,0 +1,31 @@
+{
+  "paths": {
+    "/v1/control/workload-preview": {
+      "post": {
+        "operationId": "previewWorkloadMetrics",
+        "summary": "Resolve catalogue workload and metric names for a prompt without generating an intent.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": { "type": "string" }
+                },
+                "required": ["prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Selected chart and objectives/sustainability metrics from values.yaml"
+          },
+          "400": { "description": "Missing prompt" },
+          "501": { "description": "Runtime does not support workload preview" }
+        }
+      }
+    }
+  }
+}

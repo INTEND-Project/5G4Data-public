@@ -8,8 +8,10 @@ import (
 func main() {
     app := fiber.New()
 
-    // Serve static files
-    app.Static("/", "./public")
+    // Serve static files; disable caching on UI assets so column/layout updates apply immediately.
+    app.Static("/", "./public", fiber.Static{
+        CacheDuration: -1,
+    })
 
     routes.RegisterChartMuseumRoutes(app)
 

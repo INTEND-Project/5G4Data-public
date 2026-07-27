@@ -12,8 +12,10 @@ This guide explains how to build and run the Intent Simulator as a Docker contai
 
 The application requires the following environment variables:
 
-- `GRAPHDB_URL`: URL of the GraphDB instance (default: `http://localhost:7200`)
+- `GRAPHDB_URL`: Base URL of the GraphDB instance (default: `http://localhost:7200`; production often uses `https://start5g-1.cs.uit.no/graphdb`)
 - `GRAPHDB_REPOSITORY`: Repository name in GraphDB (default: `intents`)
+- `GRAPHDB_USERNAME`: GraphDB HTTP Basic username (optional; required when GraphDB enforces authentication)
+- `GRAPHDB_PASSWORD`: GraphDB HTTP Basic password (optional; required when GraphDB enforces authentication)
 - `OPENAI_API_KEY`: Your OpenAI API key for generating region polygons
 
 ## Build from parent directory
@@ -33,8 +35,10 @@ This approach properly includes the `intent-generator-package` directory in the 
 ```bash
 docker run -d \
   -p 3004:3004 \
-  -e GRAPHDB_URL=http://localhost:7200 \
+  -e GRAPHDB_URL=https://start5g-1.cs.uit.no/graphdb \
   -e GRAPHDB_REPOSITORY=intents \
+  -e GRAPHDB_USERNAME=your-user \
+  -e GRAPHDB_PASSWORD=your-password \
   -e OPENAI_API_KEY=your-api-key-here \
   -v $(pwd)/intents:/app/intents \
   --name intent-simulator \
@@ -45,8 +49,10 @@ docker run -d \
 
 Create a `.env.docker` file:
 ```
-GRAPHDB_URL=http://your-graphdb-host:7200
+GRAPHDB_URL=https://start5g-1.cs.uit.no/graphdb
 GRAPHDB_REPOSITORY=intents
+GRAPHDB_USERNAME=your-user
+GRAPHDB_PASSWORD=your-password
 OPENAI_API_KEY=sk-proj-xxxxxxxxx
 ```
 
@@ -242,6 +248,8 @@ services:
     environment:
       - GRAPHDB_URL=${GRAPHDB_URL:-http://host.docker.internal:7200}
       - GRAPHDB_REPOSITORY=${GRAPHDB_REPOSITORY:-intents}
+      - GRAPHDB_USERNAME=${GRAPHDB_USERNAME:-}
+      - GRAPHDB_PASSWORD=${GRAPHDB_PASSWORD:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./intents:/app/intents

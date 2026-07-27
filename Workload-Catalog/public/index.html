@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>INTEND 5G4DATA Workload Catalog</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=2">
     <link rel="icon" type="image/x-icon" href="images/favicon.ico">
 </head>
 <body>
@@ -22,11 +22,19 @@
         </div>
     </header>
 
-    <script src="js/app.js"></script>
-
     <main class="content">
         <div class="table-container">
             <table id="chart-table">
+                <colgroup>
+                    <col class="col-icon">
+                    <col class="col-name">
+                    <col class="col-type">
+                    <col class="col-desc">
+                    <col class="col-version">
+                    <col class="col-app-version">
+                    <col class="col-metrics">
+                    <col class="col-delete">
+                </colgroup>
                 <thead>
                     <tr>
                         <th>Icon</th>
@@ -35,7 +43,8 @@
                         <th>Description</th>
                         <th>Chart Version</th>
                         <th>App Version</th>
-                        <th>Delete</th>
+                        <th class="action-col">Metrics</th>
+                        <th class="action-col">Delete</th>
                     </tr>
                 </thead>
                 <tbody id="chart-table-body">
@@ -61,5 +70,15 @@
             <p id="upload-status" style="margin-top: 0.5em; font-style: italic; text-align: center;"></p>
         </div>
     </main>
+
+    <div id="intent-modal" class="modal" hidden>
+        <div class="modal-content">
+            <button id="intent-modal-close" class="modal-close" aria-label="Close">&times;</button>
+            <h2 id="intent-modal-title"></h2>
+            <div id="intent-modal-body"></div>
+        </div>
+    </div>
+
+    <script src="js/app.js?v=2"></script>
 </body>
 </html>

@@ -1,0 +1,16 @@
+Human review policy:
+- Before final Turtle generation, summarize intended output in plain text only.
+- Do not emit `@prefix` declarations or Turtle blocks until the user types OK.
+- If deployment is included, you MUST include an "Extracted deployment objectives" section.
+- In that section, list each objective from runtime context with exact objective name and numeric threshold value.
+- Use explicit bullets in the form: `- <objective-name>: threshold=<value> (source=<tmf-value-hint|value>), quantifier=<quan:larger|quan:smaller> (source=<tmf-quantifier-hint|default>), unit=<unit> (source=<tmf-unit-hint|unspecified>)`.
+- If sustainability is included, you MUST include an "Extracted sustainability objectives" section.
+- In that section, list each sustainability metric from runtime context with exact metric name, numeric threshold, quantifier, and unit when available.
+- Confirm reporting uses `icm:ObservationReportingExpectation` (never `icm:ReportingExpectation`).
+- Confirm deployment/sustainability/network reporting each use per-anchor event and duration URIs (not global `TenMinuteReportEventDeployment` / `tenMinutesDeployment`).
+- Confirm each event has exactly one `imo:eventFor` pointing to its respective expectation.
+- Confirm sustainability reuses the existing complete deployment context when applicable; do not add a duplicate partial `icm:Context`.
+- When coordination is included, confirm `data5g:coordinates` references the expectations that own the coordinated metrics. Confirm CE `log:allOf` reuses existing expectation `icm:Condition` resources (no duplicate CE-only CO subjects). Do not claim network is "required for coordination" unless coordinated metrics are network-related or the prompt explicitly requests network QoS.
+- Do not use vague labels like "latency objective" without objective names and values.
+- End review text with: "Type OK to confirm generation of Turtle."
+- If input is not `OK`, treat it as adjustment and continue planning.

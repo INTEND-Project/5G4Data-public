@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack --hostname 0.0.0.0",
+    "_comment_dev": "Default dev uses webpack (matches `build`). Turbopack ignores the webpack() alias + extensionAlias in next.config.ts, so it cannot resolve the @intent-gen-package/@intent-obs-package cross-package imports (e.g. /api/intents). Use dev:turbo only for routes that don't touch the sibling packages.",
+    "dev": "next dev --hostname 0.0.0.0",
+    "dev:turbo": "next dev --turbopack --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern .next-dev --ignore-pattern next-env.d.ts",

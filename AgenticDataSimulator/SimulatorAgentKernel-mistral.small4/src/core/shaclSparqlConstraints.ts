@@ -29,8 +29,27 @@ function hasType(store: Store, node: string, typeIri: string): boolean {
   return store.getQuads(node, RDF_TYPE, typeIri, null).length > 0;
 }
 
+function rdfListMemberTerms(store: Store, node: { value: string }): Array<{ value: string }> {
+  const first = store.getObjects(node as never, `${RDF}first`, null);
+  if (first.length === 0) {
+    return [node];
+  }
+  const members: Array<{ value: string }> = [];
+  let current: { value: string } | undefined = node;
+  const seen = new Set<string>();
+  while (current && current.value !== `${RDF}nil` && !seen.has(current.value)) {
+    seen.add(current.value);
+    const f = store.getObjects(current as never, `${RDF}first`, null)[0];
+    if (f) members.push(f);
+    current = store.getObjects(current as never, `${RDF}rest`, null)[0];
+  }
+  return members;
+}
+
 function allOfMembers(store: Store, subject: string): string[] {
-  return store.getObjects(subject, `${LOG}allOf`, null).map((term) => term.value);
+  return store
+    .getObjects(subject, `${LOG}allOf`, null)
+    .flatMap((term) => rdfListMemberTerms(store, term).map((member) => member.value));
 }
 
 function reportingTargets(store: Store, intentIri: string): Set<string> {
@@ -70,10 +89,14 @@ function expectReportingForExpectation(args: {
 
 function networkMetricExists(store: Store, networkExpectation: string, prefix: string): boolean {
   for (const member of allOfMembers(store, networkExpectation)) {
-    if (!hasType(store, member, `${ICM}Condition`)) continue;
+    if (!hasType(store, member, `${ICM}Condition`) && !hasType(store, member, `${LOG}Condition`)) continue;
     for (const forAll of store.getObjects(member, `${SET}forAll`, null)) {
-      for (const metric of store.getObjects(forAll, `${ICM}valuesOfTargetProperty`, null)) {
-        if (metric.value.startsWith(`${DATA5G}${prefix}`)) return true;
+      for (const faMember of rdfListMemberTerms(store, forAll)) {
+        for (const metricObj of store.getObjects(faMember as never, `${ICM}valuesOfTargetProperty`, null)) {
+          for (const metric of rdfListMemberTerms(store, metricObj)) {
+            if (metric.value.startsWith(`${DATA5G}${prefix}`)) return true;
+          }
+        }
       }
     }
   }
@@ -83,7 +106,7 @@ function networkMetricExists(store: Store, networkExpectation: string, prefix: s
 function metricConditionCount(store: Store, expectationIri: string): number {
   let count = 0;
   for (const member of allOfMembers(store, expectationIri)) {
-    if (!hasType(store, member, `${ICM}Condition`)) continue;
+    if (!hasType(store, member, `${ICM}Condition`) && !hasType(store, member, `${LOG}Condition`)) continue;
     if (store.getObjects(member, `${SET}forAll`, null).length === 0) continue;
     count++;
   }

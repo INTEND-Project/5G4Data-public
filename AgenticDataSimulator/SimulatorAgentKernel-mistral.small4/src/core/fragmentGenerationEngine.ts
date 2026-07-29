@@ -211,18 +211,20 @@ async function buildSustainabilityStub(
 async function buildNetworkStub(
   packageDir: string,
   draft: IntentDraft,
-  reportingIntervalHint: string
+  reportingIntervalHint: string,
+  userPrompt: string
 ): Promise<string> {
   const mod = await importPackageTool<{
     buildNetworkFragment?: (input: {
       draft: IntentDraft;
       reportingIntervalHint: string;
+      userPrompt?: string;
     }) => string;
   }>(packageDir, "buildNetworkFragment.ts");
   if (!mod.buildNetworkFragment) {
     throw new Error("buildNetworkFragment is not exported from package");
   }
-  return mod.buildNetworkFragment({ draft, reportingIntervalHint });
+  return mod.buildNetworkFragment({ draft, reportingIntervalHint, userPrompt });
 }
 
 function deterministicFragmentStubsEnabled(): boolean {
@@ -410,7 +412,8 @@ export class FragmentGenerationEngine {
             body = await buildNetworkStub(
               input.domainPackage.packageDir,
               draft,
-              input.reportingIntervalHint
+              input.reportingIntervalHint,
+              input.effectiveUserText
             );
             input.debug.push("fragment_stub=network deterministic");
           }

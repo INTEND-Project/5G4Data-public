@@ -59,13 +59,15 @@ export function buildCoordinationFragment(input: {
   }
 
   const interval = reportingIntervalMinutes(input.draft);
-  const conditionRefs = conditionLocals.map((local) => `data5g:${local}`).join(", ");
+  const conditionRefs = `( ${conditionLocals.map((local) => `data5g:${local}`).join(" ")} )`;
   const coordinateRefs = coordinateLocals.map((local) => `data5g:${local}`).join(",\n        ");
 
   return `data5g:U_coord a ut:UtilityFunction ;
     dct:description "coordination utility draft" .
 
-data5g:${CE_LOCAL} a data5g:CoordinationExpectation ;
+data5g:${CE_LOCAL} a data5g:CoordinationExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
     icm:target data5g:coordination-service ;
     log:allOf ${conditionRefs} ;
     ut:utility data5g:U_coord ;
@@ -75,8 +77,7 @@ data5g:durationCoordination_${CE_LOCAL} a time:DurationDescription ;
     time:numericDuration "${interval}"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:TenMinuteReportEventCoordination_${CE_LOCAL} a rdfs:Class ;
-    rdfs:subClassOf imo:Event ;
+data5g:TenMinuteReportEventCoordination_${CE_LOCAL} a imo:Event ;
     time:delay ( data5g:lastReportInstant data5g:durationCoordination_${CE_LOCAL} ) ;
     imo:eventFor data5g:${CE_LOCAL} .
 

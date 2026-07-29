@@ -2,6 +2,9 @@
 
 SHACL profile: `skill_subset_intent_shapes.ttl` (e1 intent subset).
 
+TIO extension ontology (classes / `icm:Target` typing): `../../../data5g-onto/`  
+(see that folder’s README for offline `tio-shacl validate -O` usage). Generated Turtle also gets these idioms from the `tio-idioms` postprocessor.
+
 ## i17 additions
 
 - **DataCenter** — `data5g:DataCenter` on deployment contexts must match `^EC_[0-9]+$` (infra KG clusterId).

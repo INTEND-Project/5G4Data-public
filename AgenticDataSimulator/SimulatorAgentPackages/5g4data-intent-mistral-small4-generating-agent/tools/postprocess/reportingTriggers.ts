@@ -91,27 +91,64 @@ function extractExpectationBlock(
   return extractSubjectBlock(text, `${prefix}${expId}`);
 }
 
-function firstConditionAnchor(expBlock: string, prefix: "DE" | "SE" | "NE" | "CE"): string {
-  const allOfMatch = expBlock.match(/log:allOf\s+([^;]+)/is);
-  if (!allOfMatch?.[1]) return `${prefix}unknown`;
-  const tokens = allOfMatch[1].match(/data5g:(CO|NE|CX)([A-Za-z0-9]+)/gi) ?? [];
+/** Prefer a CO/NE/CE member of log:allOf; never invent "*unknown" anchors. */
+function firstConditionAnchor(expBlock: string, expectationLocal: string): string {
+  const allOfMatch = expBlock.match(/log:allOf\s+([^;.]+)/is);
+  if (!allOfMatch?.[1]) return expectationLocal;
+  const tokens = allOfMatch[1].match(/data5g:(CO|NE|CE)([A-Za-z0-9_]+)/gi) ?? [];
   for (const token of tokens) {
     const local = token.replace(/^data5g:/i, "");
-    if (local.startsWith("CO")) return local;
-    if (local.startsWith("NE")) return local;
+    if (/^CO/i.test(local) || /^NE/i.test(local) || /^CE/i.test(local)) return local;
   }
-  return `${prefix}unknown`;
+  return expectationLocal;
+}
+
+/** Reject LLM typos like data5g:DEployment / *unknown that are not real expectation subjects. */
+function isRealExpectation(
+  text: string,
+  expPrefix: "DE" | "SE" | "NE" | "CE",
+  expId: string
+): boolean {
+  if (!expId || /^unknown$/i.test(expId) || /^ployment$/i.test(expId)) return false;
+  const local = `${expPrefix}${expId}`;
+  return new RegExp(String.raw`\bdata5g:${local}\s+a\b`, "i").test(text);
 }
 
 function parseEventExpectationMap(text: string): Map<string, { expPrefix: "DE" | "SE" | "NE" | "CE"; expId: string }> {
   const map = new Map<string, { expPrefix: "DE" | "SE" | "NE" | "CE"; expId: string }>();
+  // Match both legacy rdfs:Class+subClassOf and current a imo:Event dialect.
   const re =
-    /data5g:([A-Za-z0-9_]+)\s+a\s+rdfs:Class[\s\S]*?imo:eventFor\s+data5g:(DE|SE|NE|CE)([A-Za-z0-9_]+)/gi;
+    /data5g:([A-Za-z0-9_]+)\s+a\s+(?:rdfs:Class|imo:Event)\b[\s\S]*?imo:eventFor\s+data5g:(DE|SE|NE|CE)([A-Za-z0-9_]+)/gi;
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
-    map.set(match[1], { expPrefix: match[2] as "DE" | "SE" | "NE" | "CE", expId: match[3] });
+    const expPrefix = match[2] as "DE" | "SE" | "NE" | "CE";
+    const expId = match[3];
+    if (!isRealExpectation(text, expPrefix, expId)) continue;
+    map.set(match[1], { expPrefix, expId });
   }
   return map;
+}
+
+function durationLocalFromEventBlock(eventBlock: string): string | null {
+  const match = eventBlock.match(
+    /time:delay\s*\(\s*data5g:lastReportInstant\s+data5g:([A-Za-z0-9_]+)/i
+  );
+  return match?.[1] ?? null;
+}
+
+function findExpectationByTarget(
+  text: string,
+  expPrefix: "DE" | "SE" | "NE" | "CE",
+  targetKey: string
+): string | null {
+  const expRe = new RegExp(
+    String.raw`data5g:(${expPrefix}[A-Za-z0-9_]+)\s+a[\s\S]*?icm:target\s+data5g:${targetKey}\b`,
+    "i"
+  );
+  const expMatch = text.match(expRe);
+  if (!expMatch?.[1]) return null;
+  const expId = expMatch[1].slice(expPrefix.length);
+  return isRealExpectation(text, expPrefix, expId) ? expId : null;
 }
 
 function parseReportingExpectations(text: string): Array<{
@@ -159,8 +196,7 @@ function buildEventBlock(
   durationLocal: string,
   expectationRef: string
 ): string {
-  return `data5g:${eventLocal} a rdfs:Class ;
-    rdfs:subClassOf imo:Event ;
+  return `data5g:${eventLocal} a imo:Event ;
     time:delay ( data5g:lastReportInstant data5g:${durationLocal} ) ;
     imo:eventFor ${expectationRef} .`;
 }
@@ -308,31 +344,27 @@ export function applyPostprocessor(args: {
 
     if (block.triggerEvent && eventMap.has(block.triggerEvent)) {
       const link = eventMap.get(block.triggerEvent)!;
-      expPrefix = link.expPrefix;
-      expId = link.expId;
-    } else {
-      const targetKey = block.targetLocal.replace(/^data5g:/i, "");
-      const expRe = new RegExp(
-        String.raw`data5g:(${expPrefix}[A-Za-z0-9_]+)\s+a[\s\S]*?icm:target\s+data5g:${targetKey}`,
-        "i"
-      );
-      const expMatch = text.match(expRe);
-      if (expMatch?.[1]) {
-        expId = expMatch[1].slice(expPrefix.length);
+      if (isRealExpectation(text, link.expPrefix, link.expId)) {
+        expPrefix = link.expPrefix;
+        expId = link.expId;
       }
+    }
+    if (!expId) {
+      const targetKey = block.targetLocal.replace(/^data5g:/i, "");
+      expId = findExpectationByTarget(text, expPrefix, targetKey) ?? "";
     }
 
     if (!expId) continue;
 
+    const expectationLocal = `${expPrefix}${expId}`;
     const expBlock = extractExpectationBlock(text, expId, expPrefix);
-    const anchor =
-      expBlock && !expBlock.includes("unknown")
-        ? firstConditionAnchor(expBlock, expPrefix)
-        : `${expPrefix}${expId}`;
+    const anchor = expBlock
+      ? firstConditionAnchor(expBlock, expectationLocal)
+      : expectationLocal;
 
     const eventLocal = `${intervalLabel}ReportEvent${kind}_${anchor}`;
     const durationLocal = `duration${kind}_${anchor}`;
-    const expectationRef = `data5g:${expPrefix}${expId}`;
+    const expectationRef = `data5g:${expectationLocal}`;
 
     newEventLocals.add(eventLocal);
     newDurationLocals.add(durationLocal);
@@ -340,6 +372,11 @@ export function applyPostprocessor(args: {
     if (block.triggerEvent) {
       if (GLOBAL_EVENT_LOCALS.has(block.triggerEvent) || block.triggerEvent !== eventLocal) {
         oldLocalsToRemove.add(block.triggerEvent);
+        const oldEventBlock = extractSubjectBlock(text, block.triggerEvent);
+        const oldDuration = oldEventBlock ? durationLocalFromEventBlock(oldEventBlock) : null;
+        if (oldDuration && !newDurationLocals.has(oldDuration)) {
+          oldLocalsToRemove.add(oldDuration);
+        }
         changes += 1;
       }
       text = text.replace(
@@ -376,6 +413,40 @@ export function applyPostprocessor(args: {
     for (const [oldEvent, link] of eventMap.entries()) {
       if (link.expId === expId && link.expPrefix === expPrefix && oldEvent !== eventLocal) {
         oldLocalsToRemove.add(oldEvent);
+        const oldEventBlock = extractSubjectBlock(text, oldEvent);
+        const oldDuration = oldEventBlock ? durationLocalFromEventBlock(oldEventBlock) : null;
+        if (oldDuration && !newDurationLocals.has(oldDuration)) {
+          oldLocalsToRemove.add(oldDuration);
+        }
+      }
+    }
+  }
+
+  // Sweep leftover bogus anchors from earlier LLM / postprocessor runs.
+  for (const m of text.matchAll(
+    /\bdata5g:((?:Ten|Five|\d+)(?:Minute|Second)ReportEvent(?:Deployment|Sustainability|Network|Coordination)_(?:DE|SE|NE|CE)(?:unknown|ployment))\b/gi
+  )) {
+    oldLocalsToRemove.add(m[1]);
+  }
+  for (const m of text.matchAll(
+    /\bdata5g:(duration(?:Deployment|Sustainability|Network|Coordination)_(?:DE|SE|NE|CE)(?:unknown|ployment))\b/gi
+  )) {
+    oldLocalsToRemove.add(m[1]);
+  }
+  // Orphan events whose eventFor does not name a real expectation subject.
+  for (const m of text.matchAll(
+    /data5g:([A-Za-z0-9_]+)\s+a\s+(?:rdfs:Class|imo:Event)\b[\s\S]*?imo:eventFor\s+data5g:(DE|SE|NE|CE)([A-Za-z0-9_]+)/gi
+  )) {
+    const eventLocal = m[1];
+    const expPrefix = m[2] as "DE" | "SE" | "NE" | "CE";
+    const expId = m[3];
+    if (newEventLocals.has(eventLocal)) continue;
+    if (!isRealExpectation(text, expPrefix, expId)) {
+      oldLocalsToRemove.add(eventLocal);
+      const oldEventBlock = extractSubjectBlock(text, eventLocal);
+      const oldDuration = oldEventBlock ? durationLocalFromEventBlock(oldEventBlock) : null;
+      if (oldDuration && !newDurationLocals.has(oldDuration)) {
+        oldLocalsToRemove.add(oldDuration);
       }
     }
   }
@@ -391,15 +462,13 @@ export function applyPostprocessor(args: {
     }
   }
 
-  const referenced = new Set<string>();
-  for (const m of text.matchAll(/data5g:([A-Za-z0-9_]+)/g)) {
-    referenced.add(m[1]);
-  }
-  for (const local of oldLocalsToRemove) {
-    if (!referenced.has(local) || GLOBAL_EVENT_LOCALS.has(local) || GLOBAL_DURATION_LOCALS.has(local)) {
-      text = removeSubjectBlocks(text, new Set([local]));
-      changes += 1;
-    }
+  // Always drop collected obsolete subjects (self-mentions must not keep them alive).
+  const removable = new Set(
+    [...oldLocalsToRemove].filter((local) => !newEventLocals.has(local) && !newDurationLocals.has(local))
+  );
+  if (removable.size > 0) {
+    text = removeSubjectBlocks(text, removable);
+    changes += removable.size;
   }
 
   text = removeSubjectBlocks(text, new Set([...GLOBAL_EVENT_LOCALS, ...GLOBAL_DURATION_LOCALS].filter(

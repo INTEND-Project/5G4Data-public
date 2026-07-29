@@ -42,24 +42,24 @@ Use this as a starting shape, then remove the blocks that are not needed when cr
 
 data5g:I__ID_INTENT_1__ a icm:Intent ;
     dct:description "<intent summary>" ;
-    imo:handler "inServ" ;
-    imo:owner "inChat" ;
+    imo:handler data5g:inServ ;
+    imo:owner data5g:inChat ;
     log:allOf data5g:DE__ID_DEPLOYMENT_1__,
         data5g:RE__ID_REPORT_DEPLOYMENT_1__ .
 
-data5g:CO__ID_CONDITION_1__ a icm:Condition ;
+data5g:CO__ID_CONDITION_1__ a log:Condition ;
     dct:description "<objective-name> condition <quan-op>: <value> <unit>" ;
     set:forAll [ icm:valuesOfTargetProperty data5g:<objective-name>___ID_CONDITION_<LABEL>_1__ ;
             <quan-op> [ quan:unit "<unit>" ;
                     rdf:value <value> ] ] .
 
-data5g:CO__ID_CONDITION_BANDWIDTH_1__ a icm:Condition ;
-    dct:description "Bandwidth condition quan:larger: <value> <unit>" ;
+data5g:CO__ID_CONDITION_BANDWIDTH_1__ a log:Condition ;
+    dct:description "Bandwidth condition quan:greater: <value> <unit>" ;
     set:forAll [ icm:valuesOfTargetProperty data5g:bandwidth___ID_CONDITION_BANDWIDTH_1__ ;
-            quan:larger [ quan:unit "mbit/s" ;
+            quan:greater [ quan:unit "mbit/s" ;
                     rdf:value <value> ] ] .
 
-data5g:CO__ID_CONDITION_LATENCY_1__ a icm:Condition ;
+data5g:CO__ID_CONDITION_LATENCY_1__ a log:Condition ;
     dct:description "Latency condition quan:smaller: <value> <unit>" ;
     set:forAll [ icm:valuesOfTargetProperty data5g:latency___ID_CONDITION_LATENCY_1__ ;
             quan:smaller [ quan:unit "ms" ;
@@ -107,8 +107,7 @@ data5g:durationDeployment_CO__ID_CONDITION_1__ a time:DurationDescription ;
     time:numericDuration "<reporting-interval-minutes>"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:TenMinuteReportEventDeployment_CO__ID_CONDITION_1__ a rdfs:Class ;
-    rdfs:subClassOf imo:Event ;
+data5g:TenMinuteReportEventDeployment_CO__ID_CONDITION_1__ a imo:Event ;
     time:delay ( data5g:lastReportInstant data5g:durationDeployment_CO__ID_CONDITION_1__ ) ;
     imo:eventFor data5g:DE__ID_DEPLOYMENT_1__ .
 
@@ -124,8 +123,7 @@ data5g:durationSustainability_CO__ID_CONDITION_2__ a time:DurationDescription ;
     time:numericDuration "<reporting-interval-minutes>"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:TenMinuteReportEventSustainability_CO__ID_CONDITION_2__ a rdfs:Class ;
-    rdfs:subClassOf imo:Event ;
+data5g:TenMinuteReportEventSustainability_CO__ID_CONDITION_2__ a imo:Event ;
     time:delay ( data5g:lastReportInstant data5g:durationSustainability_CO__ID_CONDITION_2__ ) ;
     imo:eventFor data5g:SE__ID_SUSTAINABILITY_1__ .
 
@@ -141,8 +139,7 @@ data5g:durationNetwork_CO__ID_CONDITION_3__ a time:DurationDescription ;
     time:numericDuration "<reporting-interval-minutes>"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:TenMinuteReportEventNetwork_CO__ID_CONDITION_3__ a rdfs:Class ;
-    rdfs:subClassOf imo:Event ;
+data5g:TenMinuteReportEventNetwork_CO__ID_CONDITION_3__ a imo:Event ;
     time:delay ( data5g:lastReportInstant data5g:durationNetwork_CO__ID_CONDITION_3__ ) ;
     imo:eventFor data5g:NE__ID_NETWORK_1__ .
 
@@ -213,7 +210,7 @@ objectives:
   - name: <objective-name>
     value: <chart-value>
     tmf-value-hint: "<threshold>"
-    tmf-quantifier-hint: "quan:larger|quan:smaller|quan:atLeast"
+    tmf-quantifier-hint: "quan:greater|quan:smaller|quan:atLeast"
     tmf-unit-hint: "<unit>"
     measuredBy: <prometheus-metric-id>
 ```
@@ -239,7 +236,7 @@ sustainability:
   - name: <metric-name>
     value: "<chart-value>"
     tmf-value-hint: "<threshold>"
-    tmf-quantifier-hint: "quan:larger|quan:smaller|quan:atLeast"
+    tmf-quantifier-hint: "quan:greater|quan:smaller|quan:atLeast"
     tmf-unit-hint: "<unit>"
     measuredBy: <prometheus-metric-id>
 ```
@@ -298,7 +295,7 @@ Never introduce other expectation types.
 - Sustainability conditions: only from chart `values.yaml` `sustainability`.
 - Network conditions: only bandwidth and latency.
 - Logistic behavior allowed only when user explicitly requests soft/non-linear semantics.
-- Default operators: `quan:smaller`, `quan:larger`, `quan:inRange`.
+- Default operators: `quan:smaller`, `quan:greater`, `quan:inRange`.
 
 ## Naming and identifier rules
 

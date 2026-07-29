@@ -5,7 +5,7 @@ Sustainability policy:
 - Reuse the existing deployment context when it already contains required fields (for example `Application`, `DataCenter`, and `DeploymentDescriptor`) instead of creating a duplicate partial sustainability context.
 - Preserve metric names and threshold values exactly from runtime context unless the user overrides.
 - Prefer `tmf-value-hint` when available; otherwise use `value`, and state the source explicitly.
-- Prefer `tmf-quantifier-hint` when available for the condition operator (`quan:larger`, `quan:smaller`).
+- Prefer `tmf-quantifier-hint` when available for the condition operator (`quan:greater`, `quan:smaller`).
 - Prefer `tmf-unit-hint` when available for `quan:unit` on the condition constraint; emit `quan:<op> [ quan:unit "<unit>" ; rdf:value <threshold> ]` matching catalogue hints unless the user overrides.
 - For sustainability reporting, use `icm:ObservationReportingExpectation` (not `icm:ReportingExpectation`).
 - Add sustainability-specific reporting trigger resources scoped to the first sustainability condition: `data5g:durationSustainability_CO<condition-id>` and `data5g:<IntervalLabel>ReportEventSustainability_CO<condition-id>` (never global `TenMinuteReportEventSustainability`).

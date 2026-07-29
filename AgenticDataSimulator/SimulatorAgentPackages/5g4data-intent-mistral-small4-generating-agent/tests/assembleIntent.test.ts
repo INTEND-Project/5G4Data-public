@@ -26,7 +26,7 @@ data5g:REdef a icm:ObservationReportingExpectation ;
     }
   });
 
-  assert.match(result.text, /log:allOf data5g:DEabc,\s*data5g:REdef/);
+  assert.match(result.text, /log:allOf \( data5g:DEabc data5g:REdef \)/);
   assert.match(result.text, /@prefix\s+icm:/);
   assert.equal(result.members.length, 2);
 });

@@ -44,7 +44,7 @@ export function parseDraftFragmentConditions(draft: IntentDraft): DraftCondition
   const out: DraftConditionRef[] = [];
   for (const fragment of draft.fragments) {
     for (const match of fragment.turtle.matchAll(
-      /\bdata5g:(CO[A-Za-z0-9_]+)\s+a\s+icm:Condition\b/gi
+      /\bdata5g:(CO[A-Za-z0-9_]+)\s+a\s+(?:icm|log):Condition\b/gi
     )) {
       const local = match[1];
       if (!local) continue;

@@ -3,7 +3,7 @@ Human review policy:
 - Do not emit `@prefix` declarations or Turtle blocks until the user types OK.
 - If deployment is included, you MUST include an "Extracted deployment objectives" section.
 - In that section, list each objective from runtime context with exact objective name and numeric threshold value.
-- Use explicit bullets in the form: `- <objective-name>: threshold=<value> (source=<tmf-value-hint|value>), quantifier=<quan:larger|quan:smaller> (source=<tmf-quantifier-hint|default>), unit=<unit> (source=<tmf-unit-hint|unspecified>)`.
+- Use explicit bullets in the form: `- <objective-name>: threshold=<value> (source=<tmf-value-hint|value>), quantifier=<quan:greater|quan:smaller> (source=<tmf-quantifier-hint|default>), unit=<unit> (source=<tmf-unit-hint|unspecified>)`.
 - If sustainability is included, you MUST include an "Extracted sustainability objectives" section.
 - In that section, list each sustainability metric from runtime context with exact metric name, numeric threshold, quantifier, and unit when available.
 - State which expectation kinds this intent will include (deployment, sustainability, network, coordination)—only those in scope for the prompt; do not imply all four are required.

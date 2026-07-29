@@ -41,6 +41,16 @@
       "when": "always"
     },
     {
+      "id": "tio-idioms",
+      "module": "tools/postprocess/tioIdioms.ts",
+      "when": "always"
+    },
+    {
+      "id": "tio-dialect",
+      "module": "tools/postprocess/tioDialect.ts",
+      "when": "always"
+    },
+    {
       "id": "report-destinations",
       "module": "tools/postprocess/reportDestinations.ts",
       "when": "always"

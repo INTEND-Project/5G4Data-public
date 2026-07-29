@@ -4,6 +4,7 @@ import {
   DEFAULT_NETWORK_LATENCY_MS
 } from "./postprocess/networkDefaults.js";
 import {
+  parseNetworkQosFromUserPrompt,
   parseReportingIntervalMinutes,
   reportingEventLabel
 } from "./fragmentContextParse.js";
@@ -31,24 +32,28 @@ function sharedCxLocalFromDraft(draft: IntentDraft): string | null {
 export function buildNetworkFragment(input: {
   draft: IntentDraft;
   reportingIntervalHint: string;
+  userPrompt?: string;
 }): string {
   const sharedCx = sharedCxLocalFromDraft(input.draft);
   const intervalMinutes = parseReportingIntervalMinutes(input.reportingIntervalHint);
   const intervalLabel = reportingEventLabel(intervalMinutes);
+  const qos = parseNetworkQosFromUserPrompt(input.userPrompt);
+  const bandwidthMbps = qos.bandwidthMbps ?? DEFAULT_NETWORK_BANDWIDTH_MBPS;
+  const latencyMs = qos.latencyMs ?? DEFAULT_NETWORK_LATENCY_MS;
   const coLocals = [CO_BANDWIDTH, CO_LATENCY];
 
   const blocks = [
     buildNetworkConditionBlock({
       stem: "bandwidth",
       coLocal: CO_BANDWIDTH,
-      threshold: DEFAULT_NETWORK_BANDWIDTH_MBPS,
+      threshold: bandwidthMbps,
       unit: "mbit/s",
-      quantifier: "quan:larger"
+      quantifier: "quan:greater"
     }),
     buildNetworkConditionBlock({
       stem: "latency",
       coLocal: CO_LATENCY,
-      threshold: DEFAULT_NETWORK_LATENCY_MS,
+      threshold: latencyMs,
       unit: "ms",
       quantifier: "quan:smaller"
     }),

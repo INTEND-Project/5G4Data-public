@@ -71,3 +71,54 @@ test("applyPostprocessor uses unitSecond when reportingIntervalSeconds set", () 
   );
   assert.doesNotMatch(result.text, /\bdata5g:TenMinuteReportEventDeployment\b/);
 });
+
+const BROKEN_UNKNOWN = `@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+data5g:DE8197753b132f45238487aa20416ac4a3 a data5g:DeploymentExpectation, icm:Expectation ;
+    icm:target data5g:deployment ;
+    log:allOf ( data5g:COc3c54fdbba4b4d849f39228a41bf037d data5g:CX72a5a22dda5f41f18954feeede5419c2 ) .
+
+data5g:durationDeployment_COc3c54fdbba4b4d849f39228a41bf037d a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventDeployment_COc3c54fdbba4b4d849f39228a41bf037d a imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:durationDeployment_COc3c54fdbba4b4d849f39228a41bf037d ) ;
+    imo:eventFor data5g:DE8197753b132f45238487aa20416ac4a3 .
+
+data5g:RE80c3061cb18b44cfaa9e4b239e88aec9 a icm:ObservationReportingExpectation ;
+    icm:target data5g:deployment ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventDeployment_DEunknown ] .
+
+data5g:durationDeployment_DEunknown a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventDeployment_DEunknown a imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:durationDeployment_DEunknown ) ;
+    imo:eventFor data5g:DEployment .
+`;
+
+test("applyPostprocessor rewires DEunknown/DEployment reporting to condition anchor", () => {
+  const result = applyPostprocessor({
+    text: BROKEN_UNKNOWN,
+    context: { reportingIntervalMinutes: 10 }
+  });
+  assert.ok(result.changes > 0);
+  assert.match(
+    result.text,
+    /rdfs:member data5g:TenMinuteReportEventDeployment_COc3c54fdbba4b4d849f39228a41bf037d/
+  );
+  assert.match(
+    result.text,
+    /imo:eventFor data5g:DE8197753b132f45238487aa20416ac4a3/
+  );
+  assert.doesNotMatch(result.text, /DEunknown|DEployment/);
+});

@@ -8,7 +8,7 @@ Output rules:
 - **Reuse** `sharedCxLocal` from draft context — reference it in SE `log:allOf` only; do not emit a second `CX` block when `sharedCxLocal` is set.
 
 Emit:
-1. One `data5g:CO… a icm:Condition` per sustainability catalogue entry from runtime (`sustainability[]`).
+1. One `data5g:CO… a log:Condition` per sustainability catalogue entry from runtime (`sustainability[]`).
 2. `data5g:SE… a data5g:SustainabilityExpectation, icm:Expectation, icm:IntentElement` with `icm:target data5g:sustainability`, `log:allOf` listing sustainability CO block(s) and shared `CX…`.
 3. `data5g:durationSustainability_CO… a time:DurationDescription` and scoped report event class.
 4. `icm:ObservationReportingExpectation` targeting `data5g:sustainability` with prometheus destinations/triggers.
@@ -16,7 +16,7 @@ Emit:
 Example shape (separate blocks, semicolon before `time:` on SE):
 
 ```
-data5g:CO__ID_CONDITION_SUST_1__ a icm:Condition ; ... .
+data5g:CO__ID_CONDITION_SUST_1__ a log:Condition ; ... .
 
 data5g:SE__ID_SUSTAINABILITY_1__ a data5g:SustainabilityExpectation, icm:Expectation, icm:IntentElement ;
     icm:target data5g:sustainability ;

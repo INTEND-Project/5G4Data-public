@@ -84,17 +84,32 @@ test("normalizeFragmentTurtle removes duplicate semicolons after set:forAll bloc
   assert.doesNotMatch(result.text, /\]\s*;\s*\n\s*;\s*\n/);
 });
 
-test("normalizeFragmentTurtle dedupes duplicate set:forAll members in fragment", () => {
-  const input = `data5g:CO903c65898f9a4639a525d649c699e6a0 a icm:Condition ;
-    dct:description "p99-token-target condition quan:larger: 400 token/s" ;
-    set:forAll [
-        icm:valuesOfTargetProperty data5g:p99-token-target_CO903c65898f9a4639a525d649c699e6a0 ;
-        quan:larger [ quan:unit "token/s" ; rdf:value 400 ]
-        ], [
-        icm:valuesOfTargetProperty data5g:p99-token-target_CO903c65898f9a4639a525d649c699e6a0 ;
-        quan:larger [ quan:unit "token/s" ; rdf:value 400 ]
-        ] .`;
+test("normalizeFragmentTurtle does not insert semicolons inside RDF list openers", () => {
+  const input = `data5g:member_CO1 a quan:Quantity ;
+    rdf:value "0"^^xsd:decimal .
+
+data5g:CO1 a log:Condition ;
+    dct:description "p99-token-target condition quan:greater: 400 token/s" ;
+    set:forAll (
+        data5g:member_CO1
+        [ icm:valuesOfTargetProperty ( data5g:p99-token-target_CO1 ) ]
+        [ quan:greater (
+            data5g:member_CO1
+            [ a quan:Quantity ; quan:unit "token/s" ;
+                    rdf:value 400 ]
+          ) ]
+    ) .`;
   const result = normalizeFragmentTurtle(input, { fragmentId: "deployment" });
-  assert.ok(result.changes > 0);
-  assert.equal([...result.text.matchAll(/valuesOfTargetProperty/gi)].length, 1);
+  assert.doesNotMatch(result.text, /\(\s*;/);
+  assert.doesNotMatch(result.text, /quan:greater \(\s*;/);
+});
+
+test("normalizeFragmentTurtle strips measuredBy intend/ prometheus ids", () => {
+  const input = `data5g:CO1 a log:Condition ;
+    dct:description "p99-token-target condition quan:greater: 400 token/s" ;
+    set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_CO1 ] ;
+    measuredBy intend/p99token .`;
+  const result = normalizeFragmentTurtle(input, { fragmentId: "deployment" });
+  assert.doesNotMatch(result.text, /measuredBy/);
+  assert.doesNotMatch(result.text, /intend\/p99token/);
 });

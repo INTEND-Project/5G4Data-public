@@ -75,7 +75,7 @@ data5g:CObw a log:Condition ;
     set:forAll (
         data5g:member_CObw
         [ icm:valuesOfTargetProperty ( data5g:bandwidth_CObw ) ]
-        [ quan:greater (
+        [ quan:atLeast (
             data5g:member_CObw
             [ a quan:Quantity ; quan:unit "mbit/s" ; rdf:value 300 ]
           ) ]

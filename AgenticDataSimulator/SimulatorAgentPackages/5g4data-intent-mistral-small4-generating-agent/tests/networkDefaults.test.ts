@@ -22,8 +22,16 @@ data5g:COlat a icm:Condition ;
 
   const result = applyPostprocessor({ text: input });
   assert.ok(result.changes > 0);
-  assert.match(result.text, new RegExp(`rdf:value ${DEFAULT_NETWORK_BANDWIDTH_MBPS}`));
-  assert.match(result.text, new RegExp(`rdf:value ${DEFAULT_NETWORK_LATENCY_MS}`));
+  assert.match(result.text, /quan:atLeast/);
+  assert.doesNotMatch(result.text, /quan:(?:larger|greater)\b/);
+  assert.match(
+    result.text,
+    new RegExp(`rdf:value "${DEFAULT_NETWORK_BANDWIDTH_MBPS}"\\^\\^xsd:decimal`)
+  );
+  assert.match(
+    result.text,
+    new RegExp(`rdf:value "${DEFAULT_NETWORK_LATENCY_MS}"\\^\\^xsd:decimal`)
+  );
 });
 
 test("networkDefaults leaves explicit non-zero thresholds unchanged", () => {

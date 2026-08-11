@@ -18,7 +18,9 @@
     "icm:Intent",
     "icm:ObservationReportingExpectation",
     "imo:handler data5g:inServ",
-    "imo:owner data5g:inChat"
+    "imo:owner data5g:inChat",
+    "log:Condition",
+    "imo:IntentManager"
   ],
   "clarificationTag": "[deployment datacenter clarification required]",
   "conditionalRequirements": [

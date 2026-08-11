@@ -31,7 +31,7 @@ data5g:Evt1 a rdfs:Class ;
   assert.ok(result.changes > 0);
   assert.match(result.text, /a log:Condition/);
   assert.doesNotMatch(result.text, /\bicm:Condition\b/);
-  assert.match(result.text, /quan:greater/);
+  assert.match(result.text, /quan:atLeast/);
   assert.doesNotMatch(result.text, /quan:larger/);
   assert.match(result.text, /imo:handler data5g:inServ/);
   assert.match(result.text, /data5g:inServ a imo:IntentManager/);

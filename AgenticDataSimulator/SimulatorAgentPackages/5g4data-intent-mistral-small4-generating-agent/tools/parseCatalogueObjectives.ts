@@ -16,7 +16,7 @@ function parseMetricLine(line: string): ParsedCatalogueMetric | null {
   return {
     name: match[1].trim(),
     threshold: match[2].trim(),
-    quantifier: match[3]?.trim() || "quan:greater",
+    quantifier: match[3]?.trim() || "quan:atLeast",
     unit: match[4]?.trim() || ""
   };
 }

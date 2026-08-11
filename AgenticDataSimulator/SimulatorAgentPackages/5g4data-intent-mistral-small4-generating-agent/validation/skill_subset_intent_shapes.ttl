@@ -188,6 +188,7 @@ data5g:NetworkExpectationShape
         a sh:SPARQLConstraint ;
         sh:message "NetworkExpectation must include at least one referenced condition using a bandwidth metric property (data5g:bandwidth_*)." ;
         sh:select """
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
             SELECT $this
             WHERE {
               FILTER NOT EXISTS {
@@ -195,6 +196,7 @@ data5g:NetworkExpectationShape
                 ?cond a log:Condition ;
                       set:forAll/rdf:rest*/rdf:first ?fa .
                 ?fa icm:valuesOfTargetProperty/rdf:rest*/rdf:first ?metric .
+                ?metric a rdf:Property .
                 FILTER(STRSTARTS(STR(?metric), "http://5g4data.eu/5g4data#bandwidth_"))
               }
             }
@@ -204,6 +206,7 @@ data5g:NetworkExpectationShape
         a sh:SPARQLConstraint ;
         sh:message "NetworkExpectation must include at least one referenced condition using a latency metric property (data5g:latency_*)." ;
         sh:select """
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
             SELECT $this
             WHERE {
               FILTER NOT EXISTS {
@@ -211,6 +214,7 @@ data5g:NetworkExpectationShape
                 ?cond a log:Condition ;
                       set:forAll/rdf:rest*/rdf:first ?fa .
                 ?fa icm:valuesOfTargetProperty/rdf:rest*/rdf:first ?metric .
+                ?metric a rdf:Property .
                 FILTER(STRSTARTS(STR(?metric), "http://5g4data.eu/5g4data#latency_"))
               }
             }
@@ -414,8 +418,36 @@ data5g:MetricConditionShape
         sh:nodeKind sh:IRI
     ] ;
     sh:property [
-        sh:path ( set:forAll [ sh:zeroOrMorePath rdf:rest ] rdf:first [ sh:alternativePath ( quan:smaller quan:greater quan:inRange quan:atLeast ) ] ) ;
+        sh:path ( set:forAll [ sh:zeroOrMorePath rdf:rest ] rdf:first [ sh:alternativePath ( quan:smaller quan:greater quan:inRange quan:atLeast quan:atMost ) ] ) ;
         sh:minCount 1
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Metric log:Condition must use set:forAll list with icm:valuesOfTargetProperty and a quan:atLeast|quan:smaller|quan:inRange comparison." ;
+        sh:select """
+            SELECT $this
+            WHERE {
+              FILTER NOT EXISTS {
+                $this set:forAll/rdf:rest*/rdf:first ?item .
+                {
+                  ?item icm:valuesOfTargetProperty ?v .
+                }
+              }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Metric log:Condition must include quan:atLeast, quan:smaller, quan:greater, quan:inRange, or quan:atMost in the set:forAll list." ;
+        sh:select """
+            SELECT $this
+            WHERE {
+              FILTER NOT EXISTS {
+                $this set:forAll/rdf:rest*/rdf:first ?item .
+                { ?item quan:atLeast ?x } UNION { ?item quan:smaller ?x } UNION { ?item quan:greater ?x } UNION { ?item quan:inRange ?x } UNION { ?item quan:atMost ?x }
+              }
+            }
+        """
     ] .
 
 # Coordination reporting anchors may be description-only (no set:forAll).

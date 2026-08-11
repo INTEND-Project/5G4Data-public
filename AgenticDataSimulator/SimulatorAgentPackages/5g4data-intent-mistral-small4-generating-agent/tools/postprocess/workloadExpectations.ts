@@ -33,7 +33,7 @@ function parseObjectiveLine(line: string): ParsedObjective | null {
   const name = match[1]?.trim() ?? "";
   const threshold = match[2]?.trim() ?? "";
   if (!name || !threshold || threshold === "unspecified") return null;
-  const quantifierRaw = match[3]?.trim() ?? "quan:greater";
+  const quantifierRaw = match[3]?.trim() ?? "quan:atLeast";
   const quantifier = quantifierRaw.startsWith("quan:") ? quantifierRaw : `quan:${quantifierRaw}`;
   const unit = match[4]?.trim() ?? "";
   return { name, threshold, quantifier, unit };
@@ -103,6 +103,7 @@ function renderConditionBlock(local: string, objective: ParsedObjective): string
   const metricLocal = `${objective.name}_${local}`;
   const q = quantifierToken(objective.quantifier);
   const thresholdNum = objective.threshold.replace(/[^\d.]/g, "") || objective.threshold;
+  const unit = objective.unit.length > 0 ? objective.unit : "1";
   const unitSuffix = objective.unit.length > 0 ? ` ${objective.unit}` : "";
   const desc = `${objective.name} condition quan:${q}: ${thresholdNum}${unitSuffix}`;
   return formatConditionBlock({
@@ -313,7 +314,7 @@ function upsertIntentAllOf(text: string, intentLocal: string, members: string[])
     return text.replace(intentPattern, `$1${refs}$3`);
   }
   const intentBlockPattern = new RegExp(
-    String.raw`(data5g:${intentLocal}\s+a\s+icm:Intent\s*;[\s\S]*?imo:owner\s+data5g:inChat\s*;)`,
+    String.raw`(data5g:${intentLocal}\s+a\s+icm:Intent\s*;[\s\S]*?imo:owner\s+(?:data5g:inChat|"inChat")\s*;)`,
     "i"
   );
   if (intentBlockPattern.test(text)) {

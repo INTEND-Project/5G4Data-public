@@ -26,6 +26,11 @@
       "when": "always"
     },
     {
+      "id": "metric-iri-normalize",
+      "module": "tools/postprocess/metricIriNormalize.ts",
+      "when": "always"
+    },
+    {
       "id": "coordination-utility",
       "module": "tools/postprocess/coordinationUtility.ts",
       "when": "always"

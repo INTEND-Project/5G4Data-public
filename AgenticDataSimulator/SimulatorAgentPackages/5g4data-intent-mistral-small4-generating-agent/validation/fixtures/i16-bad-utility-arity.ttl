@@ -22,15 +22,15 @@ data5g:CE1 a data5g:CoordinationExpectation ;
     log:allOf data5g:CO1, data5g:CO2, data5g:CO3 ;
     ut:utility data5g:U_coord .
 
-data5g:CO1 a icm:Condition ;
+data5g:CO1 a log:Condition ;
     set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_CO1 ;
-            quan:larger [ rdf:value 400 ] ] .
+            quan:atLeast [ rdf:value 400 ] ] .
 
-data5g:CO2 a icm:Condition ;
+data5g:CO2 a log:Condition ;
     set:forAll [ icm:valuesOfTargetProperty data5g:power-consumption_CO2 ;
             quan:smaller [ rdf:value 50 ] ] .
 
-data5g:CO3 a icm:Condition ;
+data5g:CO3 a log:Condition ;
     set:forAll [ icm:valuesOfTargetProperty data5g:energy-consumption_CO3 ;
             quan:smaller [ rdf:value 100 ] ] .
 

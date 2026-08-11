@@ -116,9 +116,9 @@ function isRealExpectation(
 
 function parseEventExpectationMap(text: string): Map<string, { expPrefix: "DE" | "SE" | "NE" | "CE"; expId: string }> {
   const map = new Map<string, { expPrefix: "DE" | "SE" | "NE" | "CE"; expId: string }>();
-  // Match both legacy rdfs:Class+subClassOf and current a imo:Event dialect.
+  // Accept both production `a imo:Event` and legacy `a rdfs:Class ; rdfs:subClassOf imo:Event`.
   const re =
-    /data5g:([A-Za-z0-9_]+)\s+a\s+(?:rdfs:Class|imo:Event)\b[\s\S]*?imo:eventFor\s+data5g:(DE|SE|NE|CE)([A-Za-z0-9_]+)/gi;
+    /data5g:([A-Za-z0-9_]+)\s+a\s+(?:imo:Event|rdfs:Class)\b[\s\S]*?imo:eventFor\s+data5g:(DE|SE|NE|CE)([A-Za-z0-9_]+)/gi;
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
     const expPrefix = match[2] as "DE" | "SE" | "NE" | "CE";
@@ -196,6 +196,7 @@ function buildEventBlock(
   durationLocal: string,
   expectationRef: string
 ): string {
+  // TIO vocabulary: imo:eventFor domain is imo:Event (not rdfs:Class subclass).
   return `data5g:${eventLocal} a imo:Event ;
     time:delay ( data5g:lastReportInstant data5g:${durationLocal} ) ;
     imo:eventFor ${expectationRef} .`;

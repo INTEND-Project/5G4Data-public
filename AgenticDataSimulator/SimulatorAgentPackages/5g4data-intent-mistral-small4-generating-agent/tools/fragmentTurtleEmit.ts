@@ -10,7 +10,10 @@ export function buildConditionBlock(metric: ParsedCatalogueMetric, coLocal: stri
   const unit = metric.unit || "1";
   const threshold = metric.threshold;
   const propLocal = `${metric.name}_${coLocal}`;
-  const quantifier = metric.quantifier === "quan:larger" ? "quan:greater" : metric.quantifier;
+  const quantifier =
+    metric.quantifier === "quan:larger" || metric.quantifier === "quan:greater"
+      ? "quan:atLeast"
+      : metric.quantifier;
   const desc = `${metric.name} condition ${quantifier}: ${threshold} ${unit}`;
   return formatConditionBlock({
     coLocal,
@@ -118,11 +121,14 @@ export function buildNetworkConditionBlock(args: {
   coLocal: string;
   threshold: number;
   unit: string;
-  quantifier: "quan:larger" | "quan:greater" | "quan:smaller";
+  quantifier: "quan:larger" | "quan:greater" | "quan:smaller" | "quan:atLeast" | "quan:atMost";
 }): string {
   const propLocal = `${args.stem}_${args.coLocal}`;
-  const quantifier = args.quantifier === "quan:larger" ? "quan:greater" : args.quantifier;
-  const label = quantifier === "quan:greater" ? "greater" : "smaller";
+  const quantifier =
+    args.quantifier === "quan:larger" || args.quantifier === "quan:greater"
+      ? "quan:atLeast"
+      : args.quantifier;
+  const label = quantifier === "quan:atLeast" ? "atLeast" : "smaller";
   const desc = `${args.stem} condition ${label}: ${args.threshold} ${args.unit}`;
   return formatConditionBlock({
     coLocal: args.coLocal,
@@ -143,6 +149,28 @@ export function buildNetworkExpectationBlock(args: {
   return `data5g:${args.neLocal} a data5g:NetworkExpectation, icm:Expectation, icm:IntentElement ;
     icm:target data5g:network-slice ;
     ${formatLogAllOf(members)} .`;
+}
+
+/** Network locality context: customer + GeoSPARQL region polygon. */
+export function buildRegionContextBlocks(args: {
+  cxLocal: string;
+  rgLocal: string;
+  customer: string;
+  placeLabel: string;
+  wkt: string;
+}): string {
+  const customer = args.customer.replace(/"/g, '\\"');
+  const place = args.placeLabel.replace(/"/g, '\\"');
+  const wkt = args.wkt.replace(/"/g, '\\"');
+  return `data5g:${args.cxLocal} a icm:Context,
+        icm:IntentElement ;
+    data5g:appliesToCustomer "${customer}" ;
+    data5g:appliesToRegion data5g:${args.rgLocal} ;
+    dct:description "Context for region: ${place}, customer: ${customer}" .
+
+data5g:${args.rgLocal} a geo:Feature ;
+    geo:hasGeometry [ a geo:Polygon ;
+            geo:asWKT "${wkt}"^^geo:wktLiteral ] .`;
 }
 
 export { rdfList };

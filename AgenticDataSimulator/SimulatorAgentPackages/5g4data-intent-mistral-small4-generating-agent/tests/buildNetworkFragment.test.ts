@@ -52,6 +52,8 @@ test("buildNetworkFragment emits bandwidth and latency conditions with defaults"
   assert.doesNotMatch(body, /data5g:Latency_/);
   assert.match(body, new RegExp(`rdf:value ${DEFAULT_NETWORK_BANDWIDTH_MBPS}`));
   assert.match(body, new RegExp(`rdf:value ${DEFAULT_NETWORK_LATENCY_MS}`));
+  assert.match(body, /quan:atLeast/);
+  assert.doesNotMatch(body, /quan:greater\b/);
   assert.match(body, /icm:target data5g:network-slice/);
   assert.match(body, /data5g:CX__ID_CONTEXT_1__/);
 });
@@ -67,4 +69,27 @@ test("buildNetworkFragment prefers user-stated QoS over defaults", () => {
   assert.match(body, /rdf:value 300\b/);
   assert.match(body, /rdf:value 20\b/);
   assert.doesNotMatch(body, new RegExp(`rdf:value ${DEFAULT_NETWORK_LATENCY_MS}\\b`));
+});
+
+test("buildNetworkFragment accepts QoS overrides and region polygon context", () => {
+  const body = buildNetworkFragment({
+    draft: { intentDescription: "slice", fragments: [] },
+    reportingIntervalHint: "Reporting interval: 10 minutes.",
+    bandwidthMbps: 300,
+    latencyMs: 20,
+    region: {
+      placeLabel: "Tromsø",
+      customer: "+47 77610000",
+      wkt: "POLYGON((18.896000 69.589600,19.016000 69.589600,19.016000 69.709600,18.896000 69.709600,18.896000 69.589600))"
+    }
+  });
+
+  assert.match(body, /rdf:value 300/);
+  assert.match(body, /rdf:value 20/);
+  assert.match(body, /quan:atLeast/);
+  assert.match(body, /data5g:CX__ID_CONTEXT_REGION_1__/);
+  assert.match(body, /data5g:appliesToRegion data5g:RG__ID_REGION_1__/);
+  assert.match(body, /geo:asWKT "POLYGON/);
+  assert.match(body, /log:allOf \( data5g:CO__ID_CONDITION_BANDWIDTH_1__/);
+  assert.match(body, /data5g:CX__ID_CONTEXT_REGION_1__/);
 });

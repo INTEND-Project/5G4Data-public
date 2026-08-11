@@ -19,19 +19,22 @@ function patchMetricBlock(
   let changes = 0;
   let text = block;
 
-  const valueMatch = text.match(/rdf:value\s+([^;\]\n]+)/i);
+  const valueMatch = text.match(/rdf:value\s+"?(-?\d+(?:\.\d+)?)"?(?:\^\^xsd:decimal)?/i);
   if (!valueMatch || needsDefaultThreshold(valueMatch[1])) {
     if (valueMatch) {
-      text = text.replace(/rdf:value\s+[^;\]\n]+/i, `rdf:value ${defaults.value}`);
-    } else if (/quan:(?:larger|smaller|inRange)\s*\[/.test(text)) {
       text = text.replace(
-        /(quan:(?:larger|smaller|inRange)\s*\[\s*quan:unit\s+"[^"]*"\s*;?)(\s*)/i,
-        `$1 rdf:value ${defaults.value} ;$2`
+        /rdf:value\s+"?-?\d+(?:\.\d+)?"?(?:\^\^xsd:decimal)?/i,
+        `rdf:value "${defaults.value}"^^xsd:decimal`
+      );
+    } else if (/quan:unit\s+"[^"]*"/i.test(text)) {
+      text = text.replace(
+        /(quan:unit\s+"[^"]*"\s*;?)/i,
+        `$1 rdf:value "${defaults.value}"^^xsd:decimal ;`
       );
     } else {
       text = text.replace(
-        /(set:forAll\s*\[[^\]]*?)(])/is,
-        `$1 ${defaults.quantifier} [ quan:unit "${defaults.unit}" ; rdf:value ${defaults.value} ] $2`
+        /(\[\s*)(quan:(?:atLeast|atMost|smaller|larger|greater|inRange)\b)/i,
+        `$1$2 [ quan:unit "${defaults.unit}" ; rdf:value "${defaults.value}"^^xsd:decimal ] `
       );
     }
     changes += 1;
@@ -39,18 +42,23 @@ function patchMetricBlock(
 
   if (!/quan:unit\s+"[^"]*"/i.test(text)) {
     text = text.replace(
-      /(quan:(?:larger|smaller|inRange)\s*\[)/i,
+      /(a\s+quan:Quantity\s*;)/i,
       `$1 quan:unit "${defaults.unit}" ; `
     );
     changes += 1;
   }
 
-  if (!/quan:(?:larger|smaller)/i.test(text)) {
-    text = text.replace(
-      /(icm:valuesOfTargetProperty\s+data5g:(?:bandwidth|latency)_[^;\]]+;\s*)/i,
-      `$1${defaults.quantifier} [ quan:unit "${defaults.unit}" ; rdf:value ${defaults.value} ] `
-    );
+  // Prefer TIO floor names; migrate leftover quan:larger|quan:greater
+  if (/quan:(?:larger|greater)\b/i.test(text)) {
+    text = text.replace(/quan:(?:larger|greater)\b/gi, "quan:atLeast");
     changes += 1;
+  }
+  if (
+    !/quan:(?:atLeast|atMost|smaller|larger|greater)\b/i.test(text) &&
+    /set:forAll/i.test(text)
+  ) {
+    // last resort: leave block; emitter should have written quantifier
+    changes += 0;
   }
 
   return { text, changes };
@@ -69,7 +77,10 @@ export function applyPostprocessor(args: { text: string }): {
   let changes = 0;
   const notes: string[] = [];
 
-  const conditionBlocks = [...text.matchAll(/\bdata5g:(CO[A-Za-z0-9_]+)\s+a[\s\S]*?\./gi)];
+  // Terminate on statement-final "." (not decimal points like rdf:value 0.0).
+  const conditionBlocks = [
+    ...text.matchAll(/\bdata5g:(CO[A-Za-z0-9_]+)\s+a[\s\S]*?\.(?=\s*(?:\n|$))/gi)
+  ];
   for (const match of conditionBlocks) {
     const block = match[0];
     if (!/data5g:(?:bandwidth|latency|networklatency)_/i.test(block)) continue;
@@ -79,7 +90,7 @@ export function applyPostprocessor(args: { text: string }): {
       const result = patchMetricBlock(block, /data5g:bandwidth_/i, {
         value: String(DEFAULT_NETWORK_BANDWIDTH_MBPS),
         unit: "mbit/s",
-        quantifier: "quan:greater"
+        quantifier: "quan:atLeast"
       });
       patched = result.text;
       changes += result.changes;

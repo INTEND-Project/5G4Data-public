@@ -89,11 +89,11 @@ test("normalizeFragmentTurtle does not insert semicolons inside RDF list openers
     rdf:value "0"^^xsd:decimal .
 
 data5g:CO1 a log:Condition ;
-    dct:description "p99-token-target condition quan:greater: 400 token/s" ;
+    dct:description "p99-token-target condition quan:atLeast: 400 token/s" ;
     set:forAll (
         data5g:member_CO1
         [ icm:valuesOfTargetProperty ( data5g:p99-token-target_CO1 ) ]
-        [ quan:greater (
+        [ quan:atLeast (
             data5g:member_CO1
             [ a quan:Quantity ; quan:unit "token/s" ;
                     rdf:value 400 ]
@@ -101,12 +101,12 @@ data5g:CO1 a log:Condition ;
     ) .`;
   const result = normalizeFragmentTurtle(input, { fragmentId: "deployment" });
   assert.doesNotMatch(result.text, /\(\s*;/);
-  assert.doesNotMatch(result.text, /quan:greater \(\s*;/);
+  assert.doesNotMatch(result.text, /quan:atLeast \(\s*;/);
 });
 
 test("normalizeFragmentTurtle strips measuredBy intend/ prometheus ids", () => {
   const input = `data5g:CO1 a log:Condition ;
-    dct:description "p99-token-target condition quan:greater: 400 token/s" ;
+    dct:description "p99-token-target condition quan:atLeast: 400 token/s" ;
     set:forAll [ icm:valuesOfTargetProperty data5g:p99-token-target_CO1 ] ;
     measuredBy intend/p99token .`;
   const result = normalizeFragmentTurtle(input, { fragmentId: "deployment" });

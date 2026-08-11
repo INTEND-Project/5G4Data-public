@@ -44,7 +44,7 @@ export function parseDraftFragmentConditions(draft: IntentDraft): DraftCondition
   const out: DraftConditionRef[] = [];
   for (const fragment of draft.fragments) {
     for (const match of fragment.turtle.matchAll(
-      /\bdata5g:(CO[A-Za-z0-9_]+)\s+a\s+(?:icm|log):Condition\b/gi
+      /\bdata5g:(CO[A-Za-z0-9_]+)\s+a\s+(?:icm:Condition|log:Condition)\b/gi
     )) {
       const local = match[1];
       if (!local) continue;
@@ -328,7 +328,7 @@ export function draftRefToMinimalParsed(ref: DraftConditionRef): ParsedCoordinat
     local: ref.local,
     metricStem: ref.metricStem,
     metricLocal: `data5g:${ref.metricStem}_${ref.local}`,
-    quantifier: isThroughputMetricStem(ref.metricStem) ? "larger" : "smaller",
+    quantifier: isThroughputMetricStem(ref.metricStem) ? "atLeast" : "smaller",
     threshold: 1,
     unit: ""
   };

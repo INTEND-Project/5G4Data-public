@@ -179,7 +179,7 @@ function stripNetworkExpectation(text: string): { text: string; changes: number 
 function isConditionOrContext(text: string, local: string): boolean {
   const block = extractSubjectBlock(text, local);
   if (!block) return false;
-  return /\ba\s+(?:icm|log):Condition\b/i.test(block) || /\ba\s+icm:Context\b/i.test(block);
+  return /\ba\s+(?:icm:Condition|log:Condition)\b/i.test(block) || /\ba\s+icm:Context\b/i.test(block);
 }
 
 function findExistingContextLocal(text: string): string | null {
@@ -199,7 +199,7 @@ function findConditionLocalBeforeExpectation(text: string, expPrefix: "DE" | "SE
   const expMatch = text.match(new RegExp(String.raw`\bdata5g:(${expPrefix}[A-Za-z0-9_]+)\s+a\b`, "i"));
   if (!expMatch?.[1]) return null;
   const expIndex = text.indexOf(expMatch[0]);
-  for (const match of text.matchAll(/\bdata5g:(CO[A-Za-z0-9_]+)\s+a\s+(?:icm|log):Condition\b/gi)) {
+  for (const match of text.matchAll(/\bdata5g:(CO[A-Za-z0-9_]+)\s+a\s+(?:icm:Condition|log:Condition)\b/gi)) {
     if (match.index !== undefined && match.index < expIndex && match[1]) {
       return match[1];
     }
@@ -209,7 +209,7 @@ function findConditionLocalBeforeExpectation(text: string, expPrefix: "DE" | "SE
 
 function isConditionLocal(text: string, local: string): boolean {
   const block = extractSubjectBlock(text, local);
-  return block ? /\ba\s+(?:icm|log):Condition\b/i.test(block) : false;
+  return block ? /\ba\s+(?:icm:Condition|log:Condition)\b/i.test(block) : false;
 }
 
 function dedupeIntentDescription(text: string, intentLocal: string): string {
@@ -298,7 +298,7 @@ function ensureDeploymentContexts(text: string): { text: string; changes: number
     }
 
     const refs = `( ${validMembers.map((local) => `data5g:${local}`).join(" ")} )`;
-    if (refs.length <= 4) continue;
+    if (validMembers.length === 0) continue;
 
     const updatedDe = deBlock.replace(
       /log:allOf\s+[\s\S]*?(\s*[;.]\s*)$/im,
@@ -363,16 +363,9 @@ function syncIntentAllOf(text: string, intentLocal: string, members: string[]): 
   if (withMemberList) {
     return text.replace(block, withMemberList);
   }
-  if (/imo:owner\s+data5g:inChat/i.test(block)) {
+  if (/imo:owner\s+(?:data5g:inChat|"inChat")/i.test(block)) {
     const updated = block.replace(
-      /imo:owner\s+data5g:inChat\s*;/i,
-      `imo:owner data5g:inChat ;\n    log:allOf ${refs} ;`
-    );
-    return text.replace(block, updated);
-  }
-  if (/imo:owner\s+"inChat"/i.test(block)) {
-    const updated = block.replace(
-      /imo:owner\s+"inChat"\s*;/i,
+      /imo:owner\s+(?:data5g:inChat|"inChat")\s*;/i,
       `imo:owner data5g:inChat ;\n    log:allOf ${refs} ;`
     );
     return text.replace(block, updated);

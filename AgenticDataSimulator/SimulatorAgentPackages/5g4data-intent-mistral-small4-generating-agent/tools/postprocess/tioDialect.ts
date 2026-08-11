@@ -1,7 +1,7 @@
 /**
  * TIO dialect normalizations for 5G4Data mistral intent Turtle:
  * - icm:Condition → log:Condition
- * - quan:larger → quan:greater
+ * - quan:larger|quan:greater → quan:atLeast
  * - imo:handler/owner string literals → data5g:<name> IntentManager IRIs
  * - report events: rdfs:Class + subClassOf imo:Event → a imo:Event
  * - log:allOf / set:forAll / valuesOfTargetProperty / quan:* → RDF list arguments
@@ -35,7 +35,10 @@ export function formatConditionBlock(args: {
   unit: string;
   threshold: string | number;
 }): string {
-  const q = args.quantifier === "quan:larger" ? "quan:greater" : args.quantifier;
+  const q =
+    args.quantifier === "quan:larger" || args.quantifier === "quan:greater"
+      ? "quan:atLeast"
+      : args.quantifier;
   const memberLocal = `member_${args.coLocal}`;
   return `data5g:${memberLocal} a quan:Quantity ;
     rdf:value "0"^^xsd:decimal .
@@ -189,10 +192,10 @@ export function applyPostprocessor(args: {
     changes += cond;
   }
 
-  const larger = (text.match(/\bquan:larger\b/g) || []).length;
-  if (larger > 0) {
-    text = text.replace(/\bquan:larger\b/g, "quan:greater");
-    changes += larger;
+  const floors = (text.match(/\bquan:(?:larger|greater)\b/g) || []).length;
+  if (floors > 0) {
+    text = text.replace(/\bquan:(?:larger|greater)\b/g, "quan:atLeast");
+    changes += floors;
   }
 
   const events = fixReportEvents(text);

@@ -1,4 +1,4 @@
-import type { Store } from "n3";
+import type { Store, Term } from "n3";
 
 const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 const ICM = "http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/";
@@ -29,27 +29,38 @@ function hasType(store: Store, node: string, typeIri: string): boolean {
   return store.getQuads(node, RDF_TYPE, typeIri, null).length > 0;
 }
 
-function rdfListMemberTerms(store: Store, node: { value: string }): Array<{ value: string }> {
-  const first = store.getObjects(node as never, `${RDF}first`, null);
-  if (first.length === 0) {
-    return [node];
+/**
+ * Expand an RDF list (rdf:first/rest). Must pass the Term (BlankNode), not term.value —
+ * n3 Store lookups by the string "n3-38" do not match blank nodes.
+ */
+function rdfListOrSelf(store: Store, node: Term): string[] {
+  if (store.getObjects(node, `${RDF}first`, null).length > 0) {
+    const members: string[] = [];
+    let current: Term | undefined = node;
+    const seen = new Set<string>();
+    while (current && current.value !== `${RDF}nil` && !seen.has(current.value)) {
+      seen.add(current.value);
+      const first = store.getObjects(current, `${RDF}first`, null)[0];
+      if (first) members.push(first.value);
+      const rest = store.getObjects(current, `${RDF}rest`, null)[0];
+      if (!rest || rest.value === `${RDF}nil`) break;
+      current = rest;
+    }
+    return members;
   }
-  const members: Array<{ value: string }> = [];
-  let current: { value: string } | undefined = node;
-  const seen = new Set<string>();
-  while (current && current.value !== `${RDF}nil` && !seen.has(current.value)) {
-    seen.add(current.value);
-    const f = store.getObjects(current as never, `${RDF}first`, null)[0];
-    if (f) members.push(f);
-    current = store.getObjects(current as never, `${RDF}rest`, null)[0];
-  }
-  return members;
+  return [node.value];
 }
 
 function allOfMembers(store: Store, subject: string): string[] {
-  return store
-    .getObjects(subject, `${LOG}allOf`, null)
-    .flatMap((term) => rdfListMemberTerms(store, term).map((member) => member.value));
+  const out: string[] = [];
+  for (const obj of store.getObjects(subject, `${LOG}allOf`, null)) {
+    out.push(...rdfListOrSelf(store, obj));
+  }
+  return out;
+}
+
+function isConditionNode(store: Store, node: string): boolean {
+  return hasType(store, node, `${ICM}Condition`) || hasType(store, node, `${LOG}Condition`);
 }
 
 function reportingTargets(store: Store, intentIri: string): Set<string> {
@@ -87,15 +98,32 @@ function expectReportingForExpectation(args: {
   };
 }
 
+function walkListTerms(store: Store, node: Term): Term[] {
+  if (store.getObjects(node, `${RDF}first`, null).length === 0) return [node];
+  const members: Term[] = [];
+  let current: Term | undefined = node;
+  const seen = new Set<string>();
+  while (current && current.value !== `${RDF}nil` && !seen.has(current.value)) {
+    seen.add(current.value);
+    const first = store.getObjects(current, `${RDF}first`, null)[0];
+    if (first) members.push(first);
+    const rest = store.getObjects(current, `${RDF}rest`, null)[0];
+    if (!rest || rest.value === `${RDF}nil`) break;
+    current = rest;
+  }
+  return members;
+}
+
 function networkMetricExists(store: Store, networkExpectation: string, prefix: string): boolean {
   for (const member of allOfMembers(store, networkExpectation)) {
-    if (!hasType(store, member, `${ICM}Condition`) && !hasType(store, member, `${LOG}Condition`)) continue;
+    if (!isConditionNode(store, member)) continue;
     for (const forAll of store.getObjects(member, `${SET}forAll`, null)) {
-      for (const faMember of rdfListMemberTerms(store, forAll)) {
-        for (const metricObj of store.getObjects(faMember as never, `${ICM}valuesOfTargetProperty`, null)) {
-          for (const metric of rdfListMemberTerms(store, metricObj)) {
-            if (metric.value.startsWith(`${DATA5G}${prefix}`)) return true;
+      for (const itemTerm of walkListTerms(store, forAll)) {
+        for (const vObj of store.getObjects(itemTerm, `${ICM}valuesOfTargetProperty`, null)) {
+          for (const metric of rdfListOrSelf(store, vObj)) {
+            if (metric.startsWith(`${DATA5G}${prefix}`)) return true;
           }
+          if (vObj.value.startsWith(`${DATA5G}${prefix}`)) return true;
         }
       }
     }
@@ -106,7 +134,7 @@ function networkMetricExists(store: Store, networkExpectation: string, prefix: s
 function metricConditionCount(store: Store, expectationIri: string): number {
   let count = 0;
   for (const member of allOfMembers(store, expectationIri)) {
-    if (!hasType(store, member, `${ICM}Condition`) && !hasType(store, member, `${LOG}Condition`)) continue;
+    if (!isConditionNode(store, member)) continue;
     if (store.getObjects(member, `${SET}forAll`, null).length === 0) continue;
     count++;
   }
@@ -207,7 +235,7 @@ export function validateShaclSparqlConstraints(store: Store): ShaclViolation[] {
         focusNode: localName(ceIri),
         path: "log:allOf",
         message:
-          "CoordinationExpectation must reference at least one metric condition (icm:Condition with set:forAll) in log:allOf."
+          "CoordinationExpectation must reference at least one metric condition (log:Condition with set:forAll) in log:allOf."
       });
       continue;
     }

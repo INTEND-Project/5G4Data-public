@@ -54,9 +54,9 @@ data5g:CO__ID_CONDITION_1__ a log:Condition ;
                     rdf:value <value> ] ] .
 
 data5g:CO__ID_CONDITION_BANDWIDTH_1__ a log:Condition ;
-    dct:description "Bandwidth condition quan:greater: <value> <unit>" ;
+    dct:description "Bandwidth condition quan:atLeast: <value> <unit>" ;
     set:forAll [ icm:valuesOfTargetProperty data5g:bandwidth___ID_CONDITION_BANDWIDTH_1__ ;
-            quan:greater [ quan:unit "mbit/s" ;
+            quan:atLeast [ quan:unit "mbit/s" ;
                     rdf:value <value> ] ] .
 
 data5g:CO__ID_CONDITION_LATENCY_1__ a log:Condition ;
@@ -210,7 +210,7 @@ objectives:
   - name: <objective-name>
     value: <chart-value>
     tmf-value-hint: "<threshold>"
-    tmf-quantifier-hint: "quan:greater|quan:smaller|quan:atLeast"
+    tmf-quantifier-hint: "quan:atLeast|quan:smaller|quan:atMost"
     tmf-unit-hint: "<unit>"
     measuredBy: <prometheus-metric-id>
 ```
@@ -236,7 +236,7 @@ sustainability:
   - name: <metric-name>
     value: "<chart-value>"
     tmf-value-hint: "<threshold>"
-    tmf-quantifier-hint: "quan:greater|quan:smaller|quan:atLeast"
+    tmf-quantifier-hint: "quan:atLeast|quan:smaller|quan:atMost"
     tmf-unit-hint: "<unit>"
     measuredBy: <prometheus-metric-id>
 ```
@@ -295,7 +295,7 @@ Never introduce other expectation types.
 - Sustainability conditions: only from chart `values.yaml` `sustainability`.
 - Network conditions: only bandwidth and latency.
 - Logistic behavior allowed only when user explicitly requests soft/non-linear semantics.
-- Default operators: `quan:smaller`, `quan:greater`, `quan:inRange`.
+- Default operators: `quan:smaller`, `quan:atLeast`, `quan:inRange`.
 
 ## Naming and identifier rules
 

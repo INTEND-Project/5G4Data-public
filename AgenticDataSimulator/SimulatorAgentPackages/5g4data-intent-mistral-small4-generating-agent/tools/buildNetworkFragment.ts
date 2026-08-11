@@ -1,9 +1,5 @@
 import type { IntentDraft } from "./assembleIntent.js";
 import {
-  DEFAULT_NETWORK_BANDWIDTH_MBPS,
-  DEFAULT_NETWORK_LATENCY_MS
-} from "./postprocess/networkDefaults.js";
-import {
   parseNetworkQosFromUserPrompt,
   parseReportingIntervalMinutes,
   reportingEventLabel
@@ -11,13 +7,20 @@ import {
 import {
   buildNetworkConditionBlock,
   buildNetworkExpectationBlock,
+  buildRegionContextBlocks,
   buildScopedReportingBlocks
 } from "./fragmentTurtleEmit.js";
+import {
+  DEFAULT_NETWORK_BANDWIDTH_MBPS,
+  DEFAULT_NETWORK_LATENCY_MS
+} from "./postprocess/networkDefaults.js";
 
 const CO_BANDWIDTH = "CO__ID_CONDITION_BANDWIDTH_1__";
 const CO_LATENCY = "CO__ID_CONDITION_LATENCY_1__";
 const NE_LOCAL = "NE__ID_NETWORK_1__";
 const RE_LOCAL = "RE__ID_REPORTING_NETWORK_1__";
+const CX_REGION_LOCAL = "CX__ID_CONTEXT_REGION_1__";
+const RG_LOCAL = "RG__ID_REGION_1__";
 
 function sharedCxLocalFromDraft(draft: IntentDraft): string | null {
   for (const fragment of draft.fragments) {
@@ -29,26 +32,37 @@ function sharedCxLocalFromDraft(draft: IntentDraft): string | null {
   return null;
 }
 
-export function buildNetworkFragment(input: {
+export interface NetworkFragmentOptions {
   draft: IntentDraft;
   reportingIntervalHint: string;
   userPrompt?: string;
-}): string {
-  const sharedCx = sharedCxLocalFromDraft(input.draft);
+  /** Override default 300 mbit/s (quan:atLeast). */
+  bandwidthMbps?: number;
+  /** Override default 50 ms (quan:smaller). */
+  latencyMs?: number;
+  /** When set, emit appliesToRegion + geo:Feature polygon instead of shared deployment CX. */
+  region?: {
+    placeLabel: string;
+    customer: string;
+    wkt: string;
+  } | null;
+}
+
+export function buildNetworkFragment(input: NetworkFragmentOptions): string {
+  const qos = parseNetworkQosFromUserPrompt(input.userPrompt);
+  const bandwidthMbps = input.bandwidthMbps ?? qos.bandwidthMbps ?? DEFAULT_NETWORK_BANDWIDTH_MBPS;
+  const latencyMs = input.latencyMs ?? qos.latencyMs ?? DEFAULT_NETWORK_LATENCY_MS;
   const intervalMinutes = parseReportingIntervalMinutes(input.reportingIntervalHint);
   const intervalLabel = reportingEventLabel(intervalMinutes);
-  const qos = parseNetworkQosFromUserPrompt(input.userPrompt);
-  const bandwidthMbps = qos.bandwidthMbps ?? DEFAULT_NETWORK_BANDWIDTH_MBPS;
-  const latencyMs = qos.latencyMs ?? DEFAULT_NETWORK_LATENCY_MS;
   const coLocals = [CO_BANDWIDTH, CO_LATENCY];
 
-  const blocks = [
+  const blocks: string[] = [
     buildNetworkConditionBlock({
       stem: "bandwidth",
       coLocal: CO_BANDWIDTH,
       threshold: bandwidthMbps,
       unit: "mbit/s",
-      quantifier: "quan:greater"
+      quantifier: "quan:atLeast"
     }),
     buildNetworkConditionBlock({
       stem: "latency",
@@ -56,11 +70,30 @@ export function buildNetworkFragment(input: {
       threshold: latencyMs,
       unit: "ms",
       quantifier: "quan:smaller"
-    }),
+    })
+  ];
+
+  let cxLocal: string | null = null;
+  if (input.region?.wkt) {
+    blocks.push(
+      buildRegionContextBlocks({
+        cxLocal: CX_REGION_LOCAL,
+        rgLocal: RG_LOCAL,
+        customer: input.region.customer,
+        placeLabel: input.region.placeLabel,
+        wkt: input.region.wkt
+      })
+    );
+    cxLocal = CX_REGION_LOCAL;
+  } else {
+    cxLocal = sharedCxLocalFromDraft(input.draft);
+  }
+
+  blocks.push(
     buildNetworkExpectationBlock({
       neLocal: NE_LOCAL,
       coLocals,
-      cxLocal: sharedCx
+      cxLocal
     }),
     buildScopedReportingBlocks({
       scope: "network",
@@ -71,7 +104,7 @@ export function buildNetworkFragment(input: {
       intervalLabel,
       description: "Network observation reports on the configured interval."
     })
-  ];
+  );
 
   return blocks.join("\n\n");
 }

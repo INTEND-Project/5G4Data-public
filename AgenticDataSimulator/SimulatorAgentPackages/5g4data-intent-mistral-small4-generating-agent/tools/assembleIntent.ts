@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { formatLogAllOf, sharedManagersAndTargetsBlock } from "./tioDialectEmit.js";
 
 export interface IntentDraftFragment {
   id: string;
@@ -110,16 +111,13 @@ export function assembleIntent(args: {
   const intentLocal = "I__ID_INTENT_1__";
   const description = intentDescriptionFromPrompt(args.userPrompt, args.draft.intentDescription);
   const members = collectExpectationLocals(args.draft.fragments);
-  const refs =
-    members.length > 0
-      ? `( ${members.map((local) => `data5g:${local}`).join(" ")} )`
-      : "";
-  const intentBlock = refs
+  const refs = members.map((local) => `data5g:${local}`);
+  const intentBlock = refs.length > 0
     ? `data5g:${intentLocal} a icm:Intent ;
     dct:description "${escapeTurtleString(description)}" ;
     imo:handler data5g:inServ ;
     imo:owner data5g:inChat ;
-    log:allOf ${refs} .`
+    ${formatLogAllOf(refs)} .`
     : `data5g:${intentLocal} a icm:Intent ;
     dct:description "${escapeTurtleString(description)}" ;
     imo:handler data5g:inServ ;
@@ -130,6 +128,6 @@ export function assembleIntent(args: {
     .filter((t) => t.length > 0)
     .join("\n\n");
   const dedupedBody = dedupeSubjectBlocks(body);
-  const text = `${prefixes}\n\n${intentBlock}\n\n${dedupedBody}`.trim();
+  const text = `${prefixes}\n\n${sharedManagersAndTargetsBlock()}\n\n${intentBlock}\n\n${dedupedBody}`.trim();
   return { text, intentLocal, members };
 }

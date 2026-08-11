@@ -14,6 +14,11 @@
 @prefix ut:     <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
 @prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
 
+# TIO idiom: named targets must be instances of icm:Target
+data5g:deployment a icm:Target .
+data5g:network-slice a icm:Target .
+data5g:sustainability a icm:Target .
+data5g:coordination-service a icm:Target .
 
 data5g:I973c6c1174844e0d9f2d41bb96b454b1
     a icm:Intent, icm:IntentElement ;
@@ -31,7 +36,9 @@ data5g:I973c6c1174844e0d9f2d41bb96b454b1
 
 # Compute part
 
-data5g:DE5ab0079f584c4a128e7356b2e8fbad89 a data5g:DeploymentExpectation ;
+data5g:DE5ab0079f584c4a128e7356b2e8fbad89 a data5g:DeploymentExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
     dct:description "Deploy rusty-llm at EC_31 with compute latency bound" ;
     icm:target data5g:deployment ;
     log:allOf  data5g:CO6ede86a60dd54e08bc4fa1aa584b49e9,
@@ -50,7 +57,9 @@ data5g:CX8c9a8c0dee4b41d8a02a6f64f2f37594 a icm:Context ;
 
 # Network part
 
-data5g:NE51ab59a3140b48029fc709d9e213565e a data5g:NetworkExpectation;
+data5g:NE51ab59a3140b48029fc709d9e213565e a data5g:NetworkExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
     dct:description "Fast and reliable network slice for small LLM service" ;
     icm:target data5g:network-slice ;
     log:allOf  data5g:COad5028ec9e754c06b5c9b7a40b3b4ec6,
@@ -76,7 +85,9 @@ data5g:RG1a6924f3e91d4e7aacb416c3d4ef587a a geo:Feature ;
 
 ## Here I defined the inCoord expectations/conditions - I added the unit for the token condition -> hope is good
 # Should inCoord coordinate expectations or only conditions
-data5g:CE_coord a data5g:CoordinationExpectation;
+data5g:CE_coord a data5g:CoordinationExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
     dct:description "Coordinate compute and network to guarantee system TPS and energy budget" ;
     icm:target data5g:coordination-service ;
     log:allOf  data5g:COc5f7b82460cf4207a5a93ca4183ccbdf,
@@ -145,7 +156,9 @@ data5g:CO72a1524ea1904d429ecd23cc1c536d1c a icm:Condition ;
 
 # For sustainability, energy-consumption metric only (not watts)
 
-data5g:SE5420c491e4fb435ab4f189c920811fbe a data5g:SustainabilityExpectation;
+data5g:SE5420c491e4fb435ab4f189c920811fbe a data5g:SustainabilityExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
     dct:description "Ensure sustainable operation of LLM workload." ;
     imo:handler "inOrch" ; # <--- should we add this?
     icm:target data5g:sustainability ;

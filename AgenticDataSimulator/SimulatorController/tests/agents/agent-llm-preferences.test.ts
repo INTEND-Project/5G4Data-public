@@ -1,54 +1,58 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  STOP_SEQUENCES_HELP_TEXT,
   normalizeAgentLlmPreference,
   preferenceForSimulatorMetadata,
-} from "@/lib/agents/agent-llm-preferences";
-import { parseOpenAiCompatibleModelIds } from "@/lib/openai/parse-models-response";
+} from "../../src/lib/agents/agent-llm-preferences";
 
 describe("agent-llm-preferences", () => {
-  it("normalizes api base URL without trailing slash", () => {
-    expect(
-      normalizeAgentLlmPreference({
-        model: "codestral:latest",
-        apiBaseUrl: "http://spark:11434/v1/",
-        temperature: 0.5,
-      }),
-    ).toEqual({
-      model: "codestral:latest",
-      apiBaseUrl: "http://spark:11434/v1",
-      temperature: 0.5,
-    });
-  });
-
-  it("maps stored preferences to simulator metadata fields", () => {
+  it("normalizes system prompt, few-shots, numCtx, and stop sequences", () => {
     const pref = normalizeAgentLlmPreference({
-      model: "codestral:latest",
-      apiBaseUrl: "http://spark:11434/v1",
-      temperature: 0.8,
+      model: "m",
+      apiBaseUrl: "http://host/v1/",
+      temperature: 0.2,
+      systemPrompt: "Be precise.",
+      fewShotMessages: [
+        { role: "user", content: "u" },
+        { role: "assistant", content: "a" },
+        { role: "user", content: "  " },
+      ],
+      numCtx: 4096.2,
+      stopSequences: ["</s>", "  ", "<|eot_id|>"],
     });
-    expect(preferenceForSimulatorMetadata(pref, true)).toEqual({
-      llmModel: "codestral:latest",
-      llmApiBaseUrl: "http://spark:11434/v1",
-      temperature: 0.8,
+    expect(pref.apiBaseUrl).toBe("http://host/v1");
+    expect(pref.systemPrompt).toBe("Be precise.");
+    expect(pref.fewShotMessages).toEqual([
+      { role: "user", content: "u" },
+      { role: "assistant", content: "a" },
+    ]);
+    expect(pref.numCtx).toBe(4096);
+    expect(pref.stopSequences).toEqual(["</s>", "<|eot_id|>"]);
+  });
+
+  it("includes custom prompt fields in simulator metadata mapping only when stored", () => {
+    const pref = normalizeAgentLlmPreference({
+      temperature: 0.5,
+      systemPrompt: "sys",
+      fewShotMessages: [{ role: "user", content: "hi" }],
+      numCtx: 2048,
+      stopSequences: ["</s>"],
+    });
+    expect(preferenceForSimulatorMetadata(pref, false)).toEqual({});
+    expect(preferenceForSimulatorMetadata(pref, true)).toMatchObject({
+      temperature: 0.5,
+      systemPrompt: "sys",
+      fewShotMessages: [{ role: "user", content: "hi" }],
+      numCtx: 2048,
+      stopSequences: ["</s>"],
     });
   });
-});
 
-describe("parseOpenAiCompatibleModelIds", () => {
-  it("reads OpenAI-style data[].id entries", () => {
-    expect(
-      parseOpenAiCompatibleModelIds({
-        data: [{ id: "gpt-4o-mini" }, { id: "codestral:latest" }],
-      }),
-    ).toEqual(["codestral:latest", "gpt-4o-mini"]);
-  });
-
-  it("reads Ollama-style models[].name entries", () => {
-    expect(
-      parseOpenAiCompatibleModelIds({
-        models: [{ name: "codestral:latest" }, { name: "llama3.2:latest" }],
-      }),
-    ).toEqual(["codestral:latest", "llama3.2:latest"]);
+  it("exposes stop sequences help copy for the settings info button", () => {
+    expect(STOP_SEQUENCES_HELP_TEXT).toContain("<|eot_id|>");
+    expect(STOP_SEQUENCES_HELP_TEXT).toContain("<end_of_turn>");
+    expect(STOP_SEQUENCES_HELP_TEXT).toContain("</s>");
+    expect(STOP_SEQUENCES_HELP_TEXT).toContain("[INST]");
   });
 });

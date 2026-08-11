@@ -41,6 +41,16 @@ async function invokeOpenAi(
   const model = resolveModel(config, "openai", options.llmModel);
   const temperature = resolveTemperature(config, options.temperature);
   const temperatureSent = temperature !== 0;
+  const stopSequences = Array.isArray(options.stopSequences)
+    ? options.stopSequences.map((s) => s.trim()).filter(Boolean)
+    : [];
+  const numCtx =
+    options.numCtx !== undefined &&
+    options.numCtx !== null &&
+    Number.isFinite(options.numCtx) &&
+    options.numCtx >= 1
+      ? Math.round(options.numCtx)
+      : undefined;
   const started = Date.now();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) {
@@ -52,7 +62,13 @@ async function invokeOpenAi(
     body: JSON.stringify({
       model,
       messages,
-      ...(temperatureSent ? { temperature } : {})
+      ...(temperatureSent ? { temperature } : {}),
+      ...(stopSequences.length === 1
+        ? { stop: stopSequences[0] }
+        : stopSequences.length > 1
+          ? { stop: stopSequences }
+          : {}),
+      ...(numCtx !== undefined ? { options: { num_ctx: numCtx } } : {})
     })
   });
   if (!response.ok) {
@@ -119,7 +135,12 @@ async function invokeAnthropic(
       max_tokens: 4096,
       temperature,
       system,
-      messages: conversation
+      messages: conversation,
+      ...(Array.isArray(options.stopSequences) && options.stopSequences.length > 0
+        ? {
+            stop_sequences: options.stopSequences.map((s) => s.trim()).filter(Boolean)
+          }
+        : {})
     })
   });
   if (!response.ok) {

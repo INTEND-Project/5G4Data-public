@@ -1,0 +1,37 @@
+{
+  "intentFlags": {
+    "deployment": ["deploy", "deployment", "run", "inference", "model", "llm", "workload"],
+    "locality": ["near", "close", "edge", "local", "tromso", "bod", "norway"],
+    "networkQos": ["network", "network latency", "low latency", "bandwidth", "network bandwidth", "network connection", "qos", "realtime", "real-time", "near realtime", "mbit", "mbit/s", "millisecond", "milliseconds", "4k", "video"],
+    "sustainability": ["sustainability", "sustainable", "energy", "power", "joules", "watts", "kepler", "carbon"],
+    "reportToGraphdb": [
+      "observation report storage for this intent: graphdb",
+      "storage: graphdb",
+      "storage graphdb",
+      "report to graphdb",
+      "store in graphdb",
+      "graphdb destination"
+    ],
+    "reportToPrometheus": [
+      "observation report storage for this intent: prometheus",
+      "storage: prometheus",
+      "storage prometheus",
+      "report to prometheus",
+      "prometheus destination",
+      "pushgateway"
+    ],
+    "coordination": ["coordination", "coordinate", "incoord"],
+    "coordinationSymmetric": [
+      "symmetric coordination",
+      "symetric coordination",
+      "equal weight"
+    ],
+    "coordinationWeighted": [
+      "weighted coordination",
+      "unequal weight",
+      "prioritize"
+    ],
+    "coordinationSeverityCritical": ["critical", "critic", "strict"],
+    "coordinationSeverityTrivial": ["trivial", "lenient", "relaxed"]
+  }
+}

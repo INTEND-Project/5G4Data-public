@@ -3,6 +3,7 @@ import {
   clampReportingIntervalSeconds,
   formatIntervalLabelFromSeconds,
 } from "./reportingIntervalLabel.js";
+import { formatConditionBlock, formatLogAllOf, formatReportEventBlock, rdfList } from "./tioDialect.js";
 
 type ParsedObjective = {
   name: string;
@@ -39,7 +40,7 @@ function parseObjectiveLine(line: string): ParsedObjective | null {
   const name = match[1]?.trim() ?? "";
   const threshold = match[2]?.trim() ?? "";
   if (!name || !threshold || threshold === "unspecified") return null;
-  const quantifierRaw = match[3]?.trim() ?? "quan:larger";
+  const quantifierRaw = match[3]?.trim() ?? "quan:greater";
   const quantifier = quantifierRaw.startsWith("quan:") ? quantifierRaw : `quan:${quantifierRaw}`;
   const unit = match[4]?.trim() ?? "";
   return { name, threshold, quantifier, unit };
@@ -49,11 +50,15 @@ export function parseWorkloadContextFromRuntime(runtimeContext: string): ParsedW
   if (!runtimeContext.includes("[selected workload objectives]")) return null;
 
   const chartMatch = runtimeContext.match(/Selected chart:\s+(\S+)\s+\(version\s+([^)]+)\)/i);
-  const chartName = chartMatch?.[1] ?? "rusty-llm";
-  const chartVersion = chartMatch?.[2] ?? "0.1.19";
+  const descriptorMatch = runtimeContext.match(/DeploymentDescriptor\s+"([^"]+)"/i)?.[1];
+  const descriptorChartMatch = descriptorMatch?.match(/\/charts\/([^/]+)\/([^/"']+)/i);
+  const chartName = chartMatch?.[1] ?? descriptorChartMatch?.[1] ?? "";
+  const chartVersion = chartMatch?.[2] ?? descriptorChartMatch?.[2] ?? "";
   const deploymentDescriptor =
-    runtimeContext.match(/DeploymentDescriptor\s+"([^"]+)"/i)?.[1] ??
-    `https://start5g-1.cs.uit.no/wchartmuseum/api/charts/${chartName}/${chartVersion}`;
+    descriptorMatch ??
+    (chartName.length > 0 && chartVersion.length > 0
+      ? `https://start5g-1.cs.uit.no/wchartmuseum/api/charts/${chartName}/${chartVersion}`
+      : "");
 
   const dataCenter =
     runtimeContext.match(/DataCenter\s+"([^"]+)"/i)?.[1] ??
@@ -95,25 +100,26 @@ export function parseWorkloadContextFromRuntime(runtimeContext: string): ParsedW
   };
 }
 
-function quantifierToken(quantifier: string): "larger" | "smaller" | "atLeast" {
+function quantifierToken(quantifier: string): "greater" | "smaller" | "atLeast" {
   if (quantifier.includes("smaller")) return "smaller";
   if (quantifier.includes("atLeast")) return "atLeast";
-  return "larger";
+  return "greater";
 }
 
 function renderConditionBlock(local: string, objective: ParsedObjective): string {
   const metricLocal = `${objective.name}_${local}`;
   const q = quantifierToken(objective.quantifier);
-  const unitPart =
-    objective.unit.length > 0
-      ? `quan:unit "${objective.unit}" ;\n                    `
-      : "";
   const thresholdNum = objective.threshold.replace(/[^\d.]/g, "") || objective.threshold;
   const unitSuffix = objective.unit.length > 0 ? ` ${objective.unit}` : "";
-  return `data5g:${local} a icm:Condition ;
-    dct:description "${objective.name} condition ${objective.quantifier}: ${thresholdNum}${unitSuffix}" ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:${metricLocal} ;
-            quan:${q} [ ${unitPart}rdf:value ${thresholdNum} ] ] .`;
+  const desc = `${objective.name} condition quan:${q}: ${thresholdNum}${unitSuffix}`;
+  return formatConditionBlock({
+    coLocal: local,
+    description: desc,
+    propLocal: metricLocal,
+    quantifier: `quan:${q}`,
+    unit: objective.unit || "1",
+    threshold: thresholdNum
+  });
 }
 
 function renderContextBlock(local: string, ctx: ParsedWorkloadContext): string {
@@ -121,9 +127,14 @@ function renderContextBlock(local: string, ctx: ParsedWorkloadContext): string {
     ctx.dataCenter.length > 0
       ? `    data5g:DataCenter "${ctx.dataCenter}" ;\n`
       : "";
+  const appLine =
+    ctx.chartName.length > 0 ? `    data5g:Application "${ctx.chartName}" ;\n` : "";
+  const descriptorLine =
+    ctx.deploymentDescriptor.length > 0
+      ? `    data5g:DeploymentDescriptor "${ctx.deploymentDescriptor}" .`
+      : "    data5g:Application \"workload\" .";
   return `data5g:${local} a icm:Context ;
-${dcLine}    data5g:Application "LLM inference" ;
-    data5g:DeploymentDescriptor "${ctx.deploymentDescriptor}" .`;
+${dcLine}${appLine}${descriptorLine}`;
 }
 
 function renderDeploymentExpectation(
@@ -137,8 +148,7 @@ function renderDeploymentExpectation(
         icm:IntentElement ;
     dct:description "Deploy ${chartName} workload." ;
     icm:target data5g:deployment ;
-    log:allOf data5g:${coLocal},
-        data5g:${cxLocal} .`;
+    ${formatLogAllOf([coLocal, cxLocal])} .`;
 }
 
 function renderSustainabilityExpectation(
@@ -146,14 +156,12 @@ function renderSustainabilityExpectation(
   coLocals: string[],
   cxLocal: string
 ): string {
-  const refs = coLocals.map((local) => `data5g:${local}`).join(",\n        ");
   return `data5g:${seLocal} a data5g:SustainabilityExpectation,
         icm:Expectation,
         icm:IntentElement ;
     dct:description "Ensure sustainable operation of workload." ;
     icm:target data5g:sustainability ;
-    log:allOf ${refs},
-        data5g:${cxLocal} .`;
+    ${formatLogAllOf([...coLocals, cxLocal])} .`;
 }
 
 type ReportingTarget = "deployment" | "sustainability" | "network-slice";
@@ -191,10 +199,11 @@ function renderReportEvent(
     time:numericDuration "${intervalSeconds}"^^xsd:decimal ;
     time:unitType time:unitSecond .
 
-data5g:${eventLocal} a rdfs:Class ;
-    rdfs:subClassOf imo:Event ;
-    time:delay ( data5g:lastReportInstant data5g:${durationLocal} ) ;
-    imo:eventFor data5g:${expectationLocal} .`;
+${formatReportEventBlock({
+  eventLocal,
+  durationLocal,
+  expectationLocal
+})}`;
 }
 
 function extractSubjectBlock(text: string, local: string): string | null {
@@ -220,7 +229,7 @@ function hasNetworkReportingExpectation(text: string): boolean {
 }
 
 function firstConditionAnchorInExpectation(expBlock: string): string | null {
-  const allOfMatch = expBlock.match(/log:allOf\s+([^;]+)/is);
+  const allOfMatch = expBlock.match(/log:allOf\s+(\([^)]+\)|[^;]+)/is);
   if (!allOfMatch?.[1]) return null;
   const coMatch = allOfMatch[1].match(/\bdata5g:(CO[0-9a-fA-F]{32})\b/i);
   return coMatch?.[1] ?? null;
@@ -235,19 +244,28 @@ function resolveReportingIntervalSeconds(context: {
   return 60;
 }
 
+function parseAllOfMemberLocals(body: string): string[] {
+  const locals: string[] = [];
+  for (const match of body.matchAll(/\bdata5g:([A-Za-z0-9_]+)\b/g)) {
+    if (match[1]) locals.push(match[1]);
+  }
+  return locals;
+}
+
 function appendIntentAllOfMembers(text: string, intentLocal: string, newMembers: string[]): string {
   const intentPattern = new RegExp(
-    String.raw`(data5g:${intentLocal}\s+a\s+icm:Intent\s*;[\s\S]*?log:allOf\s+)([^;]+)(;)`,
+    String.raw`(data5g:${intentLocal}\s+a\s+icm:Intent\s*;[\s\S]*?log:allOf\s+)(\([^)]*\)|[^;]+)(;)`,
     "i"
   );
   const match = text.match(intentPattern);
   if (!match?.[2]) return text;
-  const existing = match[2];
-  const toAdd = newMembers.filter((local) => !existing.includes(`data5g:${local}`));
-  if (toAdd.length === 0) return text;
-  const refs = toAdd.map((local) => `data5g:${local}`).join(",\n        ");
-  const updated = `${existing.trimEnd()},\n        ${refs}`;
-  return text.replace(intentPattern, `$1${updated}$3`);
+  const existing = parseAllOfMemberLocals(match[2]);
+  const merged = [...existing];
+  for (const local of newMembers) {
+    if (!merged.includes(local)) merged.push(local);
+  }
+  if (merged.length === existing.length) return text;
+  return text.replace(intentPattern, `$1${rdfList(merged.map((l) => `data5g:${l}`))}$3`);
 }
 
 function augmentNetworkReportingExpectation(
@@ -293,20 +311,27 @@ function detectReportStorage(text: string, runtimeContext: string): "prometheus"
 }
 
 function upsertIntentAllOf(text: string, intentLocal: string, members: string[]): string {
-  const refs = members.map((local) => `data5g:${local}`).join(",\n        ");
+  const refs = rdfList(members.map((local) => `data5g:${local}`));
   const intentPattern = new RegExp(
-    String.raw`(data5g:${intentLocal}\s+a\s+icm:Intent\s*;[\s\S]*?log:allOf\s+)([^;]+)(;)`,
+    String.raw`(data5g:${intentLocal}\s+a\s+icm:Intent\s*;[\s\S]*?log:allOf\s+)(\([^)]*\)|[^;]+)(;)`,
     "i"
   );
   if (intentPattern.test(text)) {
     return text.replace(intentPattern, `$1${refs}$3`);
   }
   const intentBlockPattern = new RegExp(
-    String.raw`(data5g:${intentLocal}\s+a\s+icm:Intent\s*;[\s\S]*?imo:owner\s+"inChat"\s*;)`,
+    String.raw`(data5g:${intentLocal}\s+a\s+icm:Intent\s*;[\s\S]*?imo:owner\s+data5g:inChat\s*;)`,
     "i"
   );
   if (intentBlockPattern.test(text)) {
     return text.replace(intentBlockPattern, `$1\n    log:allOf ${refs} ;`);
+  }
+  const legacyOwner = new RegExp(
+    String.raw`(data5g:${intentLocal}\s+a\s+icm:Intent\s*;[\s\S]*?imo:owner\s+"inChat"\s*;)`,
+    "i"
+  );
+  if (legacyOwner.test(text)) {
+    return text.replace(legacyOwner, `$1\n    log:allOf ${refs} ;`);
   }
   return text;
 }
@@ -374,18 +399,17 @@ export function applyPostprocessor(args: {
 
   if (!parsed) return { text: args.text, changes: 0 };
 
-  let text = args.text;
-
-  const hasDe = /data5g:DeploymentExpectation/.test(text);
-  const hasSe = /data5g:SustainabilityExpectation/.test(text);
-  const hasDataCenter = hasResolvedDataCenter(text);
+  const hasDe = /data5g:DeploymentExpectation/.test(args.text);
+  const hasSe = /data5g:SustainabilityExpectation/.test(args.text);
+  const hasDataCenter = hasResolvedDataCenter(args.text);
   const needsScaffold =
     (needsDeployment && !hasDe) ||
     (needsSustainability && !hasSe) ||
     ((needsDeployment || needsSustainability) && parsed.dataCenter.length > 0 && !hasDataCenter);
 
-  if (!needsScaffold) return { text, changes: 0 };
+  if (!needsScaffold) return { text: args.text, changes: 0 };
 
+  let text = args.text;
   let changes = 0;
   const intentLocal = findIntentLocal(text) ?? newLocal("I");
   const cxLocal = newLocal("CX");
@@ -429,7 +453,7 @@ export function applyPostprocessor(args: {
     changes += 1;
   }
 
-  if (blocks.length === 0) return { text, changes: 0 };
+  if (blocks.length === 0) return { text: args.text, changes: 0 };
 
   if (!hasDataCenter && parsed.dataCenter.length > 0) {
     blocks.unshift(renderContextBlock(cxLocal, parsed));
@@ -437,8 +461,8 @@ export function applyPostprocessor(args: {
 
   if (!text.includes(`data5g:${intentLocal}`)) {
     const intentHeader = `data5g:${intentLocal} a icm:Intent ;
-    imo:handler "inServ" ;
-    imo:owner "inChat" .`;
+    imo:handler data5g:inServ ;
+    imo:owner data5g:inChat .`;
     text = `${text.trim()}\n\n${intentHeader}`;
     changes += 1;
   }

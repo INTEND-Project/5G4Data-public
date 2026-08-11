@@ -1,0 +1,6 @@
+{
+  "experimentNameTemplate": "5g4data-intent-mistral-small4-generating-agent-{iteration}",
+  "description": "E1 iteration experiment for mistral-small4 intent generation",
+  "trackingUriHost": "http://127.0.0.1:5000/mlflow",
+  "overrides": {}
+}

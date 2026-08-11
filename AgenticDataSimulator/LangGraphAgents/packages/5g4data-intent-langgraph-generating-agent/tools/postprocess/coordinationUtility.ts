@@ -922,7 +922,7 @@ function rebuildCoordinationExpectationBlock(
   conditions: ParsedCoordinationCondition[],
   coordinateLocals: string[],
 ): string {
-  const refs = conditions.map((condition) => `data5g:${condition.local}`).join(", ");
+  const refs = `( ${conditions.map((condition) => `data5g:${condition.local}`).join(" ")} )`;
   const coords = coordinateLocals.map((local) => `data5g:${local}`).join(",\n                       ");
   const description = extractCeDescription(ceBlock);
   const descriptionLine = description
@@ -990,9 +990,9 @@ function upsertCoordinates(ceBlock: string, coordinateLocals: string[]): string 
 
 function upsertCeLogAllOf(ceBlock: string, conditionLocals: string[]): string {
   if (conditionLocals.length === 0) return ceBlock;
-  const refs = conditionLocals.map((local) => `data5g:${local}`).join(", ");
+  const refs = `( ${conditionLocals.map((local) => `data5g:${local}`).join(" ")} )`;
   if (/log:allOf/i.test(ceBlock)) {
-    const replaced = ceBlock.replace(/log:allOf\s+([^.;]+)[.;]/is, `log:allOf ${refs} ;`);
+    const replaced = ceBlock.replace(/log:allOf\s+(\([^)]*\)|[^.;]+)[.;]/is, `log:allOf ${refs} ;`);
     if (replaced !== ceBlock) return replaced;
   }
   return insertCePredicates(ceBlock, [`log:allOf ${refs} ;`]);

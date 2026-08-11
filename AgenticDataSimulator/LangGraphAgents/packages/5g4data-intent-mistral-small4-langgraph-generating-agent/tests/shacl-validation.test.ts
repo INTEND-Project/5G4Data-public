@@ -56,31 +56,48 @@ test("network expectation with blank-node set:forAll passes bandwidth/latency SP
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix dct: <http://purl.org/dc/terms/> .
 
+data5g:inServ a imo:IntentManager .
+data5g:inChat a imo:IntentManager .
+data5g:network-slice a icm:Target .
+
 data5g:I1 a icm:Intent ;
     dct:description "test network intent" ;
-    imo:handler "inServ" ;
-    imo:owner "inChat" ;
-    log:allOf data5g:NE1, data5g:RE1 .
+    imo:handler data5g:inServ ;
+    imo:owner data5g:inChat ;
+    log:allOf ( data5g:NE1 data5g:RE1 ) .
 
 data5g:NE1 a data5g:NetworkExpectation ;
     icm:target data5g:network-slice ;
-    log:allOf data5g:CObw, data5g:COlat .
+    log:allOf ( data5g:CObw data5g:COlat ) .
 
-data5g:CObw a icm:Condition ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:bandwidth_CObw ;
-            quan:larger [ quan:unit "mbit/s" ; rdf:value 300 ] ] .
+data5g:member_CObw a quan:Quantity ; rdf:value "0"^^xsd:decimal .
+data5g:CObw a log:Condition ;
+    set:forAll (
+        data5g:member_CObw
+        [ icm:valuesOfTargetProperty ( data5g:bandwidth_CObw ) ]
+        [ quan:greater (
+            data5g:member_CObw
+            [ a quan:Quantity ; quan:unit "mbit/s" ; rdf:value 300 ]
+          ) ]
+    ) .
 
-data5g:COlat a icm:Condition ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:latency_COlat ;
-            quan:smaller [ quan:unit "ms" ; rdf:value 50 ] ] .
+data5g:member_COlat a quan:Quantity ; rdf:value "0"^^xsd:decimal .
+data5g:COlat a log:Condition ;
+    set:forAll (
+        data5g:member_COlat
+        [ icm:valuesOfTargetProperty ( data5g:latency_COlat ) ]
+        [ quan:smaller (
+            data5g:member_COlat
+            [ a quan:Quantity ; quan:unit "ms" ; rdf:value 50 ]
+          ) ]
+    ) .
 
 data5g:RE1 a icm:ObservationReportingExpectation ;
     icm:target data5g:network-slice ;
     icm:reportDestinations [ a rdfs:Container ; rdfs:member data5g:prometheus ] ;
     icm:reportTriggers [ a rdfs:Container ; rdfs:member data5g:Evt1 ] .
 
-data5g:Evt1 a rdfs:Class ;
-    rdfs:subClassOf imo:Event ;
+data5g:Evt1 a imo:Event ;
     time:delay ( data5g:lastReportInstant data5g:Dur1 ) ;
     imo:eventFor data5g:NE1 .
 

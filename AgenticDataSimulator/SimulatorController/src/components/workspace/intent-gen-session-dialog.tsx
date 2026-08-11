@@ -333,6 +333,18 @@ export function IntentGenSessionDialog({
         } else if (llmFields.reportingIntervalMinutes !== undefined) {
           payload.reportingIntervalMinutes = llmFields.reportingIntervalMinutes;
         }
+        if (typeof llmFields.systemPrompt === "string") {
+          payload.systemPrompt = llmFields.systemPrompt;
+        }
+        if (llmFields.fewShotMessages?.length) {
+          payload.fewShotMessages = llmFields.fewShotMessages;
+        }
+        if (typeof llmFields.numCtx === "number") {
+          payload.numCtx = llmFields.numCtx;
+        }
+        if (llmFields.stopSequences?.length) {
+          payload.stopSequences = llmFields.stopSequences;
+        }
         const trimmedPrometheusBase = prometheusBaseUrl.trim();
         if (trimmedPrometheusBase) {
           payload.prometheusBaseUrl = trimmedPrometheusBase;

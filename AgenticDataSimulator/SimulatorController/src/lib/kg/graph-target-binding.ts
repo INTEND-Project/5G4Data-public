@@ -37,6 +37,11 @@ export function buildGraphTargetBinding(
 
 export type PrometheusStackMode = "local" | "external";
 
+export type SimulatorFewShotMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type SimulatorControllerMetadata = {
   controllerBindingVersion: "1";
   graphTarget?: GraphTargetBinding;
@@ -49,6 +54,10 @@ export type SimulatorControllerMetadata = {
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
+  systemPrompt?: string;
+  fewShotMessages?: SimulatorFewShotMessage[];
+  numCtx?: number;
+  stopSequences?: string[];
 };
 
 export function simulatorMetadataEnvelope(opts: {
@@ -62,6 +71,10 @@ export function simulatorMetadataEnvelope(opts: {
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
+  systemPrompt?: string;
+  fewShotMessages?: SimulatorFewShotMessage[];
+  numCtx?: number;
+  stopSequences?: string[];
 }): {
   simulator: SimulatorControllerMetadata;
 } {
@@ -97,6 +110,27 @@ export function simulatorMetadataEnvelope(opts: {
       Math.max(1, Math.round(opts.reportingIntervalSeconds)),
     );
   }
+  if (typeof opts.systemPrompt === "string") {
+    simulator.systemPrompt = opts.systemPrompt;
+  }
+  if (Array.isArray(opts.fewShotMessages) && opts.fewShotMessages.length > 0) {
+    simulator.fewShotMessages = opts.fewShotMessages
+      .filter(
+        (m) =>
+          (m.role === "user" || m.role === "assistant") &&
+          typeof m.content === "string" &&
+          m.content.trim().length > 0,
+      )
+      .map((m) => ({ role: m.role, content: m.content.trim() }));
+  }
+  if (opts.numCtx !== undefined && Number.isFinite(opts.numCtx)) {
+    const numCtx = Math.round(opts.numCtx);
+    if (numCtx >= 1) simulator.numCtx = Math.min(1_048_576, numCtx);
+  }
+  if (Array.isArray(opts.stopSequences) && opts.stopSequences.length > 0) {
+    const stops = opts.stopSequences.map((s) => s.trim()).filter(Boolean);
+    if (stops.length > 0) simulator.stopSequences = stops;
+  }
   return { simulator };
 }
 
@@ -111,6 +145,10 @@ export function hasSimulatorMetadataFields(opts: {
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
+  systemPrompt?: string;
+  fewShotMessages?: SimulatorFewShotMessage[];
+  numCtx?: number;
+  stopSequences?: string[];
 }): boolean {
   return Boolean(
     opts.graphTarget ||
@@ -121,6 +159,10 @@ export function hasSimulatorMetadataFields(opts: {
       opts.llmApiBaseUrl?.trim() ||
       (opts.temperature !== undefined && Number.isFinite(opts.temperature)) ||
       (opts.reportingIntervalMinutes !== undefined && Number.isFinite(opts.reportingIntervalMinutes)) ||
-      (opts.reportingIntervalSeconds !== undefined && Number.isFinite(opts.reportingIntervalSeconds)),
+      (opts.reportingIntervalSeconds !== undefined && Number.isFinite(opts.reportingIntervalSeconds)) ||
+      typeof opts.systemPrompt === "string" ||
+      (Array.isArray(opts.fewShotMessages) && opts.fewShotMessages.length > 0) ||
+      (opts.numCtx !== undefined && Number.isFinite(opts.numCtx)) ||
+      (Array.isArray(opts.stopSequences) && opts.stopSequences.some((s) => s.trim())),
   );
 }

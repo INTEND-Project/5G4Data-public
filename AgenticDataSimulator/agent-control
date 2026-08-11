@@ -10,8 +10,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KERNEL="$ROOT/SimulatorAgentKernel"
 KERNEL_MISTRAL_SMALL4="$ROOT/SimulatorAgentKernel-mistral.small4"
+KERNEL_MODEL_ONLY="$ROOT/SimulatorAgentKernel-ModelOnly"
 PACKAGES="$ROOT/SimulatorAgentPackages"
 MISTRAL_SMALL4_PACKAGE="5g4data-intent-mistral-small4-generating-agent"
+MODEL_ONLY_PACKAGE="5g4data-intent-generating-agent-model-only"
 
 # Format: package_dir|port|agent_card_name
 # Clone directory: agents/<package_dir>/ for all kernel clones.
@@ -20,6 +22,7 @@ CORE_AGENTS=(
   "5g4data-intent-generating-agent|3011|5g4data-intent-generating-agent"
   "5g4data-intent-observations-generating-agent|3012|5g4data-intent-observation-generating-agent"
   "${MISTRAL_SMALL4_PACKAGE}|3013|5g4data-intent-mistral-small4-generating-agent"
+  "${MODEL_ONLY_PACKAGE}|3014|5g4data-intent-generating-agent-model-only"
 )
 
 ALL_AGENTS=("${CORE_AGENTS[@]}")
@@ -79,11 +82,13 @@ Agents (package directory → port):
   - 5g4data-intent-generating-agent (3011)
   - 5g4data-intent-observations-generating-agent (3012)
   - 5g4data-intent-mistral-small4-generating-agent (3013)
+  - 5g4data-intent-generating-agent-model-only (3014)
 
 Examples:
   ./agent-control reload
   ./agent-control reload 5g4data-intent-generating-agent
   ./agent-control stop 5g4data-intent-mistral-small4-generating-agent
+  ./agent-control reload 5g4data-intent-generating-agent-model-only
 
 Agents start with --debug (file logs under each clone's logs/ directory).
 EOF
@@ -150,6 +155,8 @@ kernel_dir_for_package() {
   local package="$1"
   if [[ "$package" == "$MISTRAL_SMALL4_PACKAGE" ]]; then
     printf '%s\n' "$KERNEL_MISTRAL_SMALL4"
+  elif [[ "$package" == "$MODEL_ONLY_PACKAGE" ]]; then
+    printf '%s\n' "$KERNEL_MODEL_ONLY"
   else
     printf '%s\n' "$KERNEL"
   fi

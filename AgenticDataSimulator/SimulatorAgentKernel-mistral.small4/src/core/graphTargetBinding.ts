@@ -56,6 +56,11 @@ function parsePrometheusStorageModeField(value: unknown): PrometheusStackMode | 
 
 export type PrometheusStackMode = "local" | "external";
 
+export type SimulatorFewShotMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type SimulatorControllerMetadata = {
   graphTarget: GraphTargetBinding | null;
   observationStorage: ObservationStorageType | null;
@@ -67,6 +72,10 @@ export type SimulatorControllerMetadata = {
   temperature: number | null;
   reportingIntervalMinutes: number | null;
   reportingIntervalSeconds: number | null;
+  systemPrompt: string | null;
+  fewShotMessages: SimulatorFewShotMessage[] | null;
+  numCtx: number | null;
+  stopSequences: string[] | null;
 };
 
 function parseTemperatureField(value: unknown): number | null {
@@ -148,6 +157,37 @@ export function parseSimulatorControllerMetadata(metadata: unknown): SimulatorCo
   const reportingIntervalSeconds = parseReportingIntervalSecondsField(
     simulator.reportingIntervalSeconds
   );
+  const systemPrompt =
+    typeof simulator.systemPrompt === "string" ? simulator.systemPrompt : null;
+  let fewShotMessages: SimulatorFewShotMessage[] | null = null;
+  if (Array.isArray(simulator.fewShotMessages)) {
+    const parsedShots: SimulatorFewShotMessage[] = [];
+    for (const item of simulator.fewShotMessages) {
+      if (!isRecord(item)) continue;
+      const role = readNonEmptyString(item.role)?.toLowerCase();
+      const content = typeof item.content === "string" ? item.content.trim() : "";
+      if ((role === "user" || role === "assistant") && content) {
+        parsedShots.push({ role, content });
+      }
+    }
+    if (parsedShots.length > 0) fewShotMessages = parsedShots;
+  }
+  let numCtx: number | null = null;
+  if (typeof simulator.numCtx === "number" && Number.isFinite(simulator.numCtx)) {
+    const rounded = Math.round(simulator.numCtx);
+    if (rounded >= 1) numCtx = Math.min(1_048_576, rounded);
+  } else if (typeof simulator.numCtx === "string" && simulator.numCtx.trim()) {
+    const parsed = Number.parseInt(simulator.numCtx.trim(), 10);
+    if (Number.isFinite(parsed) && parsed >= 1) numCtx = Math.min(1_048_576, parsed);
+  }
+  let stopSequences: string[] | null = null;
+  if (Array.isArray(simulator.stopSequences)) {
+    const stops = simulator.stopSequences
+      .filter((s): s is string => typeof s === "string")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (stops.length > 0) stopSequences = stops;
+  }
 
   if (
     !graphTarget &&
@@ -158,7 +198,11 @@ export function parseSimulatorControllerMetadata(metadata: unknown): SimulatorCo
     !llmApiBaseUrl &&
     temperature === null &&
     reportingIntervalMinutes === null &&
-    reportingIntervalSeconds === null
+    reportingIntervalSeconds === null &&
+    systemPrompt === null &&
+    !fewShotMessages &&
+    numCtx === null &&
+    !stopSequences
   ) {
     return null;
   }
@@ -173,7 +217,11 @@ export function parseSimulatorControllerMetadata(metadata: unknown): SimulatorCo
     llmApiBaseUrl,
     temperature,
     reportingIntervalMinutes,
-    reportingIntervalSeconds
+    reportingIntervalSeconds,
+    systemPrompt,
+    fewShotMessages,
+    numCtx,
+    stopSequences
   };
 }
 

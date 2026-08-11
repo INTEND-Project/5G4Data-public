@@ -273,7 +273,7 @@ export function AgentList({
                   aria-label={`Configure LLM settings for ${agent.name}`}
                   className="workspace-button workspace-button-secondary workspace-kg-target-action workspace-agent-configure-button"
                   onClick={() => setSettingsAgentName(agent.name)}
-                  title="Configure model and temperature"
+                  title="Configure model, temperature, and system prompt"
                   type="button"
                 >
                   <AgentConfigureIcon />

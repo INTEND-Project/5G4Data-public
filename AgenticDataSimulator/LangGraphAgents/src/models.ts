@@ -50,6 +50,14 @@ export interface ChatSession {
   reportingIntervalMinutesOverride?: number | null;
   /** From A2A metadata.simulator.reportingIntervalSeconds for this task (takes precedence over minutes). */
   reportingIntervalSecondsOverride?: number | null;
+  /** From A2A metadata.simulator.systemPrompt for this task. */
+  systemPromptOverride?: string | null;
+  /** From A2A metadata.simulator.fewShotMessages for this task. */
+  fewShotMessagesOverride?: Array<{ role: "user" | "assistant"; content: string }> | null;
+  /** From A2A metadata.simulator.numCtx for this task. */
+  numCtxOverride?: number | null;
+  /** From A2A metadata.simulator.stopSequences for this task. */
+  stopSequencesOverride?: string[] | null;
   /** Workspace Prometheus API base from Controller UI. */
   prometheusBaseUrl?: string | null;
   /** local = Pushgateway streaming; external = remote-write only. */
@@ -63,6 +71,8 @@ export type ModelInvokeOptions = {
   llmModel?: string | null;
   llmApiBaseUrl?: string | null;
   temperature?: number | null;
+  numCtx?: number | null;
+  stopSequences?: string[] | null;
 };
 
 export interface AgentTurnResult {

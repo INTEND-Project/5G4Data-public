@@ -17,8 +17,8 @@
   "requiredTokens": [
     "icm:Intent",
     "icm:ObservationReportingExpectation",
-    "imo:handler \"inServ\"",
-    "imo:owner \"inChat\""
+    "imo:handler data5g:inServ",
+    "imo:owner data5g:inChat"
   ],
   "clarificationTag": "[deployment datacenter clarification required]",
   "conditionalRequirements": [

@@ -1,0 +1,9 @@
+{
+  "capabilities": {
+    "ontology_summary": { "adapter": "ontology.summary" },
+    "example_summary": { "adapter": "ontology.examples" },
+    "catalogue_summary": { "adapter": "catalogue.summary" },
+    "selected_workload_objectives": { "adapter": "catalogue.objectives" },
+    "graphdb_candidates": { "adapter": "graphdb.candidates" }
+  }
+}

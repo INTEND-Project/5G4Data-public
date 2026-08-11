@@ -112,18 +112,18 @@ export function assembleIntent(args: {
   const members = collectExpectationLocals(args.draft.fragments);
   const refs =
     members.length > 0
-      ? members.map((local) => `data5g:${local}`).join(",\n        ")
+      ? `( ${members.map((local) => `data5g:${local}`).join(" ")} )`
       : "";
   const intentBlock = refs
     ? `data5g:${intentLocal} a icm:Intent ;
     dct:description "${escapeTurtleString(description)}" ;
-    imo:handler "inServ" ;
-    imo:owner "inChat" ;
+    imo:handler data5g:inServ ;
+    imo:owner data5g:inChat ;
     log:allOf ${refs} .`
     : `data5g:${intentLocal} a icm:Intent ;
     dct:description "${escapeTurtleString(description)}" ;
-    imo:handler "inServ" ;
-    imo:owner "inChat" .`;
+    imo:handler data5g:inServ ;
+    imo:owner data5g:inChat .`;
 
   const body = args.draft.fragments
     .map((f) => f.turtle.trim())

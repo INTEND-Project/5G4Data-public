@@ -4,6 +4,7 @@ import { agentInfoUrlFromAgentRpcUrl } from "@/lib/a2a/agent-control-url";
 import { fetchAgentRpcUrl } from "@/lib/a2a/fetch-agent-card";
 import { buildA2AAuthHeaders } from "@/lib/a2a/auth-headers";
 import { DEFAULT_AGENT_TEMPERATURE } from "@/lib/agents/agent-llm-preferences";
+import { readAgentFilesystemSystemPrompt } from "@/lib/agents/read-agent-system-prompt";
 import { readEnvFileLlmDefaults } from "@/lib/agents/read-kernel-env-llm-defaults";
 import { getAuthenticatedUser } from "@/lib/auth/guards";
 import { loadAppEnv } from "@/lib/env";
@@ -34,6 +35,13 @@ function runtimeLlmPayload(
   };
 }
 
+function systemPromptExtra(agentName: string, fromAgent?: string): Record<string, unknown> {
+  const systemPrompt =
+    (typeof fromAgent === "string" && fromAgent.trim() ? fromAgent : undefined) ??
+    readAgentFilesystemSystemPrompt(agentName);
+  return systemPrompt ? { systemPrompt } : {};
+}
+
 export async function GET(request: Request, context: RouteContext) {
   const user = await getAuthenticatedUser(request);
 
@@ -62,6 +70,7 @@ export async function GET(request: Request, context: RouteContext) {
         envFallback.temperature,
         envFallback.source,
         envFallback.apiBaseUrl,
+        systemPromptExtra(decodedName),
       ),
     );
   }
@@ -83,7 +92,7 @@ export async function GET(request: Request, context: RouteContext) {
         envFallback.temperature,
         envFallback.source,
         envFallback.apiBaseUrl,
-        { warning: rpc.message },
+        { warning: rpc.message, ...systemPromptExtra(decodedName) },
       ),
     );
   }
@@ -118,7 +127,10 @@ export async function GET(request: Request, context: RouteContext) {
           envFallback.temperature,
           envFallback.source,
           envFallback.apiBaseUrl,
-          { warning: `Agent info request failed (${response.status}).` },
+          {
+            warning: `Agent info request failed (${response.status}).`,
+            ...systemPromptExtra(decodedName),
+          },
         ),
       );
     }
@@ -126,6 +138,10 @@ export async function GET(request: Request, context: RouteContext) {
     const payload = (await response.json()) as {
       model?: string;
       temperature?: number;
+      systemPrompt?: string;
+      apiBaseUrl?: string;
+      numCtx?: number | null;
+      stopSequences?: string[];
     };
 
     const model = typeof payload.model === "string" ? payload.model.trim() : "";
@@ -139,10 +155,25 @@ export async function GET(request: Request, context: RouteContext) {
           envFallback.temperature,
           envFallback.source,
           envFallback.apiBaseUrl,
-          { warning: "Agent info response missing model." },
+          {
+            warning: "Agent info response missing model.",
+            ...systemPromptExtra(decodedName, payload.systemPrompt),
+          },
         ),
       );
     }
+
+    const agentApiBaseUrl =
+      typeof payload.apiBaseUrl === "string" && payload.apiBaseUrl.trim()
+        ? payload.apiBaseUrl.trim()
+        : envFallback?.apiBaseUrl;
+    const numCtx =
+      typeof payload.numCtx === "number" && Number.isFinite(payload.numCtx) && payload.numCtx >= 1
+        ? Math.round(payload.numCtx)
+        : undefined;
+    const stopSequences = Array.isArray(payload.stopSequences)
+      ? payload.stopSequences.map((s) => String(s).trim()).filter(Boolean)
+      : undefined;
 
     return NextResponse.json(
       runtimeLlmPayload(
@@ -151,7 +182,12 @@ export async function GET(request: Request, context: RouteContext) {
           payload.temperature ?? envFallback?.temperature ?? DEFAULT_AGENT_TEMPERATURE,
         ),
         "agent",
-        envFallback?.apiBaseUrl,
+        agentApiBaseUrl,
+        {
+          ...systemPromptExtra(decodedName, payload.systemPrompt),
+          ...(numCtx !== undefined ? { numCtx } : {}),
+          ...(stopSequences && stopSequences.length > 0 ? { stopSequences } : {}),
+        },
       ),
     );
   } catch (err) {
@@ -167,7 +203,7 @@ export async function GET(request: Request, context: RouteContext) {
         envFallback.temperature,
         envFallback.source,
         envFallback.apiBaseUrl,
-        { warning: String(err) },
+        { warning: String(err), ...systemPromptExtra(decodedName) },
       ),
     );
   }

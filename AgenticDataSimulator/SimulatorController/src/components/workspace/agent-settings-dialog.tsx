@@ -12,16 +12,24 @@ import {
   DEFAULT_AGENT_TEMPERATURE,
   DEFAULT_LLM_API_BASE_URL_SUGGESTIONS,
   DEFAULT_REPORTING_INTERVAL_MINUTES,
+  STOP_SEQUENCES_HELP_TEXT,
+  clampNumCtx,
   isIntentGenerationAgent,
   llmApiBaseUrlSuggestions,
   normalizeAgentLlmPreference,
   normalizeLlmApiBaseUrl,
+  normalizeStopSequences,
 } from "@/lib/agents/agent-llm-preferences";
+import type { FewShotMessage } from "@/lib/agents/modelfile-system-prompt";
+import { normalizeModelfileOrSystemPrompt } from "@/lib/agents/modelfile-system-prompt";
 
 export type AgentRuntimeLlmDefaults = {
   model: string;
   apiBaseUrl?: string;
   temperature: number;
+  systemPrompt?: string;
+  numCtx?: number;
+  stopSequences?: string[];
   source?: "agent" | "env";
 };
 
@@ -57,6 +65,19 @@ function modelSelectValue(model: string, models: string[], customModelMode: bool
   if (!trimmed) return "";
   if (models.includes(trimmed)) return trimmed;
   return trimmed;
+}
+
+function stopSequencesToText(stops: string[] | undefined): string {
+  return stops?.length ? stops.join("\n") : "";
+}
+
+function parseStopSequencesText(text: string): string[] | undefined {
+  return normalizeStopSequences(
+    text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean),
+  );
 }
 
 async function fetchModelsForBaseUrl(
@@ -99,6 +120,12 @@ export function AgentSettingsDialog({
   const [reportingIntervalMinutes, setReportingIntervalMinutes] = useState(
     DEFAULT_REPORTING_INTERVAL_MINUTES,
   );
+  const [systemPromptDraft, setSystemPromptDraft] = useState("");
+  const [systemPromptCustomized, setSystemPromptCustomized] = useState(false);
+  const [fewShotMessages, setFewShotMessages] = useState<FewShotMessage[]>([]);
+  const [numCtxDraft, setNumCtxDraft] = useState("");
+  const [stopSequencesText, setStopSequencesText] = useState("");
+  const [stopHelpOpen, setStopHelpOpen] = useState(false);
   const [models, setModels] = useState<string[]>([]);
   const [runtimeDefaults, setRuntimeDefaults] = useState<AgentRuntimeLlmDefaults | null>(null);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -112,6 +139,7 @@ export function AgentSettingsDialog({
   );
 
   const runtimeTemperature = runtimeDefaults?.temperature ?? DEFAULT_AGENT_TEMPERATURE;
+  const runtimeSystemPrompt = runtimeDefaults?.systemPrompt ?? "";
 
   const apiBaseUrlPresetOptions = useMemo(
     () => llmApiBaseUrlSuggestions(runtimeDefaults?.apiBaseUrl),
@@ -190,6 +218,7 @@ export function AgentSettingsDialog({
     if (!open) return;
     setError(null);
     setSaved(false);
+    setStopHelpOpen(false);
     if (hasStored) {
       setModel(preference.model);
       setApiBaseUrl(preference.apiBaseUrl);
@@ -200,6 +229,26 @@ export function AgentSettingsDialog({
       setReportingIntervalMinutes(
         preference.reportingIntervalMinutes ?? DEFAULT_REPORTING_INTERVAL_MINUTES,
       );
+      const customized = typeof preference.systemPrompt === "string";
+      setSystemPromptCustomized(customized);
+      setSystemPromptDraft(
+        customized ? preference.systemPrompt! : runtimeDefaults?.systemPrompt ?? "",
+      );
+      setFewShotMessages(preference.fewShotMessages ?? []);
+      setNumCtxDraft(
+        typeof preference.numCtx === "number"
+          ? String(preference.numCtx)
+          : typeof runtimeDefaults?.numCtx === "number"
+            ? String(runtimeDefaults.numCtx)
+            : "",
+      );
+      setStopSequencesText(
+        stopSequencesToText(
+          preference.stopSequences?.length
+            ? preference.stopSequences
+            : runtimeDefaults?.stopSequences,
+        ),
+      );
       return;
     }
     setModel("");
@@ -209,6 +258,13 @@ export function AgentSettingsDialog({
     setCustomModelMode(false);
     setTemperature(runtimeDefaults?.temperature ?? DEFAULT_AGENT_TEMPERATURE);
     setReportingIntervalMinutes(DEFAULT_REPORTING_INTERVAL_MINUTES);
+    setSystemPromptCustomized(false);
+    setSystemPromptDraft(runtimeDefaults?.systemPrompt ?? "");
+    setFewShotMessages([]);
+    setNumCtxDraft(
+      typeof runtimeDefaults?.numCtx === "number" ? String(runtimeDefaults.numCtx) : "",
+    );
+    setStopSequencesText(stopSequencesToText(runtimeDefaults?.stopSequences));
   }, [
     open,
     hasStored,
@@ -216,8 +272,22 @@ export function AgentSettingsDialog({
     preference.apiBaseUrl,
     preference.temperature,
     preference.reportingIntervalMinutes,
+    preference.systemPrompt,
+    preference.fewShotMessages,
+    preference.numCtx,
+    preference.stopSequences,
     runtimeDefaults?.temperature,
+    runtimeDefaults?.systemPrompt,
+    runtimeDefaults?.numCtx,
+    runtimeDefaults?.stopSequences,
   ]);
+
+  useEffect(() => {
+    if (!open || systemPromptCustomized) return;
+    if (runtimeDefaults?.systemPrompt !== undefined) {
+      setSystemPromptDraft(runtimeDefaults.systemPrompt);
+    }
+  }, [open, systemPromptCustomized, runtimeDefaults?.systemPrompt]);
 
   useEffect(() => {
     if (!open || !agentRuntimeLlmApiUrl) return;
@@ -246,6 +316,7 @@ export function AgentSettingsDialog({
             apiBaseUrl: typeof body.apiBaseUrl === "string" ? body.apiBaseUrl : undefined,
             temperature:
               typeof body.temperature === "number" ? body.temperature : DEFAULT_AGENT_TEMPERATURE,
+            systemPrompt: typeof body.systemPrompt === "string" ? body.systemPrompt : undefined,
             source: body.source,
           });
         }
@@ -339,12 +410,50 @@ export function AgentSettingsDialog({
     setCustomModelMode(false);
   }, [customModelDraft]);
 
+  const handleRevertSystemPrompt = useCallback(() => {
+    setSystemPromptCustomized(false);
+    setSystemPromptDraft(runtimeSystemPrompt);
+    setFewShotMessages([]);
+  }, [runtimeSystemPrompt]);
+
   const handleSave = useCallback(() => {
+    let nextTemperature = Number.parseFloat(String(temperature));
+    let nextNumCtx = numCtxDraft.trim()
+      ? clampNumCtx(Number.parseInt(numCtxDraft.trim(), 10))
+      : undefined;
+    let nextStops = parseStopSequencesText(stopSequencesText);
+    let nextSystemPrompt: string | undefined;
+    let nextFewShots: FewShotMessage[] | undefined;
+
+    if (systemPromptCustomized) {
+      const normalized = normalizeModelfileOrSystemPrompt(systemPromptDraft);
+      nextSystemPrompt = normalized.systemPrompt;
+      nextFewShots = normalized.fewShotMessages.length > 0 ? normalized.fewShotMessages : undefined;
+      if (normalized.isModelfile) {
+        setSystemPromptDraft(normalized.systemPrompt);
+        setFewShotMessages(normalized.fewShotMessages);
+        if (normalized.temperature !== undefined) {
+          nextTemperature = normalized.temperature;
+          setTemperature(normalized.temperature);
+        }
+        if (normalized.numCtx !== undefined) {
+          nextNumCtx = normalized.numCtx;
+          setNumCtxDraft(String(normalized.numCtx));
+        }
+        if (normalized.stopSequences.length > 0) {
+          nextStops = normalized.stopSequences;
+          setStopSequencesText(stopSequencesToText(normalized.stopSequences));
+        }
+      } else {
+        setFewShotMessages([]);
+      }
+    }
+
     setPreference(
       normalizeAgentLlmPreference({
         model,
         apiBaseUrl,
-        temperature: Number.parseFloat(String(temperature)),
+        temperature: nextTemperature,
         ...(showReportingInterval
           ? {
               reportingIntervalMinutes: Number.parseInt(
@@ -353,6 +462,14 @@ export function AgentSettingsDialog({
               ),
             }
           : {}),
+        ...(systemPromptCustomized
+          ? {
+              systemPrompt: nextSystemPrompt ?? "",
+              ...(nextFewShots ? { fewShotMessages: nextFewShots } : {}),
+            }
+          : {}),
+        ...(nextNumCtx !== undefined ? { numCtx: nextNumCtx } : {}),
+        ...(nextStops ? { stopSequences: nextStops } : {}),
       }),
     );
     setSaved(true);
@@ -360,10 +477,14 @@ export function AgentSettingsDialog({
   }, [
     apiBaseUrl,
     model,
+    numCtxDraft,
     onClose,
     reportingIntervalMinutes,
     setPreference,
     showReportingInterval,
+    stopSequencesText,
+    systemPromptCustomized,
+    systemPromptDraft,
     temperature,
   ]);
 
@@ -373,6 +494,10 @@ export function AgentSettingsDialog({
 
   const selectedApiBaseUrl = apiBaseUrlSelectValue(apiBaseUrl, apiBaseUrlPresetOptions);
   const selectedModel = modelSelectValue(model, models, customModelMode);
+  const fewShotCount = systemPromptCustomized
+    ? fewShotMessages.length ||
+      normalizeModelfileOrSystemPrompt(systemPromptDraft).fewShotMessages.length
+    : 0;
 
   return (
     <div
@@ -500,6 +625,99 @@ export function AgentSettingsDialog({
             : hasStored
               ? `Agent environment default: ${runtimeTemperature}`
               : `Using agent environment default: ${runtimeTemperature}`}
+        </p>
+
+        <label className="workspace-label" htmlFor="workspace-agent-settings-num-ctx">
+          Context window (num_ctx)
+        </label>
+        <input
+          className="workspace-input"
+          id="workspace-agent-settings-num-ctx"
+          min={1}
+          onChange={(event) => setNumCtxDraft(event.target.value)}
+          placeholder="Provider / model default"
+          step={1}
+          type="number"
+          value={numCtxDraft}
+        />
+        <p className="workspace-hint">
+          {typeof runtimeDefaults?.numCtx === "number"
+            ? `Agent environment default: ${runtimeDefaults.numCtx}. Honored for Ollama-compatible APIs via options.num_ctx.`
+            : "Optional. Honored for Ollama-compatible APIs via options.num_ctx. Leave empty for the provider default."}
+        </p>
+
+        <div className="workspace-agent-settings-label-row">
+          <label className="workspace-label" htmlFor="workspace-agent-settings-stop">
+            Stop sequences
+          </label>
+          <button
+            aria-expanded={stopHelpOpen}
+            aria-label="About stop sequences"
+            className="workspace-button workspace-button-secondary workspace-agent-settings-info-button"
+            onClick={() => setStopHelpOpen((openHelp) => !openHelp)}
+            type="button"
+          >
+            i
+          </button>
+        </div>
+        {stopHelpOpen ? (
+          <div className="workspace-agent-settings-stop-help" role="note">
+            {STOP_SEQUENCES_HELP_TEXT.split("\n").map((line, index) => (
+              <p key={`stop-help-${index}`}>{line}</p>
+            ))}
+          </div>
+        ) : null}
+        <textarea
+          className="workspace-input workspace-agent-settings-stop-textarea"
+          id="workspace-agent-settings-stop"
+          onChange={(event) => setStopSequencesText(event.target.value)}
+          placeholder={"One stop string per line\ne.g. <|eot_id|>"}
+          spellCheck={false}
+          value={stopSequencesText}
+        />
+        <p className="workspace-hint">
+          {runtimeDefaults?.stopSequences?.length
+            ? `Agent environment default: ${runtimeDefaults.stopSequences.join(", ")}. Leave empty to send no stop sequences.`
+            : "Leave empty to send no stop sequences."}
+        </p>
+
+        <div className="workspace-agent-settings-label-row">
+          <label className="workspace-label" htmlFor="workspace-agent-settings-system-prompt">
+            System prompt
+          </label>
+          {systemPromptCustomized ? (
+            <button
+              className="workspace-button workspace-button-secondary"
+              onClick={handleRevertSystemPrompt}
+              type="button"
+            >
+              Revert to default
+            </button>
+          ) : null}
+        </div>
+        <textarea
+          className="workspace-input workspace-agent-settings-system-prompt"
+          id="workspace-agent-settings-system-prompt"
+          onChange={(event) => {
+            setSystemPromptCustomized(true);
+            setSystemPromptDraft(event.target.value);
+          }}
+          placeholder={
+            loadingRuntime
+              ? "Loading agent default system prompt…"
+              : "Agent default system prompt"
+          }
+          spellCheck={false}
+          value={systemPromptDraft}
+        />
+        <p className="workspace-hint">
+          Shows the agent default until you edit it. Paste plain system text or a full Ollama
+          Modelfile (<code>SYSTEM</code> / <code>MESSAGE</code> / <code>PARAMETER</code>); Save
+          normalizes Modelfile content and syncs temperature, num_ctx, and stop.
+          {fewShotCount > 0
+            ? ` ${fewShotCount} few-shot MESSAGE pair${fewShotCount === 1 ? "" : "s"} will be sent.`
+            : null}
+          {!systemPromptCustomized && loadingRuntime ? " Loading default…" : null}
         </p>
 
         {showReportingInterval ? (

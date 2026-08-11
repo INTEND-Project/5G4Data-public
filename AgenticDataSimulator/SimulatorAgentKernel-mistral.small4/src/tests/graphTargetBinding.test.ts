@@ -112,6 +112,23 @@ test("parseSimulatorControllerMetadata accepts reportingIntervalSeconds", () => 
   assert.equal(parsed.reportingIntervalMinutes, null);
 });
 
+test("parseSimulatorControllerMetadata accepts systemPrompt few-shots numCtx and stopSequences", () => {
+  const parsed = parseSimulatorControllerMetadata({
+    simulator: {
+      controllerBindingVersion: "1",
+      systemPrompt: "Emit Turtle.",
+      fewShotMessages: [{ role: "user", content: "hi" }],
+      numCtx: 12288,
+      stopSequences: ["</s>", "<|eot_id|>"],
+    },
+  });
+  assert.ok(parsed);
+  assert.equal(parsed.systemPrompt, "Emit Turtle.");
+  assert.deepEqual(parsed.fewShotMessages, [{ role: "user", content: "hi" }]);
+  assert.equal(parsed.numCtx, 12288);
+  assert.deepEqual(parsed.stopSequences, ["</s>", "<|eot_id|>"]);
+});
+
 test("bindingsConflict detects repository or graph drift", () => {
   const existing = {
     repositoryId: "a",

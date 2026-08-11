@@ -15,11 +15,15 @@ function insertMissingSemicolons(lines: string[]): { lines: string[]; changes: n
     const next = lines[i + 1];
     if (next && CONTINUATION_LINE.test(next)) {
       const trimmed = line.trimEnd();
+      // Do not insert ; after RDF collection / blank openers — list members often
+      // look like predicate continuations (e.g. indented `data5g:…` after `set:forAll (`).
       if (
         trimmed.length > 0 &&
         !trimmed.endsWith(";") &&
         !trimmed.endsWith(".") &&
-        !trimmed.endsWith(",")
+        !trimmed.endsWith(",") &&
+        !trimmed.endsWith("(") &&
+        !trimmed.endsWith("[")
       ) {
         line = `${trimmed} ;`;
         changes += 1;
@@ -49,13 +53,29 @@ function stripUnknownPrefixedTokens(text: string): { text: string; changes: numb
       changes += 1;
       continue;
     }
+    // Unknown `intend:` prefix lines (legacy LLM noise).
     if (/\bintend:/i.test(line)) {
+      changes += 1;
+      continue;
+    }
+    // Catalogue measuredBy lines (prometheus ids like intend/p99token are not Turtle IRIs).
+    if (/^\s*(?:data5g:)?measuredBy\b/i.test(line)) {
       changes += 1;
       continue;
     }
     kept.push(line);
   }
-  return { text: kept.join("\n").replace(/\n{3,}/g, "\n\n").trim(), changes };
+  let result = kept.join("\n");
+  // Also strip inline measuredBy objects when mixed into another predicate line.
+  const withoutInline = result.replace(
+    /\s*;?\s*(?:data5g:)?measuredBy\s+(?:"[^"]*"|'[^']*'|intend\/[^\s;,]+|[^\s;,]+)(?=\s*[;.])/gi,
+    ""
+  );
+  if (withoutInline !== result) {
+    result = withoutInline;
+    changes += 1;
+  }
+  return { text: result.replace(/\n{3,}/g, "\n\n").trim(), changes };
 }
 
 function stripIntentLevelFields(text: string): { text: string; changes: number } {

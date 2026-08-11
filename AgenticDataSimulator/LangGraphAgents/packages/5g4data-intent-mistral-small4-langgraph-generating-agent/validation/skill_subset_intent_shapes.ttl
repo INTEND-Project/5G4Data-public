@@ -43,18 +43,25 @@ data5g:IntentShape
     ] ;
     sh:property [
         sh:path imo:handler ;
-        sh:datatype xsd:string ;
+        sh:nodeKind sh:IRI ;
+        sh:class imo:IntentManager ;
         sh:minCount 1 ;
         sh:maxCount 1
     ] ;
     sh:property [
         sh:path imo:owner ;
-        sh:datatype xsd:string ;
+        sh:nodeKind sh:IRI ;
+        sh:class imo:IntentManager ;
         sh:minCount 1 ;
         sh:maxCount 1
     ] ;
     sh:property [
         sh:path log:allOf ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path ( log:allOf [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ;
         sh:minCount 1 ;
         sh:node data5g:AllowedIntentMemberShape
     ] ;
@@ -64,10 +71,10 @@ data5g:IntentShape
         sh:select """
             SELECT $this
             WHERE {
-              $this log:allOf ?de .
+              $this log:allOf/rdf:rest*/rdf:first ?de .
               ?de a data5g:DeploymentExpectation .
               FILTER NOT EXISTS {
-                $this log:allOf ?re .
+                $this log:allOf/rdf:rest*/rdf:first ?re .
                 { ?re a icm:ReportingExpectation } UNION { ?re a icm:ObservationReportingExpectation } .
                 ?re icm:target data5g:deployment .
               }
@@ -80,10 +87,10 @@ data5g:IntentShape
         sh:select """
             SELECT $this
             WHERE {
-              $this log:allOf ?ne .
+              $this log:allOf/rdf:rest*/rdf:first ?ne .
               ?ne a data5g:NetworkExpectation .
               FILTER NOT EXISTS {
-                $this log:allOf ?re .
+                $this log:allOf/rdf:rest*/rdf:first ?re .
                 { ?re a icm:ReportingExpectation } UNION { ?re a icm:ObservationReportingExpectation } .
                 ?re icm:target data5g:network-slice .
               }
@@ -96,10 +103,10 @@ data5g:IntentShape
         sh:select """
             SELECT $this
             WHERE {
-              $this log:allOf ?se .
+              $this log:allOf/rdf:rest*/rdf:first ?se .
               ?se a data5g:SustainabilityExpectation .
               FILTER NOT EXISTS {
-                $this log:allOf ?re .
+                $this log:allOf/rdf:rest*/rdf:first ?re .
                 { ?re a icm:ReportingExpectation } UNION { ?re a icm:ObservationReportingExpectation } .
                 ?re icm:target data5g:sustainability .
               }
@@ -112,10 +119,10 @@ data5g:IntentShape
         sh:select """
             SELECT $this
             WHERE {
-              $this log:allOf ?ce .
+              $this log:allOf/rdf:rest*/rdf:first ?ce .
               ?ce a data5g:CoordinationExpectation .
               FILTER NOT EXISTS {
-                $this log:allOf ?re .
+                $this log:allOf/rdf:rest*/rdf:first ?re .
                 { ?re a icm:ReportingExpectation } UNION { ?re a icm:ObservationReportingExpectation } .
                 ?re icm:target <http://5g4data.eu/5g4data#coordination-service> .
               }
@@ -143,13 +150,18 @@ data5g:DeploymentExpectationShape
     sh:property [
         sh:path log:allOf ;
         sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path ( log:allOf [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ;
+        sh:minCount 1 ;
         sh:node data5g:DeploymentExpectationMemberShape
     ] .
 
 data5g:DeploymentExpectationMemberShape
     a sh:NodeShape ;
     sh:or (
-        [ sh:class icm:Condition ]
+        [ sh:class log:Condition ]
         [ sh:class icm:Context ]
     ) .
 
@@ -164,6 +176,11 @@ data5g:NetworkExpectationShape
     ] ;
     sh:property [
         sh:path log:allOf ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path ( log:allOf [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ;
         sh:minCount 2 ;
         sh:node data5g:NetworkExpectationMemberShape
     ] ;
@@ -174,10 +191,10 @@ data5g:NetworkExpectationShape
             SELECT $this
             WHERE {
               FILTER NOT EXISTS {
-                $this log:allOf ?cond .
-                ?cond a icm:Condition ;
-                      set:forAll ?fa .
-                ?fa icm:valuesOfTargetProperty ?metric .
+                $this log:allOf/rdf:rest*/rdf:first ?cond .
+                ?cond a log:Condition ;
+                      set:forAll/rdf:rest*/rdf:first ?fa .
+                ?fa icm:valuesOfTargetProperty/rdf:rest*/rdf:first ?metric .
                 FILTER(STRSTARTS(STR(?metric), "http://5g4data.eu/5g4data#bandwidth_"))
               }
             }
@@ -190,10 +207,10 @@ data5g:NetworkExpectationShape
             SELECT $this
             WHERE {
               FILTER NOT EXISTS {
-                $this log:allOf ?cond .
-                ?cond a icm:Condition ;
-                      set:forAll ?fa .
-                ?fa icm:valuesOfTargetProperty ?metric .
+                $this log:allOf/rdf:rest*/rdf:first ?cond .
+                ?cond a log:Condition ;
+                      set:forAll/rdf:rest*/rdf:first ?fa .
+                ?fa icm:valuesOfTargetProperty/rdf:rest*/rdf:first ?metric .
                 FILTER(STRSTARTS(STR(?metric), "http://5g4data.eu/5g4data#latency_"))
               }
             }
@@ -203,7 +220,7 @@ data5g:NetworkExpectationShape
 data5g:NetworkExpectationMemberShape
     a sh:NodeShape ;
     sh:or (
-        [ sh:class icm:Condition ]
+        [ sh:class log:Condition ]
         [ sh:class icm:Context ]
     ) .
 
@@ -262,15 +279,15 @@ data5g:CoordinationExpectationShape
     ] ;
     sh:sparql [
         a sh:SPARQLConstraint ;
-        sh:message "CoordinationExpectation must reference at least one metric condition (icm:Condition with set:forAll) in log:allOf." ;
+        sh:message "CoordinationExpectation must reference at least one metric condition (log:Condition with set:forAll) in log:allOf." ;
         sh:select """
             SELECT $this
             WHERE {
               FILTER NOT EXISTS {
-                $this log:allOf ?co .
-                ?co a icm:Condition ;
-                    set:forAll ?fa .
-                ?fa icm:valuesOfTargetProperty ?metric .
+                $this log:allOf/rdf:rest*/rdf:first ?co .
+                ?co a log:Condition ;
+                    set:forAll/rdf:rest*/rdf:first ?fa .
+                ?fa icm:valuesOfTargetProperty/rdf:rest*/rdf:first ?metric .
               }
             }
         """
@@ -288,9 +305,9 @@ data5g:CoordinationExpectationShape
               {
                 SELECT (COUNT(DISTINCT ?co) AS ?coCount)
                 WHERE {
-                  $this log:allOf ?co .
-                  ?co a icm:Condition ;
-                      set:forAll ?fa .
+                  $this log:allOf/rdf:rest*/rdf:first ?co .
+                  ?co a log:Condition ;
+                      set:forAll/rdf:rest*/rdf:first ?fa .
                 }
               }
               FILTER(BOUND(?coCount) && ?coCount > 0 && ?coCount != ?arity)
@@ -391,13 +408,13 @@ data5g:MetricConditionShape
         sh:maxCount 1
     ] ;
     sh:property [
-        sh:path ( set:forAll icm:valuesOfTargetProperty ) ;
+        sh:path ( set:forAll [ sh:zeroOrMorePath rdf:rest ] rdf:first icm:valuesOfTargetProperty [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
         sh:nodeKind sh:IRI
     ] ;
     sh:property [
-        sh:path ( set:forAll [ sh:alternativePath ( quan:smaller quan:larger quan:inRange ) ] ) ;
+        sh:path ( set:forAll [ sh:zeroOrMorePath rdf:rest ] rdf:first [ sh:alternativePath ( quan:smaller quan:greater quan:inRange quan:atLeast ) ] ) ;
         sh:minCount 1
     ] .
 
@@ -417,7 +434,7 @@ data5g:CoordinationAnchorConditionShape
 
 data5g:ConditionShape
     a sh:NodeShape ;
-    sh:targetClass icm:Condition ;
+    sh:targetClass log:Condition ;
     sh:or (
         [ sh:node data5g:MetricConditionShape ]
         [ sh:node data5g:CoordinationAnchorConditionShape ]

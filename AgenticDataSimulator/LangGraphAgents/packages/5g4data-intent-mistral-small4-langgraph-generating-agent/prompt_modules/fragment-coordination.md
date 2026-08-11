@@ -32,8 +32,7 @@ data5g:durationCoordination_CE__ID_COORDINATION_1__ a time:DurationDescription ;
     time:numericDuration "10"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:TenMinuteReportEventCoordination_CE__ID_COORDINATION_1__ a rdfs:Class ;
-    rdfs:subClassOf imo:Event ;
+data5g:TenMinuteReportEventCoordination_CE__ID_COORDINATION_1__ a imo:Event ;
     time:delay ( data5g:lastReportInstant data5g:durationCoordination_CE__ID_COORDINATION_1__ ) ;
     imo:eventFor data5g:CE__ID_COORDINATION_1__ .
 

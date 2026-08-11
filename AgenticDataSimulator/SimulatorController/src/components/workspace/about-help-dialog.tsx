@@ -115,7 +115,7 @@ export function AboutHelpDialog({ open, onClose }: AboutHelpDialogProps) {
               <strong>Tools</strong> section (configure TMF921 URLs first).
             </li>
             <li>
-              <strong>Agents</strong> — adjust LLM model/temperature per agent via the configure
+              <strong>Agents</strong> — adjust LLM model/temperature/system prompt per agent via the configure
               icon in <strong>Available agents</strong>.
             </li>
           </ol>

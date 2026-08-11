@@ -1,0 +1,23 @@
+# Package-load clones — local runtime instances, not source (see agent-control / package load).
+# Baseline kernels (SimulatorAgentKernel/, SimulatorAgentKernel-mistral.small4/, LangGraphAgents/) remain tracked.
+agents/
+mlflow/
+SimulatorAgentKernel-*/
+!SimulatorAgentKernel-mistral.small4/
+!SimulatorAgentKernel-ModelOnly/
+# Legacy LangGraph sibling clone naming (current clones use agents/<package-name>/).
+LangGraphAgents-*/
+# E1 iteration run outputs (JSON, logs, Turtle artifacts).
+iterations/
+Prometheus/tsdb/
+prometheus-documentation.md
+Grafana/.env
+Grafana/jwt-jwks.json
+SimulatorController/prisma/dev.db
+.venv-pptx/
+IntentReportQueryProxy/.venv/
+tailscale.sh
+tailscale-key.txt
+openwebui.env
+spark-ollama.env
+spark-tailscale-auth-key.txt

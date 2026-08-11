@@ -1,0 +1,27 @@
+# Restrict public access to Docker-published lab service ports.
+#
+# Install (paths on start5g-1):
+#   sudo mkdir -p /etc/docker-user-firewall
+#   sudo cp scripts/docker-user-firewall/config.example /etc/docker-user-firewall/config
+#   sudo install -m 755 scripts/configure-docker-user-firewall.sh /usr/local/sbin/configure-docker-user-firewall.sh
+#   sudo cp scripts/systemd/docker-user-firewall.service.example /etc/systemd/system/docker-user-firewall.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now docker-user-firewall.service
+#
+# After editing /etc/docker-user-firewall/config:
+#   sudo systemctl restart docker-user-firewall.service
+
+[Unit]
+Description=DOCKER-USER firewall for Docker-published lab services
+After=docker.service
+Wants=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=CONFIG_FILE=/etc/docker-user-firewall/config
+ExecStart=/usr/local/sbin/configure-docker-user-firewall.sh
+
+[Install]
+WantedBy=multi-user.target

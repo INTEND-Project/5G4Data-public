@@ -193,7 +193,7 @@ export class TurnOrchestrator {
       this.config.intentReportIntervalMinutes
     );
     const systemBlocks = [
-      this.domainPackage.systemPromptText,
+      this.effectiveSystemPrompt(session),
       ...moduleBlocks,
       `Use this runtime grounding context when relevant. If it conflicts with your assumptions, trust it.\n\n${context.runtimeContext}`,
       buildReportingIntervalHint(reportingInterval)
@@ -209,9 +209,11 @@ export class TurnOrchestrator {
       role: "user" | "assistant";
       content: string;
     }>;
+    const fewShots = this.sessionFewShotMessages(session);
     const mainResult = await this.invokeModel(
       [
         ...systemBlocks.map((content) => ({ role: "system" as const, content })),
+        ...fewShots,
         ...history
       ],
       this.modelInvokeOptions(session, "main_turn")
@@ -238,7 +240,7 @@ export class TurnOrchestrator {
         assistantMarkers: confirmationConfig?.assistantMarkers
       },
       systemBlocks,
-      history,
+      [...fewShots, ...history],
       this.modelInvokeOptions(session, "repair")
     );
     text = repaired.text;
@@ -339,12 +341,25 @@ export class TurnOrchestrator {
     return this.config;
   }
 
+  private effectiveSystemPrompt(session: ChatSession): string {
+    const override = session.systemPromptOverride?.trim();
+    return override || this.domainPackage.systemPromptText;
+  }
+
+  private sessionFewShotMessages(
+    session: ChatSession
+  ): Array<{ role: "user" | "assistant"; content: string }> {
+    return session.fewShotMessagesOverride ?? [];
+  }
+
   private modelInvokeOptions(session: ChatSession, stage: string): ModelInvokeOptions {
     return {
       stage,
       llmModel: session.llmModelOverride ?? undefined,
       llmApiBaseUrl: session.llmApiBaseUrlOverride ?? undefined,
-      temperature: session.temperatureOverride ?? undefined
+      temperature: session.temperatureOverride ?? undefined,
+      numCtx: session.numCtxOverride ?? undefined,
+      stopSequences: session.stopSequencesOverride ?? undefined
     };
   }
 

@@ -1,15 +1,25 @@
 import type { ParsedCatalogueMetric } from "./parseCatalogueObjectives.js";
+import {
+  formatConditionBlock,
+  formatLogAllOf,
+  formatReportEventBlock,
+  rdfList
+} from "./postprocess/tioDialect.js";
 
 export function buildConditionBlock(metric: ParsedCatalogueMetric, coLocal: string): string {
   const unit = metric.unit || "1";
   const threshold = metric.threshold;
   const propLocal = `${metric.name}_${coLocal}`;
-  const desc = `${metric.name} condition ${metric.quantifier}: ${threshold} ${unit}`;
-  return `data5g:${coLocal} a icm:Condition ;
-    dct:description "${desc.replace(/"/g, '\\"')}" ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:${propLocal} ;
-            ${metric.quantifier} [ quan:unit "${unit.replace(/"/g, '\\"')}" ;
-                    rdf:value ${threshold} ] ] .`;
+  const quantifier = metric.quantifier === "quan:larger" ? "quan:greater" : metric.quantifier;
+  const desc = `${metric.name} condition ${quantifier}: ${threshold} ${unit}`;
+  return formatConditionBlock({
+    coLocal,
+    description: desc,
+    propLocal,
+    quantifier,
+    unit,
+    threshold
+  });
 }
 
 export function buildContextBlock(args: {
@@ -30,10 +40,10 @@ export function buildDeploymentExpectationBlock(args: {
   cxLocal: string;
   intervalMinutes: number;
 }): string {
-  const refs = [...args.coLocals, args.cxLocal].map((l) => `data5g:${l}`).join(",\n        ");
+  const members = [...args.coLocals, args.cxLocal];
   return `data5g:${args.deLocal} a data5g:DeploymentExpectation, icm:Expectation, icm:IntentElement ;
     icm:target data5g:deployment ;
-    log:allOf ${refs} .`;
+    ${formatLogAllOf(members)} .`;
 }
 
 export function buildSustainabilityExpectationBlock(args: {
@@ -43,10 +53,9 @@ export function buildSustainabilityExpectationBlock(args: {
   intervalMinutes: number;
 }): string {
   const members = [...args.coLocals, ...(args.cxLocal ? [args.cxLocal] : [])];
-  const refs = members.map((l) => `data5g:${l}`).join(",\n        ");
   return `data5g:${args.seLocal} a data5g:SustainabilityExpectation, icm:Expectation, icm:IntentElement ;
     icm:target data5g:sustainability ;
-    log:allOf ${refs} .`;
+    ${formatLogAllOf(members)} .`;
 }
 
 export function buildScopedReportingBlocks(args: {
@@ -89,10 +98,11 @@ export function buildScopedReportingBlocks(args: {
     time:numericDuration "${args.intervalMinutes}"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:${eventLocal} a rdfs:Class ;
-    rdfs:subClassOf imo:Event ;
-    time:delay ( data5g:lastReportInstant data5g:${durationLocal} ) ;
-    imo:eventFor data5g:${args.expectationLocal} .
+${formatReportEventBlock({
+  eventLocal,
+  durationLocal,
+  expectationLocal: args.expectationLocal
+})}
 
 data5g:${args.reLocal} a icm:ObservationReportingExpectation ;
     dct:description "${args.description.replace(/"/g, '\\"')}" ;
@@ -108,15 +118,20 @@ export function buildNetworkConditionBlock(args: {
   coLocal: string;
   threshold: number;
   unit: string;
-  quantifier: "quan:larger" | "quan:smaller";
+  quantifier: "quan:larger" | "quan:greater" | "quan:smaller";
 }): string {
   const propLocal = `${args.stem}_${args.coLocal}`;
-  const desc = `${args.stem} condition ${args.quantifier === "quan:larger" ? "larger" : "smaller"}: ${args.threshold} ${args.unit}`;
-  return `data5g:${args.coLocal} a icm:Condition ;
-    dct:description "${desc.replace(/"/g, '\\"')}" ;
-    set:forAll [ icm:valuesOfTargetProperty data5g:${propLocal} ;
-            ${args.quantifier} [ quan:unit "${args.unit.replace(/"/g, '\\"')}" ;
-                    rdf:value ${args.threshold} ] ] .`;
+  const quantifier = args.quantifier === "quan:larger" ? "quan:greater" : args.quantifier;
+  const label = quantifier === "quan:greater" ? "greater" : "smaller";
+  const desc = `${args.stem} condition ${label}: ${args.threshold} ${args.unit}`;
+  return formatConditionBlock({
+    coLocal: args.coLocal,
+    description: desc,
+    propLocal,
+    quantifier,
+    unit: args.unit,
+    threshold: args.threshold
+  });
 }
 
 export function buildNetworkExpectationBlock(args: {
@@ -125,8 +140,9 @@ export function buildNetworkExpectationBlock(args: {
   cxLocal: string | null;
 }): string {
   const members = [...args.coLocals, ...(args.cxLocal ? [args.cxLocal] : [])];
-  const refs = members.map((l) => `data5g:${l}`).join(",\n        ");
   return `data5g:${args.neLocal} a data5g:NetworkExpectation, icm:Expectation, icm:IntentElement ;
     icm:target data5g:network-slice ;
-    log:allOf ${refs} .`;
+    ${formatLogAllOf(members)} .`;
 }
+
+export { rdfList };

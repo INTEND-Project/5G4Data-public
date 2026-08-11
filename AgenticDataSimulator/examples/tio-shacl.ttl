@@ -1,0 +1,111 @@
+@prefix ex: <http://example.org/> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix ig: <http://tio.models.tmforum.org/tio/v3.6.0/IntentGuaranteeOntology/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix iv: <http://tio.models.tmforum.org/tio/v3.6.0/IntentValidityOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix met: <http://tio.models.tmforum.org/tio/v3.6.0/MetricsAndObservations/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix t: <http://www.w3.org/2006/time#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:uptime_metric a met:Metric ;
+    rdfs:label "Service Uptime"@en ;
+    rdfs:range quan:Quantity .
+
+ex:latency_metric a met:Metric ;
+    rdfs:label "Response Latency"@en ;
+    rdfs:range quan:Quantity .
+
+ex:network_target a icm:Target ;
+    rdfs:label "Enterprise Network Service"@en .
+
+ex:business_hours_validity a iv:Validity ;
+    rdfs:label "Business Hours Validity"@en ;
+    iv:isValid "true"^^xsd:boolean .
+
+ex:related_validity a iv:Validity ;
+    iv:sameValidityAs ex:uptime_expectation .
+
+ex:uptime_guarantee a ig:GuaranteeReportingExpectation ;
+    icm:target ex:network_target ;
+    rdfs:label "Monthly Uptime Guarantee"@en ;
+    ig:confidenceLevel "0.999"^^xsd:decimal ;
+    ig:guaranteePeriod "P1M"^^xsd:duration ;
+    ig:guaranteePeriodUpdateInterval "PT1H"^^xsd:duration .
+
+ex:latency_guarantee a ig:GuaranteeReportingExpectation ;
+    icm:target ex:network_target ;
+    rdfs:label "Response Time Guarantee"@en ;
+    ig:confidenceLevel "0.95"^^xsd:decimal ;
+    ig:guaranteePeriod "P7D"^^xsd:duration ;
+    ig:guaranteePeriodUpdateInterval "PT5M"^^xsd:duration .
+
+ex:uptime_threshold a quan:Quantity ;
+    rdf:value "99.9"^^xsd:decimal ;
+    quan:unit "%" .
+
+ex:uptime_expectation a icm:PropertyExpectation ;
+    rdfs:label "Uptime Expectation"@en ;
+    icm:target ex:network_target ;
+    quan:atLeast (
+        [ met:lastValue ( ex:uptime_metric ) ]
+        ex:uptime_threshold
+    ) ;
+    iv:validIf ex:business_hours_validity .
+
+ex:latency_threshold a quan:Quantity ;
+    rdf:value "100"^^xsd:decimal ;
+    quan:unit "ms" .
+
+ex:latency_expectation a icm:PropertyExpectation ;
+    rdfs:label "Latency Expectation"@en ;
+    icm:target ex:network_target ;
+    quan:atMost (
+        [ met:lastValue ( ex:latency_metric ) ]
+        ex:latency_threshold
+    ) ;
+    iv:validIf ex:business_hours_validity .
+
+ex:network_sla_intent a icm:Intent ;
+    rdfs:label "Network SLA Intent"@en ;
+    rdfs:comment "Enterprise network service level agreement with uptime and latency guarantees"@en ;
+    log:allOf (
+        ex:uptime_expectation
+        ex:latency_expectation
+        ex:uptime_guarantee
+        ex:latency_guarantee
+    ) ;
+    iv:validIf ex:business_hours_validity .
+
+ex:sla_manager a imo:IntentManager ;
+    rdfs:label "SLA Manager"@en .
+
+ex:network_sla_intent_owned a icm:Intent ;
+    rdfs:label "Owned Network SLA Intent"@en ;
+    log:allOf ( ex:uptime_expectation ) ;
+    iv:validIf ex:business_hours_validity ;
+    imo:owner ex:sla_manager .
+
+ex:uptime_guarantee_report a ig:GuaranteeReport ;
+    rdfs:label "Monthly Uptime Report"@en .
+
+ex:compliant_state a ig:GuaranteeStateCompliant ;
+    rdfs:label "SLA Compliant"@en .
+
+ex:degraded_state a ig:GuaranteeStateDegraded ;
+    rdfs:label "SLA Degraded"@en .
+
+ex:intent_submission a imo:IntentReceived ;
+    imo:eventIssuedBy ex:sla_manager ;
+    imo:eventIssuedFor ex:network_sla_intent .
+
+ex:intent_acceptance a imo:IntentAccepted ;
+    imo:eventIssuedBy ex:sla_manager ;
+    imo:eventIssuedFor ex:network_sla_intent .
+
+ex:compliance_achieved a imo:Complies ;
+    imo:eventIssuedBy ex:sla_manager ;
+    imo:eventIssuedFor ex:network_sla_intent .

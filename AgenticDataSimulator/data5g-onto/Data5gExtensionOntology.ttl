@@ -1,0 +1,159 @@
+# ==============================================================================
+# 5G4Data extension ontology (TIO-compatible vocabulary / typing)
+# ==============================================================================
+#
+# Namespace: http://5g4data.eu/5g4data#
+# Prefix:    data5g:
+#
+# Purpose:
+#   Declares 5G4Data classes and named targets as a TIO extension so Ericsson
+#   tio-shacl (and any SHACL stack that unions ontology into the data graph)
+#   can resolve:
+#     - data5g:*Expectation as subclasses of icm:Expectation
+#     - icm:target values (data5g:deployment, …) as instances of icm:Target
+#
+# This file is ontology only — validation rules stay in
+#   */validation/skill_subset_intent_shapes.ttl
+#
+# Offline use with tio-shacl:
+#   uv run tio-shacl validate intent.ttl \
+#     -O ontology \
+#     -O ../data5g-onto
+#
+# ==============================================================================
+
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix icm:    <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo:    <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+
+# ------------------------------------------------------------------------------
+# Expectation classes (TIO extension via subclassing)
+# ------------------------------------------------------------------------------
+
+data5g:DeploymentExpectation
+    a owl:Class, rdfs:Class ;
+    rdfs:label "Deployment expectation" ;
+    rdfs:subClassOf icm:Expectation, icm:IntentElement ;
+    rdfs:comment "5G4Data workload / compute deployment expectation." .
+
+data5g:NetworkExpectation
+    a owl:Class, rdfs:Class ;
+    rdfs:label "Network expectation" ;
+    rdfs:subClassOf icm:Expectation, icm:IntentElement ;
+    rdfs:comment "5G4Data network-slice QoS expectation." .
+
+data5g:SustainabilityExpectation
+    a owl:Class, rdfs:Class ;
+    rdfs:label "Sustainability expectation" ;
+    rdfs:subClassOf icm:Expectation, icm:IntentElement ;
+    rdfs:comment "5G4Data energy / sustainability expectation." .
+
+data5g:CoordinationExpectation
+    a owl:Class, rdfs:Class ;
+    rdfs:label "Coordination expectation" ;
+    rdfs:subClassOf icm:Expectation, icm:IntentElement ;
+    rdfs:comment "5G4Data multi-expectation coordination (utility) expectation." .
+
+data5g:ExplanationExpectation
+    a owl:Class, rdfs:Class ;
+    rdfs:label "Explanation expectation" ;
+    rdfs:subClassOf icm:Expectation, icm:IntentElement ;
+    rdfs:comment "5G4Data explanation / rationale expectation." .
+
+# ------------------------------------------------------------------------------
+# Named targets (TIO idiom: icm:target → instance of icm:Target)
+# ------------------------------------------------------------------------------
+
+data5g:deployment
+    a icm:Target ;
+    rdfs:label "Deployment target" ;
+    rdfs:comment "Canonical icm:target for deployment / compute expectations and their reports." .
+
+data5g:network-slice
+    a icm:Target ;
+    rdfs:label "Network-slice target" ;
+    rdfs:comment "Canonical icm:target for network expectations and their reports." .
+
+data5g:sustainability
+    a icm:Target ;
+    rdfs:label "Sustainability target" ;
+    rdfs:comment "Canonical icm:target for sustainability expectations and their reports." .
+
+data5g:coordination-service
+    a icm:Target ;
+    rdfs:label "Coordination-service target" ;
+    rdfs:comment "Canonical icm:target for coordination expectations and their reports." .
+
+data5g:llm-service
+    a icm:Target ;
+    rdfs:label "LLM-service target" ;
+    rdfs:comment "Legacy / alternate service target still accepted by reporting shapes." .
+
+# ------------------------------------------------------------------------------
+# Intent managers (imo:handler / imo:owner range)
+# ------------------------------------------------------------------------------
+
+data5g:inServ
+    a imo:IntentManager ;
+    rdfs:label "inServ" ;
+    rdfs:comment "Default intent handler manager for 5G4Data generated intents." .
+
+data5g:inChat
+    a imo:IntentManager ;
+    rdfs:label "inChat" ;
+    rdfs:comment "Default intent owner manager for 5G4Data generated intents." .
+
+data5g:inOrch
+    a imo:IntentManager ;
+    rdfs:label "inOrch" .
+
+data5g:inSustain
+    a imo:IntentManager ;
+    rdfs:label "inSustain" .
+
+data5g:inCoord
+    a imo:IntentManager ;
+    rdfs:label "inCoord" .
+
+# ------------------------------------------------------------------------------
+# Common context / coordination properties (lightweight declarations)
+# ------------------------------------------------------------------------------
+
+data5g:DataCenter
+    a rdf:Property ;
+    rdfs:label "Data center" ;
+    rdfs:comment "Edge cluster id for a deployment context (e.g. EC_31)." ;
+    rdfs:range xsd:string .
+
+data5g:DeploymentDescriptor
+    a rdf:Property ;
+    rdfs:label "Deployment descriptor" ;
+    rdfs:comment "Workload chart / descriptor URL for a deployment context." .
+
+data5g:Application
+    a rdf:Property ;
+    rdfs:label "Application" ;
+    rdfs:comment "Application or workload name for a deployment context." ;
+    rdfs:range xsd:string .
+
+data5g:appliesToCustomer
+    a rdf:Property ;
+    rdfs:label "Applies to customer" ;
+    rdfs:comment "Customer identifier for a network context." ;
+    rdfs:range xsd:string .
+
+data5g:appliesToRegion
+    a rdf:Property ;
+    rdfs:label "Applies to region" ;
+    rdfs:comment "Geographic feature the network expectation applies to." .
+
+data5g:coordinates
+    a rdf:Property ;
+    rdfs:label "Coordinates" ;
+    rdfs:comment "Links a CoordinationExpectation to the expectations whose metrics it coordinates." ;
+    rdfs:domain data5g:CoordinationExpectation ;
+    rdfs:range icm:Expectation .

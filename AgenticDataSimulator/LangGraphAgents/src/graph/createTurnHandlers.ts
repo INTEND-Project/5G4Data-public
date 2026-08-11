@@ -74,11 +74,21 @@ export function createTurnHandlers(deps: TurnHandlerDeps): TurnGraphHandlers {
   const fragmentGenerationEngine =
     deps.fragmentGenerationEngine ?? new FragmentGenerationEngine();
 
+  const effectiveSystemPrompt = (session: ChatSession): string =>
+    session.systemPromptOverride?.trim() || deps.domainPackage.systemPromptText;
+
+  const sessionFewShotMessages = (
+    session: ChatSession
+  ): Array<{ role: "user" | "assistant"; content: string }> =>
+    session.fewShotMessagesOverride ?? [];
+
   const modelInvokeOptions = (session: ChatSession, stage: string): ModelInvokeOptions => ({
     stage,
     llmModel: session.llmModelOverride ?? undefined,
     llmApiBaseUrl: session.llmApiBaseUrlOverride ?? undefined,
-    temperature: session.temperatureOverride ?? undefined
+    temperature: session.temperatureOverride ?? undefined,
+    numCtx: session.numCtxOverride ?? undefined,
+    stopSequences: session.stopSequencesOverride ?? undefined
   });
 
   const handlers: TurnGraphHandlers = {
@@ -190,7 +200,7 @@ export function createTurnHandlers(deps: TurnHandlerDeps): TurnGraphHandlers {
       if (useFragmented) {
         return {
           generationMode: "fragmented",
-          systemBlocks: [deps.domainPackage.systemPromptText, reportingIntervalHint]
+          systemBlocks: [effectiveSystemPrompt(state.session), reportingIntervalHint]
         };
       }
       state.session.intentDraft = undefined;
@@ -204,7 +214,7 @@ export function createTurnHandlers(deps: TurnHandlerDeps): TurnGraphHandlers {
         .map((value) => value.trim())
         .filter(Boolean);
       const blocks = [
-        deps.domainPackage.systemPromptText,
+        effectiveSystemPrompt(state.session),
         ...moduleBlocks,
         `Use this runtime grounding context when relevant. If it conflicts with your assumptions, trust it.\n\n${state.runtimeContext}`,
         reportingIntervalHint
@@ -239,7 +249,7 @@ export function createTurnHandlers(deps: TurnHandlerDeps): TurnGraphHandlers {
           intentDraft: generated.draft,
           calls: generated.calls,
           systemBlocks: [
-            deps.domainPackage.systemPromptText,
+            effectiveSystemPrompt(state.session),
             `Fragmented generation: ${generated.fragmentIds.join(", ")}`
           ],
           debug: [...debug, `fragmented_generation_output_chars=${generated.assembledChars}`],
@@ -253,9 +263,11 @@ export function createTurnHandlers(deps: TurnHandlerDeps): TurnGraphHandlers {
         };
       }
       const history = toHistory(state);
+      const fewShots = sessionFewShotMessages(state.session);
       const result = await deps.invokeModel(
         [
           ...state.systemBlocks.map((content) => ({ role: "system" as const, content })),
+          ...fewShots,
           ...history
         ],
         modelInvokeOptions(state.session, "main_turn")
@@ -285,7 +297,7 @@ export function createTurnHandlers(deps: TurnHandlerDeps): TurnGraphHandlers {
           assistantMarkers: deps.domainPackage.workflow.confirmation?.assistantMarkers
         },
         state.systemBlocks,
-        toHistory(state),
+        [...sessionFewShotMessages(state.session), ...toHistory(state)],
         modelInvokeOptions(state.session, "repair")
       );
       return {

@@ -190,6 +190,18 @@ function applySimulatorMetadataToSession(
   if (parsed.reportingIntervalSeconds !== null) {
     session.reportingIntervalSecondsOverride = parsed.reportingIntervalSeconds;
   }
+  if (parsed.systemPrompt !== null) {
+    session.systemPromptOverride = parsed.systemPrompt;
+  }
+  if (parsed.fewShotMessages) {
+    session.fewShotMessagesOverride = parsed.fewShotMessages;
+  }
+  if (parsed.numCtx !== null) {
+    session.numCtxOverride = parsed.numCtx;
+  }
+  if (parsed.stopSequences) {
+    session.stopSequencesOverride = parsed.stopSequences;
+  }
   if (parsed.prometheusBaseUrl) {
     session.prometheusBaseUrl = parsed.prometheusBaseUrl;
     session.prometheusStorageMode =

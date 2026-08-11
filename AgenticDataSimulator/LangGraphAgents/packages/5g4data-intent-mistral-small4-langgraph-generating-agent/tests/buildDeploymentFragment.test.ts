@@ -57,7 +57,7 @@ test("buildDeploymentFragment emits parse-valid deployment-only Turtle", () => {
     reportingIntervalHint: "- Reporting interval: 10 minute(s) (time:unitMinute)."
   });
 
-  assert.match(body, /data5g:CO__ID_CONDITION_1__ a icm:Condition/);
+  assert.match(body, /data5g:CO__ID_CONDITION_1__ a log:Condition/);
   assert.match(body, /set:forAll/);
   assert.match(body, /data5g:CX__ID_CONTEXT_1__ a icm:Context/);
   assert.match(body, /data5g:DataCenter "EC_31"/);

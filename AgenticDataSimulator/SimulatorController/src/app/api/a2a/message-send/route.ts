@@ -36,6 +36,17 @@ const bodySchema = z.object({
   reportingIntervalMinutes: z.number().int().min(1).max(1440).optional(),
   reportingIntervalSeconds: z.number().int().min(1).max(86_400).optional(),
   prometheusBaseUrl: z.string().trim().optional(),
+  systemPrompt: z.string().optional(),
+  fewShotMessages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().min(1),
+      }),
+    )
+    .optional(),
+  numCtx: z.number().int().min(1).max(1_048_576).optional(),
+  stopSequences: z.array(z.string()).optional(),
 });
 
 async function fetchAgentRpcUrl(
@@ -148,6 +159,10 @@ export async function POST(request: Request) {
     temperature: body.temperature,
     reportingIntervalMinutes: body.reportingIntervalMinutes,
     reportingIntervalSeconds: body.reportingIntervalSeconds,
+    systemPrompt: body.systemPrompt,
+    fewShotMessages: body.fewShotMessages,
+    numCtx: body.numCtx,
+    stopSequences: body.stopSequences,
   };
   if (hasSimulatorMetadataFields(metadataOpts)) {
     message.metadata = simulatorMetadataEnvelope(metadataOpts);

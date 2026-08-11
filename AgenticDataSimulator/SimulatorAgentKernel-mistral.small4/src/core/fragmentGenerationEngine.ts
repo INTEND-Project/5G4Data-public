@@ -353,7 +353,7 @@ export class FragmentGenerationEngine {
         : input.runtimeContext;
       const systemHeader = optimizeTokens
         ? FRAGMENT_MINIMAL_SYSTEM
-        : input.domainPackage.systemPromptText;
+        : input.session.systemPromptOverride?.trim() || input.domainPackage.systemPromptText;
       const domainModuleName = DOMAIN_MODULE_BY_FRAGMENT[fragment.id];
       const domainModuleText = domainModuleName
         ? input.domainPackage.promptModules[domainModuleName]
@@ -438,10 +438,12 @@ export class FragmentGenerationEngine {
                 .filter(Boolean)
                 .join("\n");
         if (!body) {
+          const fewShots = input.session.fewShotMessagesOverride ?? [];
           const result = await input.invokeModel(
             [
               ...systemBlocks.map((content) => ({ role: "system" as const, content })),
               ...(retryHint ? [{ role: "system" as const, content: retryHint }] : []),
+              ...fewShots,
               ...fragmentHistory
             ],
             input.modelInvokeOptions(`fragment_${fragment.id}${attempt > 0 ? `_retry${attempt}` : ""}`)

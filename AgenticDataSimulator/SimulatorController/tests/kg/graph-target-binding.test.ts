@@ -61,6 +61,25 @@ describe("graph-target-binding", () => {
     });
   });
 
+  it("wraps system prompt, few-shots, numCtx, and stop sequences", () => {
+    expect(
+      simulatorMetadataEnvelope({
+        systemPrompt: "Emit Turtle.",
+        fewShotMessages: [{ role: "user", content: "hi" }],
+        numCtx: 12288,
+        stopSequences: ["</s>", "<|eot_id|>"],
+      }),
+    ).toEqual({
+      simulator: {
+        controllerBindingVersion: "1",
+        systemPrompt: "Emit Turtle.",
+        fewShotMessages: [{ role: "user", content: "hi" }],
+        numCtx: 12288,
+        stopSequences: ["</s>", "<|eot_id|>"],
+      },
+    });
+  });
+
   it("wraps binding in simulator metadata envelope v1", () => {
     const binding = buildGraphTargetBinding(
       { id: "t", repositoryId: "r", graphIri: "urn:g" },

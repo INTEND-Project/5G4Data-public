@@ -32,10 +32,15 @@ interface RuntimeApi {
   getDomainPackage(): {
     packageDir: string;
     manifest: { name: string; version: string };
+    systemPromptText?: string;
     controlApiExtension?: { paths?: Record<string, unknown> };
     intentBindingMetadata?: unknown;
   };
-  getAppConfig(): { simulatorModel: string };
+  getAppConfig(): {
+    simulatorModel: string;
+    openAiTemperature?: number;
+    llmProvider?: string;
+  };
 }
 
 interface OpenApiServerOptions {
@@ -330,6 +335,7 @@ export function startOpenApiServer(options: OpenApiServerOptions) {
             model: options.runtime.getAppConfig().simulatorModel,
             temperature: options.runtime.getAppConfig().openAiTemperature,
             llmProvider: options.runtime.getAppConfig().llmProvider,
+            systemPrompt: options.runtime.getDomainPackage().systemPromptText,
             intentBindingMetadata: options.runtime.getDomainPackage().intentBindingMetadata ?? null
           })
         );

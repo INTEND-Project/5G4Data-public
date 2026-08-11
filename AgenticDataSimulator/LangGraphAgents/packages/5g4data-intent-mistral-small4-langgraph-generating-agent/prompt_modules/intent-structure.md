@@ -4,7 +4,7 @@ Turtle document structure (mandatory):
 
 2. **`icm:Intent` block** contains only:
    - exactly **one** `dct:description` (high-level intent summary sentence only)
-   - `imo:handler "inServ"` and `imo:owner "inChat"`
+   - `imo:handler data5g:inServ` and `imo:owner data5g:inChat`
    - `log:allOf` listing **only** the expectation and reporting locals you actually emit (see §3)
    - **nothing else** — no `log:forAll`, no `set:forAll`, no extra `dct:description`, no condition metrics
 
@@ -16,7 +16,7 @@ Turtle document structure (mandatory):
    - any of the above + `CE` when coordination is requested (+ coordination `RE` targeting `data5g:coordination-service`)
    Do **not** add `DE`, `SE`, `NE`, or `CE` “to fill the template” when that concern is not in scope.
 
-4. **`icm:Condition` blocks** are separate `data5g:CO… a icm:Condition` subjects. Each has its own `dct:description` and `log:forAll` / `set:forAll` constraint. Create one CO block per selected catalogue objective (deployment `objectives[]` or sustainability `sustainability[]` entry)—metric stems and thresholds come from runtime context.
+4. **`icm:Condition` blocks** are separate `data5g:CO… a log:Condition` subjects. Each has its own `dct:description` and `log:forAll` / `set:forAll` constraint. Create one CO block per selected catalogue objective (deployment `objectives[]` or sustainability `sustainability[]` entry)—metric stems and thresholds come from runtime context.
 
 5. **`data5g:DeploymentExpectation`** (when present): `log:allOf` references one deployment `CO…` and one `CX…`. Never reference bare metric properties or event classes in `log:allOf`.
 

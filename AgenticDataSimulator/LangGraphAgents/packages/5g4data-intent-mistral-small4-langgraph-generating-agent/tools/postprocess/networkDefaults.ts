@@ -79,7 +79,7 @@ export function applyPostprocessor(args: { text: string }): {
       const result = patchMetricBlock(block, /data5g:bandwidth_/i, {
         value: String(DEFAULT_NETWORK_BANDWIDTH_MBPS),
         unit: "mbit/s",
-        quantifier: "quan:larger"
+        quantifier: "quan:greater"
       });
       patched = result.text;
       changes += result.changes;

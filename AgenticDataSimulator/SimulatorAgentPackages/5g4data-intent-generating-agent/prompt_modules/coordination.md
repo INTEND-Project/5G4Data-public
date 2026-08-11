@@ -4,7 +4,7 @@ When the user prompt requests coordination (`coordination`, `symmetric coordinat
 
 1. Include `data5g:CoordinationExpectation` in the root intent `log:allOf` with placeholder `data5g:CE__ID_COORDINATION_1__`.
 2. Target must be `data5g:coordination-service`.
-3. CE `log:allOf` must reference the **same** `data5g:CO…` condition resources already used under the coordinated Deployment/Sustainability/Network expectations (one per coordinated metric from the workload—do **not** create new `icm:Condition` nodes for CE). You may omit CE `log:allOf`; the postprocessor wires it from workload conditions and the prompt.
+3. CE `log:allOf` must reference the **same** `data5g:CO…` condition resources already used under the coordinated Deployment/Sustainability/Network expectations (one per coordinated metric from the workload—do **not** create new `log:Condition` nodes for CE). You may omit CE `log:allOf`; the postprocessor wires it from workload conditions and the prompt.
 4. Emit `ut:utility data5g:U_coord` and `data5g:coordinates` listing the expectation(s) that own the coordinated metrics (typically `DeploymentExpectation`, `SustainabilityExpectation`, and/or `NetworkExpectation`—not always all three).
 5. Include `NetworkExpectation` only when coordinated metrics are network-related (`bandwidth`, `latency`, or other network metric stems) **or** the prompt explicitly requests network QoS/latency/bandwidth/connectivity. Do **not** add network solely because coordination was requested.
 6. Add `icm:ObservationReportingExpectation` targeting `data5g:coordination-service` with per-anchor report event (postprocessor will scope triggers).

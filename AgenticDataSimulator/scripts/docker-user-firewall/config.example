@@ -1,0 +1,30 @@
+# Copy to /etc/docker-user-firewall/config and edit as needed.
+# Applied by: /usr/local/sbin/configure-docker-user-firewall.sh
+# Systemd unit: /etc/systemd/system/docker-user-firewall.service
+
+# Private ranges that may reach RESTRICTED_PORTS (Docker bridge, Caddy, localhost).
+PRIVATE_CIDRS=(10.0.0.0/8 172.16.0.0/12 127.0.0.0/8)
+
+# Docker-published host ports: allow PRIVATE_CIDRS only, drop everyone else.
+RESTRICTED_PORTS=(
+  9090   # Prometheus
+  9091   # Pushgateway
+  5000   # MLflow
+  8080   # workload ChartMuseum
+  17001  # a2a-registry API
+  17173  # a2a-registry frontend
+  3011   # intent-generating agent
+  3012   # observation agent
+  3013   # intent-generating agent (mistral.small4)
+  3031   # LangGraph intent-generating agent
+  3032   # LangGraph observation agent
+  3033   # LangGraph intent-generating agent (mistral.small4)
+  3004   # intent-simulator
+  8084   # ibooking-test
+)
+
+# Docker-published ports also reachable from specific public IPs (format port:source-ip).
+HOME_ALLOW_PORTS=(
+  "4000:85.165.67.213"   # Open WebUI
+  "3040:85.165.67.213"   # workload catalogue UI
+)

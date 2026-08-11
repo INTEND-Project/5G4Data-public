@@ -1,0 +1,79 @@
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix geo: <http://www.opengis.net/ont/geosparql#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
+@prefix fun: <http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/> .
+@prefix mf: <http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# TIO idiom: named targets must be instances of icm:Target
+
+# TIO idiom: handler/owner must be imo:IntentManager instances
+data5g:inServ a imo:IntentManager .
+data5g:inChat a imo:IntentManager .
+
+data5g:network-slice a icm:Target .
+
+data5g:I5bddd6802311438e8cbdba4ddb0afccb a icm:Intent ;
+    dct:description "I want a network slice in Tromsø with bandwidth above 300Mbit/s and latency lower than 20ms" ;
+    imo:handler data5g:inServ ;
+    imo:owner data5g:inChat ;
+    log:allOf ( data5g:NE2bf2d7e95704404fbf9962dc4a8ac579 data5g:REc1b1796e5ad548348d30477ee9ac8f1f ) .
+
+data5g:member_COdd8d0978f5b14d8a9742bd416fc5138f a quan:Quantity ;
+    rdf:value "0"^^xsd:decimal .
+
+data5g:COdd8d0978f5b14d8a9742bd416fc5138f a log:Condition ;
+    dct:description "bandwidth condition greater: 300 mbit/s" ;
+    set:forAll (
+        data5g:member_COdd8d0978f5b14d8a9742bd416fc5138f
+        [ icm:valuesOfTargetProperty ( data5g:bandwidth_COdd8d0978f5b14d8a9742bd416fc5138f ) ]
+        [ quan:greater (
+            data5g:member_COdd8d0978f5b14d8a9742bd416fc5138f
+            [ a quan:Quantity ; quan:unit "mbit/s" ;
+                    rdf:value 300 ]
+          ) ]
+    ) .
+
+data5g:member_CO0b1118ca4ef44981b697c8a0b29ff43e a quan:Quantity ;
+    rdf:value "0"^^xsd:decimal .
+
+data5g:CO0b1118ca4ef44981b697c8a0b29ff43e a log:Condition ;
+    dct:description "latency condition smaller: 50 ms" ;
+    set:forAll (
+        data5g:member_CO0b1118ca4ef44981b697c8a0b29ff43e
+        [ icm:valuesOfTargetProperty ( data5g:latency_CO0b1118ca4ef44981b697c8a0b29ff43e ) ]
+        [ quan:smaller (
+            data5g:member_CO0b1118ca4ef44981b697c8a0b29ff43e
+            [ a quan:Quantity ; quan:unit "ms" ;
+                    rdf:value 50 ]
+          ) ]
+    ) .
+
+data5g:NE2bf2d7e95704404fbf9962dc4a8ac579 a data5g:NetworkExpectation, icm:Expectation, icm:IntentElement ;
+    icm:target data5g:network-slice ;
+    log:allOf ( data5g:COdd8d0978f5b14d8a9742bd416fc5138f data5g:CO0b1118ca4ef44981b697c8a0b29ff43e ) .
+
+data5g:durationNetwork_COdd8d0978f5b14d8a9742bd416fc5138f a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventNetwork_COdd8d0978f5b14d8a9742bd416fc5138f a imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:durationNetwork_COdd8d0978f5b14d8a9742bd416fc5138f ) ;
+    imo:eventFor data5g:NE2bf2d7e95704404fbf9962dc4a8ac579 .
+
+data5g:REc1b1796e5ad548348d30477ee9ac8f1f a icm:ObservationReportingExpectation ;
+    dct:description "Network observation reports on the configured interval." ;
+    icm:target data5g:network-slice ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventNetwork_COdd8d0978f5b14d8a9742bd416fc5138f ] .

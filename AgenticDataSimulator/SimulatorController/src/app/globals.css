@@ -1731,10 +1731,68 @@ select.workspace-script-run-select:disabled {
   min-width: 0;
 }
 
+.workspace-agent-settings-dialog {
+  width: min(720px, 100%);
+  max-height: min(90vh, 960px);
+  overflow: auto;
+}
+
 .workspace-agent-settings-dialog .workspace-input,
 .workspace-agent-settings-dialog .workspace-select {
   width: 100%;
   margin-bottom: 10px;
+}
+
+.workspace-agent-settings-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workspace-agent-settings-label-row .workspace-label {
+  margin: 0;
+}
+
+.workspace-agent-settings-info-button {
+  min-width: 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+}
+
+.workspace-agent-settings-stop-help {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  gap: 8px;
+}
+
+.workspace-agent-settings-stop-help p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+.workspace-agent-settings-stop-textarea {
+  min-height: 72px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  resize: vertical;
+}
+
+.workspace-agent-settings-system-prompt {
+  min-height: 220px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  resize: vertical;
 }
 
 .workspace-tools-section-hint {

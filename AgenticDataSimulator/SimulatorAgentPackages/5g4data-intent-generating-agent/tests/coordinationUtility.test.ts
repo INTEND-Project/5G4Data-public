@@ -253,7 +253,7 @@ data5g:COcoordEnergy a icm:Condition ;
   assert.match(result.text, /a fun:function/);
   assert.match(result.text, /data5g:U_arg_p99-token-target/);
   assert.match(result.text, /data5g:U_arg_energy-consumption/);
-  assert.match(result.text, /log:allOf data5g:COdeploy, data5g:COsustain/);
+  assert.match(result.text, /log:allOf \( data5g:COdeploy data5g:COsustain \)/);
   assert.doesNotMatch(result.text, /\bdata5g:COcoordTps\b/);
   assert.doesNotMatch(result.text, /\bdata5g:COcoordEnergy\b/);
   assert.match(
@@ -314,7 +314,7 @@ data5g:COcoordEnergy a icm:Condition ;
       "Deploy a small llm with symmetric coordination on token throughput and energy consumption",
   });
 
-  assert.match(result.text, /log:allOf data5g:COdeploy, data5g:COsustain/);
+  assert.match(result.text, /log:allOf \( data5g:COdeploy data5g:COsustain \)/);
   assert.match(result.text, /fun:argumentNames \( data5g:U_arg_p99-token-target data5g:U_arg_power-consumption \)/);
   assert.match(result.text, /fun:arityMin 2 ; fun:arityMax 2/);
   assert.match(result.text, /mf:logistic \( data5g:U_arg_p99-token-target/);
@@ -767,7 +767,7 @@ data5g:CE1 a data5g:CoordinationExpectation ;
 
   assert.match(
     result.text,
-    /data5g:CE1 a data5g:CoordinationExpectation[\s\S]*?log:allOf data5g:COtps, data5g:COenergy/,
+    /data5g:CE1 a data5g:CoordinationExpectation[\s\S]*?log:allOf \( data5g:COtps data5g:COenergy \)/,
   );
   assert.match(result.text, /ut:utility data5g:U_coord\s*;/);
   assert.doesNotMatch(result.text, /ut:UtilityFunction/);
@@ -870,7 +870,7 @@ data5g:COstubEnergy a icm:Condition ;
     },
   });
 
-  assert.match(result.text, /data5g:CE1[\s\S]*?log:allOf data5g:COdeploy, data5g:COenergy/);
+  assert.match(result.text, /data5g:CE1[\s\S]*?log:allOf \( data5g:COdeploy data5g:COenergy \)/);
   assert.doesNotMatch(result.text, /\bdata5g:COstubTps\b/);
   assert.doesNotMatch(result.text, /\bdata5g:COstubEnergy\b/);
   assert.doesNotMatch(result.text, /data5g:CE1[\s\S]*?log:allOf[\s\S]*data5g:COpower/);
@@ -1014,7 +1014,7 @@ data5g:COstubNetwork a icm:Condition ;
     },
   });
 
-  assert.match(result.text, /log:allOf data5g:COcompute, data5g:COnetwork/);
+  assert.match(result.text, /log:allOf \( data5g:COcompute data5g:COnetwork \)/);
   assert.doesNotMatch(result.text, /\bdata5g:COstubCompute\b/);
   assert.doesNotMatch(result.text, /\bdata5g:COstubNetwork\b/);
   assert.match(result.text, /data5g:U_arg_p99-computelatency/);

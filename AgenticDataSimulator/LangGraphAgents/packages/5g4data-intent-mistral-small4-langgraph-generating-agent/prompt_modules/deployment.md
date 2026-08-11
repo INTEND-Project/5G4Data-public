@@ -4,9 +4,9 @@ Deployment policy:
 - Preserve objective threshold values through repair iterations unless user overrides.
 - When presenting pre-confirmation summary, copy objective names and threshold values exactly from retrieved `values.yaml` objective entries.
 - Prefer `tmf-value-hint` when available; otherwise use `value`, and state the source explicitly.
-- Prefer `tmf-quantifier-hint` when available for the condition operator (`quan:larger`, `quan:smaller`); network-only metrics keep their defaults (latency `quan:smaller`, bandwidth `quan:larger`).
+- Prefer `tmf-quantifier-hint` when available for the condition operator (`quan:greater`, `quan:smaller`); network-only metrics keep their defaults (latency `quan:smaller`, bandwidth `quan:greater`).
 - Prefer `tmf-unit-hint` when available for `quan:unit` on the condition constraint; emit `quan:<op> [ quan:unit "<unit>" ; rdf:value <threshold> ]` matching catalogue hints unless the user overrides.
-- Emit one standalone `data5g:CO… a icm:Condition` block per catalogue deployment objective (from runtime `objectives[]`), before the `DeploymentExpectation` block.
+- Emit one standalone `data5g:CO… a log:Condition` block per catalogue deployment objective (from runtime `objectives[]`), before the `DeploymentExpectation` block.
 - `data5g:DeploymentExpectation` `log:allOf` must list the deployment `CO…` and shared `CX…` context — never only context, never bare metric IRIs.
 - For deployment reporting, use `icm:ObservationReportingExpectation` (not `icm:ReportingExpectation`).
 - Add deployment-specific reporting trigger resources scoped to the first deployment condition: `data5g:durationDeployment_CO<condition-id>` and `data5g:<IntervalLabel>ReportEventDeployment_CO<condition-id>` (never global `TenMinuteReportEventDeployment`).

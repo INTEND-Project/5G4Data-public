@@ -5,6 +5,8 @@ import { DEFAULT_AGENT_TEMPERATURE } from "@/lib/agents/agent-llm-preferences";
 import {
   INTENT_GENERATING_AGENT_NAME,
   INTENT_GENERATING_AGENT_PACKAGE,
+  INTENT_GENERATING_MODEL_ONLY_AGENT_NAME,
+  INTENT_GENERATING_MODEL_ONLY_AGENT_PACKAGE,
   OBSERVATION_GENERATING_AGENT_NAME,
   OBSERVATION_GENERATING_AGENT_PACKAGE,
 } from "@/lib/agents/known-agent-names";
@@ -47,11 +49,9 @@ function cloneEnvPathForAgent(agentName: string): string | undefined {
   const packageDirByAgent: Record<string, string> = {
     [INTENT_GENERATING_AGENT_NAME]: INTENT_GENERATING_AGENT_PACKAGE,
     [OBSERVATION_GENERATING_AGENT_NAME]: OBSERVATION_GENERATING_AGENT_PACKAGE,
+    [INTENT_GENERATING_MODEL_ONLY_AGENT_NAME]: INTENT_GENERATING_MODEL_ONLY_AGENT_PACKAGE,
   };
-  const packageDir = packageDirByAgent[agentName];
-  if (!packageDir) {
-    return undefined;
-  }
+  const packageDir = packageDirByAgent[agentName] ?? agentName;
   return resolve(root, "agents", packageDir, ".env");
 }
 

@@ -1,0 +1,69 @@
+@prefix data5g: <http://5g4data.eu/5g4data#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix geo: <http://www.opengis.net/ont/geosparql#> .
+@prefix icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/> .
+@prefix imo: <http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/> .
+@prefix log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/> .
+@prefix quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/> .
+@prefix time: <http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/> .
+@prefix ut: <http://tio.models.tmforum.org/tio/v3.6.0/Utility/> .
+@prefix fun: <http://tio.models.tmforum.org/tio/v3.6.0/FunctionOntology/> .
+@prefix mf: <http://tio.models.tmforum.org/tio/v3.6.0/MathFunctions/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# TIO idiom: named targets must be instances of icm:Target
+
+# TIO idiom: handler/owner must be imo:IntentManager instances
+data5g:inServ a imo:IntentManager .
+data5g:inChat a imo:IntentManager .
+
+data5g:deployment a icm:Target .
+
+data5g:I474b123e1e014006946fc368ad81474d a icm:Intent ;
+    dct:description "I want to experiment with a small llm in a datacenter near Tromsø/Norway" ;
+    imo:handler data5g:inServ ;
+    imo:owner data5g:inChat ;
+    log:allOf ( data5g:DE3b58ab89d3f1452a9ac8df45dbd6cfed data5g:REf4c559876694466cb67ff369f949f6f5 ) .
+
+data5g:member_CO676242e15e7945b6b2d50a73432efab4 a quan:Quantity ;
+    rdf:value "0"^^xsd:decimal .
+
+data5g:CO676242e15e7945b6b2d50a73432efab4 a log:Condition ;
+    dct:description "p99-token-target condition quan:greater: 400 token/s" ;
+    set:forAll (
+        data5g:member_CO676242e15e7945b6b2d50a73432efab4
+        [ icm:valuesOfTargetProperty ( data5g:p99-token-target_CO676242e15e7945b6b2d50a73432efab4 ) ]
+        [ quan:greater (
+            data5g:member_CO676242e15e7945b6b2d50a73432efab4
+            [ a quan:Quantity ; quan:unit "token/s" ;
+                    rdf:value 400 ]
+          ) ]
+    ) .
+
+data5g:CXbd5093cef293442aad5cb8fd3a8d3fc9 a icm:Context ;
+    data5g:Application "rusty-llm" ;
+    data5g:DataCenter "EC_31" ;
+    data5g:DeploymentDescriptor "https://start5g-1.cs.uit.no/wchartmuseum/api/charts/rusty-llm/0.1.26" .
+
+data5g:DE3b58ab89d3f1452a9ac8df45dbd6cfed a data5g:DeploymentExpectation, icm:Expectation, icm:IntentElement ;
+    icm:target data5g:deployment ;
+    log:allOf ( data5g:CO676242e15e7945b6b2d50a73432efab4 data5g:CXbd5093cef293442aad5cb8fd3a8d3fc9 ) .
+
+data5g:durationDeployment_CO676242e15e7945b6b2d50a73432efab4 a time:DurationDescription ;
+    time:numericDuration "10"^^xsd:decimal ;
+    time:unitType time:unitMinute .
+
+data5g:TenMinuteReportEventDeployment_CO676242e15e7945b6b2d50a73432efab4 a imo:Event ;
+    time:delay ( data5g:lastReportInstant data5g:durationDeployment_CO676242e15e7945b6b2d50a73432efab4 ) ;
+    imo:eventFor data5g:DE3b58ab89d3f1452a9ac8df45dbd6cfed .
+
+data5g:REf4c559876694466cb67ff369f949f6f5 a icm:ObservationReportingExpectation ;
+    dct:description "Deployment observation reports on the configured interval." ;
+    icm:target data5g:deployment ;
+    icm:reportDestinations [ a rdfs:Container ;
+            rdfs:member data5g:prometheus ] ;
+    icm:reportTriggers [ a rdfs:Container ;
+            rdfs:member data5g:TenMinuteReportEventDeployment_CO676242e15e7945b6b2d50a73432efab4 ] .

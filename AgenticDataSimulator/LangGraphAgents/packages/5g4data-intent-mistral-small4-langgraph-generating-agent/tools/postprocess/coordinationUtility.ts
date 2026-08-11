@@ -967,15 +967,17 @@ function rebuildCoordinationExpectationBlock(
   coordinateLocals: string[],
   uInfoLocal: string,
 ): string {
-  const refs = conditions.map((condition) => `data5g:${condition.local}`).join(", ");
+  const refs = conditions.map((condition) => `data5g:${condition.local}`).join(" ");
   const coords = coordinateLocals.map((local) => `data5g:${local}`).join(",\n                       ");
   const description = extractCeDescription(ceBlock);
   const descriptionLine = description
     ? `    dct:description "${description.replace(/"/g, '\\"')}" ;\n`
     : "";
-  return `data5g:${ceLocal} a data5g:CoordinationExpectation ;
+  return `data5g:${ceLocal} a data5g:CoordinationExpectation,
+        icm:Expectation,
+        icm:IntentElement ;
 ${descriptionLine}    icm:target data5g:coordination-service ;
-    log:allOf ${refs} ;
+    log:allOf ( ${refs} ) ;
     ut:utility data5g:${uInfoLocal} ;
     data5g:coordinates ${coords} .`;
 }
@@ -1042,8 +1044,7 @@ function ensureCoordinationReportingBlock(
     time:numericDuration "10"^^xsd:decimal ;
     time:unitType time:unitMinute .
 
-data5g:${eventLocal} a rdfs:Class ;
-    rdfs:subClassOf imo:Event ;
+data5g:${eventLocal} a imo:Event ;
     time:delay ( data5g:lastReportInstant data5g:${durationLocal} ) ;
     imo:eventFor data5g:${ceLocal} .
 
@@ -1077,9 +1078,9 @@ function upsertCoordinates(ceBlock: string, coordinateLocals: string[], uInfoLoc
 
 function upsertCeLogAllOf(ceBlock: string, conditionLocals: string[]): string {
   if (conditionLocals.length === 0) return ceBlock;
-  const refs = conditionLocals.map((local) => `data5g:${local}`).join(", ");
+  const refs = `( ${conditionLocals.map((local) => `data5g:${local}`).join(" ")} )`;
   if (/log:allOf/i.test(ceBlock)) {
-    const replaced = ceBlock.replace(/log:allOf\s+([^.;]+)[.;]/is, `log:allOf ${refs} ;`);
+    const replaced = ceBlock.replace(/log:allOf\s+(\([^)]*\)|[^.;]+)[.;]/is, `log:allOf ${refs} ;`);
     if (replaced !== ceBlock) return replaced;
   }
   return insertCePredicates(ceBlock, [`log:allOf ${refs} ;`]);

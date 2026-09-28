@@ -283,7 +283,7 @@ with hw_col:
             "max_cap_dc0",
             supported_knobs,
             default=int(DEFAULT_MAX_CAPACITY[0]),
-            label="DC0 max capacity (tokens/sec)",
+            label="Data center 1 max capacity (tokens/sec)",
             min_value=10_000,
             max_value=500_000,
             value=int(DEFAULT_MAX_CAPACITY[0]),
@@ -296,7 +296,7 @@ with hw_col:
             "max_cap_dc1",
             supported_knobs,
             default=int(DEFAULT_MAX_CAPACITY[1]),
-            label="DC1 max capacity (tokens/sec)",
+            label="Data center 2 max capacity (tokens/sec)",
             min_value=10_000,
             max_value=500_000,
             value=int(DEFAULT_MAX_CAPACITY[1]),
@@ -309,7 +309,7 @@ with hw_col:
             "min_tps",
             supported_knobs,
             default=int(DEFAULT_MIN_TPS),
-            label="Minimum TPS per session (SLA)",
+            label="Minimum token/s per session (SLA)",
             min_value=50,
             max_value=2_000,
             value=int(DEFAULT_MIN_TPS),
@@ -338,7 +338,7 @@ with cap_col:
             "cap_frac_dc0",
             supported_knobs,
             default=int(DEFAULT_CAPACITY_FRAC * 100),
-            label="DC0 capacity (% of max)",
+            label="Data center 1 capacity (% of max)",
             min_value=0,
             max_value=100,
             value=int(DEFAULT_CAPACITY_FRAC * 100),
@@ -351,7 +351,7 @@ with cap_col:
             "cap_frac_dc1",
             supported_knobs,
             default=int(DEFAULT_CAPACITY_FRAC * 100),
-            label="DC1 capacity (% of max)",
+            label="Data center 2 capacity (% of max)",
             min_value=0,
             max_value=100,
             value=int(DEFAULT_CAPACITY_FRAC * 100),
@@ -360,8 +360,8 @@ with cap_col:
         )
     )
     st.caption(
-        f"DC0: {cap_frac_dc0 / 100 * max_cap_dc0:,.0f} tokens/sec  ·  "
-        f"DC1: {cap_frac_dc1 / 100 * max_cap_dc1:,.0f} tokens/sec"
+        f"Data center 1: {cap_frac_dc0 / 100 * max_cap_dc0:,.0f} tokens/sec  ·  "
+        f"Data center 2: {cap_frac_dc1 / 100 * max_cap_dc1:,.0f} tokens/sec"
     )
 
 with sess_col:
@@ -371,7 +371,7 @@ with sess_col:
             "sessions_dc0",
             supported_knobs,
             default=DEFAULT_INITIAL_SESSIONS,
-            label="DC0 active sessions",
+            label="Data center 1 active sessions",
             min_value=0,
             max_value=500,
             value=DEFAULT_INITIAL_SESSIONS,
@@ -384,7 +384,7 @@ with sess_col:
             "sessions_dc1",
             supported_knobs,
             default=DEFAULT_INITIAL_SESSIONS,
-            label="DC1 active sessions",
+            label="Data center 2 active sessions",
             min_value=0,
             max_value=500,
             value=DEFAULT_INITIAL_SESSIONS,
@@ -455,7 +455,7 @@ col_dc0, col_dc1, col_arrivals = st.columns(3)
 
 with col_dc0:
     cost0_schedule = schedule_knobs(
-        "DC0 cost per kW (USD/kWh)",
+        "Data center 1 cost per kW (USD/kWh)",
         "cost0",
         default_pattern="fixed",
         default_value=COST_DEFAULT_DC0,
@@ -470,7 +470,7 @@ with col_dc0:
 
 with col_dc1:
     cost1_schedule = schedule_knobs(
-        "DC1 cost per kW (USD/kWh)",
+        "Data center 2 cost per kW (USD/kWh)",
         "cost1",
         default_pattern="fixed",
         default_value=COST_DEFAULT_DC1,
@@ -518,8 +518,8 @@ with preview_cost:
     st.line_chart(
         pd.DataFrame(
             {
-                "DC0": preview(cost0_schedule, total_steps),
-                "DC1": preview(cost1_schedule, total_steps),
+                "Data center 1": preview(cost0_schedule, total_steps),
+                "Data center 2": preview(cost1_schedule, total_steps),
             },
             index=steps_index,
         ),
@@ -543,7 +543,7 @@ with st.expander("Initial state summary (step 0)"):
     init_cost1 = cost1_schedule(0)
     init_arrival = arrival_schedule(0)
     st.markdown(
-        f"| | DC0 | DC1 |\n"
+        f"| | Data center 1 | Data center 2 |\n"
         f"|---|---|---|\n"
         f"| Max capacity | {max_cap_dc0:,} tps | {max_cap_dc1:,} tps |\n"
         f"| Provisioned capacity | {cap_frac_dc0}% "
@@ -551,7 +551,7 @@ with st.expander("Initial state summary (step 0)"):
         f"{cap_frac_dc1}% ({cap_frac_dc1 / 100 * max_cap_dc1:,.0f} tps) |\n"
         f"| Active sessions | {sessions_dc0} | {sessions_dc1} |\n"
         f"| Electricity cost | {init_cost0:.3f} USD/kWh | {init_cost1:.3f} USD/kWh |\n"
-        f"| min TPS (SLA) | {min_tps} | {min_tps} |"
+        f"| min token/s (SLA) | {min_tps} | {min_tps} |"
     )
     duration_note = (
         f"{initial_session_duration} steps (fixed)"

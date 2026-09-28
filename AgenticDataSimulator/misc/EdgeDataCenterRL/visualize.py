@@ -514,7 +514,7 @@ def draw_datacenter(ax, index: int, dc: dict, params: dict) -> None:
     accent_light = DC_ACCENTS_LIGHT[index]
 
     ax.text(
-        cx, 50.5, f"DC{index}",
+        cx, 50.5, f"Data center {index + 1}",
         ha="center", va="bottom", fontsize=13, fontweight="bold", color=accent,
     )
     ax.text(
@@ -598,7 +598,7 @@ def draw_load_balancer(ax, frame: dict, frame_index: int) -> None:
                           fc=DC_ACCENTS[i], ec="none", zorder=4)
             )
         ax.text(
-            bar_x0 - 1.0, y + bar_h / 2, f"DC{i}",
+            bar_x0 - 1.0, y + bar_h / 2, f"Data center {i + 1}",
             ha="right", va="center", fontsize=7.5, color=DC_ACCENTS[i],
             fontweight="bold",
         )

@@ -23,6 +23,7 @@ CORE_AGENTS=(
   "5g4data-intent-observations-generating-agent|3012|5g4data-intent-observation-generating-agent"
   "${MISTRAL_SMALL4_PACKAGE}|3013|5g4data-intent-mistral-small4-generating-agent"
   "${MODEL_ONLY_PACKAGE}|3014|5g4data-intent-generating-agent-model-only"
+  "5g4data-intent-observation-schema-synth-agent|3015|5g4data-intent-observation-schema-synth-agent"
 )
 
 ALL_AGENTS=("${CORE_AGENTS[@]}")
@@ -83,6 +84,7 @@ Agents (package directory → port):
   - 5g4data-intent-observations-generating-agent (3012)
   - 5g4data-intent-mistral-small4-generating-agent (3013)
   - 5g4data-intent-generating-agent-model-only (3014)
+  - 5g4data-intent-observation-schema-synth-agent (3015)
 
 Examples:
   ./agent-control reload

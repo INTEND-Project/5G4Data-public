@@ -11,8 +11,18 @@ function isUuid4Hex(hex: string): boolean {
   return versionNibble === "4" && ["8", "9", "a", "b"].includes(variantNibble ?? "");
 }
 
+function newUuid4Hex(): string {
+  return randomUUID().replace(/-/g, "");
+}
+
 /** Placeholder token embedded in Turtle local names (`__ID_...__`). */
 const PLACEHOLDER_TOKEN = String.raw`__ID_[A-Za-z0-9_]+__`;
+
+/**
+ * data5g local with a trailing 32-hex suffix (I/CO/DE/… or scoped names like
+ * bandwidth_CO… / member_CO… / TenMinuteReportEvent_RE…).
+ */
+const DATA5G_HEX_LOCAL = /\bdata5g:([A-Za-z][A-Za-z0-9_-]*?)([0-9a-fA-F]{32})\b/g;
 
 /** Ensure icm:valuesOfTargetProperty locals include the CO prefix before condition id. */
 function normalizeConditionScopedMetricNames(text: string): string {
@@ -23,6 +33,29 @@ function normalizeConditionScopedMetricNames(text: string): string {
     ),
     "$1_CO$2"
   );
+}
+
+/**
+ * Remint every 32-hex suffix on data5g: locals to a fresh UUIDv4 hex.
+ * The same old suffix always maps to the same new suffix so related locals
+ * (CO / member_CO / bandwidth_CO, RE / TenMinuteReportEvent_RE, …) stay linked.
+ */
+function remintAllHexSuffixes(text: string): { text: string; remapped: number } {
+  const suffixMap = new Map<string, string>();
+  const mapSuffix = (old: string): string => {
+    const key = old.toLowerCase();
+    let next = suffixMap.get(key);
+    if (!next) {
+      next = newUuid4Hex();
+      suffixMap.set(key, next);
+    }
+    return next;
+  };
+
+  const out = text.replace(DATA5G_HEX_LOCAL, (_full, prefix: string, suffix: string) => {
+    return `data5g:${prefix}${mapSuffix(suffix)}`;
+  });
+  return { text: out, remapped: suffixMap.size };
 }
 
 export function applyPostprocessor(args: {
@@ -47,7 +80,7 @@ export function applyPostprocessor(args: {
   const placeholderSuffixMap = new Map<string, string>();
   const getOrCreateSuffix = (placeholder: string): string => {
     if (!placeholderSuffixMap.has(placeholder)) {
-      placeholderSuffixMap.set(placeholder, randomUUID().replace(/-/g, ""));
+      placeholderSuffixMap.set(placeholder, newUuid4Hex());
     }
     return placeholderSuffixMap.get(placeholder) as string;
   };
@@ -72,29 +105,40 @@ export function applyPostprocessor(args: {
   rewritten = normalizeConditionScopedMetricNamesFromCatalogue(rewritten, knownMetricStems);
   changes += placeholderSuffixMap.size;
 
-  // Phase 2: rewrite any remaining invalid UUID local-name suffixes.
+  // Phase 2: rewrite any remaining invalid (non-32-hex) UUID local-name suffixes.
   for (const rule of identifierRules) {
     if (!rule.validateAsUuid4Suffix) continue;
     const pattern = new RegExp(rule.regex, "g");
     const cache = new Map<string, string>();
     rewritten = rewritten.replace(pattern, (full, prefix, suffix) => {
       const suffixText = String(suffix ?? "").trim();
-      if (isUuid4Hex(suffixText)) return full;
+      if (/^[0-9a-fA-F]{32}$/.test(suffixText)) return full;
       if (!cache.has(full)) {
-        const fixed = randomUUID().replace(/-/g, "");
-        cache.set(full, `data5g:${String(prefix ?? "")}${fixed}`);
+        cache.set(full, `data5g:${String(prefix ?? "")}${newUuid4Hex()}`);
       }
       return cache.get(full) as string;
     });
     changes += cache.size;
   }
 
+  // Phase 3: remint ALL 32-hex suffixes on data5g locals to fresh random UUIDv4s.
+  // Keeps shared suffixes consistent across related identifiers.
+  const reminted = remintAllHexSuffixes(rewritten);
+  rewritten = reminted.text;
+  changes += reminted.remapped;
+
+  // Defensive: if any reminted suffix somehow fails uuid4 checks, fix individually.
+  rewritten = rewritten.replace(DATA5G_HEX_LOCAL, (full, prefix: string, suffix: string) => {
+    if (isUuid4Hex(suffix)) return full;
+    return `data5g:${prefix}${newUuid4Hex()}`;
+  });
+
   return {
     text: rewritten,
     changes,
     note:
       changes > 0
-        ? "rewrote placeholder/invalid local-name identifiers to UUIDv4 suffixes"
+        ? "rewrote placeholders/invalid locals and reminted all data5g uuid4 suffixes"
         : undefined
   };
 }

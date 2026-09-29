@@ -70,23 +70,87 @@ function splitCommaMembers(body: string): string[] {
     .filter((s) => s.length > 0);
 }
 
-/** Convert comma-separated predicate objects to an RDF list when not already a list. */
+/** Extract a balanced `[...]` blank node starting at `start` (must point at `[`). */
+export function takeBalancedBlankNode(text: string, start: number): string | null {
+  if (text[start] !== "[") return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === "[") depth += 1;
+    else if (ch === "]") {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+/**
+ * Convert comma-separated / blank-node predicate objects to an RDF list when not already a list.
+ * Blank nodes are taken as balanced `[...]` spans so internal `;` does not truncate them.
+ */
 function convertPredicateToRdfList(text: string, predicate: string): { text: string; changes: number } {
   let changes = 0;
-  const re = new RegExp(`(${predicate}\\s+)(?!\\()([^;.]+?)(\\s*[;.])`, "gis");
-  const out = text.replace(re, (_full, prefix: string, body: string, end: string) => {
-    const trimmed = body.trim();
-    if (!trimmed || trimmed.startsWith("(")) return `${prefix}${body}${end}`;
-    // Blank-node object: wrap as single-element list
-    if (trimmed.startsWith("[")) {
-      changes += 1;
-      return `${prefix}( ${trimmed} )${end}`;
+  const re = new RegExp(`${predicate}\\s+(?!\\()`, "gis");
+  let out = "";
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    out += text.slice(lastIndex, match.index);
+    const prefix = match[0];
+    let pos = match.index + prefix.length;
+    while (pos < text.length && /\s/.test(text[pos]!)) pos += 1;
+
+    if (text[pos] === "(") {
+      out += prefix;
+      lastIndex = match.index + prefix.length;
+      continue;
     }
-    const members = splitCommaMembers(trimmed);
-    if (members.length === 0) return `${prefix}${body}${end}`;
-    changes += 1;
-    return `${prefix}${rdfList(members)}${end}`;
-  });
+
+    if (text[pos] === "[") {
+      // Wrap multi-property blank nodes as a one-element RDF list so SHACL
+      // MetricConditionShape paths (set:forAll/rdf:rest*/rdf:first/…) match.
+      // Use balanced `[...]` extraction so internal `;` does not truncate the blank.
+      const blank = takeBalancedBlankNode(text, pos);
+      if (!blank) {
+        out += prefix;
+        lastIndex = match.index + prefix.length;
+        continue;
+      }
+      let after = pos + blank.length;
+      const wsStart = after;
+      while (after < text.length && /\s/.test(text[after]!)) after += 1;
+      const endChar = text[after];
+      const trailing =
+        endChar === ";" || endChar === "."
+          ? text.slice(wsStart, after + 1)
+          : text.slice(wsStart, after);
+      changes += 1;
+      out += `${prefix}( ${blank} )${trailing}`;
+      lastIndex = endChar === ";" || endChar === "." ? after + 1 : after;
+      re.lastIndex = lastIndex;
+      continue;
+    }
+
+    const rest = text.slice(pos);
+    const endMatch = rest.match(/^([^;.]+?)(\s*[;.])/);
+    if (endMatch) {
+      const body = endMatch[1]!.trim();
+      const end = endMatch[2]!;
+      const members = splitCommaMembers(body);
+      if (members.length > 0) {
+        changes += 1;
+        out += `${prefix}${rdfList(members)}${end}`;
+        lastIndex = pos + endMatch[0].length;
+        re.lastIndex = lastIndex;
+        continue;
+      }
+    }
+
+    out += prefix;
+    lastIndex = match.index + prefix.length;
+  }
+  out += text.slice(lastIndex);
   return { text: out, changes };
 }
 

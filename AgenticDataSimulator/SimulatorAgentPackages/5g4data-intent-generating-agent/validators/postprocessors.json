@@ -6,6 +6,11 @@
       "when": "always"
     },
     {
+      "id": "grounded-datacenter",
+      "module": "tools/postprocess/groundedDataCenter.ts",
+      "when": "always"
+    },
+    {
       "id": "workload-expectations",
       "module": "tools/postprocess/workloadExpectations.ts",
       "when": "always"

@@ -133,6 +133,7 @@ Import both JSON files into Grafana. Setup steps (plugins, datasources): `[../In
 ./agent-control start
 curl -sf http://127.0.0.1:3011/health
 curl -sf http://127.0.0.1:3012/health
+curl -sf http://127.0.0.1:3015/health   # schema-synth observation agent (optional sibling)
 ```
 
 ### SimulatorController

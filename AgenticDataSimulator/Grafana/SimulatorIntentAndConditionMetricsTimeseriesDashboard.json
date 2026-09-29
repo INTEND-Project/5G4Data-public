@@ -388,11 +388,11 @@
             "type": "flandersmake-sparql-datasource",
             "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
           },
-          "queryText": "PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\n\nSELECT DISTINCT \n  (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n  (GROUP_CONCAT(DISTINCT ?description; separator=\"; \") AS ?intent_description)\n  (GROUP_CONCAT(DISTINCT ?condition_description; separator=\"; \") AS ?condition_descriptions)\nWHERE {\n  BIND(IRI(CONCAT(\"repository:\", \"${repository_id}\")) AS ?__repository)\n  BIND(IRI(\"${graph_iri}\") AS ?__graph)\n  SERVICE ?__repository {\n    GRAPH ?__graph {\n    BIND(data5g:${intent_id} AS ?intent)\n    ?intent rdf:type ?intentType ;\n            log:allOf ?expectation .\n\n    ?expectation rdf:type ?expectationType ;\n                 dct:description ?description .\n\n    OPTIONAL {\n      ?expectation log:allOf ?condition .\n      ?condition rdf:type icm:Condition .\n\n      OPTIONAL {\n        ?condition set:forAll [\n          icm:valuesOfTargetProperty ?metric\n        ] .\n      }\n\n      OPTIONAL {\n        ?condition dct:description ?condition_description .\n      }\n    }\n\n    FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n  \n    }}\n}\nGROUP BY ?intent\nLIMIT 10",
+          "queryText": "PREFIX log: <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/>\nPREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nPREFIX dct: <http://purl.org/dc/terms/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX set: <http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/>\nPREFIX quan: <http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/>\n\nSELECT DISTINCT \n  (STRAFTER(STR(?intent), \"5g4data#\") AS ?intent_id)\n  (SAMPLE(?intentDesc) AS ?intent_description)\n  (GROUP_CONCAT(DISTINCT ?condition_description; separator=\"; \") AS ?condition_descriptions)\nWHERE {\n  BIND(IRI(CONCAT(\"repository:\", \"${repository_id}\")) AS ?__repository)\n  BIND(IRI(\"${graph_iri}\") AS ?__graph)\n  SERVICE ?__repository {\n    GRAPH ?__graph {\n    BIND(data5g:${intent_id} AS ?intent)\n    ?intent rdf:type ?intentType .\n    OPTIONAL { ?intent dct:description ?intentDesc . }\n\n    OPTIONAL {\n      ?intent log:allOf ?intentAllOf .\n      OPTIONAL { ?intentAllOf rdf:rest*/rdf:first ?intentMember . }\n      BIND(COALESCE(?intentMember, ?intentAllOf) AS ?expectation)\n\n      ?expectation rdf:type ?expectationType .\n      FILTER(CONTAINS(STR(?expectationType), \"Expectation\"))\n\n      OPTIONAL {\n        ?expectation log:allOf ?expectationAllOf .\n        OPTIONAL { ?expectationAllOf rdf:rest*/rdf:first ?expectationMember . }\n        BIND(COALESCE(?expectationMember, ?expectationAllOf) AS ?condition)\n\n        ?condition rdf:type ?conditionType .\n        FILTER(?conditionType IN (icm:Condition, log:Condition))\n        OPTIONAL { ?condition dct:description ?condition_description . }\n      }\n    }\n\n    }}\n}\nGROUP BY ?intent\nLIMIT 10",
           "refId": "A"
         }
       ],
-      "title": "Panel Title",
+      "title": "Intent Description",
       "type": "table"
     },
     {
@@ -469,7 +469,7 @@
           "root_selector": "$",
           "source": "url",
           "type": "json",
-          "url": "http://start5g-1.cs.uit.no:3010/api/get-intent/${intent_id}",
+          "url": "http://start5g-1.cs.uit.no:3010/api/get-intent/${intent_id}?repository_id=${repository_id}&graph_iri=${graph_iri}",
           "url_options": {
             "data": "",
             "method": "GET"

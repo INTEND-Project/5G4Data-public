@@ -14,6 +14,54 @@ export function isConfirmationText(userText: string, acceptedUserInputs: string[
   );
 }
 
+/**
+ * True for exact confirmation tokens ("OK") and confirmation-prefixed replies
+ * such as "OK, use the chartmuseum URL…" when the assistant asked for confirmation.
+ */
+export function isConfirmationAck(userText: string, acceptedUserInputs: string[]): boolean {
+  if (isConfirmationText(userText, acceptedUserInputs)) return true;
+  const normalized = normalizeUserConfirmationInput(userText);
+  return acceptedUserInputs.some((candidate) => {
+    const token = normalizeUserConfirmationInput(candidate);
+    if (!token) return false;
+    return (
+      normalized.startsWith(`${token},`) ||
+      normalized.startsWith(`${token}:`) ||
+      normalized.startsWith(`${token} `)
+    );
+  });
+}
+
+/** Text after a confirmation prefix ("OK, …"); null when the message is bare OK. */
+export function confirmationExtraInstructions(
+  userText: string,
+  acceptedUserInputs: string[]
+): string | null {
+  if (isConfirmationText(userText, acceptedUserInputs)) return null;
+  const trimmed = userText.trim();
+  for (const candidate of acceptedUserInputs) {
+    const token = candidate.trim();
+    if (!token) continue;
+    const re = new RegExp(`^${escapeRegExp(token)}\\s*[,:]\\s*`, "i");
+    const match = trimmed.match(re);
+    if (match) {
+      const rest = trimmed.slice(match[0].length).trim();
+      return rest.length > 0 ? rest : null;
+    }
+    const spaceRe = new RegExp(`^${escapeRegExp(token)}\\s+`, "i");
+    const spaceMatch = trimmed.match(spaceRe);
+    if (spaceMatch) {
+      const rest = trimmed.slice(spaceMatch[0].length).trim();
+      return rest.length > 0 ? rest : null;
+    }
+  }
+  return null;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function assistantRequestedConfirmation(
   session: ChatSession,
   assistantMarkers: string[]
@@ -36,7 +84,7 @@ export function lastSubstantiveUserRequest(
     const message = session.messages[i];
     if (!message) continue;
     if (message.role !== "user") continue;
-    if (!isConfirmationText(message.text, acceptedUserInputs)) return message.text;
+    if (!isConfirmationAck(message.text, acceptedUserInputs)) return message.text;
   }
   return null;
 }

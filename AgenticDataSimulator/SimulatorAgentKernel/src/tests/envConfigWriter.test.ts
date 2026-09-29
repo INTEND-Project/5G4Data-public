@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   applyPreservedAgentApiKeyFromEnv,
+  applyPackageMappingEnvDefaults,
   ensureAgentApiKeyForClone,
   readAgentApiKeysMap,
   readDotEnvKey,
@@ -32,6 +33,35 @@ test("updateEnvFile upserts domain and skill values", () => {
   assert.match(content, /DOMAIN_PACKAGE_DIR=\.\.\/SimulatorAgentPackages\/package-template/);
   assert.match(content, /SKILL_FILE=\.\.\/SimulatorAgentPackages\/package-template\/skills\/SKILL\.md/);
   assert.match(content, /OPENAI_MODEL=test/);
+});
+
+test("applyPackageMappingEnvDefaults merges LLM and SCHEMA_SYNTH keys", () => {
+  const dir = mkdtempSync(join(tmpdir(), "env-defaults-"));
+  const envPath = join(dir, ".env");
+  const packageDir = join(dir, "pkg");
+  mkdirSync(join(packageDir, "mappings"), { recursive: true });
+  writeFileSync(envPath, "LLM_PROVIDER=openai\nGRAPHDB_QUERY_LIMIT=50\n", "utf8");
+  writeFileSync(
+    join(packageDir, "mappings", "env.defaults.json"),
+    JSON.stringify({
+      LLM_PROVIDER: "anthropic",
+      ANTHROPIC_MODEL: "claude-sonnet-4-5",
+      SCHEMA_SYNTH_PROVIDER: "anthropic",
+      SCHEMA_SYNTH_MODEL: "claude-sonnet-4-5",
+      DOMAIN_PACKAGE_DIR: "should-skip",
+      GRAPHDB_QUERY_LIMIT: "200"
+    }),
+    "utf8"
+  );
+
+  applyPackageMappingEnvDefaults(envPath, packageDir);
+
+  assert.equal(readDotEnvKey(envPath, "LLM_PROVIDER"), "anthropic");
+  assert.equal(readDotEnvKey(envPath, "SCHEMA_SYNTH_PROVIDER"), "anthropic");
+  assert.equal(readDotEnvKey(envPath, "SCHEMA_SYNTH_MODEL"), "claude-sonnet-4-5");
+  assert.equal(readDotEnvKey(envPath, "ANTHROPIC_MODEL"), "claude-sonnet-4-5");
+  assert.equal(readDotEnvKey(envPath, "GRAPHDB_QUERY_LIMIT"), "200");
+  assert.equal(readDotEnvKey(envPath, "DOMAIN_PACKAGE_DIR"), undefined);
 });
 
 test("applyPreservedAgentApiKeyFromEnv writes key from PRESERVE_AGENT_API_KEY", () => {

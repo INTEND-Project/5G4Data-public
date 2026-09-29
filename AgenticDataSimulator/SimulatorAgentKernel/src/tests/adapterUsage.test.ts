@@ -181,3 +181,101 @@ test("openai adapter captures usage fields", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test("session llmProvider override selects Anthropic path", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl = "";
+  let requestBody: Record<string, unknown> = {};
+  globalThis.fetch = (async (url, init) => {
+    requestUrl = String(url);
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        id: "msg_1",
+        content: [{ type: "text", text: "ok" }],
+        usage: { input_tokens: 2, output_tokens: 1 }
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }) as typeof fetch;
+  try {
+    const invoker = createSimulatorModelInvoker(baseConfig);
+    const result = await invoker([{ role: "user", content: "hi" }], {
+      stage: "main_turn",
+      llmProvider: "anthropic",
+      llmModel: "claude-sonnet-4-5",
+      llmApiBaseUrl: "https://anthropic.example"
+    });
+    assert.equal(requestUrl, "https://anthropic.example/v1/messages");
+    assert.equal(requestBody.model, "claude-sonnet-4-5");
+    assert.equal(result.call.provider, "anthropic");
+    assert.equal(result.call.model, "claude-sonnet-4-5");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("anthropic adapter honors llmApiBaseUrl override", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl = "";
+  globalThis.fetch = (async (url) => {
+    requestUrl = String(url);
+    return new Response(
+      JSON.stringify({
+        id: "msg_2",
+        content: [{ type: "text", text: "ok" }],
+        usage: { input_tokens: 1, output_tokens: 1 }
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }) as typeof fetch;
+  try {
+    const invoker = createSimulatorModelInvoker({
+      ...baseConfig,
+      llmProvider: "anthropic",
+      simulatorModel: "claude-3-5-sonnet-latest"
+    });
+    await invoker([{ role: "user", content: "hi" }], {
+      stage: "main_turn",
+      llmApiBaseUrl: "https://proxy.example/anthropic"
+    });
+    assert.equal(requestUrl, "https://proxy.example/anthropic/v1/messages");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("session llmProvider override selects OpenAI path from Anthropic config", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl = "";
+  let requestBody: Record<string, unknown> = {};
+  globalThis.fetch = (async (url, init) => {
+    requestUrl = String(url);
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        id: "req_switch",
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }) as typeof fetch;
+  try {
+    const invoker = createSimulatorModelInvoker({
+      ...baseConfig,
+      llmProvider: "anthropic",
+      simulatorModel: "claude-3-5-sonnet-latest"
+    });
+    const result = await invoker([{ role: "user", content: "hi" }], {
+      stage: "main_turn",
+      llmProvider: "openai",
+      llmModel: "gpt-4o-mini"
+    });
+    assert.equal(requestUrl, "https://api.openai.com/v1/chat/completions");
+    assert.equal(requestBody.model, "gpt-4o-mini");
+    assert.equal(result.call.provider, "openai");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -176,6 +176,9 @@ function applySimulatorMetadataToSession(
   if (parsed.llmApiBaseUrl) {
     session.llmApiBaseUrlOverride = parsed.llmApiBaseUrl;
   }
+  if (parsed.llmProvider) {
+    session.llmProviderOverride = parsed.llmProvider;
+  }
   if (parsed.temperature !== null) {
     session.temperatureOverride = parsed.temperature;
   }

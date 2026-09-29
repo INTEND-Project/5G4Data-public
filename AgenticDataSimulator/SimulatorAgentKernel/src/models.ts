@@ -33,6 +33,8 @@ export interface ChatSession {
   llmModelOverride?: string | null;
   /** From A2A metadata.simulator.llmApiBaseUrl for this task. */
   llmApiBaseUrlOverride?: string | null;
+  /** From A2A metadata.simulator.llmProvider for this task. */
+  llmProviderOverride?: "openai" | "anthropic" | null;
   /** From A2A metadata.simulator.temperature for this task. */
   temperatureOverride?: number | null;
   /** From A2A metadata.simulator.reportingIntervalMinutes for this task. */
@@ -57,6 +59,7 @@ export type ModelInvokeOptions = {
   stage: string;
   llmModel?: string | null;
   llmApiBaseUrl?: string | null;
+  llmProvider?: "openai" | "anthropic" | null;
   temperature?: number | null;
   numCtx?: number | null;
   stopSequences?: string[] | null;

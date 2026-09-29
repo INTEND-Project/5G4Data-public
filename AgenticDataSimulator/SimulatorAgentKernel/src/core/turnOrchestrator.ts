@@ -17,7 +17,8 @@ import type {
 } from "../models.js";
 import {
   assistantRequestedConfirmation,
-  isConfirmationText,
+  confirmationExtraInstructions,
+  isConfirmationAck,
   lastSubstantiveUserRequest
 } from "./confirmationState.js";
 import { extractTurtlePayload, looksLikeTurtleIntent } from "./outputPolicyValidator.js";
@@ -134,11 +135,18 @@ export class TurnOrchestrator {
     const acceptedUserInputs = confirmationConfig?.acceptedUserInputs ?? ["ok"];
     const assistantMarkers = confirmationConfig?.assistantMarkers ?? ["type ok to confirm"];
     const confirmationAck =
-      isConfirmationText(userText, acceptedUserInputs) &&
+      isConfirmationAck(userText, acceptedUserInputs) &&
       assistantRequestedConfirmation(session, assistantMarkers);
     const previousUserRequest = lastSubstantiveUserRequest(session, acceptedUserInputs);
+    const confirmationExtras = confirmationAck
+      ? confirmationExtraInstructions(userText, acceptedUserInputs)
+      : null;
     const effectiveUserText =
-      confirmationAck && previousUserRequest ? previousUserRequest : userText;
+      confirmationAck && previousUserRequest
+        ? confirmationExtras
+          ? `${previousUserRequest}\n\nAdditional confirmation instructions:\n${confirmationExtras}`
+          : previousUserRequest
+        : userText;
     const intentFlags = this.workflowEngine.classifyIntent(effectiveUserText);
     const context = await this.contextBuilder.build(
       effectiveUserText,
@@ -281,7 +289,15 @@ export class TurnOrchestrator {
           text,
           warnings,
           debug,
-          runtimeContext: context.runtimeContext
+          runtimeContext: context.runtimeContext,
+          userPrompt: effectiveUserText,
+          knownMetricStems: context.knownMetricStems,
+          intentFlags,
+          reportingInterval,
+          systemBlocks,
+          history: [...fewShots, ...history],
+          session,
+          calls
         })
     );
     text = shaclResult.text;
@@ -357,6 +373,7 @@ export class TurnOrchestrator {
       stage,
       llmModel: session.llmModelOverride ?? undefined,
       llmApiBaseUrl: session.llmApiBaseUrlOverride ?? undefined,
+      llmProvider: session.llmProviderOverride ?? undefined,
       temperature: session.temperatureOverride ?? undefined,
       numCtx: session.numCtxOverride ?? undefined,
       stopSequences: session.stopSequencesOverride ?? undefined
@@ -376,6 +393,14 @@ export class TurnOrchestrator {
     warnings: string[];
     debug: string[];
     runtimeContext: string;
+    userPrompt: string;
+    knownMetricStems?: string[];
+    intentFlags: import("./workflowEngine.js").IntentFlags;
+    reportingInterval: ReportingIntervalForPostprocessor;
+    systemBlocks: string[];
+    history: Array<{ role: "user" | "assistant"; content: string }>;
+    session: ChatSession;
+    calls: LlmCallRecord[];
   }): Promise<{
     text: string;
     conforms: boolean;
@@ -457,7 +482,52 @@ export class TurnOrchestrator {
           reportText: lastResult.reportText
         };
       }
-      args.debug.push("shacl_repair_attempt_skipped_model_rewrite=true");
+
+      args.debug.push("shacl_repair_attempt_model_rewrite=true");
+      const issuesBlock = lastResult.violations.map((v) => `- ${v.message}`).join("\n");
+      const repairInstruction = `SHACL / Turtle validation failed for the intent below.
+Rewrite the Turtle so it parses and conforms. Keep the same intent meaning, grounded DataCenter, report destinations, and metric stems.
+Return raw @prefix Turtle only — no markdown fences, no narration.
+
+Validation failures to fix:
+${issuesBlock}
+
+Runtime grounding (trust this):
+${args.runtimeContext}
+
+Invalid Turtle:
+${current}`;
+      const rewritten = await this.invokeModel(
+        [
+          ...args.systemBlocks.map((content) => ({ role: "system" as const, content })),
+          ...args.history,
+          { role: "user", content: repairInstruction }
+        ],
+        this.modelInvokeOptions(args.session, "shacl_repair")
+      );
+      args.calls.push(rewritten.call);
+      let next = this.normalizeTurtleText(rewritten.text);
+      if (!looksLikeTurtleIntent(next)) {
+        args.debug.push("shacl_repair_rewrite_not_turtle=true");
+        continue;
+      }
+      next = await runConfiguredPostprocessors({
+        text: next,
+        context: {
+          runtimeContext: args.runtimeContext,
+          userPrompt: args.userPrompt,
+          knownMetricStems: args.knownMetricStems,
+          intentFlags: args.intentFlags,
+          validatorRules: this.domainPackage.validatorRules,
+          reportingIntervalMinutes: args.reportingInterval.reportingIntervalMinutes,
+          reportingIntervalSeconds: args.reportingInterval.reportingIntervalSeconds
+        },
+        domainPackage: this.domainPackage,
+        when: "always",
+        debug: args.debug
+      });
+      current = next;
+      args.debug.push(`shacl_repair_rewrite_output=${previewText(current, 400)}`);
     }
 
     return {
@@ -510,7 +580,9 @@ export class TurnOrchestrator {
     }
     const hadShaclFailure = warnings.some((w) => w.includes("did not pass SHACL validation"));
     if (hadShaclFailure) {
-      debug.push("graphdb_persist_note=shacl_nonconformant_still_attempting_store");
+      debug.push("graphdb_persist_skipped=shacl_nonconformant");
+      warnings.push("Skipping GraphDB persist because SHACL validation did not pass.");
+      return { persisted: false, intentId: extractIntentIdFromTurtle(text), skipped: true };
     }
     const turtle = this.normalizeTurtleText(text);
     const intentId = extractIntentIdFromTurtle(turtle);

@@ -37,7 +37,19 @@ const CLONE_SAFE_DEFAULT_ENV_KEYS = new Set([
   "MLFLOW_EXPERIMENT_ID",
   "MLFLOW_EXPERIMENT_NAME",
   "MLFLOW_TRACING_ENABLED",
-  "MLFLOW_TRACKING_STORE_EXPORT_ENABLED"
+  "MLFLOW_TRACKING_STORE_EXPORT_ENABLED",
+  // LLM defaults from package (e.g. schema-synth → Anthropic, matching experiment .env)
+  "LLM_PROVIDER",
+  "OPENAI_MODEL",
+  "ANTHROPIC_MODEL",
+  "ANTHROPIC_BASE_URL",
+  "SCHEMA_SYNTH_PROVIDER",
+  "SCHEMA_SYNTH_MODEL",
+  "PROMETHEUS_URL",
+  "PROMETHEUS_REMOTE_WRITE_URL",
+  "PUSHGATEWAY_URL",
+  "OBSERVATION_DEFAULT_FREQUENCY_SECONDS",
+  "NO_GRAPHDB"
 ]);
 
 export function readDotEnvKey(envFilePath: string, key: string): string | undefined {

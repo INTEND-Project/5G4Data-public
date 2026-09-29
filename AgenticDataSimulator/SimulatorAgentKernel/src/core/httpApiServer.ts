@@ -40,6 +40,8 @@ interface RuntimeApi {
     simulatorModel: string;
     openAiTemperature?: number;
     llmProvider?: string;
+    openAiBaseUrl?: string;
+    anthropicBaseUrl?: string;
   };
 }
 
@@ -327,15 +329,29 @@ export function startOpenApiServer(options: OpenApiServerOptions) {
 
       if (method === "GET" && path === "/v1/agent/info") {
         const manifest = options.runtime.getDomainPackage().manifest;
+        const appConfig = options.runtime.getAppConfig();
+        const apiBaseUrl =
+          appConfig.llmProvider === "anthropic"
+            ? appConfig.anthropicBaseUrl ?? "https://api.anthropic.com"
+            : appConfig.openAiBaseUrl ?? "https://api.openai.com/v1";
+        const schemaSynthProvider =
+          process.env.SCHEMA_SYNTH_PROVIDER?.trim().toLowerCase() || undefined;
+        const schemaSynthModel = process.env.SCHEMA_SYNTH_MODEL?.trim() || undefined;
         response.writeHead(200, jsonHeaders());
         response.end(
           JSON.stringify({
             packageName: manifest.name,
             packageVersion: manifest.version,
-            model: options.runtime.getAppConfig().simulatorModel,
-            temperature: options.runtime.getAppConfig().openAiTemperature,
-            llmProvider: options.runtime.getAppConfig().llmProvider,
+            model: appConfig.simulatorModel,
+            temperature: appConfig.openAiTemperature,
+            llmProvider: appConfig.llmProvider,
+            apiBaseUrl,
             systemPrompt: options.runtime.getDomainPackage().systemPromptText,
+            schemaSynthProvider:
+              schemaSynthProvider === "openai" || schemaSynthProvider === "anthropic"
+                ? schemaSynthProvider
+                : undefined,
+            schemaSynthModel: schemaSynthModel || undefined,
             intentBindingMetadata: options.runtime.getDomainPackage().intentBindingMetadata ?? null
           })
         );

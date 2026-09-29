@@ -63,6 +63,8 @@ export type SimulatorControllerMetadata = {
   prometheusStorageMode: PrometheusStackMode | null;
   llmModel: string | null;
   llmApiBaseUrl: string | null;
+  /** Session override for LLM_PROVIDER (`openai` | `anthropic`). */
+  llmProvider: "openai" | "anthropic" | null;
   temperature: number | null;
   reportingIntervalMinutes: number | null;
   reportingIntervalSeconds: number | null;
@@ -144,6 +146,9 @@ export function parseSimulatorControllerMetadata(metadata: unknown): SimulatorCo
   const prometheusStorageMode = parsePrometheusStorageModeField(simulator.prometheusStorageMode);
   const llmModel = readNonEmptyString(simulator.llmModel);
   const llmApiBaseUrl = readNonEmptyString(simulator.llmApiBaseUrl)?.replace(/\/+$/, "") ?? null;
+  const llmProviderRaw = readNonEmptyString(simulator.llmProvider)?.toLowerCase();
+  const llmProvider =
+    llmProviderRaw === "openai" || llmProviderRaw === "anthropic" ? llmProviderRaw : null;
   const temperature = parseTemperatureField(simulator.temperature);
   const reportingIntervalMinutes = parseReportingIntervalMinutesField(
     simulator.reportingIntervalMinutes
@@ -190,6 +195,7 @@ export function parseSimulatorControllerMetadata(metadata: unknown): SimulatorCo
     !prometheusBaseUrl &&
     !llmModel &&
     !llmApiBaseUrl &&
+    !llmProvider &&
     temperature === null &&
     reportingIntervalMinutes === null &&
     reportingIntervalSeconds === null &&
@@ -209,6 +215,7 @@ export function parseSimulatorControllerMetadata(metadata: unknown): SimulatorCo
     prometheusStorageMode,
     llmModel,
     llmApiBaseUrl,
+    llmProvider,
     temperature,
     reportingIntervalMinutes,
     reportingIntervalSeconds,

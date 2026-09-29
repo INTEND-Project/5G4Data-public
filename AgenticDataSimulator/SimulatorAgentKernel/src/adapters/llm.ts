@@ -123,7 +123,8 @@ async function invokeAnthropic(
     .filter((m) => m.role !== "system")
     .map((m) => ({ role: m.role, content: m.content }));
 
-  const response = await fetch(`${config.anthropicBaseUrl.replace(/\/$/, "")}/v1/messages`, {
+  const baseUrl = (options.llmApiBaseUrl?.trim() || config.anthropicBaseUrl).replace(/\/$/, "");
+  const response = await fetch(`${baseUrl}/v1/messages`, {
     method: "POST",
     headers: {
       "x-api-key": config.anthropicApiKey,
@@ -185,7 +186,11 @@ export function createSimulatorModelInvoker(config: AppConfig) {
     messages: ModelMessage[],
     options: ModelInvokeOptions = { stage: "main_turn" }
   ): Promise<ModelInvocationResult> => {
-    if (config.llmProvider === "anthropic") {
+    const provider =
+      options.llmProvider === "openai" || options.llmProvider === "anthropic"
+        ? options.llmProvider
+        : config.llmProvider;
+    if (provider === "anthropic") {
       return invokeAnthropic(config, messages, options);
     }
     return invokeOpenAi(config, messages, options);

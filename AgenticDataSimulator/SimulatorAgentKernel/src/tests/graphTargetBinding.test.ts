@@ -129,6 +129,34 @@ test("parseSimulatorControllerMetadata accepts systemPrompt few-shots numCtx and
   assert.deepEqual(parsed.stopSequences, ["</s>", "<|eot_id|>"]);
 });
 
+test("parseSimulatorControllerMetadata accepts llmProvider", () => {
+  const parsed = parseSimulatorControllerMetadata({
+    simulator: {
+      controllerBindingVersion: "1",
+      llmProvider: "anthropic",
+      llmModel: "claude-sonnet-4-5",
+      llmApiBaseUrl: "https://api.anthropic.com",
+    },
+  });
+  assert.ok(parsed);
+  assert.equal(parsed.llmProvider, "anthropic");
+  assert.equal(parsed.llmModel, "claude-sonnet-4-5");
+  assert.equal(parsed.llmApiBaseUrl, "https://api.anthropic.com");
+});
+
+test("parseSimulatorControllerMetadata ignores invalid llmProvider", () => {
+  const parsed = parseSimulatorControllerMetadata({
+    simulator: {
+      controllerBindingVersion: "1",
+      llmProvider: "gemini",
+      temperature: 0.5,
+    },
+  });
+  assert.ok(parsed);
+  assert.equal(parsed.llmProvider, null);
+  assert.equal(parsed.temperature, 0.5);
+});
+
 test("bindingsConflict detects repository or graph drift", () => {
   const existing = {
     repositoryId: "a",

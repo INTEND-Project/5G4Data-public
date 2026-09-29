@@ -51,6 +51,7 @@ export type SimulatorControllerMetadata = {
   prometheusStorageMode?: PrometheusStackMode;
   llmModel?: string;
   llmApiBaseUrl?: string;
+  llmProvider?: "openai" | "anthropic";
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
@@ -68,6 +69,7 @@ export function simulatorMetadataEnvelope(opts: {
   prometheusStorageMode?: PrometheusStackMode;
   llmModel?: string;
   llmApiBaseUrl?: string;
+  llmProvider?: "openai" | "anthropic";
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
@@ -95,6 +97,9 @@ export function simulatorMetadataEnvelope(opts: {
   if (model) simulator.llmModel = model;
   const llmApiBaseUrl = opts.llmApiBaseUrl?.trim().replace(/\/+$/, "");
   if (llmApiBaseUrl) simulator.llmApiBaseUrl = llmApiBaseUrl;
+  if (opts.llmProvider === "openai" || opts.llmProvider === "anthropic") {
+    simulator.llmProvider = opts.llmProvider;
+  }
   if (opts.temperature !== undefined && Number.isFinite(opts.temperature)) {
     simulator.temperature = Math.min(2, Math.max(0, opts.temperature));
   }
@@ -142,6 +147,7 @@ export function hasSimulatorMetadataFields(opts: {
   prometheusStorageMode?: PrometheusStackMode;
   llmModel?: string;
   llmApiBaseUrl?: string;
+  llmProvider?: "openai" | "anthropic";
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
@@ -157,6 +163,8 @@ export function hasSimulatorMetadataFields(opts: {
       opts.prometheusBaseUrl?.trim() ||
       opts.llmModel?.trim() ||
       opts.llmApiBaseUrl?.trim() ||
+      opts.llmProvider === "openai" ||
+      opts.llmProvider === "anthropic" ||
       (opts.temperature !== undefined && Number.isFinite(opts.temperature)) ||
       (opts.reportingIntervalMinutes !== undefined && Number.isFinite(opts.reportingIntervalMinutes)) ||
       (opts.reportingIntervalSeconds !== undefined && Number.isFinite(opts.reportingIntervalSeconds)) ||

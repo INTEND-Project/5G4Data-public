@@ -9,12 +9,17 @@ import {
   INTENT_GENERATING_MODEL_ONLY_AGENT_PACKAGE,
   OBSERVATION_GENERATING_AGENT_NAME,
   OBSERVATION_GENERATING_AGENT_PACKAGE,
+  OBSERVATION_SCHEMA_SYNTH_AGENT_NAME,
+  OBSERVATION_SCHEMA_SYNTH_AGENT_PACKAGE,
 } from "@/lib/agents/known-agent-names";
+
+export type AgentLlmProvider = "openai" | "anthropic";
 
 export type AgentRuntimeLlmDefaults = {
   model: string;
   apiBaseUrl: string;
   temperature: number;
+  provider: AgentLlmProvider;
   source: "agent" | "env";
 };
 
@@ -44,20 +49,28 @@ function parseTemperature(raw: string | undefined): number {
   return clampTemperature(parsed);
 }
 
+function parseProvider(raw: string | undefined): AgentLlmProvider {
+  const normalized = raw?.trim().toLowerCase();
+  return normalized === "anthropic" ? "anthropic" : "openai";
+}
+
 function cloneEnvPathForAgent(agentName: string): string | undefined {
   const root = resolve(process.cwd(), "..");
   const packageDirByAgent: Record<string, string> = {
     [INTENT_GENERATING_AGENT_NAME]: INTENT_GENERATING_AGENT_PACKAGE,
     [OBSERVATION_GENERATING_AGENT_NAME]: OBSERVATION_GENERATING_AGENT_PACKAGE,
     [INTENT_GENERATING_MODEL_ONLY_AGENT_NAME]: INTENT_GENERATING_MODEL_ONLY_AGENT_PACKAGE,
+    [OBSERVATION_SCHEMA_SYNTH_AGENT_NAME]: OBSERVATION_SCHEMA_SYNTH_AGENT_PACKAGE,
   };
   const packageDir = packageDirByAgent[agentName] ?? agentName;
   return resolve(root, "agents", packageDir, ".env");
 }
 
-function normalizeApiBaseUrl(raw: string | undefined): string {
+function normalizeApiBaseUrl(raw: string | undefined, provider: AgentLlmProvider): string {
   const trimmed = raw?.trim() ?? "";
-  if (!trimmed) return "https://api.openai.com/v1";
+  if (!trimmed) {
+    return provider === "anthropic" ? "https://api.anthropic.com" : "https://api.openai.com/v1";
+  }
   return trimmed.replace(/\/+$/, "");
 }
 
@@ -70,14 +83,24 @@ export function readEnvFileLlmDefaults(agentName: string): AgentRuntimeLlmDefaul
 
   for (const envPath of candidates) {
     if (!existsSync(envPath)) continue;
-    const openAiModel = readDotEnvKey(envPath, "OPENAI_MODEL");
+    const provider = parseProvider(readDotEnvKey(envPath, "LLM_PROVIDER"));
     const simulatorModel = readDotEnvKey(envPath, "SIMULATOR_MODEL");
-    const model = (simulatorModel ?? openAiModel)?.trim();
+    const openAiModel = readDotEnvKey(envPath, "OPENAI_MODEL");
+    const anthropicModel = readDotEnvKey(envPath, "ANTHROPIC_MODEL");
+    const model =
+      provider === "anthropic"
+        ? (simulatorModel ?? anthropicModel)?.trim()
+        : (simulatorModel ?? openAiModel)?.trim();
     if (!model) continue;
+    const apiBaseUrl =
+      provider === "anthropic"
+        ? normalizeApiBaseUrl(readDotEnvKey(envPath, "ANTHROPIC_BASE_URL"), provider)
+        : normalizeApiBaseUrl(readDotEnvKey(envPath, "OPENAI_BASE_URL"), provider);
     return {
       model,
-      apiBaseUrl: normalizeApiBaseUrl(readDotEnvKey(envPath, "OPENAI_BASE_URL")),
+      apiBaseUrl,
       temperature: parseTemperature(readDotEnvKey(envPath, "OPENAI_TEMPERATURE")),
+      provider,
       source: "env",
     };
   }

@@ -4,17 +4,32 @@ export const AGENT_LLM_PREFERENCES_STORAGE_KEY = "simulator.agentLlmPreferences.
 
 export const SPARK_LLM_API_BASE_URL = "http://spark-88e2.taile6732f.ts.net:11434/v1";
 export const OPENAI_LLM_API_BASE_URL = "https://api.openai.com/v1";
+export const ANTHROPIC_LLM_API_BASE_URL = "https://api.anthropic.com";
 
 export const DEFAULT_LLM_API_BASE_URL_SUGGESTIONS = [
   SPARK_LLM_API_BASE_URL,
   OPENAI_LLM_API_BASE_URL,
 ] as const;
 
+export const ANTHROPIC_LLM_API_BASE_URL_SUGGESTIONS = [ANTHROPIC_LLM_API_BASE_URL] as const;
+
+export const ANTHROPIC_MODEL_SUGGESTIONS = [
+  "claude-sonnet-4-5",
+  "claude-opus-4-5",
+  "claude-haiku-4-5",
+  "claude-3-5-sonnet-latest",
+  "claude-3-5-haiku-latest",
+] as const;
+
+export type AgentLlmProvider = "openai" | "anthropic";
+
 export type AgentLlmPreference = {
   model: string;
-  /** OpenAI-compatible API base URL (e.g. Ollama `http://host:11434/v1`). */
+  /** OpenAI-compatible or Anthropic API base URL. */
   apiBaseUrl: string;
   temperature: number;
+  /** Session override for LLM_PROVIDER. */
+  provider?: AgentLlmProvider;
   /** Intent-generation only: observation reporting interval in minutes. */
   reportingIntervalMinutes?: number;
   /** Custom system prompt; omit to use the agent's package default. */
@@ -32,8 +47,22 @@ export function normalizeLlmApiBaseUrl(value: string | null | undefined): string
   return value.trim().replace(/\/+$/, "");
 }
 
-export function llmApiBaseUrlSuggestions(runtimeDefault?: string): string[] {
-  const suggestions: string[] = [...DEFAULT_LLM_API_BASE_URL_SUGGESTIONS];
+export function normalizeLlmProvider(
+  value: string | null | undefined,
+): AgentLlmProvider | undefined {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (normalized === "openai" || normalized === "anthropic") return normalized;
+  return undefined;
+}
+
+export function llmApiBaseUrlSuggestions(
+  runtimeDefault?: string,
+  provider?: AgentLlmProvider,
+): string[] {
+  const suggestions: string[] =
+    provider === "anthropic"
+      ? [...ANTHROPIC_LLM_API_BASE_URL_SUGGESTIONS]
+      : [...DEFAULT_LLM_API_BASE_URL_SUGGESTIONS];
   const normalizedRuntime = normalizeLlmApiBaseUrl(runtimeDefault);
   if (normalizedRuntime && !suggestions.includes(normalizedRuntime)) {
     suggestions.push(normalizedRuntime);
@@ -106,6 +135,8 @@ export function normalizeAgentLlmPreference(
     typeof input?.temperature === "number" ? input.temperature : DEFAULT_AGENT_TEMPERATURE,
   );
   const out: AgentLlmPreference = { model, apiBaseUrl, temperature };
+  const provider = normalizeLlmProvider(input?.provider);
+  if (provider) out.provider = provider;
   if (typeof input?.reportingIntervalMinutes === "number") {
     out.reportingIntervalMinutes = clampReportingIntervalMinutes(input.reportingIntervalMinutes);
   }
@@ -165,6 +196,7 @@ export function preferenceForSimulatorMetadata(
 ): {
   llmModel?: string;
   llmApiBaseUrl?: string;
+  llmProvider?: AgentLlmProvider;
   temperature?: number;
   reportingIntervalMinutes?: number;
   systemPrompt?: string;
@@ -176,6 +208,7 @@ export function preferenceForSimulatorMetadata(
   const out: {
     llmModel?: string;
     llmApiBaseUrl?: string;
+    llmProvider?: AgentLlmProvider;
     temperature?: number;
     reportingIntervalMinutes?: number;
     systemPrompt?: string;
@@ -187,6 +220,7 @@ export function preferenceForSimulatorMetadata(
   };
   if (pref.model) out.llmModel = pref.model;
   if (pref.apiBaseUrl) out.llmApiBaseUrl = pref.apiBaseUrl;
+  if (pref.provider) out.llmProvider = pref.provider;
   if (typeof pref.reportingIntervalMinutes === "number") {
     out.reportingIntervalMinutes = pref.reportingIntervalMinutes;
   }

@@ -325,6 +325,9 @@ export function IntentGenSessionDialog({
         if (llmFields.llmApiBaseUrl) {
           payload.llmApiBaseUrl = llmFields.llmApiBaseUrl;
         }
+        if (llmFields.llmProvider) {
+          payload.llmProvider = llmFields.llmProvider;
+        }
         if (llmFields.temperature !== undefined) {
           payload.temperature = llmFields.temperature;
         }

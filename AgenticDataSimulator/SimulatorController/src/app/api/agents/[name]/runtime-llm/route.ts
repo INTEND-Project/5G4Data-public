@@ -35,6 +35,11 @@ function runtimeLlmPayload(
   };
 }
 
+function normalizeLlmProvider(value: unknown): "openai" | "anthropic" | undefined {
+  if (value === "openai" || value === "anthropic") return value;
+  return undefined;
+}
+
 function systemPromptExtra(agentName: string, fromAgent?: string): Record<string, unknown> {
   const systemPrompt =
     (typeof fromAgent === "string" && fromAgent.trim() ? fromAgent : undefined) ??
@@ -70,7 +75,7 @@ export async function GET(request: Request, context: RouteContext) {
         envFallback.temperature,
         envFallback.source,
         envFallback.apiBaseUrl,
-        systemPromptExtra(decodedName),
+        { llmProvider: envFallback.provider, ...systemPromptExtra(decodedName) },
       ),
     );
   }
@@ -92,7 +97,11 @@ export async function GET(request: Request, context: RouteContext) {
         envFallback.temperature,
         envFallback.source,
         envFallback.apiBaseUrl,
-        { warning: rpc.message, ...systemPromptExtra(decodedName) },
+        {
+          llmProvider: envFallback.provider,
+          warning: rpc.message,
+          ...systemPromptExtra(decodedName),
+        },
       ),
     );
   }
@@ -128,6 +137,7 @@ export async function GET(request: Request, context: RouteContext) {
           envFallback.source,
           envFallback.apiBaseUrl,
           {
+            llmProvider: envFallback.provider,
             warning: `Agent info request failed (${response.status}).`,
             ...systemPromptExtra(decodedName),
           },
@@ -140,6 +150,7 @@ export async function GET(request: Request, context: RouteContext) {
       temperature?: number;
       systemPrompt?: string;
       apiBaseUrl?: string;
+      llmProvider?: string;
       numCtx?: number | null;
       stopSequences?: string[];
     };
@@ -156,6 +167,7 @@ export async function GET(request: Request, context: RouteContext) {
           envFallback.source,
           envFallback.apiBaseUrl,
           {
+            llmProvider: envFallback.provider,
             warning: "Agent info response missing model.",
             ...systemPromptExtra(decodedName, payload.systemPrompt),
           },
@@ -167,6 +179,8 @@ export async function GET(request: Request, context: RouteContext) {
       typeof payload.apiBaseUrl === "string" && payload.apiBaseUrl.trim()
         ? payload.apiBaseUrl.trim()
         : envFallback?.apiBaseUrl;
+    const llmProvider =
+      normalizeLlmProvider(payload.llmProvider) ?? envFallback?.provider ?? "openai";
     const numCtx =
       typeof payload.numCtx === "number" && Number.isFinite(payload.numCtx) && payload.numCtx >= 1
         ? Math.round(payload.numCtx)
@@ -184,6 +198,7 @@ export async function GET(request: Request, context: RouteContext) {
         "agent",
         agentApiBaseUrl,
         {
+          llmProvider,
           ...systemPromptExtra(decodedName, payload.systemPrompt),
           ...(numCtx !== undefined ? { numCtx } : {}),
           ...(stopSequences && stopSequences.length > 0 ? { stopSequences } : {}),
@@ -203,7 +218,11 @@ export async function GET(request: Request, context: RouteContext) {
         envFallback.temperature,
         envFallback.source,
         envFallback.apiBaseUrl,
-        { warning: String(err), ...systemPromptExtra(decodedName) },
+        {
+          llmProvider: envFallback.provider,
+          warning: String(err),
+          ...systemPromptExtra(decodedName),
+        },
       ),
     );
   }

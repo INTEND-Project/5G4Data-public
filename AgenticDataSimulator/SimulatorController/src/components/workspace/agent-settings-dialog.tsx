@@ -9,6 +9,7 @@ import {
   setCachedModelsForBaseUrl,
 } from "@/lib/agents/agent-llm-models-cache";
 import {
+  ANTHROPIC_MODEL_SUGGESTIONS,
   DEFAULT_AGENT_TEMPERATURE,
   DEFAULT_LLM_API_BASE_URL_SUGGESTIONS,
   DEFAULT_REPORTING_INTERVAL_MINUTES,
@@ -18,7 +19,9 @@ import {
   llmApiBaseUrlSuggestions,
   normalizeAgentLlmPreference,
   normalizeLlmApiBaseUrl,
+  normalizeLlmProvider,
   normalizeStopSequences,
+  type AgentLlmProvider,
 } from "@/lib/agents/agent-llm-preferences";
 import type { FewShotMessage } from "@/lib/agents/modelfile-system-prompt";
 import { normalizeModelfileOrSystemPrompt } from "@/lib/agents/modelfile-system-prompt";
@@ -27,6 +30,7 @@ export type AgentRuntimeLlmDefaults = {
   model: string;
   apiBaseUrl?: string;
   temperature: number;
+  llmProvider?: AgentLlmProvider;
   systemPrompt?: string;
   numCtx?: number;
   stopSequences?: string[];
@@ -45,11 +49,11 @@ const CUSTOM_API_BASE_URL_OPTION = "__custom_api_base_url__";
 const CUSTOM_MODEL_OPTION = "__custom_model__";
 
 function formatDefaultModelLabel(runtime: AgentRuntimeLlmDefaults | null, loading: boolean): string {
-  if (loading) return "Loading environment default…";
-  if (!runtime?.model) return "Environment default (unavailable)";
+  if (loading) return "Loading agent default…";
+  if (!runtime?.model) return "Agent default (unavailable)";
   const source =
-    runtime.source === "agent" ? "agent" : runtime.source === "env" ? ".env" : "environment";
-  return `Environment default: ${runtime.model} (${source})`;
+    runtime.source === "agent" ? "live agent" : runtime.source === "env" ? ".env fallback" : "default";
+  return `Agent default: ${runtime.model} (${source})`;
 }
 
 function apiBaseUrlSelectValue(apiBaseUrl: string, presetUrls: string[]): string {
@@ -109,8 +113,9 @@ export function AgentSettingsDialog({
   agentRuntimeLlmApiUrl,
   onClose,
 }: AgentSettingsDialogProps) {
-  const { preference, hasStored, setPreference } = useAgentLlmPreferences(agentName);
+  const { preference, hasStored, setPreference, clearPreference } = useAgentLlmPreferences(agentName);
   const showReportingInterval = isIntentGenerationAgent(agentName);
+  const [provider, setProvider] = useState<AgentLlmProvider>("openai");
   const [model, setModel] = useState("");
   const [apiBaseUrl, setApiBaseUrl] = useState("");
   const [customApiUrlDraft, setCustomApiUrlDraft] = useState("");
@@ -140,11 +145,22 @@ export function AgentSettingsDialog({
 
   const runtimeTemperature = runtimeDefaults?.temperature ?? DEFAULT_AGENT_TEMPERATURE;
   const runtimeSystemPrompt = runtimeDefaults?.systemPrompt ?? "";
+  const runtimeProvider = runtimeDefaults?.llmProvider ?? "openai";
+  const isAnthropic = provider === "anthropic";
 
   const apiBaseUrlPresetOptions = useMemo(
-    () => llmApiBaseUrlSuggestions(runtimeDefaults?.apiBaseUrl),
-    [runtimeDefaults?.apiBaseUrl],
+    () => llmApiBaseUrlSuggestions(runtimeDefaults?.apiBaseUrl, provider),
+    [provider, runtimeDefaults?.apiBaseUrl],
   );
+
+  const anthropicModelOptions = useMemo(() => {
+    const options: string[] = [...ANTHROPIC_MODEL_SUGGESTIONS];
+    const runtimeModel = runtimeDefaults?.model?.trim();
+    if (runtimeModel && !options.includes(runtimeModel)) {
+      options.unshift(runtimeModel);
+    }
+    return options;
+  }, [runtimeDefaults?.model]);
 
   const modelsFetchBaseUrl = useMemo(
     () =>
@@ -160,6 +176,8 @@ export function AgentSettingsDialog({
     apiBaseUrlSelectValue(apiBaseUrl, apiBaseUrlPresetOptions) === CUSTOM_API_BASE_URL_OPTION;
 
   const showCustomModelInput = customModelMode;
+
+  const listedModels = isAnthropic ? anthropicModelOptions : models;
 
   const applyApiBaseUrl = useCallback(
     (next: string) => {
@@ -220,6 +238,7 @@ export function AgentSettingsDialog({
     setSaved(false);
     setStopHelpOpen(false);
     if (hasStored) {
+      setProvider(preference.provider ?? runtimeProvider);
       setModel(preference.model);
       setApiBaseUrl(preference.apiBaseUrl);
       setCustomApiUrlDraft(preference.apiBaseUrl);
@@ -251,6 +270,7 @@ export function AgentSettingsDialog({
       );
       return;
     }
+    setProvider(runtimeProvider);
     setModel("");
     setApiBaseUrl("");
     setCustomApiUrlDraft("");
@@ -270,6 +290,7 @@ export function AgentSettingsDialog({
     hasStored,
     preference.model,
     preference.apiBaseUrl,
+    preference.provider,
     preference.temperature,
     preference.reportingIntervalMinutes,
     preference.systemPrompt,
@@ -280,6 +301,7 @@ export function AgentSettingsDialog({
     runtimeDefaults?.systemPrompt,
     runtimeDefaults?.numCtx,
     runtimeDefaults?.stopSequences,
+    runtimeProvider,
   ]);
 
   useEffect(() => {
@@ -316,6 +338,7 @@ export function AgentSettingsDialog({
             apiBaseUrl: typeof body.apiBaseUrl === "string" ? body.apiBaseUrl : undefined,
             temperature:
               typeof body.temperature === "number" ? body.temperature : DEFAULT_AGENT_TEMPERATURE,
+            llmProvider: normalizeLlmProvider(body.llmProvider) ?? "openai",
             systemPrompt: typeof body.systemPrompt === "string" ? body.systemPrompt : undefined,
             source: body.source,
           });
@@ -339,17 +362,23 @@ export function AgentSettingsDialog({
   }, [open, agentRuntimeLlmApiUrl]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || isAnthropic) {
+      if (isAnthropic) {
+        setLoadingModels(false);
+        setModels([]);
+      }
+      return;
+    }
 
     let cancelled = false;
     void loadModelsForBaseUrl(modelsFetchBaseUrl, () => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [open, loadModelsForBaseUrl, modelsFetchBaseUrl]);
+  }, [open, isAnthropic, loadModelsForBaseUrl, modelsFetchBaseUrl]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || isAnthropic) return;
 
     let cancelled = false;
     const prefetchDefaults = async () => {
@@ -373,7 +402,24 @@ export function AgentSettingsDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, openAiModelsApiUrl]);
+  }, [open, isAnthropic, openAiModelsApiUrl]);
+
+  const handleProviderChange = useCallback(
+    (next: AgentLlmProvider) => {
+      setProvider(next);
+      setCustomModelMode(false);
+      setModel("");
+      setCustomModelDraft("");
+      setApiBaseUrl("");
+      setCustomApiUrlDraft("");
+      setNumCtxDraft("");
+      if (next === "anthropic") {
+        setModels([]);
+        setLoadingModels(false);
+      }
+    },
+    [],
+  );
 
   const handleApiBaseUrlSelect = useCallback(
     (value: string) => {
@@ -416,6 +462,36 @@ export function AgentSettingsDialog({
     setFewShotMessages([]);
   }, [runtimeSystemPrompt]);
 
+  const handleResetToAgentDefaults = useCallback(() => {
+    clearPreference();
+    setProvider(runtimeProvider);
+    setModel(runtimeDefaults?.model?.trim() ?? "");
+    setApiBaseUrl(runtimeDefaults?.apiBaseUrl?.trim() ?? "");
+    setCustomApiUrlDraft(runtimeDefaults?.apiBaseUrl?.trim() ?? "");
+    setCustomModelDraft(runtimeDefaults?.model?.trim() ?? "");
+    setCustomModelMode(false);
+    setTemperature(runtimeDefaults?.temperature ?? DEFAULT_AGENT_TEMPERATURE);
+    setReportingIntervalMinutes(DEFAULT_REPORTING_INTERVAL_MINUTES);
+    setSystemPromptCustomized(false);
+    setSystemPromptDraft(runtimeDefaults?.systemPrompt ?? "");
+    setFewShotMessages([]);
+    setNumCtxDraft(
+      typeof runtimeDefaults?.numCtx === "number" ? String(runtimeDefaults.numCtx) : "",
+    );
+    setStopSequencesText(stopSequencesToText(runtimeDefaults?.stopSequences));
+    setSaved(false);
+    setError(null);
+  }, [
+    clearPreference,
+    runtimeDefaults?.apiBaseUrl,
+    runtimeDefaults?.model,
+    runtimeDefaults?.numCtx,
+    runtimeDefaults?.stopSequences,
+    runtimeDefaults?.systemPrompt,
+    runtimeDefaults?.temperature,
+    runtimeProvider,
+  ]);
+
   const handleSave = useCallback(() => {
     let nextTemperature = Number.parseFloat(String(temperature));
     let nextNumCtx = numCtxDraft.trim()
@@ -453,6 +529,7 @@ export function AgentSettingsDialog({
       normalizeAgentLlmPreference({
         model,
         apiBaseUrl,
+        provider,
         temperature: nextTemperature,
         ...(showReportingInterval
           ? {
@@ -468,7 +545,7 @@ export function AgentSettingsDialog({
               ...(nextFewShots ? { fewShotMessages: nextFewShots } : {}),
             }
           : {}),
-        ...(nextNumCtx !== undefined ? { numCtx: nextNumCtx } : {}),
+        ...(!isAnthropic && nextNumCtx !== undefined ? { numCtx: nextNumCtx } : {}),
         ...(nextStops ? { stopSequences: nextStops } : {}),
       }),
     );
@@ -476,9 +553,11 @@ export function AgentSettingsDialog({
     onClose();
   }, [
     apiBaseUrl,
+    isAnthropic,
     model,
     numCtxDraft,
     onClose,
+    provider,
     reportingIntervalMinutes,
     setPreference,
     showReportingInterval,
@@ -493,7 +572,7 @@ export function AgentSettingsDialog({
   }
 
   const selectedApiBaseUrl = apiBaseUrlSelectValue(apiBaseUrl, apiBaseUrlPresetOptions);
-  const selectedModel = modelSelectValue(model, models, customModelMode);
+  const selectedModel = modelSelectValue(model, listedModels, customModelMode);
   const fewShotCount = systemPromptCustomized
     ? fewShotMessages.length ||
       normalizeModelfileOrSystemPrompt(systemPromptDraft).fewShotMessages.length
@@ -514,9 +593,40 @@ export function AgentSettingsDialog({
       >
         <h3 id="workspace-agent-settings-dialog-title">Agent LLM settings</h3>
         <p className="workspace-save-as-dialog-hint">
-          Settings for <strong>{agentName}</strong> are sent on the next A2A messages via
-          metadata. Leave model or API URL empty to use the agent&apos;s environment default
-          (OpenAI, Ollama, Open WebUI, etc.).
+          Live defaults come from the agent (<code>/v1/agent/info</code>), with{" "}
+          <code>.env</code> only as fallback. Saved values here are browser session overrides
+          sent on the next A2A messages — they do not rewrite the agent&apos;s{" "}
+          <code>.env</code>. Leave model or API URL empty to use the agent default for the
+          selected provider.
+        </p>
+        {hasStored ? (
+          <p className="workspace-hint" role="status">
+            Browser session override is active for this agent (may differ from the live agent
+            default).
+          </p>
+        ) : null}
+
+        <label className="workspace-label" htmlFor="workspace-agent-settings-provider">
+          Provider
+        </label>
+        <select
+          className="workspace-select"
+          disabled={loadingRuntime}
+          id="workspace-agent-settings-provider"
+          onChange={(event) =>
+            handleProviderChange(
+              event.target.value === "anthropic" ? "anthropic" : "openai",
+            )
+          }
+          value={provider}
+        >
+          <option value="openai">openai</option>
+          <option value="anthropic">anthropic</option>
+        </select>
+        <p className="workspace-hint">
+          {loadingRuntime
+            ? "Loading live agent default…"
+            : `Live agent default: ${runtimeProvider}`}
         </p>
 
         <label className="workspace-label" htmlFor="workspace-agent-settings-api-base-url">
@@ -529,7 +639,7 @@ export function AgentSettingsDialog({
           onChange={(event) => handleApiBaseUrlSelect(event.target.value)}
           value={selectedApiBaseUrl}
         >
-          <option value="">Use environment default</option>
+          <option value="">Use agent default</option>
           {apiBaseUrlPresetOptions.map((url) => (
             <option key={url} value={url}>
               {url}
@@ -548,15 +658,23 @@ export function AgentSettingsDialog({
                 handleCustomApiUrlCommit();
               }
             }}
-            placeholder="https://host:port/v1"
+            placeholder={
+              isAnthropic ? "https://api.anthropic.com" : "https://host:port/v1"
+            }
             spellCheck={false}
             type="url"
             value={customApiUrlDraft}
           />
         ) : null}
         <p className="workspace-hint">
-          OpenAI-compatible endpoint base, including <code>/v1</code> when required (Ollama) or
-          <code>/api</code> for Open WebUI.
+          {isAnthropic
+            ? "Anthropic Messages API base (default https://api.anthropic.com)."
+            : (
+              <>
+                OpenAI-compatible endpoint base, including <code>/v1</code> when required (Ollama)
+                or <code>/api</code> for Open WebUI.
+              </>
+            )}
         </p>
 
         <label className="workspace-label" htmlFor="workspace-agent-settings-model">
@@ -570,16 +688,16 @@ export function AgentSettingsDialog({
           value={selectedModel}
         >
           <option value="">
-            {loadingModels && models.length === 0
+            {!isAnthropic && loadingModels && listedModels.length === 0
               ? "Loading models…"
               : defaultModelOptionLabel}
           </option>
-          {models.map((id) => (
+          {listedModels.map((id) => (
             <option key={id} value={id}>
               {id}
             </option>
           ))}
-          {model.trim() && !models.includes(model.trim()) ? (
+          {model.trim() && !listedModels.includes(model.trim()) ? (
             <option value={model.trim()}>{model.trim()}</option>
           ) : null}
           <option value={CUSTOM_MODEL_OPTION}>Custom model…</option>
@@ -587,7 +705,7 @@ export function AgentSettingsDialog({
         {showCustomModelInput ? (
           <input
             className="workspace-input"
-            disabled={loadingModels}
+            disabled={!isAnthropic && loadingModels}
             onBlur={handleCustomModelCommit}
             onChange={(event) => setCustomModelDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -602,8 +720,13 @@ export function AgentSettingsDialog({
             value={customModelDraft}
           />
         ) : null}
-        {loadingModels && models.length > 0 ? (
+        {!isAnthropic && loadingModels && listedModels.length > 0 ? (
           <p className="workspace-hint">Refreshing model list…</p>
+        ) : null}
+        {isAnthropic ? (
+          <p className="workspace-hint">
+            Curated Anthropic model suggestions; use Custom model for any other id.
+          </p>
         ) : null}
 
         <label className="workspace-label" htmlFor="workspace-agent-settings-temperature">
@@ -621,30 +744,34 @@ export function AgentSettingsDialog({
         />
         <p className="workspace-hint">
           {loadingRuntime
-            ? "Loading agent environment default…"
+            ? "Loading live agent default…"
             : hasStored
-              ? `Agent environment default: ${runtimeTemperature}`
-              : `Using agent environment default: ${runtimeTemperature}`}
+              ? `Live agent default: ${runtimeTemperature}`
+              : `Using live agent default: ${runtimeTemperature}`}
         </p>
 
-        <label className="workspace-label" htmlFor="workspace-agent-settings-num-ctx">
-          Context window (num_ctx)
-        </label>
-        <input
-          className="workspace-input"
-          id="workspace-agent-settings-num-ctx"
-          min={1}
-          onChange={(event) => setNumCtxDraft(event.target.value)}
-          placeholder="Provider / model default"
-          step={1}
-          type="number"
-          value={numCtxDraft}
-        />
-        <p className="workspace-hint">
-          {typeof runtimeDefaults?.numCtx === "number"
-            ? `Agent environment default: ${runtimeDefaults.numCtx}. Honored for Ollama-compatible APIs via options.num_ctx.`
-            : "Optional. Honored for Ollama-compatible APIs via options.num_ctx. Leave empty for the provider default."}
-        </p>
+        {!isAnthropic ? (
+          <>
+            <label className="workspace-label" htmlFor="workspace-agent-settings-num-ctx">
+              Context window (num_ctx)
+            </label>
+            <input
+              className="workspace-input"
+              id="workspace-agent-settings-num-ctx"
+              min={1}
+              onChange={(event) => setNumCtxDraft(event.target.value)}
+              placeholder="Provider / model default"
+              step={1}
+              type="number"
+              value={numCtxDraft}
+            />
+            <p className="workspace-hint">
+              {typeof runtimeDefaults?.numCtx === "number"
+                ? `Agent environment default: ${runtimeDefaults.numCtx}. Honored for Ollama-compatible APIs via options.num_ctx.`
+                : "Optional. Honored for Ollama-compatible APIs via options.num_ctx. Leave empty for the provider default."}
+            </p>
+          </>
+        ) : null}
 
         <div className="workspace-agent-settings-label-row">
           <label className="workspace-label" htmlFor="workspace-agent-settings-stop">
@@ -759,6 +886,14 @@ export function AgentSettingsDialog({
         <div className="workspace-save-name-dialog-actions">
           <button className="workspace-button workspace-button-secondary" onClick={onClose} type="button">
             Cancel
+          </button>
+          <button
+            className="workspace-button workspace-button-secondary"
+            disabled={loadingRuntime}
+            onClick={handleResetToAgentDefaults}
+            type="button"
+          >
+            Reset to agent defaults
           </button>
           <button className="workspace-button" onClick={handleSave} type="button">
             Save

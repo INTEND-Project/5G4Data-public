@@ -28,7 +28,8 @@ describe("metric-catalog-query", () => {
     expect(q).toContain("PREFIX log:");
     expect(q).toContain("PREFIX icm:");
     expect(q).toContain("PREFIX set:");
-    expect(q).toContain("?metricNode icm:valuesOfTargetProperty ?metric");
+    expect(q).toContain("?metricNode icm:valuesOfTargetProperty ?metricObj");
+    expect(q).toContain("FILTER(?conditionType IN (icm:Condition, log:Condition))");
     expect(q).toContain("ORDER BY ?metric_name");
   });
 

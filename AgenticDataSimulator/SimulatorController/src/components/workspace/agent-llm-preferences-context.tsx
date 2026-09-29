@@ -23,6 +23,7 @@ type AgentLlmPreferencesContextValue = {
   getPreference: (agentName: string) => AgentLlmPreference;
   hasStoredPreference: (agentName: string) => boolean;
   setPreference: (agentName: string, preference: AgentLlmPreference) => void;
+  clearPreference: (agentName: string) => void;
 };
 
 const AgentLlmPreferencesContext = createContext<AgentLlmPreferencesContextValue | null>(
@@ -66,9 +67,19 @@ export function AgentLlmPreferencesProvider({ children }: { children: ReactNode 
     [map, persist],
   );
 
+  const clearPreference = useCallback(
+    (agentName: string) => {
+      if (!hasAgentLlmPreference(map, agentName)) return;
+      const next = { ...map };
+      delete next[agentName];
+      persist(next);
+    },
+    [map, persist],
+  );
+
   const value = useMemo(
-    () => ({ getPreference, hasStoredPreference, setPreference }),
-    [getPreference, hasStoredPreference, setPreference],
+    () => ({ getPreference, hasStoredPreference, setPreference, clearPreference }),
+    [getPreference, hasStoredPreference, setPreference, clearPreference],
   );
 
   return (
@@ -94,7 +105,11 @@ export function useAgentLlmPreferences(agentName: string | null | undefined) {
     },
     [agentName, context],
   );
-  return { preference, hasStored, setPreference };
+  const clearPreference = useCallback(() => {
+    if (!agentName) return;
+    context.clearPreference(agentName);
+  }, [agentName, context]);
+  return { preference, hasStored, setPreference, clearPreference };
 }
 
 export function useAgentLlmPreferencesReader() {

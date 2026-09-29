@@ -50,16 +50,26 @@ WHERE {
   GRAPH <${graphIri}> {
     VALUES ?intentId { ${intentLit} }
 
-    ?intent log:allOf ?expectation .
-
+    ?intent log:allOf ?intentAllOf .
     FILTER(REPLACE(STR(?intent), ".*[#/]", "") = ?intentId)
+    OPTIONAL { ?intentAllOf rdf:rest*/rdf:first ?intentMember . }
+    BIND(COALESCE(?intentMember, ?intentAllOf) AS ?expectation)
 
-    ?expectation log:allOf ?condition .
+    ?expectation log:allOf ?expectationAllOf .
+    OPTIONAL { ?expectationAllOf rdf:rest*/rdf:first ?expectationMember . }
+    BIND(COALESCE(?expectationMember, ?expectationAllOf) AS ?condition)
 
-    ?condition rdf:type icm:Condition ;
-               set:forAll ?metricNode .
+    ?condition rdf:type ?conditionType ;
+               set:forAll ?forAllObj .
+    FILTER(?conditionType IN (icm:Condition, log:Condition))
 
-    ?metricNode icm:valuesOfTargetProperty ?metric .
+    OPTIONAL { ?forAllObj rdf:rest*/rdf:first ?listMember . }
+    BIND(COALESCE(?listMember, ?forAllObj) AS ?metricNode)
+
+    ?metricNode icm:valuesOfTargetProperty ?metricObj .
+    OPTIONAL { ?metricObj rdf:rest*/rdf:first ?metricListMember . }
+    BIND(COALESCE(?metricListMember, ?metricObj) AS ?metric)
+    FILTER(isIRI(?metric))
   }
 }
 ORDER BY ?metric_name

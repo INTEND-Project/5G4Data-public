@@ -43,6 +43,25 @@ describe("graph-target-binding", () => {
     });
   });
 
+  it("wraps llmProvider in simulator metadata envelope v1", () => {
+    expect(
+      simulatorMetadataEnvelope({
+        llmProvider: "anthropic",
+        llmModel: "claude-sonnet-4-5",
+        llmApiBaseUrl: "https://api.anthropic.com",
+        temperature: 0.5,
+      }),
+    ).toEqual({
+      simulator: {
+        controllerBindingVersion: "1",
+        llmProvider: "anthropic",
+        llmModel: "claude-sonnet-4-5",
+        llmApiBaseUrl: "https://api.anthropic.com",
+        temperature: 0.5,
+      },
+    });
+  });
+
   it("wraps reportingIntervalMinutes in simulator metadata envelope v1", () => {
     expect(simulatorMetadataEnvelope({ reportingIntervalMinutes: 15 })).toEqual({
       simulator: {

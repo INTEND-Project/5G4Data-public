@@ -156,9 +156,9 @@ export function ObservationProgressBar({
         {!stuckPendingHint ? (
           <p className="workspace-hint workspace-observation-progress-indeterminate">
             Progress appears once the agent starts historic synthetic generation. If this never
-            updates, set OBSERVATION_AGENT_CONTROL_BASE_URL on the Controller to the agent kernel API
-            (e.g. http://127.0.0.1:3012/v1) when the public agent URL does not expose
-            observation-progress.
+            updates, check that the preferred observation agent is healthy and that Caddy routes
+            `/v1/observation-progress`. A bare localhost OBSERVATION_AGENT_CONTROL_BASE_URL is
+            ignored when the agent card URL is public (avoids 401 against the wrong agent port).
           </p>
         ) : null}
       </div>

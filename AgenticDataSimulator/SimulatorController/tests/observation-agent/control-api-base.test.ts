@@ -11,13 +11,31 @@ import {
 } from "@/lib/a2a/agent-control-url";
 
 describe("resolveObservationControlApiBase", () => {
-  it("uses override when set", () => {
+  it("ignores bare localhost override when card URL is a public host", () => {
     expect(
       resolveObservationControlApiBase(
-        "https://public.example/5g4data-intent-observation-generating-agent/v1",
+        "https://public.example/5g4data-intent-observation-schema-synth-agent/v1",
         "http://127.0.0.1:3012/v1",
       ),
-    ).toBe("http://127.0.0.1:3012/v1");
+    ).toBe("https://public.example/5g4data-intent-observation-schema-synth-agent/v1");
+  });
+
+  it("uses localhost override when rpc URL is also loopback", () => {
+    expect(
+      resolveObservationControlApiBase(
+        "http://127.0.0.1:3015/v1",
+        "http://127.0.0.1:3015/v1",
+      ),
+    ).toBe("http://127.0.0.1:3015/v1");
+  });
+
+  it("uses override that includes an agent path slug", () => {
+    expect(
+      resolveObservationControlApiBase(
+        "https://public.example/5g4data-intent-observation-schema-synth-agent/v1",
+        "https://public.example/5g4data-intent-observation-schema-synth-agent/v1",
+      ),
+    ).toBe("https://public.example/5g4data-intent-observation-schema-synth-agent/v1");
   });
 
   it("normalizes rpc url without /v1", () => {
@@ -28,13 +46,15 @@ describe("resolveObservationControlApiBase", () => {
 });
 
 describe("observation control URLs", () => {
-  it("builds progress URL from override", () => {
+  it("builds progress URL from discovered agent when localhost override would mismatch", () => {
     expect(
       observationProgressUrlFromAgentRpcUrl(
-        "https://public.example/agent/v1",
+        "https://public.example/5g4data-intent-observation-schema-synth-agent/v1",
         "http://127.0.0.1:3012/v1",
       ),
-    ).toBe("http://127.0.0.1:3012/v1/observation-progress");
+    ).toBe(
+      "https://public.example/5g4data-intent-observation-schema-synth-agent/v1/observation-progress",
+    );
   });
 
   it("builds errors URL from rpc base", () => {

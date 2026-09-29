@@ -8,6 +8,8 @@ from datetime import datetime
 from urllib.parse import parse_qs, quote, urlparse
 import logging
 
+from rdflib import Graph, Namespace
+
 app = Flask(__name__)
 
 # Configure logging
@@ -41,13 +43,32 @@ WHERE {
     BIND(IRI(CONCAT("http://5g4data.eu/5g4data#", "%s")) AS ?intent)
     BIND(IRI(CONCAT("http://5g4data.eu/5g4data#", "%s")) AS ?metric)
 
-    ?intent (log:allOf)+ ?condition .
-    ?condition a icm:Condition .
-    ?condition set:forAll ?forallBlock .
-    ?forallBlock icm:valuesOfTargetProperty ?metric .
+    ?intent log:allOf ?intentAllOf .
+    OPTIONAL { ?intentAllOf rdf:rest*/rdf:first ?intentMember . }
+    BIND(COALESCE(?intentMember, ?intentAllOf) AS ?expectation)
+
+    ?expectation log:allOf ?expectationAllOf .
+    OPTIONAL { ?expectationAllOf rdf:rest*/rdf:first ?expectationMember . }
+    BIND(COALESCE(?expectationMember, ?expectationAllOf) AS ?condition)
+
+    ?condition rdf:type ?conditionType ;
+               set:forAll ?forAllObj .
+    FILTER(?conditionType IN (icm:Condition, log:Condition))
+
+    {
+      OPTIONAL { ?forAllObj rdf:rest*/rdf:first ?metricBlock . }
+      BIND(COALESCE(?metricBlock, ?forAllObj) AS ?metricNode)
+      ?metricNode icm:valuesOfTargetProperty ?metricObj .
+      OPTIONAL { ?metricObj rdf:rest*/rdf:first ?metricListMember . }
+      BIND(COALESCE(?metricListMember, ?metricObj) AS ?foundMetric)
+      FILTER(?foundMetric = ?metric)
+    }
+
+    OPTIONAL { ?forAllObj rdf:rest*/rdf:first ?opBlockCandidate . }
+    BIND(COALESCE(?opBlockCandidate, ?forAllObj) AS ?opBlock)
 
     OPTIONAL {
-      ?forallBlock quan:inRange ?list .
+      ?opBlock quan:inRange ?list .
       ?list rdf:rest ?list1 .
       ?list1 rdf:first ?node2 .
       ?node2 rdf:value ?rangeLower .
@@ -59,15 +80,27 @@ WHERE {
     }
 
     OPTIONAL {
-      { ?forallBlock quan:larger ?boundNode . ?boundNode rdf:value ?largerValue . }
-      UNION
-      { ?forallBlock quan:atLeast ?boundNode . ?boundNode rdf:value ?largerValue . }
+      {
+        { ?opBlock quan:larger ?boundObj . }
+        UNION
+        { ?opBlock quan:greater ?boundObj . }
+        UNION
+        { ?opBlock quan:atLeast ?boundObj . }
+      }
+      OPTIONAL { ?boundObj rdf:rest*/rdf:first ?boundListMember . }
+      BIND(COALESCE(?boundListMember, ?boundObj) AS ?boundNode)
+      ?boundNode rdf:value ?largerValue .
     }
 
     OPTIONAL {
-      { ?forallBlock quan:smaller ?boundNode . ?boundNode rdf:value ?smallerValue . }
-      UNION
-      { ?forallBlock quan:atMost ?boundNode . ?boundNode rdf:value ?smallerValue . }
+      {
+        { ?opBlock quan:smaller ?boundObj2 . }
+        UNION
+        { ?opBlock quan:atMost ?boundObj2 . }
+      }
+      OPTIONAL { ?boundObj2 rdf:rest*/rdf:first ?boundListMember2 . }
+      BIND(COALESCE(?boundListMember2, ?boundObj2) AS ?boundNode2)
+      ?boundNode2 rdf:value ?smallerValue .
     }
 
     BIND(COALESCE(?rangeLower, ?largerValue, 1) AS ?value1)
@@ -83,6 +116,20 @@ WHERE {
 LIMIT 1
 """.strip()
 
+INTENT_TURTLE_CONSTRUCT_TEMPLATE = """
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+CONSTRUCT {
+  ?s ?p ?o .
+}
+WHERE {
+  GRAPH <%s> {
+    ?s ?p ?o .
+    <%s> (^!rdf:type|!rdf:type)* ?s .
+    FILTER(?p != rdf:type || ?o != rdf:List)
+  }
+}
+""".strip()
 
 def graphdb_auth_headers(extra=None):
     """HTTP Basic auth when GRAPHDB_USERNAME and GRAPHDB_PASSWORD are set."""
@@ -207,11 +254,42 @@ def validate_bounds_params(intent_id, condition_metric, graph_iri):
     }, None
 
 
+def normalize_intent_id(raw_intent_id):
+    """Normalize to canonical I + 32 hex (lowercase)."""
+    intent_id = (raw_intent_id or '').strip()
+    if not INTENT_ID_PATTERN.match(intent_id):
+        return None
+    return f"I{intent_id[1:].lower()}"
+
+
+def validate_get_intent_params(intent_id, graph_iri):
+    normalized = normalize_intent_id(intent_id)
+    graph_iri = (graph_iri or '').strip()
+    if not normalized:
+        return None, 'Invalid intent_id'
+    if not GRAPH_IRI_PATTERN.match(graph_iri):
+        return None, 'Invalid graph_iri'
+    return {
+        'intent_id': normalized,
+        'graph_iri': graph_iri,
+    }, None
+
+
+def intent_root_uri(intent_id):
+    return f"http://5g4data.eu/5g4data#{intent_id}"
+
+
 def build_bounds_sparql(intent_id, condition_metric, graph_iri):
     graph = sparql_escape_literal(graph_iri)
     intent = sparql_escape_literal(intent_id)
     metric = sparql_escape_literal(condition_metric)
     return BOUNDS_SPARQL_TEMPLATE % (graph, intent, metric)
+
+
+def build_intent_turtle_construct_query(graph_iri, intent_id):
+    graph = sparql_escape_literal(graph_iri)
+    root = intent_root_uri(intent_id)
+    return INTENT_TURTLE_CONSTRUCT_TEMPLATE % (graph, root)
 
 
 def run_graphdb_select(repository_id, sparql_query):
@@ -228,6 +306,74 @@ def run_graphdb_select(repository_id, sparql_query):
         logger.error('GraphDB bounds query failed: %s %s', response.status_code, response.text)
         return None
     return response.json()
+
+
+def run_graphdb_construct_turtle(repository_id, sparql_query):
+    response = requests.post(
+        f"{GRAPHDB_URL}/repositories/{repository_id}",
+        headers=graphdb_auth_headers({
+            'Content-Type': 'application/sparql-query',
+            'Accept': 'text/turtle',
+        }),
+        data=sparql_query,
+        timeout=30,
+    )
+    if response.status_code != 200:
+        logger.error(
+            'GraphDB intent CONSTRUCT failed: %s %s',
+            response.status_code,
+            response.text,
+        )
+        return None
+    return response.text
+
+
+def bind_intent_turtle_prefixes(graph):
+    """Bind Intent-Simulator-style prefixes for readable Turtle serialization."""
+    graph.bind("data5g", Namespace("http://5g4data.eu/5g4data#"))
+    graph.bind("icm", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/"))
+    graph.bind("log", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/"))
+    graph.bind("set", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/SetOperators/"))
+    graph.bind("quan", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/QuantityOntology/"))
+    graph.bind("dct", Namespace("http://purl.org/dc/terms/"))
+    graph.bind("geo", Namespace("http://www.opengis.net/ont/geosparql#"))
+    graph.bind("rdf", Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#"))
+    graph.bind("rdfs", Namespace("http://www.w3.org/2000/01/rdf-schema#"))
+    graph.bind("imo", Namespace("http://tio.models.tmforum.org/tio/v3.6.0/IntentManagementOntology/"))
+    graph.bind("time", Namespace("http://tio.models.tmforum.org/tio/v3.8.0/TimeOntology/"))
+    graph.bind("xsd", Namespace("http://www.w3.org/2001/XMLSchema#"))
+
+
+def format_intent_turtle(raw):
+    """
+    Re-serialize GraphDB CONSTRUCT Turtle with Intent-Simulator rdflib formatting.
+    Collapses RDF lists to ( … ) and applies compact prefixes. Returns raw on failure.
+    """
+    trimmed = (raw or "").strip()
+    if not trimmed:
+        return trimmed
+    try:
+        graph = Graph()
+        graph.parse(data=trimmed, format="turtle")
+        bind_intent_turtle_prefixes(graph)
+        serialized = graph.serialize(format="turtle")
+        if isinstance(serialized, bytes):
+            serialized = serialized.decode("utf-8")
+        return serialized.strip()
+    except Exception as exc:
+        logger.warning("Intent Turtle pretty-print failed; returning raw: %s", exc)
+        return trimmed
+
+
+def fetch_intent_turtle(repository_id, graph_iri, intent_id):
+    query = build_intent_turtle_construct_query(graph_iri, intent_id)
+    raw = run_graphdb_construct_turtle(repository_id, query)
+    if raw is None:
+        return None, 'GraphDB intent CONSTRUCT failed'
+    turtle = raw.strip()
+    if not turtle:
+        return None, 'No intent found'
+    return format_intent_turtle(turtle), None
 
 
 def parse_bounds_bindings(result):
@@ -992,6 +1138,38 @@ def get_metric_bounds():
         return jsonify({'error': f'Internal server error: {exc}', 'data': []}), 500
 
 
+@app.route('/api/get-intent/<intent_id>', methods=['GET'])
+def get_intent(intent_id):
+    """Fetch intent Turtle for Grafana Intent Turtle panel (Infinity datasource)."""
+    try:
+        repository_arg = request.args.get('repository_id') or request.args.get('repository')
+        repository_id, repo_error = resolve_repository_id(repository_arg)
+        if repo_error:
+            return jsonify({'error': repo_error}), 400
+
+        graph_iri = request.args.get('graph_iri')
+        params, params_error = validate_get_intent_params(intent_id, graph_iri)
+        if params_error:
+            return jsonify({'error': params_error}), 400
+
+        turtle, turtle_error = fetch_intent_turtle(
+            repository_id,
+            params['graph_iri'],
+            params['intent_id'],
+        )
+        if turtle_error:
+            status = 404 if turtle_error == 'No intent found' else 502
+            return jsonify({'error': turtle_error}), status
+
+        return jsonify({
+            'intent_id': params['intent_id'],
+            'data': turtle,
+        })
+    except Exception as exc:
+        logger.error('Error fetching intent Turtle: %s', exc)
+        return jsonify({'error': f'Internal server error: {exc}'}), 500
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """
@@ -1014,6 +1192,7 @@ def root():
             'get_metric_reports': '/api/get-metric-reports/<metric_name>',
             'get_metric_reports_legacy': '/api/get-metric-reports/<metric_name>?start=&end=&step= (no repository_id)',
             'get_metric_bounds': '/api/get-metric-bounds?repository_id=&graph_iri=&intent_id=&condition_metrics=',
+            'get_intent': '/api/get-intent/<intent_id>?repository_id=&graph_iri=',
             'health': '/health'
         }
     })

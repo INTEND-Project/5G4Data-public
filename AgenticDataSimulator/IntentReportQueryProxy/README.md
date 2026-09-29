@@ -112,6 +112,31 @@ curl "http://localhost:3010/api/get-metric-reports/computelatency_CO70ae24ceec1b
 }
 ```
 
+### Get Intent Turtle
+```
+GET /api/get-intent/<intent_id>?repository_id=<graphdb_repo>&graph_iri=<named_graph_iri>
+```
+
+Used by the Simulator metrics dashboard **Intent Turtle** panel (Infinity + Business Text).
+
+**Parameters:**
+- `intent_id`: Canonical intent local id (`I` + 32 hex)
+- `repository_id` (optional alias `repository`): GraphDB repository; falls back to `GRAPHDB_REPOSITORY`
+- `graph_iri`: Named graph IRI (`urn:intend:kg:…`)
+
+**Example:**
+```bash
+curl "http://localhost:3010/api/get-intent/Ib16bbf1bf2a541b887b94e2b73cf10dc?repository_id=telenor-5g4data-arneme-test&graph_iri=urn:intend:kg:telenor-5g4data:arneme:test"
+```
+
+**Response Format:**
+```json
+{
+  "intent_id": "Ib16bbf1bf2a541b887b94e2b73cf10dc",
+  "data": "@prefix data5g: <http://5g4data.eu/5g4data#> .\n..."
+}
+```
+
 ## Docker Configuration
 
 ### Environment Variables

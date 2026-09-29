@@ -185,5 +185,122 @@ class FormatForGrafanaInfinityTests(unittest.TestCase):
         self.assertEqual(rows[0]['timestamp'], 1779339649000)
 
 
+class GetIntentParamTests(unittest.TestCase):
+    def test_normalize_intent_id_lowercases_hex(self):
+        self.assertEqual(
+            proxy.normalize_intent_id("IB16BBF1BF2A541B887B94E2B73CF10DC"),
+            "Ib16bbf1bf2a541b887b94e2b73cf10dc",
+        )
+
+    def test_normalize_intent_id_rejects_invalid(self):
+        self.assertIsNone(proxy.normalize_intent_id("not-an-intent"))
+
+    def test_validate_get_intent_params_ok(self):
+        params, err = proxy.validate_get_intent_params(
+            "Ib16bbf1bf2a541b887b94e2b73cf10dc",
+            "urn:intend:kg:telenor-5g4data:arneme:test",
+        )
+        self.assertIsNone(err)
+        self.assertEqual(params["intent_id"], "Ib16bbf1bf2a541b887b94e2b73cf10dc")
+        self.assertEqual(params["graph_iri"], "urn:intend:kg:telenor-5g4data:arneme:test")
+
+    def test_validate_get_intent_params_rejects_bad_graph(self):
+        params, err = proxy.validate_get_intent_params(
+            "Ib16bbf1bf2a541b887b94e2b73cf10dc",
+            "http://example.com/not-a-kg-iri",
+        )
+        self.assertIsNone(params)
+        self.assertEqual(err, "Invalid graph_iri")
+
+
+class IntentTurtleConstructTests(unittest.TestCase):
+    def test_build_intent_turtle_construct_query_scopes_named_graph(self):
+        query = proxy.build_intent_turtle_construct_query(
+            "urn:intend:kg:telenor-5g4data:arneme:test",
+            "Ib16bbf1bf2a541b887b94e2b73cf10dc",
+        )
+        self.assertIn("GRAPH <urn:intend:kg:telenor-5g4data:arneme:test>", query)
+        self.assertIn(
+            "<http://5g4data.eu/5g4data#Ib16bbf1bf2a541b887b94e2b73cf10dc>",
+            query,
+        )
+        self.assertIn("CONSTRUCT", query)
+
+
+class FormatIntentTurtleTests(unittest.TestCase):
+    EXPANDED_LIST_TURTLE = """
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+<http://5g4data.eu/5g4data#Ib16bbf1bf2a541b887b94e2b73cf10dc>
+  a <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/Intent> ;
+  <http://tio.models.tmforum.org/tio/v3.6.0/LogicalOperators/allOf> _:l0 .
+_:l0 rdf:first <http://5g4data.eu/5g4data#CE1> ;
+     rdf:rest _:l1 .
+_:l1 rdf:first <http://5g4data.eu/5g4data#CE2> ;
+     rdf:rest rdf:nil .
+<http://5g4data.eu/5g4data#CE1> a <http://5g4data.eu/5g4data#DeploymentExpectation> .
+<http://5g4data.eu/5g4data#CE2> a <http://5g4data.eu/5g4data#NetworkExpectation> .
+""".strip()
+
+    def test_format_intent_turtle_collapses_lists_and_prefixes(self):
+        formatted = proxy.format_intent_turtle(self.EXPANDED_LIST_TURTLE)
+        self.assertIn("@prefix data5g:", formatted)
+        self.assertIn("icm:Intent", formatted)
+        self.assertIn("data5g:Ib16bbf1bf2a541b887b94e2b73cf10dc", formatted)
+        self.assertIn("log:allOf", formatted)
+        self.assertRegex(formatted, r"log:allOf\s*\(")
+        self.assertNotIn("_:l0", formatted)
+        self.assertNotIn("_:l1", formatted)
+        self.assertNotIn("http://5g4data.eu/5g4data#Ib16bbf1bf2a541b887b94e2b73cf10dc", formatted)
+
+    def test_format_intent_turtle_returns_raw_on_invalid_input(self):
+        invalid = "@prefix data5g: <http://5g4data.eu/5g4data#> . data5g:Ix a icm:Intent [ unclosed ."
+        self.assertEqual(proxy.format_intent_turtle(invalid), invalid)
+
+    def test_format_intent_turtle_empty(self):
+        self.assertEqual(proxy.format_intent_turtle(""), "")
+        self.assertEqual(proxy.format_intent_turtle("   "), "")
+
+
+class BoundsSparqlTests(unittest.TestCase):
+    def test_build_bounds_sparql_uses_rdf_list_unwrapping(self):
+        query = proxy.build_bounds_sparql(
+            "Ib16bbf1bf2a541b887b94e2b73cf10dc",
+            "p99-token-target_COc1a1d75bb4b745ec932ee49120a1e9ab",
+            "urn:intend:kg:telenor-5g4data:arneme:test",
+        )
+        self.assertIn("rdf:rest*/rdf:first", query)
+        self.assertIn("log:Condition", query)
+        self.assertIn("quan:greater", query)
+        self.assertIn("GRAPH <urn:intend:kg:telenor-5g4data:arneme:test>", query)
+
+
+class GetIntentRouteTests(unittest.TestCase):
+    def test_get_intent_returns_turtle_json(self):
+        client = proxy.app.test_client()
+        with patch.object(
+            proxy,
+            "fetch_intent_turtle",
+            return_value=("@prefix data5g: <http://5g4data.eu/5g4data#> .\n", None),
+        ):
+            response = client.get(
+                "/api/get-intent/Ib16bbf1bf2a541b887b94e2b73cf10dc"
+                "?repository_id=telenor-5g4data-arneme-test"
+                "&graph_iri=urn:intend:kg:telenor-5g4data:arneme:test"
+            )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["intent_id"], "Ib16bbf1bf2a541b887b94e2b73cf10dc")
+        self.assertIn("@prefix data5g:", payload["data"])
+
+    def test_get_intent_requires_graph_iri(self):
+        client = proxy.app.test_client()
+        response = client.get(
+            "/api/get-intent/Ib16bbf1bf2a541b887b94e2b73cf10dc"
+            "?repository_id=telenor-5g4data-arneme-test"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "Invalid graph_iri")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "samplingKind": "gauge",
+  "timeline": {
+    "mode": "historic",
+    "start": "2026-05-21T05:00:00Z",
+    "stop": "2026-05-22T05:00:00Z",
+    "frequencySeconds": 60
+  },
+  "metrics": [{ "name": "p99-token-target" }],
+  "defaultBand": { "min": 700, "max": 1500 },
+  "recurringWindows": [
+    {
+      "startHour": 6,
+      "endHour": 18,
+      "band": { "min": 500, "max": 1000 },
+      "noise": "low",
+      "dailyVariation": true
+    }
+  ],
+  "episodes": [
+    {
+      "type": "dip",
+      "windows": [
+        { "startHour": 8, "endHour": 9 },
+        { "startHour": 16, "endHour": 17 }
+      ],
+      "band": { "min": 200, "max": 300 },
+      "durationMinutes": { "min": 3, "max": 10 },
+      "countPerWindow": { "atLeast": 2 }
+    }
+  ],
+  "absoluteOverrides": [],
+  "noise": "low",
+  "seed": 42
+}

@@ -1,0 +1,14 @@
+{
+  "baseCapabilities": ["ontology_summary", "example_summary"],
+  "intentCapabilities": {
+    "observationReport": ["graphdb_candidates", "intent_turtle"],
+    "deployment": ["catalogue_summary"],
+    "networkQos": ["graphdb_candidates"],
+    "sustainability": ["catalogue_summary"]
+  },
+  "prompts": {
+    "runtimeContextHeader": "Runtime grounding context:",
+    "deploymentDatacenterClarificationTag": "[deployment datacenter clarification required]",
+    "selectedWorkloadTag": "[selected workload objectives]"
+  }
+}

@@ -1,0 +1,11 @@
+Emission rules:
+- Use TM Forum observation Turtle format:
+  - `met:Observation`
+  - `met:observedMetric`
+  - `met:observedValue` with `rdf:value` and `quan:unit`
+  - `met:obtainedAt` as `xsd:dateTime`
+- Observation subject MUST be a named resource: `data5g:OB<32-hex-uuid>` (simulator style).
+- Do NOT emit blank-node observation subjects like `_:obs1 a met:Observation`.
+- Preserve simulator-compatible observed metric naming:
+  - `<targetProperty>_<conditionId>` when available.
+- Emit one observation payload per condition per scheduled timestamp.

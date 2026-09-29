@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "samplingKind": "gauge",
+  "timeline": {
+    "mode": "historic",
+    "start": "2026-05-21T05:00:00Z",
+    "stop": "2026-05-22T05:00:00Z",
+    "frequencySeconds": 60
+  },
+  "metrics": [{ "name": "network-latency", "unit": "ms" }],
+  "defaultBand": { "min": 5, "max": 80 },
+  "recurringWindows": [],
+  "episodes": [],
+  "absoluteOverrides": [],
+  "noise": "low",
+  "level": { "mean": 25 },
+  "seasonality": { "periodHours": 24, "amplitude": 10, "phaseHours": 6 },
+  "residual": { "type": "ar1", "sigma": 3, "phi": 0.85 },
+  "seed": 42
+}

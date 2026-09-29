@@ -1,0 +1,29 @@
+{
+  "intent_id": "I9088ff61b8594773bbaad6f608bfc497",
+  "metricValueSpans": [
+    {
+      "conditionId": "CO4f85c1f2141642408ec011f177bb4315",
+      "min": 30,
+      "max": 55
+    }
+  ],
+  "eventRules": [
+    {
+      "event": "network-congestion",
+      "conditionId": "CO4f85c1f2141642408ec011f177bb4315",
+      "min": 35,
+      "max": 70,
+      "durationSeconds": 900
+    }
+  ],
+  "timeWindows": [
+    {
+      "startTime": "2026-05-01T10:00:00Z",
+      "endTime": "2026-05-01T10:30:00Z",
+      "conditionId": "CO4f85c1f2141642408ec011f177bb4315",
+      "min": 40,
+      "max": 65,
+      "frequencySeconds": 30
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "5g4data-intent-observation-schema-synth-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx --test tools/*.test.ts tools/schemaSynth/*.test.ts"
+  },
+  "dependencies": {
+    "n3": "^1.17.4",
+    "protobufjs": "^8.4.2",
+    "snappyjs": "^0.7.0",
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "^3.24.5"
+  },
+  "devDependencies": {
+    "@types/n3": "^1.26.1",
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

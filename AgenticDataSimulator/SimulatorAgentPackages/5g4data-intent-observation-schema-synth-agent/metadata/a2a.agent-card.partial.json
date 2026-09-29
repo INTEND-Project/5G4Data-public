@@ -1,0 +1,23 @@
+{
+  "protocolVersion": "0.3.0",
+  "name": "5g4data-intent-observation-schema-synth-agent",
+  "description": "Observation control via NL→constraint-schema→deterministic renderer for 5G4Data intents (historic and streaming).",
+  "domain": "telenor.5g4data",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
+  },
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["text/plain", "application/json"],
+  "skills": [
+    {
+      "id": "observe-intent",
+      "name": "Observe intent",
+      "description": "Map observation instructions to a ConstraintDocument, render deterministic series, and emit observation updates for an intent.",
+      "tags": ["5g4data", "intent", "observation", "reporting", "schema-synth", "discovery-task:observation-agent"],
+      "inputModes": ["text/plain", "application/json"],
+      "outputModes": ["text/plain", "application/json"]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "intentFlags": {
+    "observationReport": [
+      "observation",
+      "report",
+      "reporting",
+      "observationreportexpectation",
+      "metric",
+      "intent_id",
+      "intentid",
+      "intent id",
+      "intent identifier"
+    ],
+    "instructionsProvided": [
+      "instruction",
+      "event",
+      "time window",
+      "value span",
+      "from time",
+      "to time",
+      "noGraphDB",
+      "--nographdb"
+    ],
+    "deployment": ["deployment", "workload", "model", "inference"],
+    "networkQos": ["network", "latency", "bandwidth", "qos"],
+    "sustainability": ["sustainability", "energy", "joules", "watts"]
+  }
+}

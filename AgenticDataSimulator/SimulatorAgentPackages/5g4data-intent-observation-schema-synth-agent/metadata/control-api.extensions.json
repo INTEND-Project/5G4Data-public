@@ -1,0 +1,73 @@
+{
+  "paths": {
+    "/v1/observation-progress": {
+      "get": {
+        "operationId": "getObservationProgress",
+        "summary": "Latest tick-accurate observation generation progress for an intent.",
+        "parameters": [
+          {
+            "name": "intentId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Active progress snapshot or idle." },
+          "400": { "description": "Missing intentId." },
+          "501": { "description": "Not supported by this package." }
+        }
+      }
+    },
+    "/v1/observation-errors": {
+      "get": {
+        "operationId": "getObservationErrors",
+        "summary": "Recent observation agent errors (Prometheus write failures, worker exits).",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 200 }
+          }
+        ],
+        "responses": {
+          "200": { "description": "NDJSON-backed error entries." },
+          "501": { "description": "Not supported by this package." }
+        }
+      }
+    },
+    "/v1/control/intent-observations/override": {
+      "post": {
+        "operationId": "setObservationOverride",
+        "summary": "Declare per-intent reporting override parameters.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "intentId": { "type": "string" },
+                  "metricName": { "type": "string" },
+                  "frequencySeconds": { "type": "integer", "minimum": 1 },
+                  "status": { "type": "string" }
+                },
+                "required": ["intentId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "501": { "description": "Extension declared by package; route not implemented in kernel runtime." }
+        }
+      }
+    }
+  }
+}

@@ -16,12 +16,16 @@ Sibling observation agent for Controller Studio. Maps NL observation instruction
 
 ## Controller Studio usage
 
+Supported `request observation-report` statement shapes and NL instruction variations are documented in [`DSL-Observations.md`](DSL-Observations.md).
+
 ```text
 discover observation-agent by domain telenor.5g4data as obs
 request observation-report using obs for myIntent storage prometheus instructions "`mode=historic`, …" as sess
 ```
 
 When both observation agents are registered, star **schema-synth** in the Agents panel (preferred agent) so discover picks this card.
+
+New instruction variations are possible, but they imply a **JSON schema** change (`tools/schemaSynth/schema/types.ts` / ConstraintDocument) and matching **renderer** code (`tools/schemaSynth/render/renderer.ts`), plus NL→schema mapping updates—not DSL docs alone.
 
 ## Load / start
 

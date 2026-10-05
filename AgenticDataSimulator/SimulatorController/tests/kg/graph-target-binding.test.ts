@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildGraphTargetBinding,
+  hasSimulatorMetadataFields,
   simulatorMetadataEnvelope,
 } from "../../src/lib/kg/graph-target-binding";
 
@@ -78,6 +79,28 @@ describe("graph-target-binding", () => {
         reportingIntervalSeconds: 60,
       },
     });
+  });
+
+  it("wraps observation status settings in simulator metadata envelope v1", () => {
+    expect(
+      simulatorMetadataEnvelope({
+        observationRetentionWindow: "5m",
+        intentStatusReportsEnabled: true,
+        intentStatusBootstrapCompliantDelay: "1m",
+      }),
+    ).toEqual({
+      simulator: {
+        controllerBindingVersion: "1",
+        observationRetentionWindow: "5m",
+        intentStatusReportsEnabled: true,
+        intentStatusBootstrapCompliantDelay: "1m",
+      },
+    });
+    expect(
+      hasSimulatorMetadataFields({
+        intentStatusReportsEnabled: false,
+      }),
+    ).toBe(true);
   });
 
   it("wraps system prompt, few-shots, numCtx, and stop sequences", () => {

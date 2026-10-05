@@ -11,11 +11,15 @@ import {
 import {
   ANTHROPIC_MODEL_SUGGESTIONS,
   DEFAULT_AGENT_TEMPERATURE,
+  DEFAULT_INTENT_STATUS_BOOTSTRAP_DELAY,
+  DEFAULT_INTENT_STATUS_REPORTS_ENABLED,
   DEFAULT_LLM_API_BASE_URL_SUGGESTIONS,
+  DEFAULT_OBSERVATION_RETENTION_WINDOW,
   DEFAULT_REPORTING_INTERVAL_MINUTES,
   STOP_SEQUENCES_HELP_TEXT,
   clampNumCtx,
   isIntentGenerationAgent,
+  isObservationAgent,
   llmApiBaseUrlSuggestions,
   normalizeAgentLlmPreference,
   normalizeLlmApiBaseUrl,
@@ -115,6 +119,7 @@ export function AgentSettingsDialog({
 }: AgentSettingsDialogProps) {
   const { preference, hasStored, setPreference, clearPreference } = useAgentLlmPreferences(agentName);
   const showReportingInterval = isIntentGenerationAgent(agentName);
+  const showObservationStatusSettings = isObservationAgent(agentName);
   const [provider, setProvider] = useState<AgentLlmProvider>("openai");
   const [model, setModel] = useState("");
   const [apiBaseUrl, setApiBaseUrl] = useState("");
@@ -125,6 +130,14 @@ export function AgentSettingsDialog({
   const [reportingIntervalMinutes, setReportingIntervalMinutes] = useState(
     DEFAULT_REPORTING_INTERVAL_MINUTES,
   );
+  const [observationRetentionWindow, setObservationRetentionWindow] = useState(
+    DEFAULT_OBSERVATION_RETENTION_WINDOW,
+  );
+  const [intentStatusReportsEnabled, setIntentStatusReportsEnabled] = useState(
+    DEFAULT_INTENT_STATUS_REPORTS_ENABLED,
+  );
+  const [intentStatusBootstrapCompliantDelay, setIntentStatusBootstrapCompliantDelay] =
+    useState(DEFAULT_INTENT_STATUS_BOOTSTRAP_DELAY);
   const [systemPromptDraft, setSystemPromptDraft] = useState("");
   const [systemPromptCustomized, setSystemPromptCustomized] = useState(false);
   const [fewShotMessages, setFewShotMessages] = useState<FewShotMessage[]>([]);
@@ -248,6 +261,15 @@ export function AgentSettingsDialog({
       setReportingIntervalMinutes(
         preference.reportingIntervalMinutes ?? DEFAULT_REPORTING_INTERVAL_MINUTES,
       );
+      setObservationRetentionWindow(
+        preference.observationRetentionWindow ?? DEFAULT_OBSERVATION_RETENTION_WINDOW,
+      );
+      setIntentStatusReportsEnabled(
+        preference.intentStatusReportsEnabled ?? DEFAULT_INTENT_STATUS_REPORTS_ENABLED,
+      );
+      setIntentStatusBootstrapCompliantDelay(
+        preference.intentStatusBootstrapCompliantDelay ?? DEFAULT_INTENT_STATUS_BOOTSTRAP_DELAY,
+      );
       const customized = typeof preference.systemPrompt === "string";
       setSystemPromptCustomized(customized);
       setSystemPromptDraft(
@@ -278,6 +300,9 @@ export function AgentSettingsDialog({
     setCustomModelMode(false);
     setTemperature(runtimeDefaults?.temperature ?? DEFAULT_AGENT_TEMPERATURE);
     setReportingIntervalMinutes(DEFAULT_REPORTING_INTERVAL_MINUTES);
+    setObservationRetentionWindow(DEFAULT_OBSERVATION_RETENTION_WINDOW);
+    setIntentStatusReportsEnabled(DEFAULT_INTENT_STATUS_REPORTS_ENABLED);
+    setIntentStatusBootstrapCompliantDelay(DEFAULT_INTENT_STATUS_BOOTSTRAP_DELAY);
     setSystemPromptCustomized(false);
     setSystemPromptDraft(runtimeDefaults?.systemPrompt ?? "");
     setFewShotMessages([]);
@@ -293,6 +318,9 @@ export function AgentSettingsDialog({
     preference.provider,
     preference.temperature,
     preference.reportingIntervalMinutes,
+    preference.observationRetentionWindow,
+    preference.intentStatusReportsEnabled,
+    preference.intentStatusBootstrapCompliantDelay,
     preference.systemPrompt,
     preference.fewShotMessages,
     preference.numCtx,
@@ -472,6 +500,9 @@ export function AgentSettingsDialog({
     setCustomModelMode(false);
     setTemperature(runtimeDefaults?.temperature ?? DEFAULT_AGENT_TEMPERATURE);
     setReportingIntervalMinutes(DEFAULT_REPORTING_INTERVAL_MINUTES);
+    setObservationRetentionWindow(DEFAULT_OBSERVATION_RETENTION_WINDOW);
+    setIntentStatusReportsEnabled(DEFAULT_INTENT_STATUS_REPORTS_ENABLED);
+    setIntentStatusBootstrapCompliantDelay(DEFAULT_INTENT_STATUS_BOOTSTRAP_DELAY);
     setSystemPromptCustomized(false);
     setSystemPromptDraft(runtimeDefaults?.systemPrompt ?? "");
     setFewShotMessages([]);
@@ -539,6 +570,13 @@ export function AgentSettingsDialog({
               ),
             }
           : {}),
+        ...(showObservationStatusSettings
+          ? {
+              observationRetentionWindow,
+              intentStatusReportsEnabled,
+              intentStatusBootstrapCompliantDelay,
+            }
+          : {}),
         ...(systemPromptCustomized
           ? {
               systemPrompt: nextSystemPrompt ?? "",
@@ -561,6 +599,10 @@ export function AgentSettingsDialog({
     reportingIntervalMinutes,
     setPreference,
     showReportingInterval,
+    showObservationStatusSettings,
+    observationRetentionWindow,
+    intentStatusReportsEnabled,
+    intentStatusBootstrapCompliantDelay,
     stopSequencesText,
     systemPromptCustomized,
     systemPromptDraft,
@@ -870,6 +912,62 @@ export function AgentSettingsDialog({
             <p className="workspace-hint">
               Default is {DEFAULT_REPORTING_INTERVAL_MINUTES} minutes. Used for observation
               report triggers in generated intents (per-expectation event URIs).
+            </p>
+          </>
+        ) : null}
+
+        {showObservationStatusSettings ? (
+          <>
+            <label className="workspace-label" htmlFor="workspace-agent-settings-status-reports">
+              <input
+                checked={intentStatusReportsEnabled}
+                id="workspace-agent-settings-status-reports"
+                onChange={(event) => setIntentStatusReportsEnabled(event.target.checked)}
+                type="checkbox"
+              />{" "}
+              Intent status reports
+            </label>
+            <p className="workspace-hint">
+              Off by default. When on, schema-synth attaches an IntentStatusEvaluator and DSL
+              requires one multi-metric observation-report per intent (or set{" "}
+              <code>`status_reports=on`</code> in instructions).
+            </p>
+            <label
+              className="workspace-label"
+              htmlFor="workspace-agent-settings-retention"
+            >
+              Status retention window
+            </label>
+            <input
+              className="workspace-input"
+              id="workspace-agent-settings-retention"
+              onChange={(event) => setObservationRetentionWindow(event.target.value)}
+              placeholder={DEFAULT_OBSERVATION_RETENTION_WINDOW}
+              type="text"
+              value={observationRetentionWindow}
+            />
+            <p className="workspace-hint">
+              Default {DEFAULT_OBSERVATION_RETENTION_WINDOW}. Duration for compliance samples
+              (e.g. <code>5m</code>, <code>60s</code>). Overridable via{" "}
+              <code>`retention=…`</code> in instructions.
+            </p>
+            <label
+              className="workspace-label"
+              htmlFor="workspace-agent-settings-bootstrap-delay"
+            >
+              Status bootstrap delay
+            </label>
+            <input
+              className="workspace-input"
+              id="workspace-agent-settings-bootstrap-delay"
+              onChange={(event) => setIntentStatusBootstrapCompliantDelay(event.target.value)}
+              placeholder={DEFAULT_INTENT_STATUS_BOOTSTRAP_DELAY}
+              type="text"
+              value={intentStatusBootstrapCompliantDelay}
+            />
+            <p className="workspace-hint">
+              Default {DEFAULT_INTENT_STATUS_BOOTSTRAP_DELAY}. Delay after{" "}
+              <code>StateIntentReceived</code> before first <code>StateCompliant</code>.
             </p>
           </>
         ) : null}

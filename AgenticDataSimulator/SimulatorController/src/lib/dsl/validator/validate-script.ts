@@ -2,6 +2,7 @@ import type { DslDiagnostic, DslStatement } from "@/lib/dsl/types";
 import { parseCanonicalIntentLocalId } from "@/lib/intent/extract-intent-turtle";
 import { validateHistoricObservationTickCap } from "@/lib/dsl/validator/validate-historic-observation-ticks";
 import { validateObservationReportModeMix } from "@/lib/dsl/validator/validate-observation-report-modes";
+import { validateObservationStatusReportSingleStatement } from "@/lib/dsl/validator/validate-observation-status-reports";
 
 export function validateScript(statements: DslStatement[]): DslDiagnostic[] {
   const diagnostics: DslDiagnostic[] = [];
@@ -114,6 +115,7 @@ export function validateScript(statements: DslStatement[]): DslDiagnostic[] {
   }
 
   diagnostics.push(...validateObservationReportModeMix(statements));
+  diagnostics.push(...validateObservationStatusReportSingleStatement(statements));
 
   return diagnostics;
 }

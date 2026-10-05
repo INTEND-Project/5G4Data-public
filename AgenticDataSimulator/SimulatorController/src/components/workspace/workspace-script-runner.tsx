@@ -950,10 +950,13 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
                 setObservationProgressForIntent(intentId, body.progress);
               }
               if (body.progress.phase === "completed") {
+                // Stop polling this intent, but retain the completed snapshot for the
+                // Intents panel (clearIntentAwaitingObservation no longer wipes progress).
                 clearIntentAwaitingObservation(intentId);
                 if (progressIntentId !== intentId) {
                   clearIntentAwaitingObservation(progressIntentId);
                 }
+                notifyStorageChanged();
               }
               return;
             }
@@ -984,6 +987,7 @@ export const WorkspaceScriptRunner = memo(function WorkspaceScriptRunner({
     clearIntentAwaitingObservation,
     historicObservationIntentIds.size,
     intentIdsAwaitingObservation,
+    notifyStorageChanged,
     selectedDomain,
     setObservationProgressForIntent,
   ]);

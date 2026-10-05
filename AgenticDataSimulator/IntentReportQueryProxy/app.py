@@ -10,6 +10,8 @@ import logging
 
 from rdflib import Graph, Namespace
 
+from intent_metric_bounds import close_bounds_for_grafana, extract_metric_bounds_from_turtle
+
 app = Flask(__name__)
 
 # Configure logging
@@ -27,6 +29,11 @@ PROMETHEUS_EXECUTOR_URL = os.environ.get(
 REPOSITORY_ID_PATTERN = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
 INTENT_ID_PATTERN = re.compile(r'^I[a-f0-9]{32}$', re.IGNORECASE)
 COMPOUND_METRIC_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*_CO[a-f0-9]{32}$', re.IGNORECASE)
+# Stem (e.g. energy-consumption) or full compound token (..._COuuid)
+CONDITION_METRIC_PATTERN = re.compile(
+    r'^[a-zA-Z0-9][a-zA-Z0-9_-]*(?:_CO[a-f0-9]{32})?$',
+    re.IGNORECASE,
+)
 GRAPH_IRI_PATTERN = re.compile(r'^urn:intend:kg:[a-zA-Z0-9][a-zA-Z0-9._:-]*$')
 
 BOUNDS_SPARQL_TEMPLATE = """
@@ -64,7 +71,16 @@ WHERE {
       FILTER(?foundMetric = ?metric)
     }
 
-    OPTIONAL { ?forAllObj rdf:rest*/rdf:first ?opBlockCandidate . }
+    OPTIONAL { ?forAllObj rdf:rest*/rdf:first ?opBlockCandidate .
+      FILTER(
+        EXISTS { ?opBlockCandidate quan:inRange ?_ir } ||
+        EXISTS { ?opBlockCandidate quan:larger ?_l } ||
+        EXISTS { ?opBlockCandidate quan:greater ?_g } ||
+        EXISTS { ?opBlockCandidate quan:atLeast ?_a } ||
+        EXISTS { ?opBlockCandidate quan:smaller ?_s } ||
+        EXISTS { ?opBlockCandidate quan:atMost ?_m }
+      )
+    }
     BIND(COALESCE(?opBlockCandidate, ?forAllObj) AS ?opBlock)
 
     OPTIONAL {
@@ -103,14 +119,11 @@ WHERE {
       ?boundNode2 rdf:value ?smallerValue .
     }
 
-    BIND(COALESCE(?rangeLower, ?largerValue, 1) AS ?value1)
-    BIND(COALESCE(
-      ?rangeUpper,
-      IF(BOUND(?largerValue), IF(?largerValue * 1000 > 1000000, ?largerValue * 1000, 1000000), ?largerValue),
-      ?smallerValue
-    ) AS ?value2)
+    # Real bounds only — do not invent fake floor=1 / ceiling=1e6 for one-sided quan ops.
+    BIND(COALESCE(?rangeLower, ?largerValue) AS ?value1)
+    BIND(COALESCE(?rangeUpper, ?smallerValue) AS ?value2)
 
-    FILTER(BOUND(?value1) && BOUND(?value2))
+    FILTER(BOUND(?value1) || BOUND(?value2))
   }
 }
 LIMIT 1
@@ -243,7 +256,7 @@ def validate_bounds_params(intent_id, condition_metric, graph_iri):
     graph_iri = (graph_iri or '').strip()
     if not INTENT_ID_PATTERN.match(intent_id):
         return None, 'Invalid intent_id'
-    if not COMPOUND_METRIC_PATTERN.match(condition_metric):
+    if not CONDITION_METRIC_PATTERN.match(condition_metric):
         return None, 'Invalid condition_metrics'
     if not GRAPH_IRI_PATTERN.match(graph_iri):
         return None, 'Invalid graph_iri'
@@ -396,9 +409,14 @@ def parse_bounds_bindings(result):
 
     value1 = numeric('value1')
     value2 = numeric('value2')
-    if value1 is None or value2 is None:
+    if value1 is None and value2 is None:
         return None
-    return {'value1': value1, 'value2': value2}
+    out = {}
+    if value1 is not None:
+        out['value1'] = value1
+    if value2 is not None:
+        out['value2'] = value2
+    return out
 
 
 PROMETHEUS_STEP_PATTERN = re.compile(
@@ -608,18 +626,18 @@ def query_intent_metric_bounds(intent_id, condition_metric, graph_iri, repositor
     params, error = validate_bounds_params(intent_id, condition_metric, graph_iri)
     if error:
         return None, error
-    sparql_query = build_bounds_sparql(
-        params['intent_id'],
-        params['condition_metric'],
+    turtle, turtle_error = fetch_intent_turtle(
+        repository_id,
         params['graph_iri'],
+        params['intent_id'],
     )
-    result = run_graphdb_select(repository_id, sparql_query)
-    if result is None:
-        return None, 'GraphDB bounds query failed'
-    bounds = parse_bounds_bindings(result)
+    if turtle_error:
+        return None, turtle_error
+    bounds = extract_metric_bounds_from_turtle(turtle, params['condition_metric'])
     if bounds is None:
         return None, 'No intent bounds found for metric'
-    return bounds, None
+    # Close open OK-sides so Grafana threshold areas paint floor/ceiling correctly.
+    return close_bounds_for_grafana(bounds), None
 
 
 def get_metric_query(metric_name, repository_id):

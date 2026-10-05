@@ -11,6 +11,8 @@ export interface ConditionMetric {
 export interface ConditionConstraint {
   threshold?: number;
   quantifier?: string;
+  rangeMin?: number;
+  rangeMax?: number;
 }
 
 const RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
@@ -168,6 +170,16 @@ function collectConditionMetricsFromNode(
   });
 }
 
+function numericValuesFromListNode(store: Store, listHead: Term): number[] {
+  const values: number[] = [];
+  for (const member of rdfListMembers(store, listHead)) {
+    const direct = objectLocalsByPredicateLocal(store, member, "value")[0];
+    const n = Number(direct);
+    if (Number.isFinite(n)) values.push(n);
+  }
+  return values;
+}
+
 function parseConditionConstraint(store: Store, ...nodes: Term[]): ConditionConstraint {
   for (const node of nodes) {
     for (const q of store.getQuads(node, null, null, null)) {
@@ -179,6 +191,18 @@ function parseConditionConstraint(store: Store, ...nodes: Term[]): ConditionCons
         predLocal !== "greater" &&
         predLocal !== "inRange"
       ) {
+        continue;
+      }
+      if (predLocal === "inRange") {
+        const nums = numericValuesFromListNode(store, q.object);
+        if (nums.length >= 2) {
+          const sorted = [...nums].sort((a, b) => a - b);
+          return {
+            quantifier: "quan:inRange",
+            rangeMin: sorted[0],
+            rangeMax: sorted[sorted.length - 1],
+          };
+        }
         continue;
       }
       for (const qtyNode of rdfListMembers(store, q.object)) {

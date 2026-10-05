@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx --test tools/*.test.ts tools/schemaSynth/*.test.ts"
+    "test": "tsx --test tools/*.test.ts tools/schemaSynth/*.test.ts tests/*.test.ts"
   },
   "dependencies": {
     "n3": "^1.17.4",

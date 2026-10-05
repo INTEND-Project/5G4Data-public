@@ -29,6 +29,9 @@ interface ReplObserveHookContext {
     sessionId: string;
     llmProviderOverride?: "openai" | "anthropic" | null;
     llmModelOverride?: string | null;
+    observationRetentionWindow?: number;
+    intentStatusReportsEnabled?: boolean;
+    intentStatusBootstrapCompliantDelay?: number;
   } & SessionPrometheusBinding;
   debug: boolean;
   debugLogPath: string;
@@ -130,6 +133,11 @@ async function handleReplLineInner(
         observationStorageOverride: ctx.observationStorageOverride,
         createIntentStorage: ctx.createIntentStorage,
         schemaLlm: schemaLlmFromSession(ctx.session),
+        statusSession: {
+          observationRetentionWindow: ctx.session.observationRetentionWindow,
+          intentStatusReportsEnabled: ctx.session.intentStatusReportsEnabled,
+          intentStatusBootstrapCompliantDelay: ctx.session.intentStatusBootstrapCompliantDelay,
+        },
       });
       if (synth.started && synth.assistantText !== undefined) {
         return { handled: true, assistantText: synth.assistantText };
@@ -181,6 +189,11 @@ async function handleReplLineInner(
       createIntentStorage: ctx.createIntentStorage,
       force: true,
       schemaLlm: schemaLlmFromSession(ctx.session),
+      statusSession: {
+        observationRetentionWindow: ctx.session.observationRetentionWindow,
+        intentStatusReportsEnabled: ctx.session.intentStatusReportsEnabled,
+        intentStatusBootstrapCompliantDelay: ctx.session.intentStatusBootstrapCompliantDelay,
+      },
     });
     if (synth.assistantText !== undefined) {
       return { handled: true, assistantText: synth.assistantText };

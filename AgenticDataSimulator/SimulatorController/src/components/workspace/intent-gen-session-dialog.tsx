@@ -348,6 +348,16 @@ export function IntentGenSessionDialog({
         if (llmFields.stopSequences?.length) {
           payload.stopSequences = llmFields.stopSequences;
         }
+        if (llmFields.observationRetentionWindow) {
+          payload.observationRetentionWindow = llmFields.observationRetentionWindow;
+        }
+        if (typeof llmFields.intentStatusReportsEnabled === "boolean") {
+          payload.intentStatusReportsEnabled = llmFields.intentStatusReportsEnabled;
+        }
+        if (llmFields.intentStatusBootstrapCompliantDelay) {
+          payload.intentStatusBootstrapCompliantDelay =
+            llmFields.intentStatusBootstrapCompliantDelay;
+        }
         const trimmedPrometheusBase = prometheusBaseUrl.trim();
         if (trimmedPrometheusBase) {
           payload.prometheusBaseUrl = trimmedPrometheusBase;

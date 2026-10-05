@@ -112,6 +112,21 @@ test("parseSimulatorControllerMetadata accepts reportingIntervalSeconds", () => 
   assert.equal(parsed.reportingIntervalMinutes, null);
 });
 
+test("parseSimulatorControllerMetadata accepts intent status fields", () => {
+  const parsed = parseSimulatorControllerMetadata({
+    simulator: {
+      controllerBindingVersion: "1",
+      observationRetentionWindow: "5m",
+      intentStatusReportsEnabled: true,
+      intentStatusBootstrapCompliantDelay: "1m",
+    },
+  });
+  assert.ok(parsed);
+  assert.equal(parsed.observationRetentionWindow, 300);
+  assert.equal(parsed.intentStatusReportsEnabled, true);
+  assert.equal(parsed.intentStatusBootstrapCompliantDelay, 60);
+});
+
 test("parseSimulatorControllerMetadata accepts systemPrompt few-shots numCtx and stopSequences", () => {
   const parsed = parseSimulatorControllerMetadata({
     simulator: {

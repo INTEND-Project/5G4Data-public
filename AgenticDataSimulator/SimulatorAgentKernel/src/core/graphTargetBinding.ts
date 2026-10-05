@@ -68,6 +68,9 @@ export type SimulatorControllerMetadata = {
   temperature: number | null;
   reportingIntervalMinutes: number | null;
   reportingIntervalSeconds: number | null;
+  observationRetentionWindow: number | null;
+  intentStatusReportsEnabled: boolean | null;
+  intentStatusBootstrapCompliantDelay: number | null;
   systemPrompt: string | null;
   fewShotMessages: SimulatorFewShotMessage[] | null;
   numCtx: number | null;
@@ -103,6 +106,43 @@ function parseReportingIntervalSecondsField(value: unknown): number | null {
   if (typeof value === "string" && value.trim()) {
     const parsed = Number.parseInt(value.trim(), 10);
     if (Number.isFinite(parsed)) return clampReportingIntervalSeconds(parsed);
+  }
+  return null;
+}
+
+/** Parse `5m` / `60s` / `1h` or a bare seconds number into seconds. */
+function parseDurationSecondsField(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.min(86_400, Math.max(1, Math.round(value)));
+  }
+  if (typeof value !== "string" || !value.trim()) return null;
+  const s = value.trim().toLowerCase();
+  const mSec = /^(\d+(?:\.\d+)?)s$/i.exec(s);
+  if (mSec) {
+    const n = Number(mSec[1]);
+    return Number.isFinite(n) && n > 0 ? Math.min(86_400, Math.max(1, Math.round(n))) : null;
+  }
+  const mMin = /^(\d+(?:\.\d+)?)m$/i.exec(s);
+  if (mMin) {
+    const n = Number(mMin[1]);
+    return Number.isFinite(n) && n > 0 ? Math.min(86_400, Math.max(1, Math.round(n * 60))) : null;
+  }
+  const mHour = /^(\d+(?:\.\d+)?)h$/i.exec(s);
+  if (mHour) {
+    const n = Number(mHour[1]);
+    return Number.isFinite(n) && n > 0 ? Math.min(86_400, Math.max(1, Math.round(n * 3600))) : null;
+  }
+  const n = Number(s);
+  if (Number.isFinite(n) && n > 0) return Math.min(86_400, Math.max(1, Math.round(n)));
+  return null;
+}
+
+function parseBooleanField(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const t = value.trim().toLowerCase();
+    if (t === "true" || t === "on" || t === "1" || t === "yes") return true;
+    if (t === "false" || t === "off" || t === "0" || t === "no") return false;
   }
   return null;
 }
@@ -156,6 +196,13 @@ export function parseSimulatorControllerMetadata(metadata: unknown): SimulatorCo
   const reportingIntervalSeconds = parseReportingIntervalSecondsField(
     simulator.reportingIntervalSeconds
   );
+  const observationRetentionWindow = parseDurationSecondsField(
+    simulator.observationRetentionWindow
+  );
+  const intentStatusReportsEnabled = parseBooleanField(simulator.intentStatusReportsEnabled);
+  const intentStatusBootstrapCompliantDelay = parseDurationSecondsField(
+    simulator.intentStatusBootstrapCompliantDelay
+  );
   const systemPrompt =
     typeof simulator.systemPrompt === "string" ? simulator.systemPrompt : null;
   let fewShotMessages: SimulatorFewShotMessage[] | null = null;
@@ -199,6 +246,9 @@ export function parseSimulatorControllerMetadata(metadata: unknown): SimulatorCo
     temperature === null &&
     reportingIntervalMinutes === null &&
     reportingIntervalSeconds === null &&
+    observationRetentionWindow === null &&
+    intentStatusReportsEnabled === null &&
+    intentStatusBootstrapCompliantDelay === null &&
     systemPrompt === null &&
     !fewShotMessages &&
     numCtx === null &&
@@ -219,6 +269,9 @@ export function parseSimulatorControllerMetadata(metadata: unknown): SimulatorCo
     temperature,
     reportingIntervalMinutes,
     reportingIntervalSeconds,
+    observationRetentionWindow,
+    intentStatusReportsEnabled,
+    intentStatusBootstrapCompliantDelay,
     systemPrompt,
     fewShotMessages,
     numCtx,

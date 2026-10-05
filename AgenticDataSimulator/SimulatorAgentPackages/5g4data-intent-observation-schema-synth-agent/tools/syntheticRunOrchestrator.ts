@@ -20,8 +20,10 @@ import {
 import { ObservationTool } from "./observationTool.js";
 import type { ObservationStorageId } from "./observationStorageTypes.js";
 import { DEFAULT_OBSERVATION_STORAGE } from "./observationStorageTypes.js";
+import { IntentStatusEvaluator, DEFAULT_STATUS_BOOTSTRAP_DELAY_SECONDS } from "./intentStatusEvaluator.js";
+import { SampleBus } from "./sampleBus.js";
 import { looksLikeSyntheticObservationPrompt, parseSyntheticPrompt } from "./syntheticPrompt.js";
-import type { ParsedSyntheticPrompt } from "./syntheticPrompt.js";
+import type { ParsedSyntheticPrompt, SyntheticMode } from "./syntheticPrompt.js";
 import {
   nlToConstraintDocument,
   parseConstraintDocument,
@@ -33,7 +35,135 @@ interface SpawnedSynth {
   child: ChildProcess;
 }
 
-const sessions = new Map<string, SpawnedSynth[]>();
+export interface SyntheticStatusSessionSettings {
+  observationRetentionWindow?: number;
+  intentStatusReportsEnabled?: boolean;
+  intentStatusBootstrapCompliantDelay?: number;
+}
+
+export interface ResolvedSyntheticStatusSettings {
+  statusReportsEnabled: boolean;
+  retentionSeconds: number;
+  bootstrapCompliantDelaySeconds?: number;
+}
+
+const DEFAULT_RETENTION_SECONDS = 300;
+
+export function resolveSyntheticStatusSettings(
+  parsed: ParsedSyntheticPrompt,
+  session?: SyntheticStatusSessionSettings | null,
+): ResolvedSyntheticStatusSettings {
+  const statusReportsEnabled =
+    parsed.statusReportsEnabled ?? session?.intentStatusReportsEnabled ?? false;
+  const retentionSeconds =
+    parsed.retentionSeconds ??
+    session?.observationRetentionWindow ??
+    DEFAULT_RETENTION_SECONDS;
+  const bootstrapCompliantDelaySeconds =
+    parsed.bootstrapCompliantDelaySeconds ??
+    session?.intentStatusBootstrapCompliantDelay ??
+    (statusReportsEnabled ? DEFAULT_STATUS_BOOTSTRAP_DELAY_SECONDS : undefined);
+  return {
+    statusReportsEnabled,
+    retentionSeconds,
+    ...(bootstrapCompliantDelaySeconds !== undefined
+      ? { bootstrapCompliantDelaySeconds }
+      : {}),
+  };
+}
+
+export interface GenerationRun {
+  runId: string;
+  sessionId: string;
+  intentId: string;
+  mode: SyntheticMode;
+  frequencySeconds: number;
+  retentionSeconds: number;
+  statusReportsEnabled: boolean;
+  sampleBus: SampleBus;
+  statusEvaluator?: IntentStatusEvaluator;
+  workers: SpawnedSynth[];
+}
+
+const sessions = new Map<string, GenerationRun>();
+
+function attachWorkerSampleForwarding(
+  child: ChildProcess,
+  run: GenerationRun,
+  compoundMetric: string,
+  conditionId: string,
+): void {
+  if (!child.stdout) return;
+  let buf = "";
+  child.stdout.on("data", (chunk: Buffer | string) => {
+    buf += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+    let nl = buf.indexOf("\n");
+    while (nl >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      nl = buf.indexOf("\n");
+      if (!line.startsWith("{")) continue;
+      try {
+        const msg = JSON.parse(line) as {
+          type?: string;
+          metric?: string;
+          timestampMs?: number;
+          value?: number;
+          conditionId?: string;
+        };
+        if (msg.type !== "sample") continue;
+        const timestampMs = Number(msg.timestampMs);
+        const value = Number(msg.value);
+        if (!Number.isFinite(timestampMs) || !Number.isFinite(value)) continue;
+        const event = {
+          metric: (msg.metric ?? compoundMetric).trim(),
+          timestampMs,
+          value,
+          conditionId: msg.conditionId ?? conditionId,
+        };
+        run.sampleBus.publish(event);
+        run.statusEvaluator?.noteSampleTimestamp(timestampMs);
+      } catch {
+        // non-JSON worker log lines
+      }
+    }
+  });
+}
+
+function waitForWorkerStdoutAndExit(child: ChildProcess): Promise<void> {
+  return new Promise((resolve) => {
+    let exited = child.exitCode !== null;
+    let stdoutDone = !child.stdout || child.stdout.readableEnded;
+    const tryResolve = () => {
+      if (exited && stdoutDone) resolve();
+    };
+    if (!exited) {
+      child.once("exit", () => {
+        exited = true;
+        tryResolve();
+      });
+    }
+    if (child.stdout && !stdoutDone) {
+      child.stdout.once("end", () => {
+        stdoutDone = true;
+        tryResolve();
+      });
+      child.stdout.once("close", () => {
+        stdoutDone = true;
+        tryResolve();
+      });
+    }
+    tryResolve();
+  });
+}
+
+function stopGenerationRun(run: GenerationRun): void {
+  run.statusEvaluator?.stop();
+  for (const { child } of run.workers) {
+    child.kill("SIGTERM");
+  }
+  run.sampleBus.clear();
+}
 
 function expectedMetricStems(parsed: ParsedSyntheticPrompt): string[] {
   return [
@@ -120,27 +250,27 @@ export function applyPromptGlobalsToConstraint(
 }
 
 export function syntheticObservationStatus(sessionId: string): string {
-  const list = sessions.get(sessionId);
-  if (!list || list.length === 0) return "No schema-synth metric workers.";
-  const lines = list.map(({ compoundMetric, child }) => `- metric=${compoundMetric}, pid=${child.pid ?? "?"}`);
-  return [`Schema-synth workers: ${list.length}`, ...lines].join("\n");
+  const run = sessions.get(sessionId);
+  if (!run || run.workers.length === 0) return "No schema-synth metric workers.";
+  const statusNote = run.statusReportsEnabled ? ", intent status reports=on" : "";
+  const lines = run.workers.map(
+    ({ compoundMetric, child }) => `- metric=${compoundMetric}, pid=${child.pid ?? "?"}${statusNote}`,
+  );
+  return [`Schema-synth workers: ${run.workers.length}`, ...lines].join("\n");
 }
 
 export function stopSyntheticObservationForSession(sessionId: string): string {
-  const list = sessions.get(sessionId);
-  if (!list || list.length === 0) return "No schema-synth workers for this session.";
-  let n = 0;
-  for (const { child } of list) {
-    child.kill("SIGTERM");
-    n += 1;
-  }
+  const run = sessions.get(sessionId);
+  if (!run || run.workers.length === 0) return "No schema-synth workers for this session.";
+  const n = run.workers.length;
+  stopGenerationRun(run);
   sessions.delete(sessionId);
   return `Stopped ${n} schema-synth worker process(es).`;
 }
 
 export function stopAllSyntheticRuns(): void {
-  for (const list of sessions.values()) {
-    for (const { child } of list) child.kill("SIGTERM");
+  for (const run of sessions.values()) {
+    stopGenerationRun(run);
   }
   sessions.clear();
 }
@@ -157,6 +287,7 @@ export async function startSyntheticObservationFromParsed(args: {
   createIntentStorage?: ObservationStorageId | null;
   /** Studio / session LLM override for NL→ConstraintDocument (experiment parity). */
   schemaLlm?: { provider?: "openai" | "anthropic"; model?: string };
+  statusSession?: SyntheticStatusSessionSettings | null;
 }): Promise<string> {
   const fallback: GraphDbEnvFallback = {
     graphDbEndpoint: args.graphDbEndpoint,
@@ -184,6 +315,40 @@ export async function startSyntheticObservationFromParsed(args: {
   mkdirSync(runRoot, { recursive: true });
 
   stopSyntheticObservationForSession(args.sessionId);
+
+  const statusSettings = resolveSyntheticStatusSettings(args.parsed, args.statusSession);
+  const statusActive =
+    statusSettings.statusReportsEnabled && Boolean(args.parsed.intentId?.trim());
+
+  const run: GenerationRun = {
+    runId: `${args.sessionId}-${Date.now()}`,
+    sessionId: args.sessionId,
+    intentId: args.parsed.intentId,
+    mode: args.parsed.mode,
+    frequencySeconds: args.parsed.frequencySeconds,
+    retentionSeconds: statusSettings.retentionSeconds,
+    statusReportsEnabled: statusActive,
+    sampleBus: new SampleBus(),
+    workers: [],
+  };
+
+  if (statusActive) {
+    run.statusEvaluator = new IntentStatusEvaluator({
+      graph,
+      intentId: args.parsed.intentId,
+      intentTurtle,
+      sampleBus: run.sampleBus,
+      mode: args.parsed.mode,
+      frequencySeconds: args.parsed.frequencySeconds,
+      retentionSeconds: statusSettings.retentionSeconds,
+      bootstrapCompliantDelaySeconds: statusSettings.bootstrapCompliantDelaySeconds,
+      historicStartMs: args.parsed.historicStart?.getTime(),
+      isRunActive: () => sessions.get(args.sessionId)?.runId === run.runId,
+    });
+    await run.statusEvaluator.start();
+  }
+
+  sessions.set(args.sessionId, run);
 
   const spawned: SpawnedSynth[] = [];
   const workerAbsTs = join(args.packageDir, "tools", "schemaSynthMetricWorker.ts");
@@ -237,6 +402,7 @@ export async function startSyntheticObservationFromParsed(args: {
     const resolvedMetric = observationTool.resolveCompoundMetricFromIntent(slice.metricCompound, intentTurtle);
     if (!resolvedMetric) {
       for (const s of spawned) s.child.kill("SIGTERM");
+      run.statusEvaluator?.stop();
       sessions.delete(args.sessionId);
       const message = [
         `Metric ${slice.metricCompound} is not defined in GraphDB intent ${args.parsed.intentId}.`,
@@ -299,6 +465,7 @@ export async function startSyntheticObservationFromParsed(args: {
         metric: resolvedMetric,
       });
       for (const s of spawned) s.child.kill("SIGTERM");
+      run.statusEvaluator?.stop();
       sessions.delete(args.sessionId);
       return message;
     }
@@ -327,6 +494,7 @@ export async function startSyntheticObservationFromParsed(args: {
         metric: resolvedMetric,
       });
       for (const s of spawned) s.child.kill("SIGTERM");
+      run.statusEvaluator?.stop();
       sessions.delete(args.sessionId);
       return message;
     }
@@ -370,6 +538,7 @@ export async function startSyntheticObservationFromParsed(args: {
           createIntentStorage: args.createIntentStorage ?? null,
           sessionId: args.sessionId,
           validateBeforeFlush: true,
+          emitStatusSampleEvents: statusActive,
           ticksTotal:
             args.parsed.mode === "historic" &&
             args.parsed.historicStart &&
@@ -388,17 +557,23 @@ export async function startSyntheticObservationFromParsed(args: {
     );
 
     const npxCli = process.platform === "win32" ? "npx.cmd" : "npx";
+    // When status is on, keep the child attached with piped stdout so SampleBus IPC
+    // drains reliably; detached+unref races finalize and drops Compliant/Degraded.
     const cp = spawn(
       npxCli,
       ["--yes", "tsx", workerAbsTs, cfgPath],
       {
         cwd: process.cwd(),
-        detached: true,
-        stdio: "ignore",
+        detached: !statusActive,
+        stdio: statusActive ? ["ignore", "pipe", "inherit"] : "ignore",
         env: process.env
       }
     );
-    cp.unref();
+    if (statusActive) {
+      attachWorkerSampleForwarding(cp, run, resolvedMetric, conditionId);
+    } else {
+      cp.unref();
+    }
 
     cp.on("error", (error) => {
       process.stderr.write(`schema-synth spawn error (${resolvedMetric}): ${String(error)}\n`);
@@ -433,7 +608,28 @@ export async function startSyntheticObservationFromParsed(args: {
     spawned.push({ compoundMetric: resolvedMetric, child: cp });
   }
 
-  sessions.set(args.sessionId, spawned);
+  run.workers = spawned;
+
+  if (statusActive && run.statusEvaluator && spawned.length > 0) {
+    const historicEndMs = args.parsed.historicEnd?.getTime();
+    void Promise.all(
+      spawned.map(({ child }) => waitForWorkerStdoutAndExit(child)),
+    )
+      .then(async () => {
+        if (args.parsed.mode === "historic" && historicEndMs !== undefined) {
+          await run.statusEvaluator?.finalizeHistoric(historicEndMs);
+        }
+        run.statusEvaluator?.stop();
+      })
+      .catch((error) => {
+        process.stderr.write(
+          `[intent-status] finalize failed intent=${args.parsed.intentId}: ${
+            error instanceof Error ? error.message : String(error)
+          }\n`,
+        );
+        run.statusEvaluator?.stop();
+      });
+  }
 
   const tails = spawned.map(({ compoundMetric }) => `\`- ${compoundMetric}\``);
   const modeTail =
@@ -442,8 +638,13 @@ export async function startSyntheticObservationFromParsed(args: {
       : "streaming (wall clock)";
 
   const logsRoot = join(process.cwd(), "logs");
+  const statusTail = statusActive
+    ? `Intent status reports enabled (retention=${statusSettings.retentionSeconds}s).`
+    : "";
+
   return [
     `Started ${spawned.length} schema-synth observation worker process(es); ${modeTail}.`,
+    ...(statusTail ? [statusTail] : []),
     `Run directory: ${runRoot}`,
     `Constraint logs: ${logsRoot}/observation-program-<metric>.js`,
     "Metrics:",
@@ -473,6 +674,7 @@ export async function handleSyntheticObservationUserLine(opts: {
   /** When true, skip `looksLikeSyntheticObservationPrompt` (e.g. `observe synthetic …`). */
   force?: boolean;
   schemaLlm?: { provider?: "openai" | "anthropic"; model?: string };
+  statusSession?: SyntheticStatusSessionSettings | null;
 }): Promise<{ started: boolean; assistantText?: string }> {
   const trimmed = opts.line.trim();
 
@@ -494,6 +696,7 @@ export async function handleSyntheticObservationUserLine(opts: {
     observationStorageOverride: opts.observationStorageOverride,
     createIntentStorage: opts.createIntentStorage,
     schemaLlm: opts.schemaLlm,
+    statusSession: opts.statusSession,
   };
 
   void startSyntheticObservationFromParsed(runArgs)

@@ -55,6 +55,11 @@ export type SimulatorControllerMetadata = {
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
+  /** Duration string (e.g. `5m`) or seconds number for compliance retention. */
+  observationRetentionWindow?: string | number;
+  intentStatusReportsEnabled?: boolean;
+  /** Duration string (e.g. `1m`) or seconds number. */
+  intentStatusBootstrapCompliantDelay?: string | number;
   systemPrompt?: string;
   fewShotMessages?: SimulatorFewShotMessage[];
   numCtx?: number;
@@ -73,6 +78,11 @@ export function simulatorMetadataEnvelope(opts: {
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
+  /** Duration string (e.g. `5m`) or seconds number for compliance retention. */
+  observationRetentionWindow?: string | number;
+  intentStatusReportsEnabled?: boolean;
+  /** Duration string (e.g. `1m`) or seconds number. */
+  intentStatusBootstrapCompliantDelay?: string | number;
   systemPrompt?: string;
   fewShotMessages?: SimulatorFewShotMessage[];
   numCtx?: number;
@@ -115,6 +125,38 @@ export function simulatorMetadataEnvelope(opts: {
       Math.max(1, Math.round(opts.reportingIntervalSeconds)),
     );
   }
+  if (opts.observationRetentionWindow !== undefined && opts.observationRetentionWindow !== null) {
+    if (typeof opts.observationRetentionWindow === "number" && Number.isFinite(opts.observationRetentionWindow)) {
+      simulator.observationRetentionWindow = Math.min(
+        86_400,
+        Math.max(1, Math.round(opts.observationRetentionWindow)),
+      );
+    } else if (typeof opts.observationRetentionWindow === "string" && opts.observationRetentionWindow.trim()) {
+      simulator.observationRetentionWindow = opts.observationRetentionWindow.trim();
+    }
+  }
+  if (typeof opts.intentStatusReportsEnabled === "boolean") {
+    simulator.intentStatusReportsEnabled = opts.intentStatusReportsEnabled;
+  }
+  if (
+    opts.intentStatusBootstrapCompliantDelay !== undefined &&
+    opts.intentStatusBootstrapCompliantDelay !== null
+  ) {
+    if (
+      typeof opts.intentStatusBootstrapCompliantDelay === "number" &&
+      Number.isFinite(opts.intentStatusBootstrapCompliantDelay)
+    ) {
+      simulator.intentStatusBootstrapCompliantDelay = Math.min(
+        86_400,
+        Math.max(1, Math.round(opts.intentStatusBootstrapCompliantDelay)),
+      );
+    } else if (
+      typeof opts.intentStatusBootstrapCompliantDelay === "string" &&
+      opts.intentStatusBootstrapCompliantDelay.trim()
+    ) {
+      simulator.intentStatusBootstrapCompliantDelay = opts.intentStatusBootstrapCompliantDelay.trim();
+    }
+  }
   if (typeof opts.systemPrompt === "string") {
     simulator.systemPrompt = opts.systemPrompt;
   }
@@ -151,6 +193,11 @@ export function hasSimulatorMetadataFields(opts: {
   temperature?: number;
   reportingIntervalMinutes?: number;
   reportingIntervalSeconds?: number;
+  /** Duration string (e.g. `5m`) or seconds number for compliance retention. */
+  observationRetentionWindow?: string | number;
+  intentStatusReportsEnabled?: boolean;
+  /** Duration string (e.g. `1m`) or seconds number. */
+  intentStatusBootstrapCompliantDelay?: string | number;
   systemPrompt?: string;
   fewShotMessages?: SimulatorFewShotMessage[];
   numCtx?: number;
@@ -168,6 +215,15 @@ export function hasSimulatorMetadataFields(opts: {
       (opts.temperature !== undefined && Number.isFinite(opts.temperature)) ||
       (opts.reportingIntervalMinutes !== undefined && Number.isFinite(opts.reportingIntervalMinutes)) ||
       (opts.reportingIntervalSeconds !== undefined && Number.isFinite(opts.reportingIntervalSeconds)) ||
+      (typeof opts.observationRetentionWindow === "string" &&
+        opts.observationRetentionWindow.trim().length > 0) ||
+      (typeof opts.observationRetentionWindow === "number" &&
+        Number.isFinite(opts.observationRetentionWindow)) ||
+      typeof opts.intentStatusReportsEnabled === "boolean" ||
+      (typeof opts.intentStatusBootstrapCompliantDelay === "string" &&
+        opts.intentStatusBootstrapCompliantDelay.trim().length > 0) ||
+      (typeof opts.intentStatusBootstrapCompliantDelay === "number" &&
+        Number.isFinite(opts.intentStatusBootstrapCompliantDelay)) ||
       typeof opts.systemPrompt === "string" ||
       (Array.isArray(opts.fewShotMessages) && opts.fewShotMessages.length > 0) ||
       (opts.numCtx !== undefined && Number.isFinite(opts.numCtx)) ||

@@ -41,6 +41,12 @@ export interface ChatSession {
   reportingIntervalMinutesOverride?: number | null;
   /** From A2A metadata.simulator.reportingIntervalSeconds for this task (takes precedence over minutes). */
   reportingIntervalSecondsOverride?: number | null;
+  /** Retention window in seconds for intent status compliance (from A2A metadata). */
+  observationRetentionWindow?: number | null;
+  /** When true, schema-synth attaches IntentStatusEvaluator. */
+  intentStatusReportsEnabled?: boolean | null;
+  /** Bootstrap delay in seconds before first StateCompliant. */
+  intentStatusBootstrapCompliantDelay?: number | null;
   /** From A2A metadata.simulator.systemPrompt for this task. */
   systemPromptOverride?: string | null;
   /** From A2A metadata.simulator.fewShotMessages for this task. */

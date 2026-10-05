@@ -660,6 +660,15 @@ export function WorkspaceScriptSessionProvider({
         return;
       }
       const now = Date.now();
+      // Drop prior run snapshot so the intents panel does not keep a stale 100%.
+      setObservationProgressByIntentId((current) => {
+        if (!(trimmed in current)) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[trimmed];
+        return next;
+      });
       setHistoricObservationIntentIds((current) => {
         if (current.has(trimmed)) {
           return current;
@@ -669,9 +678,7 @@ export function WorkspaceScriptSessionProvider({
         return next;
       });
       setHistoricObservationAwaitingSinceByIntentId((current) => {
-        if (current[trimmed] !== undefined) {
-          return current;
-        }
+        // Always refresh the awaiting clock for a new historic generation.
         return { ...current, [trimmed]: now };
       });
       if (!compoundMetrics?.length) {
@@ -707,14 +714,9 @@ export function WorkspaceScriptSessionProvider({
       next.delete(trimmed);
       return next;
     });
-    setObservationProgressByIntentId((current) => {
-      if (!(trimmed in current)) {
-        return current;
-      }
-      const next = { ...current };
-      delete next[trimmed];
-      return next;
-    });
+    // Keep the last progress snapshot (including phase=completed) so the Intents
+    // panel can show 100%/ready. Progress is cleared on the next historic mark or
+    // full session reset.
     setHistoricObservationAwaitingSinceByIntentId((current) => {
       if (!(trimmed in current)) {
         return current;
@@ -752,7 +754,10 @@ export function WorkspaceScriptSessionProvider({
       }
       setObservationProgressByIntentId((current) => {
         if (!progress) {
-          if (!(trimmed in current)) {
+          const existing = current[trimmed];
+          // Idle polls must not erase a finished historic run — the Intents panel
+          // uses phase=completed to flip the card to ready before storage discovery.
+          if (!existing || existing.phase === "completed") {
             return current;
           }
           const next = { ...current };

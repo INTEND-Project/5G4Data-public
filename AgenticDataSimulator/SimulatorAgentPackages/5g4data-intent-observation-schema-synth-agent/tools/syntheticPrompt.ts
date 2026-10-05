@@ -19,6 +19,18 @@ export interface ParsedSyntheticPrompt {
   historicEnd?: Date;
   metricSlices: MetricSlice[];
   rawUserLine: string;
+  /** From `status_reports=on|off`; omitted in prompt → null. */
+  statusReportsEnabled?: boolean | null;
+  retentionSeconds?: number;
+  bootstrapCompliantDelaySeconds?: number;
+}
+
+export function parseStatusReportsEnabled(raw: string | undefined): boolean | null {
+  const v = (raw ?? "").trim().toLowerCase();
+  if (!v) return null;
+  if (v === "on" || v === "true" || v === "1" || v === "yes") return true;
+  if (v === "off" || v === "false" || v === "0" || v === "no") return false;
+  return null;
 }
 
 function stripWrappingQuotes(s: string): string {
@@ -239,6 +251,12 @@ export function parseSyntheticPrompt(userLine: string): ParseSyntheticOutcome {
     });
   }
 
+  const statusReportsEnabled = parseStatusReportsEnabled(globals.get("status_reports"));
+  const retentionSeconds = parseFrequencyToSeconds(globals.get("retention") ?? "");
+  const bootstrapCompliantDelaySeconds = parseFrequencyToSeconds(
+    globals.get("bootstrap_compliant_delay") ?? globals.get("bootstrap") ?? "",
+  );
+
   return {
     ok: true,
     value: {
@@ -249,7 +267,12 @@ export function parseSyntheticPrompt(userLine: string): ParseSyntheticOutcome {
       historicStart,
       historicEnd,
       metricSlices,
-      rawUserLine
+      rawUserLine,
+      statusReportsEnabled,
+      ...(retentionSeconds !== undefined ? { retentionSeconds } : {}),
+      ...(bootstrapCompliantDelaySeconds !== undefined
+        ? { bootstrapCompliantDelaySeconds }
+        : {}),
     }
   };
 }

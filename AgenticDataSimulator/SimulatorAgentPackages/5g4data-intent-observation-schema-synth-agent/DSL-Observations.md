@@ -59,11 +59,28 @@ Prefer backtick-wrapped `key=value` tokens (Controller and agent both parse thes
 | `start=…` / `stop=…` | historic only | `dd.mm.yyyy hh:mm:ss` or `dd.mm.yyyy hh.mm.ss` (**UTC**). `stop` must be after `start`                                               |
 | `timezone=…`         | no            | Optional IANA / offset hint for clock windows                                                                                        |
 | `metric=…`           | ≥1            | Stem or `{property}_{conditionId}` compound. Repeat for multi-metric **in one instructions string**, or use one statement per metric |
+| `status_reports=…`   | no            | `on` / `off`. Opt-in intent status IntentReports (default **off** unless agent settings enable it)                                   |
+| `retention=…`        | no            | Sample window for status compliance when status is on (e.g. `5m`). Overrides agent setting                                           |
+| `bootstrap=…`        | no            | Delay before first `StateCompliant` after `StateIntentReceived` (e.g. `1m`)                                                          |
 
 
 Historic tick count must stay under `SYNTH_OBS_HISTORIC_MAX_POINTS` (default **250 000**). Shorten the window or raise `frequency` if Studio validation complains.
 
 **Script rule:** all `request observation-report` lines in one script must share the same `mode` (do not mix historic and streaming).
+
+### Intent status reports (`status_reports`)
+
+Status reporting is **opt-in** (agent setting `intentStatusReportsEnabled` default **false**, or `` `status_reports=on` `` in instructions).
+
+When status is **on** for an intent:
+
+- Use **one** `request observation-report` that lists **all** Condition metrics via repeated `` `metric=…` `` slices (shared `mode` / `frequency` / `start`/`stop` / `retention`).
+- Controller DSL validation rejects multiple observation-report statements that target the same intent while any of them has `` `status_reports=on` ``.
+- The agent attaches an `IntentStatusEvaluator`: SampleBus + flat `icm:IntentReport` writes to **GraphDB** (`StateIntentReceived` → bootstrap `StateCompliant` → `StateDegraded` / `StateCompliant` on transitions). Works in historic (sim-time) and streaming (wall clock).
+
+When status is **off** (default): multiple per-metric statements remain valid (legacy `llmv2.dsl` pattern). Generic / non-intent metric runs are unchanged.
+
+Reference script: [`examples/llmv3.dsl`](../../examples/llmv3.dsl) (status on, multi-metric). Compare with [`examples/llmv2.dsl`](../../examples/llmv2.dsl) (status off, three statements).
 
 ### Historic vs streaming skeletons
 

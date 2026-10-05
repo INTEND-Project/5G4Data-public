@@ -188,6 +188,15 @@ function applySimulatorMetadataToSession(
   if (parsed.reportingIntervalSeconds !== null) {
     session.reportingIntervalSecondsOverride = parsed.reportingIntervalSeconds;
   }
+  if (parsed.observationRetentionWindow !== null) {
+    session.observationRetentionWindow = parsed.observationRetentionWindow;
+  }
+  if (parsed.intentStatusReportsEnabled !== null) {
+    session.intentStatusReportsEnabled = parsed.intentStatusReportsEnabled;
+  }
+  if (parsed.intentStatusBootstrapCompliantDelay !== null) {
+    session.intentStatusBootstrapCompliantDelay = parsed.intentStatusBootstrapCompliantDelay;
+  }
   if (parsed.systemPrompt !== null) {
     session.systemPromptOverride = parsed.systemPrompt;
   }

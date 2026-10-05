@@ -18,6 +18,8 @@ Sibling observation agent for Controller Studio. Maps NL observation instruction
 
 Supported `request observation-report` statement shapes and NL instruction variations are documented in [`DSL-Observations.md`](DSL-Observations.md).
 
+Optional **intent status reports** (`status_reports=on`) evaluate Condition compliance from a SampleBus and write flat `icm:IntentReport` Turtle to GraphDB. See `DSL-Observations.md` and the reference script [`examples/llmv3.dsl`](../../examples/llmv3.dsl).
+
 ```text
 discover observation-agent by domain telenor.5g4data as obs
 request observation-report using obs for myIntent storage prometheus instructions "`mode=historic`, …" as sess

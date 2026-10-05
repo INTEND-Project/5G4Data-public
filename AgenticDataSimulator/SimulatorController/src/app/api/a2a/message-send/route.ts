@@ -36,6 +36,11 @@ const bodySchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
   reportingIntervalMinutes: z.number().int().min(1).max(1440).optional(),
   reportingIntervalSeconds: z.number().int().min(1).max(86_400).optional(),
+  observationRetentionWindow: z.union([z.string().trim().min(1), z.number().int().min(1).max(86_400)]).optional(),
+  intentStatusReportsEnabled: z.boolean().optional(),
+  intentStatusBootstrapCompliantDelay: z
+    .union([z.string().trim().min(1), z.number().int().min(1).max(86_400)])
+    .optional(),
   prometheusBaseUrl: z.string().trim().optional(),
   systemPrompt: z.string().optional(),
   fewShotMessages: z
@@ -161,6 +166,9 @@ export async function POST(request: Request) {
     temperature: body.temperature,
     reportingIntervalMinutes: body.reportingIntervalMinutes,
     reportingIntervalSeconds: body.reportingIntervalSeconds,
+    observationRetentionWindow: body.observationRetentionWindow,
+    intentStatusReportsEnabled: body.intentStatusReportsEnabled,
+    intentStatusBootstrapCompliantDelay: body.intentStatusBootstrapCompliantDelay,
     systemPrompt: body.systemPrompt,
     fewShotMessages: body.fewShotMessages,
     numCtx: body.numCtx,

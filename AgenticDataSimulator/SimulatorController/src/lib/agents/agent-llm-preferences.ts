@@ -32,6 +32,18 @@ export type AgentLlmPreference = {
   provider?: AgentLlmProvider;
   /** Intent-generation only: observation reporting interval in minutes. */
   reportingIntervalMinutes?: number;
+  /**
+   * Observation agents: sample retention window for intent status compliance
+   * (duration string, e.g. `5m`). Used only when status reports are enabled.
+   */
+  observationRetentionWindow?: string;
+  /** Observation agents: attach IntentStatusEvaluator (default off). */
+  intentStatusReportsEnabled?: boolean;
+  /**
+   * Observation agents: delay before first StateCompliant after StateIntentReceived
+   * (duration string, e.g. `1m`).
+   */
+  intentStatusBootstrapCompliantDelay?: string;
   /** Custom system prompt; omit to use the agent's package default. */
   systemPrompt?: string;
   /** Modelfile MESSAGE few-shots; omit/empty when unused. */
@@ -74,6 +86,43 @@ export type AgentLlmPreferencesMap = Record<string, AgentLlmPreference>;
 
 export const DEFAULT_AGENT_TEMPERATURE = 1;
 export const DEFAULT_REPORTING_INTERVAL_MINUTES = 10;
+export const DEFAULT_OBSERVATION_RETENTION_WINDOW = "5m";
+export const DEFAULT_INTENT_STATUS_REPORTS_ENABLED = false;
+export const DEFAULT_INTENT_STATUS_BOOTSTRAP_DELAY = "1m";
+
+/** Parse duration like `5m` / `60s` / `1h` to seconds; undefined if invalid. */
+export function parseDurationToSeconds(value: string | null | undefined): number | undefined {
+  if (typeof value !== "string") return undefined;
+  const s = value.trim().toLowerCase();
+  if (!s) return undefined;
+  const mSec = /^(\d+(?:\.\d+)?)s$/i.exec(s);
+  if (mSec) {
+    const n = Number(mSec[1]);
+    return Number.isFinite(n) && n > 0 ? Math.max(1, Math.round(n)) : undefined;
+  }
+  const mMin = /^(\d+(?:\.\d+)?)m$/i.exec(s);
+  if (mMin) {
+    const n = Number(mMin[1]);
+    return Number.isFinite(n) && n > 0 ? Math.max(1, Math.round(n * 60)) : undefined;
+  }
+  const mHour = /^(\d+(?:\.\d+)?)h$/i.exec(s);
+  if (mHour) {
+    const n = Number(mHour[1]);
+    return Number.isFinite(n) && n > 0 ? Math.max(1, Math.round(n * 3600)) : undefined;
+  }
+  const n = Number(s);
+  if (Number.isFinite(n) && n > 0) return Math.max(1, Math.round(n));
+  return undefined;
+}
+
+export function normalizeDurationSetting(
+  value: string | null | undefined,
+  fallback: string,
+): string {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (trimmed && parseDurationToSeconds(trimmed) !== undefined) return trimmed;
+  return fallback;
+}
 
 export const STOP_SEQUENCES_HELP_TEXT = `Stop sequences end generation when the model emits any listed string. They are model- and chat-template-dependent: wrong stops can truncate early or never fire.
 
@@ -140,6 +189,21 @@ export function normalizeAgentLlmPreference(
   if (typeof input?.reportingIntervalMinutes === "number") {
     out.reportingIntervalMinutes = clampReportingIntervalMinutes(input.reportingIntervalMinutes);
   }
+  if (typeof input?.observationRetentionWindow === "string") {
+    out.observationRetentionWindow = normalizeDurationSetting(
+      input.observationRetentionWindow,
+      DEFAULT_OBSERVATION_RETENTION_WINDOW,
+    );
+  }
+  if (typeof input?.intentStatusReportsEnabled === "boolean") {
+    out.intentStatusReportsEnabled = input.intentStatusReportsEnabled;
+  }
+  if (typeof input?.intentStatusBootstrapCompliantDelay === "string") {
+    out.intentStatusBootstrapCompliantDelay = normalizeDurationSetting(
+      input.intentStatusBootstrapCompliantDelay,
+      DEFAULT_INTENT_STATUS_BOOTSTRAP_DELAY,
+    );
+  }
   if (typeof input?.systemPrompt === "string") {
     out.systemPrompt = input.systemPrompt;
   }
@@ -199,6 +263,9 @@ export function preferenceForSimulatorMetadata(
   llmProvider?: AgentLlmProvider;
   temperature?: number;
   reportingIntervalMinutes?: number;
+  observationRetentionWindow?: string;
+  intentStatusReportsEnabled?: boolean;
+  intentStatusBootstrapCompliantDelay?: string;
   systemPrompt?: string;
   fewShotMessages?: FewShotMessage[];
   numCtx?: number;
@@ -211,6 +278,9 @@ export function preferenceForSimulatorMetadata(
     llmProvider?: AgentLlmProvider;
     temperature?: number;
     reportingIntervalMinutes?: number;
+    observationRetentionWindow?: string;
+    intentStatusReportsEnabled?: boolean;
+    intentStatusBootstrapCompliantDelay?: string;
     systemPrompt?: string;
     fewShotMessages?: FewShotMessage[];
     numCtx?: number;
@@ -223,6 +293,18 @@ export function preferenceForSimulatorMetadata(
   if (pref.provider) out.llmProvider = pref.provider;
   if (typeof pref.reportingIntervalMinutes === "number") {
     out.reportingIntervalMinutes = pref.reportingIntervalMinutes;
+  }
+  if (typeof pref.observationRetentionWindow === "string" && pref.observationRetentionWindow.trim()) {
+    out.observationRetentionWindow = pref.observationRetentionWindow.trim();
+  }
+  if (typeof pref.intentStatusReportsEnabled === "boolean") {
+    out.intentStatusReportsEnabled = pref.intentStatusReportsEnabled;
+  }
+  if (
+    typeof pref.intentStatusBootstrapCompliantDelay === "string" &&
+    pref.intentStatusBootstrapCompliantDelay.trim()
+  ) {
+    out.intentStatusBootstrapCompliantDelay = pref.intentStatusBootstrapCompliantDelay.trim();
   }
   if (typeof pref.systemPrompt === "string") {
     out.systemPrompt = pref.systemPrompt;
@@ -247,5 +329,17 @@ export function isIntentGenerationAgent(agentName: string): boolean {
     lower.includes("intent-generating") ||
     lower.includes("intent-generation") ||
     lower.includes("5g4data-intent-gen")
+  );
+}
+
+/** True for observation / schema-synth agents. */
+export function isObservationAgent(agentName: string): boolean {
+  const lower = agentName.trim().toLowerCase();
+  if (!lower) return false;
+  return (
+    lower.includes("intent-observation") ||
+    lower.includes("observation-generating") ||
+    lower.includes("observation-schema-synth") ||
+    lower.includes("schema-synth")
   );
 }

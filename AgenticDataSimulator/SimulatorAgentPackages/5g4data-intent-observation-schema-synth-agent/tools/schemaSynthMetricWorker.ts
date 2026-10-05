@@ -59,6 +59,25 @@ export interface SchemaSynthMetricWorkerConfig {
   ticksTotal?: number | null;
   /** Soft-fail validation warnings are logged; hard checks abort historic flush. */
   validateBeforeFlush?: boolean;
+  /** When true, emit JSON sample lines on stdout for parent intent-status evaluation. */
+  emitStatusSampleEvents?: boolean;
+}
+
+function emitStatusSampleEvent(
+  cfg: SchemaSynthMetricWorkerConfig,
+  timestampMs: number,
+  value: number,
+): void {
+  if (!cfg.emitStatusSampleEvents) return;
+  process.stdout.write(
+    `${JSON.stringify({
+      type: "sample",
+      metric: cfg.compoundMetric,
+      timestampMs,
+      value,
+      conditionId: cfg.conditionId,
+    })}\n`,
+  );
 }
 
 function numericEnv(name: string, fallback: number): number {
@@ -277,6 +296,7 @@ async function historicRun(
     }
     const value = sampler.sample(t);
     if (!Number.isFinite(value)) throw new Error("Sampler returned non-numeric observation.");
+    emitStatusSampleEvent(cfg, t, value);
     collected.push({ tMs: t, value });
     t += freqMs;
     if (collected.length % 4096 === 0) {
@@ -387,6 +407,7 @@ export function streamingSchedule(
       try {
         const value = sampler.sample(nowWall);
         if (!Number.isFinite(value)) throw new Error("Sampler returned non-numeric observation.");
+        emitStatusSampleEvent(cfg, nowWall, value);
         const payload = tool.generateObservationForCompound(
           cfg.compoundMetric,
           cfg.unit,

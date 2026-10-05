@@ -106,10 +106,234 @@
     },
     {
       "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "StateCompliant": {
+                  "color": "dark-green",
+                  "index": 0,
+                  "text": "Compliant"
+                },
+                "StateDegraded": {
+                  "color": "dark-red",
+                  "index": 1,
+                  "text": "Degraded"
+                },
+                "StateIntentReceived": {
+                  "color": "dark-orange",
+                  "index": 2,
+                  "text": "Received"
+                },
+                "StateReceived": {
+                  "color": "dark-orange",
+                  "index": 3,
+                  "text": "Received"
+                },
+                "StateFinalizing": {
+                  "color": "#ffffff",
+                  "index": 4,
+                  "text": "Finalizing"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intent_state"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "StateCompliant": {
+                        "color": "dark-green",
+                        "index": 0,
+                        "text": "Compliant"
+                      },
+                      "StateDegraded": {
+                        "color": "dark-red",
+                        "index": 1,
+                        "text": "Degraded"
+                      },
+                      "StateIntentReceived": {
+                        "color": "dark-orange",
+                        "index": 2,
+                        "text": "Received"
+                      },
+                      "StateReceived": {
+                        "color": "dark-orange",
+                        "index": 3,
+                        "text": "Received"
+                      },
+                      "StateFinalizing": {
+                        "color": "#ffffff",
+                        "index": 4,
+                        "text": "Finalizing"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 5
+      },
+      "id": 10,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX t: <http://www.w3.org/2006/time#>\n\nSELECT\n  (REPLACE(STR(?state), \"^.*[/#]\", \"\") AS ?intent_state)\n  ?reportNumber\n  ?generatedAt\nWHERE {\n  BIND(IRI(CONCAT(\"repository:\", \"${repository_id}\")) AS ?__repository)\n  BIND(IRI(\"${graph_iri}\") AS ?__graph)\n  SERVICE ?__repository {\n    GRAPH ?__graph {\n      BIND(data5g:${intent_id} AS ?intent)\n      {\n        SELECT ?intent (MAX(?rn) AS ?maxRn)\n        WHERE {\n          ?r a icm:IntentReport ;\n             icm:about ?intent ;\n             icm:reportNumber ?rn .\n        }\n        GROUP BY ?intent\n      }\n      ?report a icm:IntentReport ;\n              icm:about ?intent ;\n              icm:reportNumber ?maxRn ;\n              icm:intentHandlingState ?state ;\n              icm:reportGenerated ?genNode .\n      BIND(?maxRn AS ?reportNumber)\n      OPTIONAL { ?genNode t:inXSDDateTimeStamp ?ts1 . }\n      OPTIONAL { ?genNode t:inXSDDateTime ?ts2 . }\n      BIND(COALESCE(?ts1, ?ts2, ?genNode) AS ?generatedAt)\n    }\n  }\n}\nLIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Current intent state",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "flandersmake-sparql-datasource",
+        "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "intent_state"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "StateCompliant": {
+                        "color": "dark-green",
+                        "index": 0,
+                        "text": "Compliant"
+                      },
+                      "StateDegraded": {
+                        "color": "dark-red",
+                        "index": 1,
+                        "text": "Degraded"
+                      },
+                      "StateIntentReceived": {
+                        "color": "dark-orange",
+                        "index": 2,
+                        "text": "Received"
+                      },
+                      "StateReceived": {
+                        "color": "dark-orange",
+                        "index": 3,
+                        "text": "Received"
+                      },
+                      "StateFinalizing": {
+                        "color": "#ffffff",
+                        "index": 4,
+                        "text": "Finalizing"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 16,
+        "x": 8,
+        "y": 5
+      },
+      "id": 11,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "generatedAt"
+          }
+        ]
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "flandersmake-sparql-datasource",
+            "uid": "${DS_FLANDERSMAKE-SPARQL-DATASOURCE}"
+          },
+          "queryText": "PREFIX icm: <http://tio.models.tmforum.org/tio/v3.6.0/IntentCommonModel/>\nPREFIX data5g: <http://5g4data.eu/5g4data#>\nPREFIX t: <http://www.w3.org/2006/time#>\n\nSELECT\n  ?generatedAt\n  (REPLACE(STR(?state), \"^.*[/#]\", \"\") AS ?intent_state)\n  ?reportNumber\n  ?reason\nWHERE {\n  BIND(IRI(CONCAT(\"repository:\", \"${repository_id}\")) AS ?__repository)\n  BIND(IRI(\"${graph_iri}\") AS ?__graph)\n  SERVICE ?__repository {\n    GRAPH ?__graph {\n      BIND(data5g:${intent_id} AS ?intent)\n      ?report a icm:IntentReport ;\n              icm:about ?intent ;\n              icm:intentHandlingState ?state ;\n              icm:reportGenerated ?genNode .\n      OPTIONAL { ?report icm:reportNumber ?reportNumber . }\n      OPTIONAL { ?report icm:reason ?reason . }\n      OPTIONAL { ?genNode t:inXSDDateTimeStamp ?ts1 . }\n      OPTIONAL { ?genNode t:inXSDDateTime ?ts2 . }\n      BIND(COALESCE(?ts1, ?ts2, ?genNode) AS ?generatedAt)\n    }\n  }\n}\nORDER BY DESC(?generatedAt) DESC(?reportNumber)\nLIMIT 200",
+          "refId": "A"
+        }
+      ],
+      "title": "Intent state change history",
+      "type": "table"
+    },
+    {
+      "datasource": {
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "A = metric observations (Infinity). B = intent bounds via /api/get-metric-bounds (Infinity; replaces SPARQL). configFromData applies B to Value thresholds.",
+      "description": "A = metric observations (Infinity). B = intent bounds via /api/get-metric-bounds (value0/value1/value2). configFromData pushes thresholds on Value: value0 dark-red, value1 semi-dark-green, value2 dark-red.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -154,15 +378,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "dark-red"
-              },
-              {
-                "color": "#EAB839",
-                "value": 300
-              },
-              {
-                "color": "#6ED0E0",
-                "value": 310
+                "color": "dark-red",
+                "value": null
               }
             ]
           },
@@ -174,7 +391,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 10
       },
       "id": 4,
       "options": {
@@ -234,6 +451,11 @@
         {
           "columns": [
             {
+              "selector": "value0",
+              "text": "value0",
+              "type": "number"
+            },
+            {
               "selector": "value1",
               "text": "value1",
               "type": "number"
@@ -277,6 +499,10 @@
               },
               {
                 "destinationType": "number",
+                "targetField": "value0"
+              },
+              {
+                "destinationType": "number",
                 "targetField": "value1"
               },
               {
@@ -296,6 +522,16 @@
             },
             "configRefId": "B",
             "mappings": [
+              {
+                "fieldName": "value0",
+                "handlerArguments": {
+                  "threshold": {
+                    "color": "dark-red"
+                  }
+                },
+                "handlerKey": "threshold1",
+                "reducerId": "last"
+              },
               {
                 "fieldName": "value1",
                 "handlerArguments": {
@@ -360,7 +596,7 @@
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 15
+        "y": 20
       },
       "id": 2,
       "options": {
@@ -421,7 +657,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 25
       },
       "id": 1,
       "options": {
